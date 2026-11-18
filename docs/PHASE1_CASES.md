@@ -492,6 +492,23 @@ L08-10 above covers the two receiving entry guards. The remaining assertions use
 
 **L09-06 (source only):** In Suppliers, compare synthetic contacts with a blank mobile, a formatted mobile that normalizes to ten digits, and a truthy malformed mobile. Intercept `window.open` with a recording stub that never navigates. Expect no **WA** button for a blank mobile; a truthy mobile renders the button. For the ten-digit result, expect a `_blank` request to `wa.me` with `91` prefixed to the normalized digits and no `text` parameter. For the malformed value that normalizes to empty, the handler still requests the `wa.me` path `/91` without an invalid-phone warning. This contact action does not generate a PO attachment. Do not open a chat or send a message; actual handoff remains **OWNER-BLOCKED (OPEN-005)** (L4819-4823, L10401-10409).
 
+#### Supabase mirror projection (NOT RUN)
+
+**L20-15 (source only):** In the eventual isolated walkthrough, freeze the clock and time zone, use synthetic customers and catalog data, and replace `sbRpc()` with a recording stub. Seed active and cancelled bills and standalone receipts before, on and after `shiftDate(todayISO(), -45)`, including a receipt-only day and fractional amounts. Include a debtor, an advance, a zero-balance customer and stock with distinguishable on-hand quantity and FIFO value. Stub successful record sync so the mirror branch is reached; use no live credentials or endpoints (L9574-9637, L9751-9804, L11251-11255).
+
+Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`, where `updated` is the dispatch-time timestamp and each tab contains `headers` and `rows` (L9625-9636, L9751-9804):
+
+| Tab | Expected columns and rows |
+| --- | --- |
+| Day Summary | Date, Bills, Sales ₹, Collected ₹. Descending dates at or after the cutoff; count active bills only, sum their totals, and sum their paid amounts plus standalone receipts. Round each daily amount after summing. Keep receipt-only days with zero bills and sales. |
+| Sales | Date, Bill, Customer, Amount ₹, Paid ₹, Mode, Status. One row per bill at or after the cutoff, newest date first, including cancelled bills labeled `CANCELLED`; round amounts per row. |
+| Udhaar | Customer, Mobile, Balance ₹. Nonzero rounded current balances in descending order, including advances; not limited to recent transactions. |
+| Stock | Item, On Hand (pkt), FIFO Value ₹. One row per catalog product in catalog order, with the formatted `stockLabel()` and rounded remaining FIFO value. |
+| Payments | Date, Customer, Amount ₹, Mode. Standalone receipts at or after the cutoff, newest date first, with each amount rounded. |
+
+- **Throttle and rejection:** Compare time just below, exactly at, and just above 15 minutes since `mirrorAt`. Dispatch only above the boundary; a skipped call does not queue a trailing mirror. A resolved RPC updates `mirrorAt` at completion and attempts to save sync state. A rejected RPC is caught locally, does not advance `mirrorAt`, and does not roll back record sync or skip the separate snapshot check. In a non-silent run, `Cloud sync ✓` can still appear. A later otherwise eligible sync can attempt the mirror again (L9622-9652).
+- **Separate payloads:** Compare captured calls: `sync_push` sends eligible record envelopes with IDs and version/timestamp/device metadata; `put_snapshot` sends the serialized full DB and a sequence cursor; Apps Script `doPush()` sends a stamped full DB in a separate POST. The mirror sends derived display rows, not those records, cursors, or a tombstone feed. Stub results do not establish where the deployed service stores the projection or whether it persists it. Do not treat it as authoritative (L9472-9505, L9580-9586, L9628-9649, L9843-9858).
+
 ### Runtime-only gaps
 
 - Run L01 first only after actual browser egress isolation has been verified. No runtime observation is recorded here.
