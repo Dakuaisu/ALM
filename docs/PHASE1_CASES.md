@@ -444,6 +444,20 @@ Extend L20-02 with independent synthetic transport and storage stubs only. Save 
 - **Client cap:** Return `more: true` on all 200 permitted pages, including the last. Expect no 201st pull in that invocation, but the final page's `max_seq` is still saved under the successful-write fixture condition. On a separate later invocation, with no intervening cursor change, assert that the first pull starts at that saved cursor.
 - **Requests and feedback:** Each `sync_pull` requests `p_limit: 500`; its `p_since` comes from stored `seq`, updated after each page to the greater of the previous cursor and the returned `max_seq`. Capture requests and cursor readback separately. Empty pages cause no post-loop `saveDB()` call because no records were applied. Both exits reach the normal non-silent **Cloud sync ✓** toast. The capped run has no cap-specific notice, and the toast is not evidence that the client exhausted the server's pages. This is a client-loop expectation only, not evidence of a deployed backlog, data loss, or server behavior (L9596-9624, L9651-9664).
 
+#### Post-pull refresh guard (NOT RUN)
+
+**L20-17 (source only):** On independent synthetic copies, stub `sync_pull` to return a terminal page with a fresh record from another device that `sbApply()` accepts. For example, use a new product ID with matching envelope and payload IDs and no matching tombstone. Keep mirror and snapshot refreshes out of the trace. Confirm the record was applied, then compare these states when the pull completes, changing one busy condition at a time (L9508-9512, L9550-9557, L9607-9621):
+
+| View state | Expected `saveDB()` attempt | Expected immediate `go(CURRENT)` |
+| --- | --- | --- |
+| Idle: no open modal, bill or GST draft on its own screen, or qualifying focused field | Yes | Yes |
+| Open modal (`.overlay.show`) | Yes | No |
+| Unsaved bill draft on `CURRENT === "bill"` | Yes | No |
+| Unsaved GST draft on `CURRENT === "gstsales"` | Yes | No |
+| Focused `INPUT`, `SELECT`, or `TEXTAREA` on an otherwise idle view; check each separately | Yes | No |
+
+Record the `saveDB()` call separately from durable readback: wait for write completion and check the merged record in IndexedDB and the localStorage mirror where eligible. Separately capture `go(CURRENT)` calls and the visible view before and after sync. On the idle copy use a view that shows the synthetic record; on busy copies check that the current view was not immediately redrawn. A refresh does not prove persistence, and a skipped refresh does not imply the save was skipped (L641-654, L717-734, L9614-9621).
+
 #### Sheets pull replacement and save boundary (NOT RUN)
 
 Extend L20-06 with independent synthetic response and storage stubs. Seed a current database, a conflict block and a distinct seen-push stamp. Do not call a workbook.
