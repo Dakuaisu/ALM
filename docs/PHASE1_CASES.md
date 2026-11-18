@@ -473,6 +473,16 @@ Extend L20-06 with independent synthetic response and storage stubs. Seed a curr
 - **Missing versus migration failure:** After choosing Pull Latest, return a response without `data.db`. Expect **No data in sheet**, with the current in-memory database, conflict and seen-push stamp unchanged and no `saveDB()` call. On a separate copy, return a truthy database that fails during migration, using the synthetic migration-failure shape from L19-01. Expect **Pull error** after `DB` has already been assigned to the incoming object, with no rollback to the previous database. The handler does not reach the seen-push update, conflict clear or main database save; distinguish those from any migration-internal backup attempt (L504-507, L558-570, L9955-9961, L9967-9997).
 - **Success ordering and contrast:** After assignment and successful migration, the handler attempts to store the seen-push stamp from the imported metadata, clears `_syncBlocked`, updates `_lastRemoteCheck`, and logs the pull, all before calling `saveDB()`. Stub a failed stamp write separately from delayed or failed database writes: `setSeenPush()` suppresses storage errors, and the success toast does not await database durability. Check the conflict state, persisted stamp and both database stores independently. Unlike JSON restore, Sheets pull neither rolls back on migration failure nor resets `pushedM`. Like cloud rebuild, it assigns before migrating without rollback, but it does not attempt rebuild's `pre_rebuild` safety copy, change Supabase cursor state, or directly run catch-up. These are client-source expectations, not evidence of workbook behavior or completed writes (L717-734, L829-836, L9711-9731, L9982-9997, L10029-10050).
 
+#### Sheets readback helper lifecycle (NOT RUN)
+
+**L20-18 (source only):** In the eventual isolated walkthrough, call `jsonpSheet()` with an inert synthetic URL and stub `document.createElement("script")` and `document.body.append()` so the fake node records its `src`, insertion and `remove()` calls without entering the real DOM or loading a script. Capture the generated callback name and its registration on the synthetic `window`. Use independent fixtures and recording `ok` and `err` handlers that do not throw (L9822-9841).
+
+- **Callback success:** Invoke the captured global callback with synthetic data. Expect `ok(data)` first, then deletion of the global callback and removal of the script. Do not expect `err`.
+- **Script-load error:** Invoke the fake script's `onerror`. Expect deletion of the global callback and removal of the script before `err()` is called. Do not expect `ok`.
+- **Script never calls back:** Deliver neither the global callback nor `onerror`. Even if a script-load event is simulated, the helper registers no `onload` cleanup and has no timeout of its own. Advancing a controlled clock alone should leave the fake script and global callback in place, with neither handler called. Record this before fixture teardown; do not infer real workbook behavior.
+
+Do not resolve or request a real Sheets URL.
+
 #### Overlapping Sheets push confirmations (NOT RUN)
 
 Extend L20-05 using POST, readback and timer stubs only. Use a controlled clock, two pushes from the same synthetic device with distinct timestamps A and B, and a known initial `lastSync`.
