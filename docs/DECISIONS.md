@@ -98,3 +98,27 @@ Recorded by agent-bridge at 2026-11-19T01:56:05+05:30.
 - docs/PRD.md: sha256 7b7bdb41a005321019d2c5098f673f5c6b30235ab2dc15a1206065edeec9ccca
 - CLAUDE.md: sha256 407bbc6e4b6d788c713f6ea4f7ef693e659a36687e0750d88fcc36411af0acb1
 - bridge.toml: sha256 3886f7e9ba67ffba1fa0e6ba8eb2b5f572281c8fe8c04187d4a98274b04c5803
+
+## DEC-012 Deployed baseline and dependencies (OPEN-001)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options: Treat the supplied HTML as deployed, or keep it as an unchanged candidate pending the laptop copy or an independently computed digest and deployment details.
+Decision: Keep deployed-copy confirmation and dependency capture OWNER-BLOCKED. Use the candidate only for static discovery and a verified isolated walkthrough.
+Why: The repository digest fingerprints only the supplied bytes. It cannot attest to the laptop file, origin, dependency versions, or runtime configuration.
+
+## DEC-013 Read-only data access (OPEN-002)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options: Treat client calls as the deployed schema or probe configured services, or continue static mapping and request protected metadata or authorized least-privilege read-only access plus approved Sheets and recurring JSON samples.
+Decision: Keep discovery access OWNER-BLOCKED. Continue the source map and checklist without contacting any live endpoint or assigning source precedence.
+Why: Client code cannot establish deployed schema, grants, RPC behavior, retention, or overlaps. Synthetic payloads cannot replace authorized source evidence.
+
+## DEC-014 Platform and sharing evidence (OPEN-005)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options: Substitute local previews, simulated sharing or emulator output for acceptance, or keep actual handoff blocked pending confirmed devices and approved test accounts or recipients.
+Decision: Keep platform and actual WhatsApp handoff OWNER-BLOCKED. Prepare the matrix; local image, print, PDF and simulated share checks are development evidence only.
+Why: Neither a local image nor an intercepted share call shows that WhatsApp receives the image on a supported target. The blank owner review provides no approval.
