@@ -187,7 +187,7 @@ Extend the existing L11 fixtures by opening **Lots** for the product from Stock 
 | L15-02 | B: apply Use system figures with online receipts and credit part-payment; submit blank date, then exercise decline/confirm deletion on disposable data. | Expected: only Online is treated as online in the day comparison; copy puts its full value in Paytm, clears PhonePe and copies system cash. Blank date blocks saving; confirmed deletion removes the manual row. | 8579-8634, 8666-8709 |
 | L17-03 | B/P: open Rate List for first time, add a product after deselecting others, and try Print/PDF/WhatsApp with no selection. | Expected: first visit selects all, new IDs become selected, and empty selection warns without output; PDF shares the print guard. | 11263-11279, 11524-11564 |
 | L18-03 | B: compare header Close, Escape and backdrop dismissal on clean and dirty Edit Bill and Receive Payment forms. Exercise the nested confirmation branches below. With privacy active, tap a blurred figure. | Expected from source: header Close bypasses the dirty guard; Escape and overlay-target mousedown check the top modal's dirty flag. Tapping a blurred value reveals it where supported; no permission is granted. See the source-only dismissal assertions below. | 1473-1601, 4174-4201, 5928-5964 |
-| L18-05 | X: on separate synthetic copies, compare the raw log across the append boundary and the Settings table across the display boundary. | See [Settings Activity Log](#settings-activity-log-not-run) for the independent source expectations (**NOT RUN**). | 838-852, 9346-9376 |
+| L18-05 | X: on synthetic copies, compare the append and display boundaries, then compare Settings, full JSON and the outgoing delta after a trim. | See [Settings Activity Log](#settings-activity-log-not-run) for the independent source expectations (**NOT RUN**). | 838-852, 974-998, 9346-9376, 9423-9438, 9451, 9472-9485, 9574-9589, 10016-10019 |
 
 ### Settings Activity Log (NOT RUN)
 
@@ -195,6 +195,18 @@ Extend the existing L11 fixtures by opening **Lots** for the product from Stock 
 
 - **Stored log (`logAct()`):** Seed positions 1 through 3,999, with the highest seeded `ts` at position 1. Append once and expect all 4,000 entries in array order. Append again and expect the array to retain positions 1,002 through 4,001 in their original order, including the newly appended entry. Inspect `DB.log` directly: the trim runs only after an append takes the length above 4,000, and it keeps the last 3,000 by position, not by timestamp. This checks the local data array, not durable or hosted retention (L838-852).
 - **Settings table:** Without calling `logAct()`, render independent arrays of 200 and 201 entries. In the 201-entry fixture, give position 1 the highest `ts` and position 201 a visibly earlier `ts` than position 200. Expect the 200-entry fixture to show positions 200 down to 1, and the 201-entry fixture to show positions 201 down to 2. Match visible Details labels to the seed: position 201 comes first despite its earlier When value, and position 1 is absent despite having the highest `ts`. The table formats `ts` for display but does not sort on it or mutate `DB.log` (L9346-9376).
+
+#### Settings, full JSON and outgoing delta (NOT RUN)
+
+On a separate synthetic copy, seed 4,000 log entries with distinct IDs and Details labels, an empty `DB.deleted`, and a fixed positive `pushedM`. Keep that watermark unchanged while comparing before and after one `logAct()` append. Use the original array positions below even after the trim. Compare Settings labels, `log` and `deleted` in a local capture of the full backup payload, and `log` and `deleted` records in `sbChanged()` output. Inspect the payload builder only; do not send a request. `backupJSON()` serializes the whole current `DB`, whereas `sbChanged()` scans both collections and selects rows with an ID and numeric `_m` strictly greater than `pushedM`, not by `ts` or Settings visibility. `sbSync()` would pass the selected records as `p_records` to `sync_push` (L9423-9438, L9451, L9472-9485, L9574-9589, L10016-10019).
+
+| Synthetic marker | Settings after append | Full JSON after append | Outgoing delta after append |
+| --- | --- | --- | --- |
+| Position 3,801, `_m > pushedM` | Hidden: just outside the last 200 positions after the append. | Present in `log`; the display limit does not affect the backup. | Present as a `log` record; the display limit does not affect selection. |
+| Position 1,001, `_m > pushedM` | Absent after trim. | Present before the append; absent from `log` afterward, with no matching entry in `deleted`. | Eligible before the append; absent afterward, with no `deleted` record for its ID. |
+| Position 4,000, `_m = pushedM` | Visible. | Present in `log`. | Omitted: equality does not satisfy the watermark filter. This does not show that the row was already uploaded. |
+
+`logAct()` trims by slicing `DB.log`; it does not call `removeRec()` or `tombstone()`, so the trim does not create a `log:<id>` tombstone (L838-852, L974-998). Absence from any one output does not prove deletion or deployed retention.
 
 The UI's “permanent” label does not establish complete audit history or deployed retention. A row omitted by the table is not necessarily absent from the local array. See [SRC-LOG](PHASE1_DISCOVERY.md#per-record-source-crosswalk) for the blocked comparison against protected captures.
 
