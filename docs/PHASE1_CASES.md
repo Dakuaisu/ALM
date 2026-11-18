@@ -43,6 +43,16 @@ Use independent synthetic copies with sync off, `meta.schema` below 2, and a fix
 | L01-12 | X: compare a pre-2 copy, a schema-2 control and a saved schema-3 result from the preceding cases. Reload the saved result; separately reload a winning legacy localStorage seed without a subsequent app save. | Expected: pre-2 enters the identity/stock branch and then the pre-3 log/meta branch; schema-2 runs only the latter. Missing log IDs and revision fields are backfilled there. Reloading a persisted schema-3 result skips both branches, retaining migrated IDs, adjustment totals and history without appending another migrated row. A still-legacy persisted input can re-enter the branch: verify written schema, backup availability, and storage revision separately for localStorage, IndexedDB or confirmed JSON restore. | 504-624, 641-667, 684-734, 10021-10049 |
 | L01-13 | X/P: seed two suppliers with the same exact name, one missing its ID and one with a stable ID. Seed POs with a missing `supId` for that name and for an unmatched name, and a PO whose existing nonempty `supId` points to the second supplier despite the duplicate name. Reverse supplier order on an independent copy with stable IDs. | Expected: migration generates missing supplier IDs and preserves existing ones. Missing PO links use the first exact-name supplier in array order, or `null` for an unmatched name; an existing nonempty `supId` is not replaced or validated by this branch. Compare raw IDs and links after upgrade and persisted reload. The PO supplier display and any downstream name-based behavior still need a walkthrough. | 504, 571-587, 600-624 |
 
+### Inline page resources (NOT RUN)
+
+**L01-14 (source only):** Extend the L01-01 startup walkthrough on the isolated loopback origin after containment passes. Use the unchanged candidate and a fresh disposable profile with integrations disabled. Keep three distinct records:
+
+- **Declared:** Record the `rel="icon"` link with its embedded `data:image/svg+xml` value, the inline `<style>` block, and the inline `<script>` without a `src`; the script ends by calling `boot()` (L7, L10-14, L356-360, L11658-11659). These declarations do not name separately fetched files for the three resources.
+- **Rendered and executed:** Inspect the browser tab icon if the tab surface exposes it; otherwise mark icon rendering unobserved rather than inferring it from the DOM. Check a computed style such as the fresh profile's `--brand` token, and confirm script execution independently through L01-01's Dashboard boot and any console errors (L14, L11637-11645).
+- **Requested:** Start request capture before navigation and retain the loopback server log. Record the document request and any observed subresource requests or blocked attempts separately, including any browser-generated favicon probe if present. A data URL is not a remote icon request, and neither its declaration nor a quiet request log proves the tab rendered the icon. Do not follow any unexpected target.
+
+Record observations as development evidence for this candidate/profile only. Deployed assets, origin and browser configuration remain **OWNER-BLOCKED (OPEN-001)**.
+
 ## Counter, checkout, edit and outputs
 
 | Case | Fixture and operator action | Expected source branch or unresolved assertion | HTML lines |
