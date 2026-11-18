@@ -369,6 +369,13 @@ These are source expectations, not observed results or approved accounting rules
 
 These are candidate-source expectations for legacy behavior, not observed results or approved accounting rules.
 
+#### Top product rankings (NOT RUN)
+
+- **L02-02/L02-03/L16-01 (selected period versus all time):** Extend the existing date-boundary fixture with a product whose only Packet sale is outside Today but inside another Dashboard period, and a cancelled bill large enough to change the leader if included. Dashboard ranks `cur.bills` from the selected document-date range and shows up to six rows. Reports ranks all non-cancelled sales without a date filter and shows up to eight; switching the Dashboard period does not narrow that list. Compare both against the same fixture (L2498-2506, L2725-2743, L2836-2863, L8830-8844).
+- **L02-02/L16-01 (quantity versus value):** Seed a direct Packet line for product A, a higher-value direct Packet line for B, and a priced crate with enough Packet components of A to give A the larger packet count. Add direct and crate-component Piece lines as controls. Both rankings should put A first: direct Packet lines contribute quantity and stored line amount, while Packet components contribute component quantity multiplied by crate count and zero value. Piece lines are skipped, not converted to packet equivalents. A missing unit defaults to Packet on a direct line and Piece on a crate component. Both views group by item name and sort by descending packet quantity, not monetary value; Dashboard bars also scale by quantity. Compare the displayed value separately from row order: it does not allocate the crate's price to its components (L2836-2858, L3126-3149, L8830-8844).
+
+These are candidate-source expectations, not observed results or approved reporting rules.
+
 ### Runtime-only gaps
 
 - Run L01 first only after actual browser egress isolation has been verified. No runtime observation is recorded here.
