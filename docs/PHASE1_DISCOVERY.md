@@ -119,3 +119,47 @@ Scope remains R-1 through R-10, discovery only. The [Phase 1 exit criteria](PRD.
 - **PO evidence gaps (L07/L08).** [Save and edit](PHASE1_CASES.md#po-save-and-edit-not-run), paste, receiving and supplier outputs have source expectations only. After the isolation gate and L01, verify manual versus pasted quantities, Pending-only Edit, receipt and deletion effects, and local print/share outputs without opening chats. Keep the received duplicate-history Save branch separate as a synthetic handler check; no ordinary operator path was found. Protected records are still needed to establish whether duplicate names or incomplete receipt logs occur in deployed history and to reconcile purchase value, stock, FIFO and movement dates separately (OPEN-001/002/003). Actual device output and supplier sharing remain unverified (OPEN-005).
 - **NOT RUN: isolated walkthrough.** The candidate was not opened because environment-level browser egress containment was not verified. See [Phase 1 results](RESULTS.md#phase-1-discovery). Do not repeat the unchanged preflight. If the environment changes, log a separate inert probe on the actual disposable browser; open the candidate only after it demonstrates deny-by-default egress. Start with [L01 startup and recovery](PHASE1_CASES.md#startup-and-recovery-run-first-after-isolation-passes), including the [one-time schema upgrade cases](PHASE1_CASES.md#one-time-schema-upgrade-not-run) and supplier identity and PO linking case L01-13. Keep source expectations separate from observed results.
 - **BLOCKED: owner evidence and approval.** [OPEN-001/002 and OPEN-004 through OPEN-007](OPEN.md) remain owner-blocked: deployed-copy confirmation and dependency capture; authorized metadata and protected records for overlap and reconciliation; permission and draft-conflict decisions; device expectations and actual sharing evidence; hosted test project and separate implementation authorization; and cutover and rollback authority.
+
+### Candidate coverage pass
+
+This is an index into the [case matrix](PHASE1_CASES.md), not a parity result. Each mapping names the behavior actually asserted; it does not credit everything in the surrounding source range. All operator cases remain **NOT RUN**.
+
+| Functional section | Existing case coverage |
+| --- | --- |
+| L01 Shell, boot, recovery | L01-01 through L01-08: initial routes, competing stores, recovery, restore and shortcut. L01-09 through L01-13: migration identity, stock, schema and supplier links. |
+| L02 Counter and Dashboard | L02-01: shortcuts, recent bills and debtor filter. L02-02/L02-03: period comparisons, drilldowns, chart inputs and product ranking. L02-04: ageing allocation and boundaries. |
+| L03 Bill entry | L03-01 through L03-04: numbering, line/charge totals and saved costs, required inputs, draft replacement and resume. |
+| L04 Sales history | L04-01 through L04-04: edit isolation and historical costs, cancellation/undo effects, history filters and KPI drilldown inputs. |
+| L05 Estimate outputs | L05-01 through L05-05: current versus as-of balance, print/PDF, HTML and canvas PNG, file/download/text routing and Sales-row sharing. |
+| L06 GST | L06-01: renderer-only ordinary sale including tax override and crate ties. L06-02 through L06-06: standalone save/reprint, cancel/delete and numbering, popup, pagination and buyer state. |
+| L07 Purchase Orders | L07-01/L07-04: paste matching and draft replacement. L07-02: save and supplier validation. L07-03: detail, supplier outputs and recipient selection. |
+| L08 Receiving | L08-01 through L08-06: receipts, quantity/rate guards, close, edit, deletion and historic receipt value. L08-07 through L08-09: cost blend and quote updates. |
+| L09 Products and suppliers | L09-01 through L09-05: filters, duplicate name, pricing, linked record changes, quote-column retention and rename cascades; L20-07/L20-08: snapshot versus delta effects. |
+| L10 Crates | L10-01 and L03-02/L04-01 extensions: template lifecycle, mixed-unit sale, builder replacement and repeated-component allocation. |
+| L11 Stock and FIFO | L11-01 through L11-05: lots, physical counts, conversion fallbacks, mixed receipt history and valuation. |
+| L12 Godown | L12-01/L12-03: manual counts, filtering, copy and delete. L12-02: movement opening/closing and inherited receipt remainder. |
+| L13 Reorder and Order Planner | L13-01: threshold/rate context, list copy and PO entry. L13-02: supplier context and checkout/save. |
+| L14 Customers and udhaar | L14-01 through L14-05: receipt and selection guards, balance and delete threshold, ledger ordering, opening adjustments and rename by ID. |
+| L15 Cash Book | L15-01/L15-02: manual figures, day-close comparisons, copy/validation/delete and P&L input contrast. |
+| L16 Reports | L16-01: P&L and rankings. L16-02 through L16-05: dead-stock cutoff, cancellation, value and identity. L16-06: chart inputs. |
+| L17 Rate List | L17-01 through L17-03: picker versus output selection, navigation/reload, print/PDF and text branches. |
+| L18 Settings | L18-01 through L18-04: business/local preferences, Clear All, modal dismissal/privacy and document identity flags. |
+| L19 Backups and exports | L19-01 through L19-03: restore and projections. L19-04 through L19-08: save fan-out, folder permissions, handle persistence and partial writes. |
+| L20 Sync | L20-01 through L20-06: guards, interruption, errors, snapshots/rebuild and Sheets confirmation/conflict. L20-07 through L20-13: pricing scope, scheduling and tombstone behavior. |
+
+**Listed candidate-source gaps addressed.** The [follow-up assertions](PHASE1_CASES.md#candidate-coverage-follow-ups-not-run) close the specific source checks identified below. This is not exhaustive branch coverage or a walkthrough result. The [earlier branch assertions](PHASE1_CASES.md#additional-branch-assertions-from-the-coverage-pass-not-run) separately cover cancellation metadata, mixed-supplier checkout and metadata/stock merge branches.
+
+| Area | Source check addressed and case |
+| --- | --- |
+| L08 Receiving | L08-10: missing PO warning and early return (L6925-6928, helper-only); disabled rate and quantity inputs for a completed line on a still-open PO (L6930-6934, L6971-6985, ordinary Receive). |
+| L09 Products and suppliers | L09-02/L09-03: blank/zero quote removal versus nonzero assignment (L7730-7734); Add Supplier cancel, blank and duplicate no-ops versus immediate creation for a new name (L7745-7760). |
+| L10 Crates | L10-01: template suggestion uses current Packet sell rate or Piece MRP and skips unresolved components (L7967-7989); malformed-component fallback is helper-only (L1040-1062). |
+| L11 Stock and FIFO | L11-01/L11-04: receipt date fallback (L1198-1213), shortage price priority (L1291-1305) and remaining-layer cutoff (L1317-1337), with historical fixtures and a helper-level residual check. |
+| L12 Godown | L12-02: missing receipt/PO dates and remainder handling (L10866-10880), signed net adjustment folding (L10891-10896, L10916-10923), and idle-row and zero-cell display (L11189-11210). Historical missing dates are seeded, not entered as normal receipts. |
+| L13 Order Planner | L13-02: empty checkout after quantity filtering (L10546-10556) and group Add all preserving existing cart entries (L10721-10729), both ordinary controls. |
+| L17 Rate List | L17-01: group toggles affect only visible items of that brand; no group toggle renders with no visible items (L11412-11442). Separate from the global shown-subset controls. |
+| L18 Preferences | L18-01/L05-01: synthetic storage failures leave read defaults or retain the write's effect only in memory until reload (L1423-1499, L4210-4233, L4371-4397). |
+
+**Walkthrough evidence (NOT RUN).** Source can establish handler conditions and expected data changes, but not actual keyboard or touch behavior, rendered print/PDF pagination, PNG legibility, clipboard or file-handle permissions, or completed local writes after interruption. After verified isolation and L01, use synthetic fixtures and inspect browser observations, artifacts and readback separately from markup, toasts or stub arguments. Intercept sharing; do not open chats.
+
+**Owner evidence (BLOCKED).** OPEN-001 must establish the deployed copy, origin and dependencies. OPEN-002 must supply authorized metadata and protected captures; only those can test actual overlap, record completeness and deployed invoice rules under OPEN-003. Source precedence needs owner/accounting approval. OPEN-004 through OPEN-007 retain their existing role/draft, target-device and real sharing, hosted testing/implementation, and cutover/rollback gates. Neither source findings nor isolated observations discharge those gates.
