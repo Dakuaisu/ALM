@@ -122,3 +122,19 @@ Why: Client code cannot establish deployed schema, grants, RPC behavior, retenti
 Options: Substitute local previews, simulated sharing or emulator output for acceptance, or keep actual handoff blocked pending confirmed devices and approved test accounts or recipients.
 Decision: Keep platform and actual WhatsApp handoff OWNER-BLOCKED. Prepare the matrix; local image, print, PDF and simulated share checks are development evidence only.
 Why: Neither a local image nor an intercepted share call shows that WhatsApp receives the image on a supported target. The blank owner review provides no approval.
+
+## DEC-015 Defer permission and offline conflict approval (OPEN-004)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options: Treat the draft role, device and conflict rules as approved, or retain them as proposals and deny unapproved actions pending explicit owner approval.
+Decision: Defer approval. The proposed role/data matrix, device rules and price, tax, stock and credit conflict authority grant no access or override. Implementation still requires separate explicit owner approval (OPEN-006).
+Why: The proposals describe defaults and alternatives, not the owner's delegation of access or authority over stale terms. Assuming approval could expose restricted data or let someone confirm terms they are not authorized to accept.
+
+## DEC-016 Defer rollback authority and cutover approval (OPEN-007)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options: Treat the rollback proposal as delegated authority to pause, recover or reopen billing, or retain it as a proposal pending named authority, rehearsal and explicit owner decisions.
+Decision: Defer approval. Keep rollback authority, write pause, accounting sign-off and post-switch reconciliation unapproved. Implementation and production cutover require separate explicit owner approvals; neither this deferral nor a rehearsal grants either.
+Why: A documented procedure does not identify who can order a switch or prove that committed post-switch records can be retained before reopening legacy billing.
