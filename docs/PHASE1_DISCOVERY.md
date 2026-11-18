@@ -146,26 +146,26 @@ This is an index into the [case matrix](PHASE1_CASES.md), not a parity result. E
 
 | Functional section | Existing case coverage |
 | --- | --- |
-| L01 Shell, boot, recovery | L01-01 through L01-08: initial routes, competing stores, recovery, restore and shortcut. L01-09 through L01-13: migration identity, stock, schema and supplier links. |
+| L01 Shell, boot, recovery | L01-01 through L01-08: initial routes, competing stores, recovery, restore and shortcut. L01-09 through L01-13: migration identity, stock, schema and supplier links. L01-14: inline resource declarations, rendering, execution and requests. |
 | L02 Counter and Dashboard | L02-01: shortcuts, recent bills and debtor filter. L02-02/L02-03: period comparisons, drilldowns, chart inputs and product ranking. L02-04: ageing allocation and boundaries. |
 | L03 Bill entry | L03-01 through L03-04: numbering, line/charge totals and saved costs, required inputs, draft replacement and resume. |
 | L04 Sales history | L04-01 through L04-04: edit isolation and historical costs, cancellation/undo effects, history filters and KPI drilldown inputs. |
 | L05 Estimate outputs | L05-01 through L05-05: current versus as-of balance, print/PDF, HTML and canvas PNG, file/download/text routing and Sales-row sharing. |
 | L06 GST | L06-01: renderer-only ordinary sale including tax override and crate ties. L06-02 through L06-06: standalone save/reprint, cancel/delete and numbering, popup, pagination and buyer state. |
 | L07 Purchase Orders | L07-01/L07-04: paste matching and draft replacement. L07-02: save and supplier validation. L07-03: detail, supplier outputs and recipient selection. |
-| L08 Receiving | L08-01 through L08-06: receipts, quantity/rate guards, close, edit, deletion and historic receipt value. L08-07 through L08-09: cost blend and quote updates. |
-| L09 Products and suppliers | L09-01 through L09-05: filters, duplicate name, pricing, linked record changes, quote-column retention and rename cascades; L20-07/L20-08: snapshot versus delta effects. |
+| L08 Receiving | L08-01 through L08-06: receipts, quantity/rate guards, close, edit, deletion and historic receipt value. L08-07 through L08-09: cost blend and quote updates. L08-10: missing-PO guard and disabled inputs on completed lines. |
+| L09 Products and suppliers | L09-01 through L09-05: filters, duplicate name, pricing, linked record changes, quote-column retention and rename cascades. L09-06: supplier contact chat intent. L20-07/L20-08: snapshot versus delta effects. |
 | L10 Crates | L10-01 and L03-02/L04-01 extensions: template lifecycle, mixed-unit sale, builder replacement and repeated-component allocation. |
 | L11 Stock and FIFO | L11-01 through L11-05: lots, physical counts, conversion fallbacks, mixed receipt history and valuation. |
 | L12 Godown | L12-01/L12-03: manual counts, filtering, copy and delete. L12-02: movement opening/closing and inherited receipt remainder. |
-| L13 Reorder and Order Planner | L13-01: threshold/rate context, list copy and PO entry. L13-02: supplier context and checkout/save. |
-| L14 Customers and udhaar | L14-01 through L14-05: receipt and selection guards, balance and delete threshold, ledger ordering, opening adjustments and rename by ID. |
+| L13 Reorder and Order Planner | L13-01: threshold/rate context, list copy and PO entry. L13-02: supplier context and checkout/save. L13-03: Copy Plan text and clipboard outcomes. |
+| L14 Customers and udhaar | L14-01 through L14-05: receipt and selection guards, balance and delete threshold, ledger ordering, opening adjustments and rename by ID. L14-06: reminder visibility, phone validation and encoded balance text. |
 | L15 Cash Book | L15-01/L15-02: manual figures, day-close comparisons, copy/validation/delete and P&L input contrast. |
 | L16 Reports | L16-01: P&L and rankings. L16-02 through L16-05: dead-stock cutoff, cancellation, value and identity. L16-06: chart inputs. |
 | L17 Rate List | L17-01 through L17-03: picker versus output selection, navigation/reload, print/PDF and text branches. |
 | L18 Settings | L18-01 through L18-04: business/local preferences, Clear All, modal dismissal/privacy and document identity flags. |
 | L19 Backups and exports | L19-01 through L19-03: restore and projections. L19-04 through L19-08: save fan-out, folder permissions, handle persistence and partial writes. |
-| L20 Sync | L20-01 through L20-06: guards, interruption, errors, snapshots/rebuild and Sheets confirmation/conflict. L20-07 through L20-13: pricing scope, scheduling and tombstone behavior. |
+| L20 Sync | L20-01 through L20-06: guards, interruption, errors, snapshots/rebuild and Sheets confirmation/conflict. L20-07 through L20-13: pricing scope, scheduling and tombstone behavior. L20-14: Open Sheet navigation. L20-15: mirror projection. L20-16: pull pagination cap. L20-17: post-pull refresh guard. L20-18: Sheets readback helper lifecycle. |
 
 **Listed candidate-source gaps addressed.** The [follow-up assertions](PHASE1_CASES.md#candidate-coverage-follow-ups-not-run) close the specific source checks identified below. This is not exhaustive branch coverage or a walkthrough result. The [earlier branch assertions](PHASE1_CASES.md#additional-branch-assertions-from-the-coverage-pass-not-run) separately cover cancellation metadata, mixed-supplier checkout and metadata/stock merge branches.
 
