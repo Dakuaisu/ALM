@@ -187,6 +187,16 @@ Extend the existing L11 fixtures by opening **Lots** for the product from Stock 
 | L15-02 | B: apply Use system figures with online receipts and credit part-payment; submit blank date, then exercise decline/confirm deletion on disposable data. | Expected: only Online is treated as online in the day comparison; copy puts its full value in Paytm, clears PhonePe and copies system cash. Blank date blocks saving; confirmed deletion removes the manual row. | 8579-8634, 8666-8709 |
 | L17-03 | B/P: open Rate List for first time, add a product after deselecting others, and try Print/PDF/WhatsApp with no selection. | Expected: first visit selects all, new IDs become selected, and empty selection warns without output; PDF shares the print guard. | 11263-11279, 11524-11564 |
 | L18-03 | B: compare header Close, Escape and backdrop dismissal on clean and dirty Edit Bill and Receive Payment forms. Exercise the nested confirmation branches below. With privacy active, tap a blurred figure. | Expected from source: header Close bypasses the dirty guard; Escape and overlay-target mousedown check the top modal's dirty flag. Tapping a blurred value reveals it where supported; no permission is granted. See the source-only dismissal assertions below. | 1473-1601, 4174-4201, 5928-5964 |
+| L18-05 | X: on separate synthetic copies, compare the raw log across the append boundary and the Settings table across the display boundary. | See [Settings Activity Log](#settings-activity-log-not-run) for the independent source expectations (**NOT RUN**). | 838-852, 9346-9376 |
+
+### Settings Activity Log (NOT RUN)
+
+**L18-05:** These are source expectations for the unverified candidate. Use synthetic entries with distinct IDs and visible Details labels; the position numbers below describe array order, not time.
+
+- **Stored log (`logAct()`):** Seed positions 1 through 3,999, with the highest seeded `ts` at position 1. Append once and expect all 4,000 entries in array order. Append again and expect the array to retain positions 1,002 through 4,001 in their original order, including the newly appended entry. Inspect `DB.log` directly: the trim runs only after an append takes the length above 4,000, and it keeps the last 3,000 by position, not by timestamp. This checks the local data array, not durable or hosted retention (L838-852).
+- **Settings table:** Without calling `logAct()`, render independent arrays of 200 and 201 entries. In the 201-entry fixture, give position 1 the highest `ts` and position 201 a visibly earlier `ts` than position 200. Expect the 200-entry fixture to show positions 200 down to 1, and the 201-entry fixture to show positions 201 down to 2. Match visible Details labels to the seed: position 201 comes first despite its earlier When value, and position 1 is absent despite having the highest `ts`. The table formats `ts` for display but does not sort on it or mutate `DB.log` (L9346-9376).
+
+The UI's “permanent” label does not establish complete audit history or deployed retention. A row omitted by the table is not necessarily absent from the local array. See [SRC-LOG](PHASE1_DISCOVERY.md#per-record-source-crosswalk) for the blocked comparison against protected captures.
 
 ## Sync and recovery (transport stubs only)
 
