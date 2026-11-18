@@ -336,6 +336,16 @@ Extend L05-01 through L05-04 with these source expectations. Compare content usi
 
 Actual print/PDF rendering, image appearance on approved devices, and receipt of an image in WhatsApp are separate evidence under OPEN-005.
 
+#### HTML PNG encoder selection (NOT RUN)
+
+**L05-03/L07-03 (source only):** In the eventual isolated walkthrough, let the SVG image load path reach `drawImage()` with a synthetic canvas stub. Record encoder calls and the result delivered to the `htmlToPNG()` callback separately from any caller action (L4742-4756).
+
+- **`toBlob()` available:** Have `toBlob()` invoke its callback with a synthetic PNG Blob. Expect `toBlob()` to be called with `image/png` and the same Blob to reach the helper's caller, with no helper call to `toDataURL()`.
+- **`toBlob()` absent:** Omit `toBlob()` on the stub and have `toDataURL("image/png")` return a synthetic PNG data URL. Expect the helper to pass the decoded PNG Blob from `dataURLtoBlob()` to its caller (L4479-4488, L4752-4753).
+- **`toBlob()` callback returns null:** Keep `toBlob()` available and invoke its callback with `null`. Expect the helper to pass `null` to its caller without trying `toDataURL()` (L4752-4753).
+
+**Caller-level behavior is separate:** On null, the estimate caller may use `toDataURL()` on its separate hand-drawn fallback canvas (L05-04); that is not a retry by `htmlToPNG()`. The PO caller instead constructs a text intent without a canvas retry. Intercept output actions only; do not open any generated intent (L4795-4816, L6811-6845).
+
 #### GST calculation and reprint (NOT RUN)
 
 Extend L06-01 and L06-02 with synthetic fixtures. These are legacy source expectations, not tax advice or approved rule changes. The ordinary Sales View opens the estimate via `showInvoice(s)`. The only calls to `showGstInvoice()` found in the candidate are standalone GST Sales View and Save & View. Pass ordinary sale records to the GST renderer in a future isolated check; do not assume an ordinary Sales GST button exists (L5135-5164, L5260-5266, L5833-5843, L6140-6161).
