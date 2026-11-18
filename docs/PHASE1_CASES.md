@@ -471,6 +471,17 @@ L08-10 above covers the two receiving entry guards. The remaining assertions use
 - **Empty cart:** Expect the list to use catalog items with `onHand <= reorder`, not the current search or grouping. Compare items below, at and above threshold. Each included line uses `suggestQty()` and adds a supplier/rate suffix only if `orderRate()` returns a named supplier. There is no `Total` line (L8409-8411, L10523-10530, L10830-10840).
 - **Clipboard outcomes:** Run independent stub variants. When the write promise resolves, expect `Order plan copied ✓`; when it rejects, expect `Copy failed`. With `navigator.clipboard` absent or `writeText` missing, expect no write attempt and `Copy not available in this browser`. Stub feedback is not evidence of real clipboard access (L10841-10842).
 
+#### Customer reminder navigation (NOT RUN)
+
+**L14-06 (source only):** Use synthetic customer contacts and intercept `window.open` with a recording stub that never navigates. Do not open a chat or send a message. Actual handoff remains **OWNER-BLOCKED (OPEN-005)**.
+
+- **Controls:** The Customers list's **Remind**, ledger's **Send Reminder**, and udhaar breakdown's **WA** require a truthy mobile and positive balance. Dashboard **Top debtors** filters to positive balances, then shows **WA** for rows with a truthy mobile. The ageing detail shows **WA** on outstanding rows when the customer has a truthy mobile. All five call `waReminder()` with the row's customer. Use a missing mobile and an advance as visibility controls, and a truthy malformed mobile on a debtor to distinguish visibility from validation (L2613-2622, L2873-2896, L3258-3268, L3291-3296, L7180-7183, L7363-7366).
+- **Handler:** For the malformed-mobile debtor, expect **No valid mobile for <customer name>** and no `window.open` call when `cleanPhone()` returns empty. For a synthetic mobile that normalizes to ten digits, expect `_blank` navigation to `wa.me` with `91` prefixed to those digits and a `text` query encoded with `encodeURIComponent()`. Decode the captured query and compare the customer greeting, business name and formatted pending balance. The handler recomputes the current rounded balance from opening balance, active bill totals less bill payments, and standalone receipts by customer ID; it does not use the ageing row's due amount or an invoice snapshot (L1158-1173, L4819-4823, L5846-5855).
+
+#### Supplier contact chat navigation (NOT RUN)
+
+**L09-06 (source only):** In Suppliers, compare synthetic contacts with a blank mobile, a formatted mobile that normalizes to ten digits, and a truthy malformed mobile. Intercept `window.open` with a recording stub that never navigates. Expect no **WA** button for a blank mobile; a truthy mobile renders the button. For the ten-digit result, expect a `_blank` request to `wa.me` with `91` prefixed to the normalized digits and no `text` parameter. For the malformed value that normalizes to empty, the handler still requests the `wa.me` path `/91` without an invalid-phone warning. This contact action does not generate a PO attachment. Do not open a chat or send a message; actual handoff remains **OWNER-BLOCKED (OPEN-005)** (L4819-4823, L10401-10409).
+
 ### Runtime-only gaps
 
 - Run L01 first only after actual browser egress isolation has been verified. No runtime observation is recorded here.
