@@ -376,6 +376,12 @@ These are candidate-source expectations for legacy behavior, not observed result
 
 These are candidate-source expectations, not observed results or approved reporting rules.
 
+#### Rate List selection and output guards (NOT RUN)
+
+- **L17-01/L17-02 (picker versus output):** Keep one product selected and another deselected, then change brand and search filters until the selected product is hidden, including a filter with no matches. The picker changes, but selection count, preview, Print, Save PDF and WhatsApp text still use `rateChosen()` across the current product catalog, not `rateVisible()`. A hidden selected product stays in the output and a visible deselected product stays out. Capture print markup and text intent with sinks only; never open a generated chat (L11281-11294, L11340-11371, L11383-11418, L11475-11492, L11524-11564).
+- **L17-01/L17-03 (navigation versus reload):** With the catalog unchanged, deselect a known product and set brand and search filters. Navigate away and return in the same page: the selection and filters remain in memory. On a full page reload, the selection and known-ID sets are rebuilt at first use, selecting every current product; brand and search filters reset. A new ID becomes selected even during same-page navigation, which is distinct from reselecting a previously deselected known ID (L11263-11297, L11340-11348, L11383-11404).
+- **L17-02/L17-03 (empty selection and blocked popup):** With products present but none selected, the preview says **Nothing selected**; Print and WhatsApp warn **Tick at least one item first** without opening a window. Save PDF calls Print and then shows the **Save as PDF** dialog hint even after the empty-selection return. With a nonempty selection and a popup sink that returns no window, Print warns that the popup is blocked and does not write output; Save PDF takes that same branch and still emits the hint. Capture warning and hint calls separately from toast visibility, and do not count the hint as evidence that a dialog opened or a PDF was created (L11475-11492, L11524-11549).
+
 ### Runtime-only gaps
 
 - Run L01 first only after actual browser egress isolation has been verified. No runtime observation is recorded here.
