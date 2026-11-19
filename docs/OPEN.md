@@ -1,7 +1,7 @@
 # Open items
 ## OPEN-001 Deployed baseline and dependencies
 - Status: OWNER-BLOCKED
-The owner must supply the deployed laptop copy or an independently computed digest and deployment details, including origin, browser/OS, assets and integration configuration evidence without secrets. Until then, preserve the supplied HTML unchanged and use it only as a discovery candidate; do not claim equivalence or complete dependency capture (DEC-012).
+The owner confirmed the repository HTML is the deployed copy; its local SHA-256 matches the pinned digest ([DISC-DEPLOY](RESULTS.md#phase-1-discovery)). Preserve it unchanged. Deployment origin, browser/OS, assets and integration configuration evidence without secrets remain outstanding; the confirmation does not establish complete dependency capture (DEC-012).
 ## OPEN-002 Live metadata and record access
 - Status: OWNER-BLOCKED
 The owner must provide protected Supabase metadata or explicitly authorize least-privilege read-only discovery access, plus approved Sheets and recurring JSON samples and a way to obtain protected snapshots. Do not contact live endpoints, infer deployed schema from client code, or assign source precedence (DEC-013).
