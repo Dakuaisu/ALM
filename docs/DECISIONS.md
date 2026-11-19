@@ -138,3 +138,9 @@ Why: The proposals describe defaults and alternatives, not the owner's delegatio
 Options: Treat the rollback proposal as delegated authority to pause, recover or reopen billing, or retain it as a proposal pending named authority, rehearsal and explicit owner decisions.
 Decision: Defer approval. Keep rollback authority, write pause, accounting sign-off and post-switch reconciliation unapproved. Implementation and production cutover require separate explicit owner approvals; neither this deferral nor a rehearsal grants either.
 Why: A documented procedure does not identify who can order a switch or prove that committed post-switch records can be retained before reopening legacy billing.
+
+## DEC-019 Local synthetic Phase 2 slice
+- Decided by: owner
+- Status: APPROVED (local synthetic implementation only)
+
+The owner authorized a small Rust slice for provisional sales drafts and Owner/Manager access. Owner can use all operations in the slice; Manager must not receive total profit. This does not close Phase 1 checks, approve the full production permission matrix, authorize hosted or production access, or authorize Phase 3.
