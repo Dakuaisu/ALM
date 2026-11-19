@@ -2,10 +2,14 @@
 #![forbid(unsafe_code)]
 
 mod drafts;
+mod sqlite;
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 pub use drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
+pub use sqlite::DraftStorageError;
+use sqlite::SqliteDraftStore;
 
 /// Amount in minor currency units; a profit may be negative.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,17 +42,33 @@ pub struct AccessDenied;
 
 /// Trusted local harness backing the role-scoped sessions. Not a client payload.
 pub struct LocalSales {
-    drafts: BTreeMap<DraftId, ProvisionalDraft>,
+    drafts: DraftStore,
     total_profit: Money,
+}
+
+enum DraftStore {
+    Memory(BTreeMap<DraftId, ProvisionalDraft>),
+    Sqlite(SqliteDraftStore),
 }
 
 impl LocalSales {
     /// Starts an empty draft store with a supplied synthetic profit total.
     pub const fn new(total_profit: Money) -> Self {
         Self {
-            drafts: BTreeMap::new(),
+            drafts: DraftStore::Memory(BTreeMap::new()),
             total_profit,
         }
+    }
+
+    /// Opens a local SQLite file dedicated to synthetic provisional drafts.
+    ///
+    /// # Errors
+    /// Returns a storage error if SQLite cannot initialize the file.
+    pub fn open_sqlite(path: &Path, total_profit: Money) -> Result<Self, DraftStorageError> {
+        Ok(Self {
+            drafts: DraftStore::Sqlite(SqliteDraftStore::open(path)?),
+            total_profit,
+        })
     }
 
     /// Selects a role in the trusted test harness. This does not authenticate a user.
@@ -64,14 +84,29 @@ pub struct SalesSession<'a> {
 }
 
 impl SalesSession<'_> {
-    /// Saves or replaces an in-memory draft with the same draft ID.
-    pub fn save_draft(&mut self, draft: ProvisionalDraft) {
-        self.sales.drafts.insert(draft.id(), draft);
+    /// Saves or replaces a draft with the same draft ID. SQLite saves commit before returning.
+    ///
+    /// # Errors
+    /// Returns a storage error if a durable save cannot be completed.
+    pub fn save_draft(&mut self, draft: ProvisionalDraft) -> Result<(), DraftStorageError> {
+        match &mut self.sales.drafts {
+            DraftStore::Memory(drafts) => {
+                drafts.insert(draft.id(), draft);
+                Ok(())
+            }
+            DraftStore::Sqlite(store) => store.save(&draft),
+        }
     }
 
     /// Reopens a draft without changing it or posting a sale.
-    pub fn reopen_draft(&self, id: DraftId) -> Option<&ProvisionalDraft> {
-        self.sales.drafts.get(&id)
+    ///
+    /// # Errors
+    /// Returns a storage error on a failed read, rather than reporting a missing draft.
+    pub fn reopen_draft(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
+        match &self.sales.drafts {
+            DraftStore::Memory(drafts) => Ok(drafts.get(&id).cloned()),
+            DraftStore::Sqlite(store) => store.reopen(id),
+        }
     }
 
     /// Returns the synthetic aggregate only to Owner.

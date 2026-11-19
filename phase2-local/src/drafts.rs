@@ -9,6 +9,10 @@ impl DraftId {
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
+
+    pub(crate) const fn value(self) -> u64 {
+        self.0
+    }
 }
 
 /// Identity of a product referenced by a draft line.
@@ -19,6 +23,10 @@ impl ProductId {
     /// Wraps a synthetic product identifier.
     pub const fn new(value: u64) -> Self {
         Self(value)
+    }
+
+    pub(crate) const fn value(self) -> u64 {
+        self.0
     }
 }
 
@@ -50,7 +58,7 @@ impl DraftLine {
 }
 
 /// Editable local draft with no payment, stock, or final invoice state.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvisionalDraft {
     id: DraftId,
     lines: Vec<DraftLine>,

@@ -48,11 +48,19 @@ fn owner_can_save_reopen_and_edit_provisional_draft() {
     let draft = ProvisionalDraft::new(draft_id, vec![line]);
 
     // When: the Owner saves, reopens, and edits the draft.
-    owner.save_draft(draft);
-    let reopened = owner.reopen_draft(draft_id).expect("saved draft reopens");
+    owner.save_draft(draft).expect("save draft");
+    let reopened = owner
+        .reopen_draft(draft_id)
+        .expect("read draft")
+        .expect("saved draft reopens");
     let updated = DraftLine::new(reopened.lines()[0].product_id(), NonZeroU32::MIN);
-    owner.save_draft(ProvisionalDraft::new(draft_id, vec![updated]));
-    let reopened = owner.reopen_draft(draft_id).expect("edited draft reopens");
+    owner
+        .save_draft(ProvisionalDraft::new(draft_id, vec![updated]))
+        .expect("save edit");
+    let reopened = owner
+        .reopen_draft(draft_id)
+        .expect("read edit")
+        .expect("edited draft reopens");
 
     // Then: the reopened draft retains its identity and line data.
     assert_eq!(reopened.id(), draft_id);
@@ -74,12 +82,18 @@ fn manager_can_save_reopen_and_edit_provisional_draft() {
     let draft = ProvisionalDraft::new(draft_id, vec![line]);
 
     // When: the Manager saves, reopens, and edits the draft.
-    manager.save_draft(draft);
-    let reopened = manager.reopen_draft(draft_id).expect("saved draft reopens");
-    let updated = DraftLine::new(reopened.lines()[0].product_id(), NonZeroU32::MIN);
-    manager.save_draft(ProvisionalDraft::new(draft_id, vec![updated]));
+    manager.save_draft(draft).expect("save draft");
     let reopened = manager
         .reopen_draft(draft_id)
+        .expect("read draft")
+        .expect("saved draft reopens");
+    let updated = DraftLine::new(reopened.lines()[0].product_id(), NonZeroU32::MIN);
+    manager
+        .save_draft(ProvisionalDraft::new(draft_id, vec![updated]))
+        .expect("save edit");
+    let reopened = manager
+        .reopen_draft(draft_id)
+        .expect("read edit")
         .expect("edited draft reopens");
 
     // Then: the reopened draft retains its identity and line data.
