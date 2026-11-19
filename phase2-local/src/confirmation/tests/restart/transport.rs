@@ -83,6 +83,10 @@ impl Client {
         }
     }
 
+    pub(super) fn ready(&mut self) {
+        assert_eq!(self.event().as_deref(), Some("READY"));
+    }
+
     pub(super) fn sent(&mut self) -> OwnerRequest {
         let event = self.event().expect("worker sent a request");
         OwnerRequest::decode(event.strip_prefix("SEND ").expect("expected a send frame"))

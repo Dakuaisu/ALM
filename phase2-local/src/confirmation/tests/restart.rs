@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
 mod codec;
+mod competing;
 mod sqlite_pending;
 mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};
@@ -168,6 +169,7 @@ fn client_worker() {
         "sqlite_submit" | "sqlite_reopen" | "sqlite_manager" | "sqlite_retry" | "sqlite_fail" => {
             sqlite_pending::worker(mode.as_str(), &database, &mut input);
         }
+        "sqlite_compete" => competing::worker(&database, &mut input),
         "stall" => {
             let _ = input.next();
         }
