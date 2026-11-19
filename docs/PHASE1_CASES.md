@@ -43,6 +43,11 @@ In both variants, `parseLS()` returns `null` and `loadDB()` continues selection.
 
 Capture requested filenames and contents separately from the toast. With both copies present and both download helper calls returning normally, expect the handler to report two copies. It increments the count after the calls; `downloadFile()` clicks a Blob URL link and does not wait for or verify a completed file save. The count and sink captures are not proof that files were saved (L10001-10014, L11580-11596).
 
+Use a local download sink on independent synthetic copies for the following controls. Apply the read stubs only after the **Data problem** screen is present so the controls exercise the button handler, not startup selection (L11617-11636).
+
+- **Main slot read throws (NOT RUN):** Make only `localStorage.getItem(LS_KEY)` throw and keep the marked IndexedDB copy available. Expect the handler to catch and log the read error, skip the browser copy, and continue to request the database copy with its serialized JSON. If the download helper returns normally, expect the one-copy toast separately from the request captured by the sink (L11580-11596).
+- **No supported copy available (NOT RUN):** Make the main slot read return no value and `idbGet("kv", "db")` resolve with no copy, while leaving the `_corrupt` slot populated. Expect no download request at the sink and the warning **No stored copy found on this device**. The handler does not check the `_corrupt` slot (L11580-11596).
+
 ### One-time schema upgrade (NOT RUN)
 
 Use independent synthetic copies with sync off, `meta.schema` below 2, and a fixed clock and time zone. Keep the saved input separate from the optional IndexedDB `pre_v2_backup`: `migrate()` attempts that copy after defaults and normalization, before the ID-linking branch, and doesn't wait for the write. Record stored IDs, link fields, stock keys and effective adjustment rows separately from what the UI shows. Do not assume that loading a winning localStorage copy persists the upgrade immediately.
