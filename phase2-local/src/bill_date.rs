@@ -32,6 +32,10 @@ impl BillDate {
         }
         Ok(Self { year, month, day })
     }
+
+    pub(crate) const fn parts(self) -> (u16, u8, u8) {
+        (self.year, self.month, self.day)
+    }
 }
 
 impl fmt::Display for BillDate {

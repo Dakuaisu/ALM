@@ -14,6 +14,7 @@ pub struct PreviewLine {
     pub product: ProductId,
     pub quantity: NonZeroU32,
     pub price: Money,
+    pub amount: Money,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,10 +30,14 @@ pub struct BillPreview {
     pub date: BillDate,
     pub customer: String,
     pub lines: Vec<PreviewLine>,
+    pub items_quantity: u32,
+    pub items_total: Money,
+    pub loading: Money,
     pub total: Money,
     pub paid: Money,
     pub cancelled: bool,
     pub can_toggle: bool,
+    pub balance_mode: BalanceMode,
     pub balance: Money,
     pub previous_balance: Option<PreviousBalance>,
 }
@@ -68,6 +73,10 @@ impl ConfirmationFixture {
         if review.checkout.is_some() || review.draft.crate_row().is_some() {
             return Err(ConfirmationError::InvalidDraft);
         }
+        let amounts = review.amounts()?;
+        if amounts.total != receipt.total {
+            return Err(ConfirmationError::InvalidDraft);
+        }
         let (customer, customer_id) = match (review.draft.customer(), review.payment) {
             (DraftCustomer::Selected { id, name }, ProposedPayment::Named(_)) => {
                 (name.clone(), Some(id.value()))
@@ -95,11 +104,16 @@ impl ConfirmationFixture {
             .iter()
             .enumerate()
             .map(|(index, line)| {
-                let (_, price) = review.line_values(index)?;
+                let (quantity, price) = review.line_values(index)?;
+                let amount = price
+                    .minor_units()
+                    .checked_mul(i64::from(quantity))
+                    .ok_or(ConfirmationError::Overflow)?;
                 Ok(PreviewLine {
                     product: line.product_id(),
                     quantity: line.quantity(),
                     price,
+                    amount: Money::from_minor_units(amount),
                 })
             })
             .collect::<Result<Vec<_>, ConfirmationError>>()?;
@@ -127,10 +141,18 @@ impl ConfirmationFixture {
             date,
             customer,
             lines,
+            items_quantity: amounts.packets,
+            items_total: amounts.subtotal,
+            loading: amounts.loading,
             total: receipt.total,
             paid,
             cancelled,
             can_toggle: customer_id.is_some(),
+            balance_mode: if use_latest {
+                BalanceMode::Latest
+            } else {
+                BalanceMode::AsOnBillDate
+            },
             balance: Money::from_minor_units(balance),
             previous_balance: (!use_latest && previous != 0).then_some(PreviousBalance {
                 amount: Money::from_minor_units(previous),

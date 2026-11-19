@@ -1,7 +1,7 @@
 use super::*;
 use crate::DraftCustomerId;
 
-fn preview_fixture(stock: u32) -> ConfirmationFixture {
+pub(super) fn preview_fixture(stock: u32) -> ConfirmationFixture {
     let mut f = fixture(stock);
     f.set_unit_price(Money::from_minor_units(12_500)).unwrap();
     f
@@ -48,7 +48,8 @@ fn l05_01_named_receipt_cancellation_and_restore_are_read_only() {
         vec![PreviewLine {
             product: ProductId::new(1),
             quantity: NonZeroU32::new(2).unwrap(),
-            price: Money::from_minor_units(12_500)
+            price: Money::from_minor_units(12_500),
+            amount: Money::from_minor_units(25_000),
         }]
     );
     assert!(!snapshot.cancelled);
@@ -194,12 +195,14 @@ fn l05_01_preview_reads_edited_sale_not_original_replay() {
             PreviewLine {
                 product: ProductId::new(1),
                 quantity: NonZeroU32::new(2).unwrap(),
-                price: Money::from_minor_units(15_000)
+                price: Money::from_minor_units(15_000),
+                amount: Money::from_minor_units(30_000),
             },
             PreviewLine {
                 product: ProductId::new(2),
                 quantity: NonZeroU32::new(1).unwrap(),
-                price: Money::from_minor_units(9_000)
+                price: Money::from_minor_units(9_000),
+                amount: Money::from_minor_units(9_000),
             },
         ]
     );

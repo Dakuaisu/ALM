@@ -8,6 +8,7 @@ mod cancellation;
 mod catalog;
 mod checkout;
 mod edit;
+mod estimate;
 mod payment;
 mod pending;
 mod posting;
@@ -17,6 +18,10 @@ pub use crate::SaleUnit;
 use catalog::Catalog;
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use edit::{EditChanges, SaleEdit};
+pub use estimate::{
+    EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
+    PrintIntent,
+};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
