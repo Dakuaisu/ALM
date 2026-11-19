@@ -83,6 +83,23 @@ impl ConfirmationFixture {
         intent: PrintIntent,
         sink: &mut impl FnMut(PopupDocument),
     ) -> Result<(), EstimateError> {
+        let preview = self.preview_estimate(request)?;
+        let target = match intent {
+            PrintIntent::OnLoad => "_print",
+            PrintIntent::AfterLoad(_) => "_pdf",
+        };
+        sink(PopupDocument {
+            target,
+            intent,
+            html: estimate_html(&preview, request.display),
+        });
+        Ok(())
+    }
+
+    pub(super) fn preview_estimate(
+        &self,
+        request: EstimateRequest<'_>,
+    ) -> Result<BillPreview, EstimateError> {
         let preview = self
             .bill_preview(request.role, request.draft_id, request.balance_mode)
             .map_err(EstimateError::Preview)?;
@@ -97,16 +114,7 @@ impl ConfirmationFixture {
         {
             return Err(EstimateError::InvalidLineDisplay);
         }
-        let target = match intent {
-            PrintIntent::OnLoad => "_print",
-            PrintIntent::AfterLoad(_) => "_pdf",
-        };
-        sink(PopupDocument {
-            target,
-            intent,
-            html: estimate_html(&preview, request.display),
-        });
-        Ok(())
+        Ok(preview)
     }
 }
 
@@ -165,7 +173,7 @@ fn estimate_html(preview: &BillPreview, display: EstimateDisplay<'_>) -> String 
     html
 }
 
-fn display_date(date: BillDate) -> String {
+pub(super) fn display_date(date: BillDate) -> String {
     let (year, month, day) = date.parts();
     let months = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

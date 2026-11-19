@@ -23,7 +23,10 @@ pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
     PrintIntent,
 };
-pub use image_handoff::{ImageFile, ImageHandoff, ImageHandoffRequest, ShareRejected};
+pub use image_handoff::{
+    ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
+    InvoiceImageAttempts, ShareRejected, TextHandoffIntent,
+};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
