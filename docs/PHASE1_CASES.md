@@ -101,6 +101,8 @@ Record the call and payload separately from durable readback. `migrate()` does n
 - **Migrated in-memory state:** Expect migration to continue and assign the product an ID because it does not await the backup write (L504-515).
 - **Backup readback:** After the abort settles, independently read `kv/pre_v2_backup` and compare it with the seeded record. Expect the older backup to remain intact, not to be replaced by the attempted payload (L641-667).
 
+**L01-12 operator access (source only; NOT RUN):** No normal recovery control was found that retrieves `kv/pre_v2_backup`. The key appears only in the migration write at L506. The IndexedDB read helper gets a single requested key, and the candidate's callers read only `kv/db` (startup and recovery download) or `fs/dir` (saved backup-folder handle), not the migration backup (L656-667, L684-714, L862-865, L11580-11596). [L01-06: Download stored data](#recovery-download-contents-not-run) offers the main localStorage value and `kv/db` only. **Restore backup file** imports a user-selected file, while the normal JSON download and folder backup serialize the current in-memory `DB`; none reads `kv/pre_v2_backup` (L925-940, L10016-10058, L11574-11579, L11617-11623). The migration write attempt is not proof of durable storage, and an independent IndexedDB readback would verify storage, not operator access through the app.
+
 ### Inline page resources (NOT RUN)
 
 **L01-14 (source only):** Extend the L01-01 startup walkthrough on the isolated loopback origin after containment passes. Use the unchanged candidate and a fresh disposable profile with integrations disabled. Keep three distinct records:
