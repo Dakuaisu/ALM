@@ -97,6 +97,9 @@ fn compete(stock: u32, submissions: [(u64, u64); 2], dispatch: Dispatch) {
         invoice: 1,
         quantity: 2,
         total: Money::from_minor_units(386),
+        received: None,
+        due: None,
+        customer_balance: None,
     };
     let requests = BTreeMap::from([(winner.id, (winner.review.clone(), receipt.clone()))]);
     let posted = BTreeMap::from([(receipt.draft_id, winner.id)]);

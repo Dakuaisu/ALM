@@ -4,6 +4,7 @@ use std::num::NonZeroU32;
 
 mod fifo;
 mod multiline;
+mod named_payment;
 mod pending;
 mod restart;
 

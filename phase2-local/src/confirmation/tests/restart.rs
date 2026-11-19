@@ -7,6 +7,7 @@ use std::{env, fs, process};
 mod codec;
 mod competing;
 mod fifo;
+mod named_payment;
 mod sqlite_pending;
 mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};
@@ -58,6 +59,9 @@ fn explicit_retry_after_client_restart_returns_original_receipt() {
             invoice: 1,
             quantity: 2,
             total: Money::from_minor_units(250),
+            received: None,
+            due: None,
+            customer_balance: None,
         }
     );
     let committed = (3, 250, 2, 1, 1);

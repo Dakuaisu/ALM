@@ -4,8 +4,10 @@ use std::collections::BTreeMap;
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
 mod catalog;
+mod payment;
 mod pending;
 use catalog::Catalog;
+pub use payment::ProposedPayment;
 pub use pending::PendingError;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -37,20 +39,7 @@ pub struct Review {
     draft_revision: u64,
     terms_revision: u64,
     prices: Vec<Money>,
-}
-
-impl Review {
-    pub const fn draft(&self) -> &ProvisionalDraft {
-        &self.draft
-    }
-
-    pub fn unit_price(&self) -> Money {
-        self.prices[0]
-    }
-
-    pub fn unit_prices(&self) -> &[Money] {
-        &self.prices
-    }
+    payment: ProposedPayment,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,6 +48,9 @@ pub struct Receipt {
     pub invoice: u64,
     pub quantity: u32,
     pub total: Money,
+    pub received: Option<Money>,
+    pub due: Option<Money>,
+    pub customer_balance: Option<Money>,
 }
 
 /// Trusted synthetic fixture. Role selection is not authentication.
@@ -69,6 +61,8 @@ pub struct ConfirmationFixture {
     draft_revision: u64,
     drafts: BTreeMap<DraftId, (u64, ProvisionalDraft)>,
     ledger: i64,
+    received_ledger: i64,
+    customer_balances: BTreeMap<String, i64>,
     next_invoice: u64,
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
@@ -104,6 +98,8 @@ impl ConfirmationFixture {
             draft_revision: 0,
             drafts: BTreeMap::new(),
             ledger: 0,
+            received_ledger: 0,
+            customer_balances: BTreeMap::new(),
             next_invoice: 1,
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
@@ -198,6 +194,7 @@ impl ConfirmationFixture {
             draft_revision: *revision,
             terms_revision: self.terms_revision,
             prices,
+            payment: ProposedPayment::Legacy,
         })
     }
 
@@ -231,6 +228,11 @@ impl ConfirmationFixture {
             return Err(ConfirmationError::StaleReview);
         }
         let (catalog, quantity, total) = self.catalog.stage(review)?;
+        let financial = payment::stage(review, total, &self.customer_balances)?;
+        let received_ledger = self
+            .received_ledger
+            .checked_add(financial.received.map_or(0, Money::minor_units))
+            .ok_or(ConfirmationError::Overflow)?;
         let ledger = self
             .ledger
             .checked_add(total)
@@ -244,9 +246,19 @@ impl ConfirmationFixture {
             invoice: self.next_invoice,
             quantity,
             total: Money::from_minor_units(total),
+            received: financial.received,
+            due: financial.due,
+            customer_balance: financial
+                .balance
+                .as_ref()
+                .map(|(_, value)| Money::from_minor_units(*value)),
         };
         self.catalog = catalog;
         self.ledger = ledger;
+        self.received_ledger = received_ledger;
+        if let Some((customer, balance)) = financial.balance {
+            self.customer_balances.insert(customer, balance);
+        }
         self.next_invoice = next_invoice;
         self.requests
             .insert(request, (review.clone(), receipt.clone()));
@@ -262,6 +274,9 @@ impl ConfirmationFixture {
     }
     pub const fn ledger(&self) -> Money {
         Money::from_minor_units(self.ledger)
+    }
+    pub const fn received_ledger(&self) -> Money {
+        Money::from_minor_units(self.received_ledger)
     }
 
     /// Returns the number of receipts posted by the fixture, not counting replays.

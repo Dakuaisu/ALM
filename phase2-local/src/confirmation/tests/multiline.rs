@@ -68,7 +68,10 @@ fn ordered_mixed_sale_posts_once_and_replays_only_identical_review() {
             draft_id: DraftId::new(43),
             invoice: 1,
             quantity: 6,
-            total: Money::from_minor_units(1005)
+            total: Money::from_minor_units(1005),
+            received: None,
+            due: None,
+            customer_balance: None,
         }
     );
     assert_eq!(effects(&f), (5, Some(2), 1005, 2, 1, 1));

@@ -120,6 +120,9 @@ pub(super) fn reopen_and_confirm(path: &Path) {
             invoice: 1,
             quantity: QUANTITY,
             total: Money::from_minor_units(720),
+            received: None,
+            due: None,
+            customer_balance: None,
         },
     );
     assert_eq!(fixture.posted_count(), 1);

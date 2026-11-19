@@ -47,7 +47,10 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
             draft_id: DraftId::new(43),
             invoice: 1,
             quantity: 5,
-            total: Money::from_minor_units(625)
+            total: Money::from_minor_units(625),
+            received: None,
+            due: None,
+            customer_balance: None,
         }
     );
     assert_eq!(

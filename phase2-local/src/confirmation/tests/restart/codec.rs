@@ -46,17 +46,33 @@ pub(super) fn receipt_frame(receipt: &Receipt) -> String {
         invoice,
         quantity,
         total,
+        received,
+        due,
+        customer_balance,
     } = receipt;
     format!(
-        "RECEIPT {} {invoice} {quantity} {}",
+        "RECEIPT {} {invoice} {quantity} {} {} {} {}",
         draft_id.value(),
-        total.minor_units()
+        total.minor_units(),
+        received.map_or_else(|| "-".to_owned(), |value| value.minor_units().to_string()),
+        due.map_or_else(|| "-".to_owned(), |value| value.minor_units().to_string()),
+        customer_balance.map_or_else(|| "-".to_owned(), |value| value.minor_units().to_string())
     )
 }
 
 pub(super) fn read_receipt(frame: &str) -> Option<Receipt> {
     let fields: Vec<_> = frame.split(' ').collect();
-    let ["RECEIPT", draft_id, invoice, quantity, total] = fields.as_slice() else {
+    let [
+        "RECEIPT",
+        draft_id,
+        invoice,
+        quantity,
+        total,
+        received,
+        due,
+        balance,
+    ] = fields.as_slice()
+    else {
         return None;
     };
     Some(Receipt {
@@ -64,5 +80,20 @@ pub(super) fn read_receipt(frame: &str) -> Option<Receipt> {
         invoice: invoice.parse().ok()?,
         quantity: quantity.parse().ok()?,
         total: Money::from_minor_units(total.parse().ok()?),
+        received: if *received == "-" {
+            None
+        } else {
+            Some(Money::from_minor_units(received.parse().ok()?))
+        },
+        due: if *due == "-" {
+            None
+        } else {
+            Some(Money::from_minor_units(due.parse().ok()?))
+        },
+        customer_balance: if *balance == "-" {
+            None
+        } else {
+            Some(Money::from_minor_units(balance.parse().ok()?))
+        },
     })
 }

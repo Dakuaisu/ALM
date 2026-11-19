@@ -1,7 +1,7 @@
 use std::fmt;
 use std::num::NonZeroU32;
 
-use super::{RequestId, Review};
+use super::{ProposedPayment, RequestId, Review};
 use crate::{
     DraftCustomer, DraftCustomerId, DraftId, DraftLine, DraftStorageError, DraftStore, Money,
     ProductId, ProvisionalDraft, Role, SalesSession,
@@ -119,7 +119,7 @@ pub(super) fn encode(review: &Review) -> String {
         .map(|price| price.minor_units().to_string())
         .collect::<Vec<_>>()
         .join(",");
-    format!(
+    let base = format!(
         "2|{}|{}|{}|{}|{}|{}",
         review.draft.id().value(),
         review.draft_revision,
@@ -127,12 +127,26 @@ pub(super) fn encode(review: &Review) -> String {
         prices,
         customer,
         lines
-    )
+    );
+    match review.payment {
+        ProposedPayment::Legacy => base,
+        ProposedPayment::Named(amount) => format!("3{}|{}", &base[1..], amount.minor_units()),
+    }
 }
 
 pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     let invalid = || DraftStorageError::InvalidOutput;
-    let fields: Vec<_> = snapshot.split('|').collect();
+    let mut fields: Vec<_> = snapshot.split('|').collect();
+    let payment = if fields.first() == Some(&"3") {
+        let value = fields
+            .pop()
+            .ok_or_else(invalid)?
+            .parse()
+            .map_err(|_| invalid())?;
+        ProposedPayment::Named(Money::from_minor_units(value))
+    } else {
+        ProposedPayment::Legacy
+    };
     let [
         version,
         id,
@@ -145,7 +159,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     else {
         return Err(invalid());
     };
-    if *version != "1" && *version != "2" {
+    if *version != "1" && *version != "2" && *version != "3" {
         return Err(invalid());
     }
     let parts: Vec<_> = customer.split(',').collect();
@@ -194,6 +208,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         draft_revision: draft_revision.parse().map_err(|_| invalid())?,
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
         prices,
+        payment,
     })
 }
 
@@ -235,6 +250,7 @@ mod tests {
                 draft_revision: u64::MAX,
                 terms_revision: 39,
                 prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
+                payment: ProposedPayment::Legacy,
             };
             assert_eq!(decode(&encode(&review)).unwrap(), review);
         }
