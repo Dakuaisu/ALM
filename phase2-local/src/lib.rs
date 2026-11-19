@@ -1,6 +1,7 @@
 //! Local synthetic slice for provisional drafts and role-scoped data access.
 #![forbid(unsafe_code)]
 
+pub mod confirmation;
 mod drafts;
 mod sqlite;
 

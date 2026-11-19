@@ -12,6 +12,9 @@ use alm_phase2_local::{
     ProvisionalDraft, Role,
 };
 
+#[path = "sqlite_restart/reconnect.rs"]
+mod reconnect;
+
 const WORKER_MODE: &str = "ALM_SQLITE_RESTART_MODE";
 const WORKER_DB: &str = "ALM_SQLITE_RESTART_DB";
 const WORKER_DONE: &str = "ALM_SQLITE_RESTART_WORKER_DONE";
@@ -216,6 +219,8 @@ fn sqlite_restart_worker() {
                 assert_eq!(reopened.expect("reopen draft after restart"), expected);
             }
         }
+        "write_reconnect" => reconnect::write_saved_draft(&path),
+        "read_reconnect" => reconnect::reopen_and_confirm(&path),
         _ => panic!("unknown SQLite worker mode: {mode}"),
     }
     println!("{WORKER_DONE}");
