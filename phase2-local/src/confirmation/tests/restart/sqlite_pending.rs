@@ -2,6 +2,74 @@ use super::*;
 use std::process::Command;
 
 #[test]
+fn mixed_approval_survives_client_restart_and_replays_after_price_change() {
+    use crate::DraftLine;
+    use std::num::NonZeroU32;
+    let scratch = Scratch::new();
+    let dir = &scratch.0;
+    let mut authority =
+        ConfirmationFixture::new(ProductId::new(1), 8, Money::from_minor_units(125)).unwrap();
+    authority
+        .add_product(ProductId::new(2), 5, Money::from_minor_units(210))
+        .unwrap();
+    let draft = crate::ProvisionalDraft::new(
+        DraftId::new(43),
+        [(1, 2), (2, 3), (1, 1)]
+            .into_iter()
+            .map(|(id, qty)| DraftLine::new(ProductId::new(id), NonZeroU32::new(qty).unwrap()))
+            .collect(),
+    );
+    let approved = OwnerRequest {
+        id: RequestId::new(987),
+        review: authority.reconnect_review(Role::Owner, draft).unwrap(),
+    };
+    let mut first = Client::start("sqlite_submit", dir);
+    first.write_frame(&approved.encode());
+    let sent = first.sent();
+    assert_eq!(sent, approved);
+    let receipt = authority
+        .confirm(Role::Owner, sent.id, &sent.review)
+        .unwrap();
+    first.write_frame("CONTINUE");
+    assert_eq!(first.finish(), ["REPLY_EOF"]);
+    assert_eq!(receipt.total, Money::from_minor_units(1005));
+    let committed = (
+        effects(&authority),
+        authority.product_stock(ProductId::new(2)),
+    );
+    assert_eq!(committed, ((5, 1005, 2, 1, 1), Some(2)));
+    authority
+        .set_product_price(ProductId::new(2), Money::from_minor_units(400))
+        .unwrap();
+    let changed = authority.review(Role::Owner, DraftId::new(43)).unwrap();
+    assert_eq!(
+        authority.confirm(Role::Owner, approved.id, &changed),
+        Err(ConfirmationError::RequestConflict)
+    );
+    assert_eq!(Client::start("sqlite_reopen", dir).finish(), ["REOPENED"]);
+    assert_eq!(Client::start("sqlite_manager", dir).finish(), ["DENIED"]);
+    let mut retry = Client::start("sqlite_retry", dir);
+    let resent = retry.sent();
+    assert_eq!(resent, approved);
+    let replay = authority
+        .confirm(Role::Owner, resent.id, &resent.review)
+        .unwrap();
+    assert_eq!(replay, receipt);
+    retry.write_frame(&receipt_frame(&replay));
+    assert_eq!(
+        retry.finish(),
+        [format!("RECEIVED {}", receipt_frame(&receipt))]
+    );
+    assert_eq!(
+        (
+            effects(&authority),
+            authority.product_stock(ProductId::new(2))
+        ),
+        committed
+    );
+}
+
+#[test]
 fn sqlite_approval_survives_restart_and_replays_against_live_authority() {
     let scratch = Scratch::new();
     let dir = &scratch.0;

@@ -100,7 +100,7 @@ fn unhex(text: &str) -> Result<String, DraftStorageError> {
     String::from_utf8(result).map_err(|_| DraftStorageError::InvalidOutput)
 }
 
-fn encode(review: &Review) -> String {
+pub(super) fn encode(review: &Review) -> String {
     let customer = match review.draft.customer() {
         DraftCustomer::Unassigned => "0,,".to_owned(),
         DraftCustomer::Typed(name) => format!("1,,{}", hex(name)),
@@ -113,22 +113,28 @@ fn encode(review: &Review) -> String {
         .map(|line| format!("{},{}", line.product_id().value(), line.quantity()))
         .collect::<Vec<_>>()
         .join(";");
+    let prices = review
+        .prices
+        .iter()
+        .map(|price| price.minor_units().to_string())
+        .collect::<Vec<_>>()
+        .join(",");
     format!(
-        "1|{}|{}|{}|{}|{}|{}",
+        "2|{}|{}|{}|{}|{}|{}",
         review.draft.id().value(),
         review.draft_revision,
         review.terms_revision,
-        review.unit_price.minor_units(),
+        prices,
         customer,
         lines
     )
 }
 
-fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
+pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     let invalid = || DraftStorageError::InvalidOutput;
     let fields: Vec<_> = snapshot.split('|').collect();
     let [
-        "1",
+        version,
         id,
         draft_revision,
         terms_revision,
@@ -139,6 +145,9 @@ fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     else {
         return Err(invalid());
     };
+    if *version != "1" && *version != "2" {
+        return Err(invalid());
+    }
     let parts: Vec<_> = customer.split(',').collect();
     let customer = match parts.as_slice() {
         ["0", "", ""] => DraftCustomer::Unassigned,
@@ -159,18 +168,50 @@ fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
             ));
         }
     }
+    let prices = if *version == "1" {
+        let value = Money::from_minor_units(price.parse().map_err(|_| invalid())?);
+        vec![value; decoded.len()]
+    } else {
+        price
+            .split(',')
+            .map(|value| {
+                value
+                    .parse()
+                    .map(Money::from_minor_units)
+                    .map_err(|_| invalid())
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    if decoded.is_empty()
+        || prices.len() != decoded.len()
+        || prices.iter().any(|price| price.minor_units() < 0)
+    {
+        return Err(invalid());
+    }
     Ok(Review {
         draft: ProvisionalDraft::new(DraftId::new(id.parse().map_err(|_| invalid())?), decoded)
             .with_customer(customer),
         draft_revision: draft_revision.parse().map_err(|_| invalid())?,
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
-        unit_price: Money::from_minor_units(price.parse().map_err(|_| invalid())?),
+        prices,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_v1_snapshot_decodes_prices_for_each_line() {
+        let review = decode("1|43|2|3|125|0,,|1,2;2,3;1,1").unwrap();
+        assert_eq!(review.prices, vec![Money::from_minor_units(125); 3]);
+        assert_eq!(review.draft.lines().len(), 3);
+    }
+
+    #[test]
+    fn versioned_snapshot_rejects_mismatched_line_prices() {
+        assert!(decode("2|43|2|3|125,210|0,,|1,2;2,3;1,1").is_err());
+    }
 
     #[test]
     fn snapshot_round_trips_customer_variants_and_ordered_lines() {
@@ -193,7 +234,7 @@ mod tests {
                 .with_customer(customer),
                 draft_revision: u64::MAX,
                 terms_revision: 39,
-                unit_price: Money::from_minor_units(223),
+                prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
             };
             assert_eq!(decode(&encode(&review)).unwrap(), review);
         }
