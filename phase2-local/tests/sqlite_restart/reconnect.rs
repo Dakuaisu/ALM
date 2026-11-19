@@ -31,7 +31,11 @@ fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
     );
     assert_eq!(
         tables.lines().collect::<Vec<_>>(),
-        ["provisional_draft_lines", "provisional_drafts"],
+        [
+            "provisional_draft_customers",
+            "provisional_draft_lines",
+            "provisional_drafts"
+        ],
     );
     let persisted = open_sales(&path)
         .session(Role::Manager)

@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 
+use crate::DraftCustomer;
 use crate::drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
+
+mod customer;
 
 // IDs use canonical decimal text because SQLite integers are signed 64-bit.
 const SCHEMA: &str = "
@@ -28,6 +31,13 @@ CREATE TABLE IF NOT EXISTS provisional_draft_lines (
     ),
     quantity INTEGER NOT NULL CHECK (quantity BETWEEN 1 AND 4294967295),
     PRIMARY KEY (draft_id, position)
+) STRICT;
+CREATE TABLE IF NOT EXISTS provisional_draft_customers (
+    draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
+    kind INTEGER NOT NULL CHECK (kind IN (1, 2)),
+    customer_id TEXT,
+    name TEXT NOT NULL,
+    CHECK ((kind = 1 AND customer_id IS NULL) OR (kind = 2 AND customer_id IS NOT NULL))
 ) STRICT;
 COMMIT;
 ";
@@ -110,8 +120,26 @@ impl SqliteDraftStore {
              PRAGMA synchronous = FULL;
              BEGIN IMMEDIATE;
              INSERT INTO provisional_drafts (id) VALUES ('{id}') ON CONFLICT(id) DO NOTHING;
+             DELETE FROM provisional_draft_customers WHERE draft_id = '{id}';
              DELETE FROM provisional_draft_lines WHERE draft_id = '{id}';"
         )?;
+        match draft.customer() {
+            DraftCustomer::Unassigned => {}
+            DraftCustomer::Typed(name) => writeln!(
+                sql,
+                "INSERT INTO provisional_draft_customers VALUES ('{id}', 1, NULL, {});",
+                customer::sql_text(name)
+            )?,
+            DraftCustomer::Selected {
+                id: customer_id,
+                name,
+            } => writeln!(
+                sql,
+                "INSERT INTO provisional_draft_customers VALUES ('{id}', 2, {}, {});",
+                customer::sql_text(customer_id.value()),
+                customer::sql_text(name)
+            )?,
+        }
         for (position, line) in draft.lines().iter().enumerate() {
             let position = i64::try_from(position).map_err(|_| DraftStorageError::TooManyLines)?;
             let product = line.product_id().value();
@@ -131,8 +159,9 @@ impl SqliteDraftStore {
         id: DraftId,
     ) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
         let sql = format!(
-            "SELECT l.position, l.product_id, l.quantity
+            "SELECT COALESCE(c.kind, 0), hex(c.customer_id), hex(c.name), l.position, l.product_id, l.quantity
              FROM provisional_drafts AS d
+             LEFT JOIN provisional_draft_customers AS c ON c.draft_id = d.id
              LEFT JOIN provisional_draft_lines AS l ON l.draft_id = d.id
              WHERE d.id = '{}'
              ORDER BY l.position;\n",
@@ -144,13 +173,21 @@ impl SqliteDraftStore {
         let Some(first) = rows.next() else {
             return Ok(None);
         };
-        if first == "NULL|NULL|NULL" && rows.clone().next().is_none() {
-            return Ok(Some(ProvisionalDraft::new(id, Vec::new())));
-        }
-
         let mut lines = Vec::new();
+        let mut customer = None;
         for (position, row) in std::iter::once(first).chain(rows).enumerate() {
             let mut columns = row.split('|');
+            let kind = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
+            let customer_id = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
+            let name = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
+            let decoded = customer::decode(kind, customer_id, name)?;
+            if customer
+                .as_ref()
+                .is_some_and(|existing| existing != &decoded)
+            {
+                return Err(DraftStorageError::InvalidOutput);
+            }
+            customer = Some(decoded);
             let (Some(index), Some(product), Some(quantity), None) = (
                 columns.next(),
                 columns.next(),
@@ -159,6 +196,9 @@ impl SqliteDraftStore {
             ) else {
                 return Err(DraftStorageError::InvalidOutput);
             };
+            if index == "NULL" && product == "NULL" && quantity == "NULL" && position == 0 {
+                continue;
+            }
             if index.parse::<usize>() != Ok(position) {
                 return Err(DraftStorageError::InvalidOutput);
             }
@@ -170,7 +210,9 @@ impl SqliteDraftStore {
                 .map_err(|_| DraftStorageError::InvalidOutput)?;
             lines.push(DraftLine::new(ProductId::new(product), quantity));
         }
-        Ok(Some(ProvisionalDraft::new(id, lines)))
+        Ok(Some(ProvisionalDraft::new(id, lines).with_customer(
+            customer.ok_or(DraftStorageError::InvalidOutput)?,
+        )))
     }
 
     fn run(&self, sql: &[u8], read_only: bool) -> Result<Vec<u8>, DraftStorageError> {

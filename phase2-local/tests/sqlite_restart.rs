@@ -12,6 +12,8 @@ use alm_phase2_local::{
     ProvisionalDraft, Role,
 };
 
+#[path = "sqlite_restart/customer.rs"]
+mod customer;
 #[path = "sqlite_restart/reconnect.rs"]
 mod reconnect;
 
@@ -155,7 +157,11 @@ fn edited_and_empty_drafts_survive_a_fresh_process_without_posting_tables() {
     );
     assert_eq!(
         tables.lines().collect::<Vec<_>>(),
-        ["provisional_draft_lines", "provisional_drafts"],
+        [
+            "provisional_draft_customers",
+            "provisional_draft_lines",
+            "provisional_drafts"
+        ],
     );
 }
 
@@ -221,6 +227,9 @@ fn sqlite_restart_worker() {
         }
         "write_reconnect" => reconnect::write_saved_draft(&path),
         "read_reconnect" => reconnect::reopen_and_confirm(&path),
+        "customer_write" | "customer_edit" | "customer_read" => {
+            customer::worker(mode.as_str(), &path)
+        }
         _ => panic!("unknown SQLite worker mode: {mode}"),
     }
     println!("{WORKER_DONE}");
