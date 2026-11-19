@@ -95,6 +95,12 @@ Use independent synthetic copies with sync off, `meta.schema` below 2, and a fix
 
 Record the call and payload separately from durable readback. `migrate()` does not await the backup write; after it settles, independently read `kv/pre_v2_backup` to determine what was stored (L504-507, L641-667).
 
+**L01-12 backup-write failure control (NOT RUN):** On an independent synthetic copy, seed an older `kv/pre_v2_backup` with a distinct marker and use the same pre-v2 input with a product missing its ID. Abort only the transaction for the new `pre_v2_backup` write before commit; leave other writes and subsequent reads functional. Record three checks separately:
+
+- **Write attempt:** Capture the new payload passed to `idbSet()` and the targeted transaction abort. Expect `idbSet()` to resolve `false`, not report a completed write (L504-507, L641-654).
+- **Migrated in-memory state:** Expect migration to continue and assign the product an ID because it does not await the backup write (L504-515).
+- **Backup readback:** After the abort settles, independently read `kv/pre_v2_backup` and compare it with the seeded record. Expect the older backup to remain intact, not to be replaced by the attempted payload (L641-667).
+
 ### Inline page resources (NOT RUN)
 
 **L01-14 (source only):** Extend the L01-01 startup walkthrough on the isolated loopback origin after containment passes. Use the unchanged candidate and a fresh disposable profile with integrations disabled. Keep three distinct records:
