@@ -1,7 +1,8 @@
 use super::*;
-use crate::{DraftCustomer, DraftLine};
+use crate::{BillDate, DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
+mod bill_guard;
 mod checkout_guard;
 mod fifo;
 mod multiline;
@@ -10,13 +11,23 @@ mod pending;
 mod restart;
 
 fn draft(id: u64, quantity: u32) -> ProvisionalDraft {
-    ProvisionalDraft::new(
+    dated_named_draft(
         DraftId::new(id),
         vec![DraftLine::new(
             ProductId::new(1),
             NonZeroU32::new(quantity).unwrap(),
         )],
     )
+}
+
+fn test_bill_date() -> Option<BillDate> {
+    Some(BillDate::new(2024, 2, 29).unwrap())
+}
+
+fn dated_named_draft(id: DraftId, lines: Vec<DraftLine>) -> ProvisionalDraft {
+    ProvisionalDraft::new(id, lines)
+        .with_customer(DraftCustomer::Typed("Synthetic".into()))
+        .with_bill_date(test_bill_date())
 }
 
 fn fixture(stock: u32) -> ConfirmationFixture {

@@ -43,6 +43,15 @@ impl ConfirmationFixture {
         id: DraftId,
         received: Money,
     ) -> Result<Review, ConfirmationError> {
+        match role {
+            Role::Owner => {}
+            Role::Manager => return Err(ConfirmationError::AccessDenied),
+        }
+        let (_, draft) = self
+            .drafts
+            .get(&id)
+            .ok_or(ConfirmationError::DraftNotFound)?;
+        super::posting::validate_bill(draft)?;
         let mut review = self.review(role, id)?;
         review.payment = ProposedPayment::Named(received);
         let total = review.amounts()?.total.minor_units();

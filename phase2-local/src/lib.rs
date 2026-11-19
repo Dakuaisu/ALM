@@ -1,6 +1,7 @@
 //! Local synthetic slice for provisional drafts and role-scoped data access.
 #![forbid(unsafe_code)]
 
+mod bill_date;
 pub mod confirmation;
 mod crate_row_codec;
 pub mod draft_entry;
@@ -10,6 +11,7 @@ mod sqlite;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+pub use bill_date::{BillDate, InvalidBillDate};
 pub use drafts::{
     CrateComponent, CrateRow, CrateRowAlreadyPresent, DraftCustomer, DraftCustomerId, DraftId,
     DraftLine, ProductId, ProvisionalDraft, SaleUnit,

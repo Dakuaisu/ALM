@@ -1,58 +1,16 @@
 use std::fmt;
 use std::io::{self, Write};
-use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 
-use crate::drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
+use crate::drafts::{DraftId, ProvisionalDraft};
 use crate::{DraftCustomer, crate_row_codec};
 
 mod customer;
+mod draft_rows;
 mod pending;
-
-// IDs use canonical decimal text because SQLite integers are signed 64-bit.
-const SCHEMA: &str = "
-BEGIN IMMEDIATE;
-CREATE TABLE IF NOT EXISTS provisional_drafts (
-    id TEXT PRIMARY KEY NOT NULL CHECK (
-        length(id) BETWEEN 1 AND 20 AND instr(id, char(0)) = 0
-        AND id NOT GLOB '*[^0-9]*' AND (id = '0' OR id NOT GLOB '0*')
-        AND (length(id) < 20 OR id <= '18446744073709551615')
-    )
-) STRICT;
-CREATE TABLE IF NOT EXISTS provisional_draft_lines (
-    draft_id TEXT NOT NULL REFERENCES provisional_drafts(id),
-    position INTEGER NOT NULL CHECK (position >= 0),
-    product_id TEXT NOT NULL CHECK (
-        length(product_id) BETWEEN 1 AND 20 AND instr(product_id, char(0)) = 0
-        AND product_id NOT GLOB '*[^0-9]*'
-        AND (product_id = '0' OR product_id NOT GLOB '0*')
-        AND (length(product_id) < 20 OR product_id <= '18446744073709551615')
-    ),
-    quantity INTEGER NOT NULL CHECK (quantity BETWEEN 1 AND 4294967295),
-    PRIMARY KEY (draft_id, position)
-) STRICT;
-CREATE TABLE IF NOT EXISTS provisional_draft_customers (
-    draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
-    kind INTEGER NOT NULL CHECK (kind IN (1, 2)),
-    customer_id TEXT,
-    name TEXT NOT NULL,
-    CHECK ((kind = 1 AND customer_id IS NULL) OR (kind = 2 AND customer_id IS NOT NULL))
-) STRICT;
-CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
-    request_id TEXT PRIMARY KEY NOT NULL,
-    snapshot TEXT NOT NULL
-) STRICT;
-CREATE TABLE IF NOT EXISTS provisional_draft_crates (
-    draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
-    definition TEXT NOT NULL CHECK (
-        length(definition) > 0 AND instr(definition, char(0)) = 0
-        AND definition NOT GLOB '*[^0-9,;]*'
-    )
-) STRICT;
-COMMIT;
-";
+mod schema;
 
 /// Failure to open, save, or reopen a local SQLite draft.
 #[derive(Debug)]
@@ -119,7 +77,7 @@ impl SqliteDraftStore {
             return Err(DraftStorageError::InvalidPath);
         }
         let store = Self { path: path.into() };
-        store.run(SCHEMA.as_bytes(), false)?;
+        store.run(schema::SCHEMA.as_bytes(), false)?;
         Ok(store)
     }
 
@@ -134,8 +92,15 @@ impl SqliteDraftStore {
              INSERT INTO provisional_drafts (id) VALUES ('{id}') ON CONFLICT(id) DO NOTHING;
              DELETE FROM provisional_draft_customers WHERE draft_id = '{id}';
              DELETE FROM provisional_draft_lines WHERE draft_id = '{id}';
-             DELETE FROM provisional_draft_crates WHERE draft_id = '{id}';"
+             DELETE FROM provisional_draft_crates WHERE draft_id = '{id}';
+             DELETE FROM provisional_draft_dates WHERE draft_id = '{id}';"
         )?;
+        if let Some(date) = draft.bill_date() {
+            writeln!(
+                sql,
+                "INSERT INTO provisional_draft_dates VALUES ('{id}', '{date}');"
+            )?;
+        }
         match draft.customer() {
             DraftCustomer::Unassigned => {}
             DraftCustomer::Typed(name) => writeln!(
@@ -179,8 +144,9 @@ impl SqliteDraftStore {
         id: DraftId,
     ) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
         let sql = format!(
-            "SELECT COALESCE(c.kind, 0), hex(c.customer_id), hex(c.name), k.definition, l.position, l.product_id, l.quantity
+            "SELECT b.bill_date, COALESCE(c.kind, 0), hex(c.customer_id), hex(c.name), k.definition, l.position, l.product_id, l.quantity
              FROM provisional_drafts AS d
+             LEFT JOIN provisional_draft_dates AS b ON b.draft_id = d.id
              LEFT JOIN provisional_draft_customers AS c ON c.draft_id = d.id
              LEFT JOIN provisional_draft_lines AS l ON l.draft_id = d.id
              LEFT JOIN provisional_draft_crates AS k ON k.draft_id = d.id
@@ -189,64 +155,7 @@ impl SqliteDraftStore {
             id.value()
         );
         let output = self.run(sql.as_bytes(), true)?;
-        let output = std::str::from_utf8(&output).map_err(|_| DraftStorageError::InvalidOutput)?;
-        let mut rows = output.lines();
-        let Some(first) = rows.next() else {
-            return Ok(None);
-        };
-        let mut lines = Vec::new();
-        let mut customer = None;
-        let mut definition = None;
-        for (position, row) in std::iter::once(first).chain(rows).enumerate() {
-            let mut columns = row.split('|');
-            let kind = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
-            let customer_id = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
-            let name = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
-            let decoded = customer::decode(kind, customer_id, name)?;
-            if customer
-                .as_ref()
-                .is_some_and(|existing| existing != &decoded)
-            {
-                return Err(DraftStorageError::InvalidOutput);
-            }
-            customer = Some(decoded);
-            let crate_value = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
-            if definition
-                .replace(crate_value)
-                .is_some_and(|value| value != crate_value)
-            {
-                return Err(DraftStorageError::InvalidOutput);
-            }
-            let (Some(index), Some(product), Some(quantity), None) = (
-                columns.next(),
-                columns.next(),
-                columns.next(),
-                columns.next(),
-            ) else {
-                return Err(DraftStorageError::InvalidOutput);
-            };
-            if index == "NULL" && product == "NULL" && quantity == "NULL" && position == 0 {
-                continue;
-            }
-            if index.parse::<usize>() != Ok(position) {
-                return Err(DraftStorageError::InvalidOutput);
-            }
-            let product = product
-                .parse()
-                .map_err(|_| DraftStorageError::InvalidOutput)?;
-            let quantity = quantity
-                .parse::<NonZeroU32>()
-                .map_err(|_| DraftStorageError::InvalidOutput)?;
-            lines.push(DraftLine::new(ProductId::new(product), quantity));
-        }
-        let mut draft = ProvisionalDraft::new(id, lines)
-            .with_customer(customer.ok_or(DraftStorageError::InvalidOutput)?);
-        if let Some(value) = definition.filter(|value| *value != "NULL") {
-            draft
-                .add_crate_row(crate_row_codec::decode(value)?)
-                .map_err(|_| DraftStorageError::InvalidOutput)?;
-        }
-        Ok(Some(draft))
+        draft_rows::decode(id, &output)
     }
 
     fn run(&self, sql: &[u8], read_only: bool) -> Result<Vec<u8>, DraftStorageError> {

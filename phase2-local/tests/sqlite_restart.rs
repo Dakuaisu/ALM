@@ -161,6 +161,7 @@ fn edited_and_empty_drafts_survive_a_fresh_process_without_posting_tables() {
             "pending_owner_confirmations",
             "provisional_draft_crates",
             "provisional_draft_customers",
+            "provisional_draft_dates",
             "provisional_draft_lines",
             "provisional_drafts"
         ],
@@ -257,9 +258,11 @@ fn failed_line_insert_rolls_back_draft_replacement() {
     // Given: a committed draft and a trigger that rejects replacement lines.
     let scratch = ScratchDir::new();
     let path = scratch.db_path();
+    let original =
+        draft(EDITED_ID, ORIGINAL_LINES).with_bill_date(Some("2024-02-29".parse().unwrap()));
     open_sales(&path)
         .session(Role::Manager)
-        .save_draft(draft(EDITED_ID, ORIGINAL_LINES))
+        .save_draft(original.clone())
         .expect("commit original draft");
     sqlite3(
         &path,
@@ -269,9 +272,10 @@ fn failed_line_insert_rolls_back_draft_replacement() {
     );
 
     // When: a line insert aborts while saving a replacement for the same draft ID.
-    let rejected: Result<(), DraftStorageError> = open_sales(&path)
-        .session(Role::Manager)
-        .save_draft(draft(EDITED_ID, EDITED_LINES));
+    let rejected: Result<(), DraftStorageError> =
+        open_sales(&path).session(Role::Manager).save_draft(
+            draft(EDITED_ID, EDITED_LINES).with_bill_date(Some("2024-03-01".parse().unwrap())),
+        );
 
     // Then: the save reports failure and a new connection sees the whole old draft.
     assert!(rejected.is_err(), "trigger must reject the replacement");
@@ -279,5 +283,5 @@ fn failed_line_insert_rolls_back_draft_replacement() {
         .session(Role::Manager)
         .reopen_draft(EDITED_ID)
         .expect("reopen draft after failed save");
-    assert_eq!(reopened, Some(draft(EDITED_ID, ORIGINAL_LINES)));
+    assert_eq!(reopened, Some(original));
 }

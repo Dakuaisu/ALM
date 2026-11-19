@@ -186,6 +186,7 @@ impl ConfirmationFixture {
             .drafts
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
+        super::posting::validate_bill(draft)?;
         if draft.crate_row().is_some() {
             if !units.is_empty() {
                 return Err(ConfirmationError::InvalidDraft);

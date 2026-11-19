@@ -1,4 +1,7 @@
-use super::{ConfirmationError, ConfirmationFixture, Receipt, RequestId, Role, draft};
+use super::{
+    ConfirmationError, ConfirmationFixture, Receipt, RequestId, Role, dated_named_draft, draft,
+    test_bill_date,
+};
 use crate::{DraftId, LocalSales, Money, ProductId};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};

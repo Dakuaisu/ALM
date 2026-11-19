@@ -43,10 +43,11 @@ fn crate_requires_exact_current_authority_approval() {
     );
     let approved = approval(&mut configured);
     let encoded = pending::encode(&approved);
-    assert_eq!(
-        encoded,
-        "5|43|1|5|2,63726174652D6275796572,53796E746865746963|2;2,9,0;1,2,1|450|13|6,1|100"
-    );
+    let old = "5|43|1|5|2,63726174652D6275796572,53796E746865746963|2;2,9,0;1,2,1|450|13|6,1|100";
+    let undated = pending::decode(old).unwrap();
+    assert_eq!(undated.draft.bill_date(), None);
+    assert_eq!(pending::encode(&undated), old);
+    assert_eq!(encoded, format!("6|2024-02-29|{old}"));
     let decoded = pending::decode(&encoded).unwrap();
     assert_eq!(decoded, approved);
     let mut unapproved = authority(false, draft);
@@ -84,7 +85,7 @@ fn mixed_empty_fractional_and_overflowing_crate_inputs_are_declined() {
         ),
         (
             order(CrateRow::new(qty(2), vec![]), vec![]),
-            ConfirmationError::InvalidDraft,
+            ConfirmationError::MissingBillableItems,
         ),
         (
             order(CrateRow::new(qty(1), components().to_vec()), vec![]),
@@ -108,7 +109,9 @@ fn mixed_empty_fractional_and_overflowing_crate_inputs_are_declined() {
 #[test]
 fn replacing_regular_draft_with_crate_invalidates_all_prior_review_paths() {
     let draft = ProvisionalDraft::new(ID, vec![DraftLine::new(CASE, qty(2))]);
-    let draft = draft.with_customer(distinct_order().customer().clone());
+    let draft = draft
+        .with_customer(distinct_order().customer().clone())
+        .with_bill_date(test_bill_date());
     let mut configured = authority(false, draft);
     let legacy = configured.review(Role::Owner, ID).unwrap();
     let named = configured

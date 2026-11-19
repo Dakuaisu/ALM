@@ -28,10 +28,12 @@ fn components() -> [CrateComponent; 2] {
 }
 
 fn order(row: CrateRow, lines: Vec<DraftLine>) -> ProvisionalDraft {
-    let mut draft = ProvisionalDraft::new(ID, lines).with_customer(DraftCustomer::Selected {
-        id: DraftCustomerId::new("crate-buyer".into()),
-        name: "Synthetic".into(),
-    });
+    let mut draft = ProvisionalDraft::new(ID, lines)
+        .with_customer(DraftCustomer::Selected {
+            id: DraftCustomerId::new("crate-buyer".into()),
+            name: "Synthetic".into(),
+        })
+        .with_bill_date(test_bill_date());
     draft.add_crate_row(row).unwrap();
     draft
 }

@@ -1,7 +1,9 @@
 use std::path::Path;
 
 use alm_phase2_local::confirmation::{ConfirmationError, ConfirmationFixture, Receipt, RequestId};
-use alm_phase2_local::{AccessDenied, DraftId, Money, ProductId, Role};
+use alm_phase2_local::{
+    AccessDenied, BillDate, DraftCustomer, DraftId, Money, ProductId, ProvisionalDraft, Role,
+};
 
 use super::{PROFIT, ScratchDir, draft, open_sales, run_worker, sqlite3};
 
@@ -12,6 +14,12 @@ const SAVED_LINES: &[(u64, u32)] = &[(PRODUCT, QUANTITY)];
 const STOCK: u32 = 10;
 const OLD_PRICE: Money = Money::from_minor_units(125);
 const CURRENT_PRICE: Money = Money::from_minor_units(240);
+
+fn saved_draft() -> ProvisionalDraft {
+    draft(SAVED_ID, SAVED_LINES)
+        .with_customer(DraftCustomer::Typed("Synthetic".into()))
+        .with_bill_date(Some(BillDate::new(2024, 2, 29).unwrap()))
+}
 
 #[test]
 fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
@@ -35,6 +43,7 @@ fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
             "pending_owner_confirmations",
             "provisional_draft_crates",
             "provisional_draft_customers",
+            "provisional_draft_dates",
             "provisional_draft_lines",
             "provisional_drafts"
         ],
@@ -43,14 +52,14 @@ fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
         .session(Role::Manager)
         .reopen_draft(SAVED_ID)
         .expect("reopen persisted draft after confirmation");
-    assert_eq!(persisted, Some(draft(SAVED_ID, SAVED_LINES)));
+    assert_eq!(persisted, Some(saved_draft()));
 }
 
 pub(super) fn write_saved_draft(path: &Path) {
     assert!(!path.try_exists().expect("check fresh database path"));
     open_sales(path)
         .session(Role::Manager)
-        .save_draft(draft(SAVED_ID, SAVED_LINES))
+        .save_draft(saved_draft())
         .expect("save one-line reconnect draft");
 }
 
@@ -63,7 +72,7 @@ pub(super) fn reopen_and_confirm(path: &Path) {
         .reopen_draft(SAVED_ID)
         .expect("read the database after writer exit")
         .expect("writer saved the draft");
-    assert_eq!(saved, draft(SAVED_ID, SAVED_LINES));
+    assert_eq!(saved, saved_draft());
 
     let mut fixture = ConfirmationFixture::new(ProductId::new(PRODUCT), STOCK, OLD_PRICE)
         .expect("create local confirmation fixture");

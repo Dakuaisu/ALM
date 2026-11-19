@@ -1,6 +1,6 @@
 use super::{DraftId, Money, Receipt, RequestId};
+use crate::ProvisionalDraft;
 use crate::confirmation::{Review, pending};
-use crate::{DraftCustomer, ProvisionalDraft};
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct OwnerRequest {
@@ -28,15 +28,16 @@ impl OwnerRequest {
 }
 
 pub(super) fn draft_fields(draft: &ProvisionalDraft) -> String {
-    assert_eq!(draft.customer(), &DraftCustomer::Unassigned);
     let [line] = draft.lines() else {
         panic!("expected exactly one synthetic product line")
     };
     format!(
-        "{} {} {} unassigned",
+        "{} {} {} {:?} {:?}",
         draft.id().value(),
         line.product_id().value(),
-        line.quantity()
+        line.quantity(),
+        draft.customer(),
+        draft.bill_date(),
     )
 }
 

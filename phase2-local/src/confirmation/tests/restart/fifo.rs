@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DraftLine, ProvisionalDraft};
+use crate::DraftLine;
 use std::num::NonZeroU32;
 use std::process::Command;
 
@@ -7,7 +7,7 @@ use std::process::Command;
 fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
     let scratch = Scratch::new();
     let database = scratch.0.join(DATABASE);
-    let draft = ProvisionalDraft::new(
+    let draft = dated_named_draft(
         DraftId::new(43),
         [2, 3]
             .into_iter()
@@ -70,7 +70,17 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
-        "pending_owner_confirmations:request_id,snapshot\nprovisional_draft_crates:draft_id,definition\nprovisional_draft_customers:draft_id,kind,customer_id,name\nprovisional_draft_lines:draft_id,position,product_id,quantity\nprovisional_drafts:id\ndraft|43\nline|43|0|1|2\nline|43|1|1|3\npending|987|2|43|1|0|125,125|0,,|1,2;1,3\ncustomers|0\ncrates|0\n"
+        concat!(
+            "pending_owner_confirmations:request_id,snapshot\n",
+            "provisional_draft_crates:draft_id,definition\n",
+            "provisional_draft_customers:draft_id,kind,customer_id,name\n",
+            "provisional_draft_dates:draft_id,bill_date\n",
+            "provisional_draft_lines:draft_id,position,product_id,quantity\n",
+            "provisional_drafts:id\n",
+            "draft|43\nline|43|0|1|2\nline|43|1|1|3\n",
+            "pending|987|6|2024-02-29|2|43|1|0|125,125|1,,53796E746865746963|1,2;1,3\n",
+            "customers|1\ncrates|0\n",
+        )
     );
     first.write_frame("CONTINUE");
     assert_eq!(first.finish(), ["REPLY_EOF"]);

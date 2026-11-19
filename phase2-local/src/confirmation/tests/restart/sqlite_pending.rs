@@ -12,7 +12,7 @@ fn mixed_approval_survives_client_restart_and_replays_after_price_change() {
     authority
         .add_product(ProductId::new(2), 5, Money::from_minor_units(210))
         .unwrap();
-    let draft = crate::ProvisionalDraft::new(
+    let draft = dated_named_draft(
         DraftId::new(43),
         [(1, 2), (2, 3), (1, 1)]
             .into_iter()

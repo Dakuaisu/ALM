@@ -17,7 +17,7 @@ fn review_accepts_ordered_repeated_lines_for_a_catalog_product() {
 }
 
 fn order(a1: u32, b: u32, a2: u32) -> ProvisionalDraft {
-    ProvisionalDraft::new(
+    dated_named_draft(
         DraftId::new(43),
         [(1, a1), (2, b), (1, a2)]
             .into_iter()

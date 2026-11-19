@@ -1,5 +1,7 @@
 use std::num::NonZeroU32;
 
+use crate::BillDate;
+
 /// Identity of a draft; not an invoice number.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct DraftId(u64);
@@ -133,6 +135,7 @@ pub struct ProvisionalDraft {
     lines: Vec<DraftLine>,
     crate_row: Option<CrateRow>,
     customer: DraftCustomer,
+    bill_date: Option<BillDate>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -146,12 +149,23 @@ impl ProvisionalDraft {
             lines,
             crate_row: None,
             customer: DraftCustomer::Unassigned,
+            bill_date: None,
         }
     }
 
     pub fn with_customer(mut self, customer: DraftCustomer) -> Self {
         self.customer = customer;
         self
+    }
+
+    /// Sets or clears the explicit bill date while editing.
+    pub const fn with_bill_date(mut self, bill_date: Option<BillDate>) -> Self {
+        self.bill_date = bill_date;
+        self
+    }
+
+    pub const fn bill_date(&self) -> Option<BillDate> {
+        self.bill_date
     }
 
     /// Adds the first crate row without replacing an existing one.

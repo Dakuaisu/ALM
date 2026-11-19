@@ -24,23 +24,35 @@ fn named_part_payment_posts_separate_financial_amounts() {
 #[test]
 fn invalid_named_input_and_manager_review_do_not_post() {
     let mut f = fixture(5);
-    for customer in [
-        DraftCustomer::Unassigned,
-        DraftCustomer::Typed("Name".into()),
-        DraftCustomer::Selected {
-            id: DraftCustomerId::new(" ".into()),
-            name: "Name".into(),
-        },
-        DraftCustomer::Selected {
-            id: DraftCustomerId::new("id".into()),
-            name: " ".into(),
-        },
+    for (customer, reason) in [
+        (
+            DraftCustomer::Unassigned,
+            ConfirmationError::MissingCustomerName,
+        ),
+        (
+            DraftCustomer::Typed("Name".into()),
+            ConfirmationError::InvalidDraft,
+        ),
+        (
+            DraftCustomer::Selected {
+                id: DraftCustomerId::new(" ".into()),
+                name: "Name".into(),
+            },
+            ConfirmationError::InvalidDraft,
+        ),
+        (
+            DraftCustomer::Selected {
+                id: DraftCustomerId::new("id".into()),
+                name: " ".into(),
+            },
+            ConfirmationError::InvalidDraft,
+        ),
     ] {
         f.reconnect_review(Role::Owner, draft(1, 2).with_customer(customer))
             .unwrap();
         assert_eq!(
             f.review_named(Role::Owner, DraftId::new(1), Money::from_minor_units(0)),
-            Err(ConfirmationError::InvalidDraft)
+            Err(reason)
         );
     }
     f.reconnect_review(

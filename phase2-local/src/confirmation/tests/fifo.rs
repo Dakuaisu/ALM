@@ -60,7 +60,7 @@ fn mixed_known_and_unspecified_costs_leave_sale_cost_unknown() {
     .unwrap();
     f.add_product(ProductId::new(2), 1, Money::from_minor_units(125))
         .unwrap();
-    let order = ProvisionalDraft::new(
+    let order = dated_named_draft(
         DraftId::new(2),
         [1, 2]
             .into_iter()
@@ -86,7 +86,7 @@ fn unknown_cost_does_not_disable_checked_known_cost_arithmetic() {
             .seed_lots(ProductId::new(id), &[(1, Money::from_minor_units(cost))])
             .unwrap();
     }
-    let order = ProvisionalDraft::new(
+    let order = dated_named_draft(
         DraftId::new(3),
         [1, 2, 3]
             .into_iter()
@@ -153,7 +153,7 @@ fn repeated_lines_allocate_oldest_lots_first() {
             ],
         )
         .unwrap();
-    let draft = ProvisionalDraft::new(
+    let draft = dated_named_draft(
         DraftId::new(43),
         [2, 3]
             .into_iter()
@@ -187,7 +187,7 @@ fn late_repeated_line_shortage_rolls_back_all_staged_effects() {
             ],
         )
         .unwrap();
-    let draft = ProvisionalDraft::new(
+    let draft = dated_named_draft(
         DraftId::new(43),
         [2, 6]
             .into_iter()

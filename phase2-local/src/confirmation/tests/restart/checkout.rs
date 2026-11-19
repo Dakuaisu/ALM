@@ -33,7 +33,8 @@ fn configured(lots: &[(u32, Money)], quantities: [u32; 2]) -> ConfirmationFixtur
     .with_customer(DraftCustomer::Selected {
         id: DraftCustomerId::new("customer-a".into()),
         name: "Synthetic".into(),
-    });
+    })
+    .with_bill_date(test_bill_date());
     authority.register_draft(order).unwrap();
     authority
 }

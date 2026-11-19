@@ -125,6 +125,14 @@ fn decode_customer(customer: &str) -> Result<DraftCustomer, DraftStorageError> {
 }
 
 pub(super) fn encode(review: &Review) -> String {
+    let payload = encode_undated(review);
+    match review.draft.bill_date() {
+        Some(date) => format!("6|{date}|{payload}"),
+        None => payload,
+    }
+}
+
+fn encode_undated(review: &Review) -> String {
     if let Some(snapshot) = crate_snapshot::encode(review) {
         return snapshot;
     }
@@ -162,6 +170,19 @@ pub(super) fn encode(review: &Review) -> String {
 }
 
 pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
+    let Some(dated) = snapshot.strip_prefix("6|") else {
+        return decode_undated(snapshot);
+    };
+    let (date, payload) = dated
+        .split_once('|')
+        .ok_or(DraftStorageError::InvalidOutput)?;
+    let date = date.parse().map_err(|_| DraftStorageError::InvalidOutput)?;
+    let mut review = decode_undated(payload)?;
+    review.draft = review.draft.with_bill_date(Some(date));
+    Ok(review)
+}
+
+fn decode_undated(snapshot: &str) -> Result<Review, DraftStorageError> {
     let invalid = || DraftStorageError::InvalidOutput;
     if snapshot.starts_with("4|") {
         return checkout_snapshot::decode(snapshot);
@@ -239,56 +260,4 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn legacy_v1_snapshot_decodes_prices_for_each_line() {
-        let review = decode("1|43|2|3|125|0,,|1,2;2,3;1,1").unwrap();
-        assert_eq!(review.prices, vec![Money::from_minor_units(125); 3]);
-        assert_eq!(review.draft.lines().len(), 3);
-    }
-
-    #[test]
-    fn versioned_snapshot_rejects_mismatched_line_prices() {
-        assert!(decode("2|43|2|3|125,210|0,,|1,2;2,3;1,1").is_err());
-    }
-
-    #[test]
-    fn checkout_snapshot_rejects_invalid_unit_and_zero_pack() {
-        let base = hex("3|43|2|3|125|2,61,62|1,12|100");
-        assert!(decode(&format!("4|{base}|13|2,6,17,150")).is_err());
-        assert!(decode(&format!("4|{base}|13|0,0,17,150")).is_err());
-        assert!(decode(&format!("4|{base}|13|0,5,17,150")).is_err());
-    }
-
-    #[test]
-    fn snapshot_round_trips_customer_variants_and_ordered_lines() {
-        for customer in [
-            DraftCustomer::Unassigned,
-            DraftCustomer::Typed("नाम | ' \0\n".into()),
-            DraftCustomer::Selected {
-                id: DraftCustomerId::new("id | \0".into()),
-                name: "客户 ; ' \n".into(),
-            },
-        ] {
-            let review = Review {
-                draft: ProvisionalDraft::new(
-                    DraftId::new(u64::MAX),
-                    vec![
-                        DraftLine::new(ProductId::new(987), NonZeroU32::new(13).unwrap()),
-                        DraftLine::new(ProductId::new(12), NonZeroU32::new(7).unwrap()),
-                    ],
-                )
-                .with_customer(customer),
-                draft_revision: u64::MAX,
-                terms_revision: 39,
-                prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
-                payment: ProposedPayment::Legacy,
-                checkout: None,
-                crate_packs: None,
-            };
-            assert_eq!(decode(&encode(&review)).unwrap(), review);
-        }
-    }
-}
+mod tests;
