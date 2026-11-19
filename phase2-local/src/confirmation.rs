@@ -75,6 +75,20 @@ pub struct ConfirmationFixture {
 }
 
 impl ConfirmationFixture {
+    /// Creates an authority with synthetic lots in trusted oldest-first order.
+    ///
+    /// # Errors
+    /// Rejects negative amounts or a total stock exceeding the quantity range.
+    pub fn with_ordered_lots(
+        product: ProductId,
+        lots: &[(u32, Money)],
+        unit_price: Money,
+    ) -> Result<Self, ConfirmationError> {
+        let mut fixture = Self::new(product, 0, unit_price)?;
+        fixture.catalog.seed_lots(product, lots)?;
+        Ok(fixture)
+    }
+
     pub fn new(
         product: ProductId,
         stock: u32,

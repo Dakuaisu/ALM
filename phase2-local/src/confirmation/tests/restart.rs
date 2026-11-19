@@ -6,6 +6,7 @@ use std::{env, fs, process};
 
 mod codec;
 mod competing;
+mod fifo;
 mod sqlite_pending;
 mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};

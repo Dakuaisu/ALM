@@ -2,6 +2,7 @@ use super::*;
 use crate::{DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
+mod fifo;
 mod multiline;
 mod pending;
 mod restart;
