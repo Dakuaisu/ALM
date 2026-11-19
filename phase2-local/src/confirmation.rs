@@ -9,6 +9,7 @@ mod catalog;
 mod checkout;
 mod edit;
 mod estimate;
+mod image_handoff;
 mod payment;
 mod pending;
 mod posting;
@@ -22,6 +23,7 @@ pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
     PrintIntent,
 };
+pub use image_handoff::{ImageFile, ImageHandoff, ImageHandoffRequest, ShareRejected};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
