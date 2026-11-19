@@ -4,12 +4,15 @@ use crate::confirmation::{
 };
 use crate::{ProvisionalDraft, Role, SalesSession};
 
+mod edit;
+
 /// In-memory bill entry and preview. Clearing entry does not delete any SQLite drafts
 /// or pending approvals, and neither the active slot nor the preview survives restart.
 #[derive(Default)]
 pub struct BillEntryState {
     active: Option<ProvisionalDraft>,
     preview: Option<Receipt>,
+    edit: Option<crate::confirmation::SaleEdit>,
 }
 
 pub enum ConfirmationAttempt<'a> {

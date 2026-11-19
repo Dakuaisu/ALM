@@ -4,6 +4,7 @@ use std::num::NonZeroU32;
 
 mod bill_guard;
 mod checkout_guard;
+mod edit;
 mod fifo;
 mod multiline;
 mod named_payment;

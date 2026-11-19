@@ -116,6 +116,8 @@ impl ConfirmationFixture {
         self.next_invoice = next_invoice;
         self.requests
             .insert(request, (review.clone(), receipt.clone()));
+        self.current_sales
+            .insert(id, (review.clone(), receipt.clone(), 0));
         self.posted.insert(id, request);
         Ok(receipt)
     }

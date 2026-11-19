@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
+mod edit;
+
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct Product {
     stock: u32,
     price: Money,
@@ -10,12 +13,14 @@ struct Product {
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct Lot {
     remaining: u32,
     unit_cost: Option<i64>,
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct AllocationState {
     records: BTreeMap<(u64, usize, u64, usize), Allocation>,
     sale_costs: BTreeMap<u64, Option<i64>>,
@@ -24,6 +29,7 @@ struct AllocationState {
 type Allocation = (u32, Option<i64>);
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct Catalog {
     products: BTreeMap<u64, Product>,
     allocations: AllocationState,

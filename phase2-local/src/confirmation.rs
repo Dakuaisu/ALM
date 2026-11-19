@@ -6,12 +6,14 @@ use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
 mod catalog;
 mod checkout;
+mod edit;
 mod payment;
 mod pending;
 mod posting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
+pub use edit::{EditChanges, SaleEdit};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 
@@ -72,6 +74,7 @@ pub struct ConfirmationAck {
 }
 
 /// Trusted synthetic fixture. Role selection is not authentication.
+#[cfg_attr(test, derive(Clone, Debug, Eq, PartialEq))]
 pub struct ConfirmationFixture {
     product: ProductId,
     catalog: Catalog,
@@ -88,6 +91,7 @@ pub struct ConfirmationFixture {
     next_invoice: u64,
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
+    current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
 }
 
 impl ConfirmationFixture {
@@ -129,6 +133,7 @@ impl ConfirmationFixture {
             next_invoice: 1,
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
+            current_sales: BTreeMap::new(),
         })
     }
 
