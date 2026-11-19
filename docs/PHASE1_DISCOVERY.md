@@ -113,6 +113,14 @@ Static references are to the unchanged candidate. Case IDs link to the [existing
 
 **Protected comparison procedure (not run):** Under OPEN-002, obtain source scope, snapshot cutoff and time zone, schema/version and retention, then map each captured row to a protected locator and classify it as exact, divergent, ambiguous, absent within proven scope, or not evidenced. Use document dates for period controls and preserve creation timestamps, record stamps, tombstone times and snapshot cutoffs separately. Compare nested lines/receipts, reversals and derived totals without rounding away differences. Keep raw data, identities and capture locations protected; report only approved summaries and evidence references here. OPEN-003 remains **OPEN** for static tracing; all decisions requiring these captures, deployed evidence or owner/accounting approval remain **BLOCKED**. No precedence assigned.
 
+**SRC-LOG reconciliation checklist (BLOCKED; not run):**
+
+- [ ] Match by `log.id`. Record the originating device/build, capture cutoff, collection scope and filters, and `DB.meta.rev` where available. `logAct()` can append or trim the in-memory log without advancing `DB.meta.rev`; `saveDB()` advances that counter separately (L717-734, L838-852). Matching revision numbers alone do not establish matching state. For Settings or delta comparisons, require evidence that the output and local capture reflect the same log state, such as a local snapshot taken at render or payload selection. For the delta, use the `pushedM` recorded at selection.
+- [ ] **Hidden by Settings:** Confirm the row is in the ordered `DB.log` used for that render but falls outside the last 200 array positions and is absent from the matched view. Use array position, not event time (L9346-9376, L10016-10019).
+- [ ] **Trimmed locally without a tombstone:** Require full local captures from the same device that demonstrably bracket the specific append, not merely two revisions. Confirm the ID was in the prefix removed when the array exceeded 4,000 entries, the post-append array matches the retained last 3,000 entries, and the trim added no matching `log:<id>` tombstone in `DB.deleted` (L838-852, L974-998).
+- [ ] **Retained but excluded by the watermark:** Confirm the row is present in the log state used for delta selection, its numeric `_m` is at or below the captured `pushedM`, and it is absent from the complete outgoing payload for that selection (L9423-9438, L9451, L9472-9485).
+- [ ] Classify the omission as **not evidenced** if capture scope, the required same-state match or append bracketing, or the applicable watermark cannot be established. None of these checks establishes prior upload, deployed deletion or retention.
+
 ## Device and sharing matrix
 
 | Target | Evidence plan | Status |
