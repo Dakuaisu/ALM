@@ -44,4 +44,10 @@ P2-CLIENT-RETRY tested revision: working tree based on `790bb7ae0243cd4665f8c7f2
 - `tests/restart/codec.rs`: `ce665c8fc8a0e20415122b3c6f237938a1cceb5bad2944beb37dd4d6a10ec0db`
 - `tests/restart/transport.rs`: `bc92345aaca37a962117ddc38c8f5045235b6a31d4bf29a7d6cfcdd7324899e7`
 
+### Client restart: committed run
+
+| Result ID / requirement | Kind | Environment / fixture | Expected | Observed | Disposition | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| P2-CLIENT-RETRY-REV / R-6, R-7 | development | Clean `phase2-local` crate at `dd841c18f56b97487349f3896d134965c220d4ad`; `/usr/bin/sqlite3` on `PATH`. A test-only file preserved the pending request, and the same in-memory posting fixture stayed alive across client restarts. | Reopen sends no request; explicit retry sends the original identity and unchanged review and gets the original receipt; a changed review under the same identity conflicts without additional effects | 41 passed, 0 failed. Both subprocess workers were invoked by their parent tests, not counted as standalone passes. The client-restart regression confirmed zero requests on reopen, the original receipt on retry, and `RequestConflict` for changed contents. The fixture still had one posted sale, stock of 3, and a ledger of 250 minor units. | PASS (synthetic client retry only; not evidence of durable application request storage, server-restart recovery, hosted concurrency, or acceptance) | `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml`; [client-restart regression](../phase2-local/src/confirmation/tests/restart.rs); separate post-commit run |
+
 Combined offline working-tree run, including pending draft-entry tests: 22 passed, 0 failed; the 1 ignored restart worker was invoked by its parent tests. Formatting and offline Clippy passed; editor diagnostics timed out. The SQLite result covers a clean draft restart only. Confirmation effects and replay records are not durable; hosted authorization, server transactions, multi-device concurrency, and legacy or device parity remain unverified. No Phase 1 disposition or deployment gate changed.
