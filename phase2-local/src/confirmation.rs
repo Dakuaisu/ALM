@@ -1,5 +1,6 @@
 //! Synthetic in-memory confirmation fixture, not a production posting authority.
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
@@ -7,8 +8,9 @@ mod catalog;
 mod checkout;
 mod payment;
 mod pending;
+pub use crate::SaleUnit;
 use catalog::Catalog;
-pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms, SaleUnit};
+pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 
@@ -43,6 +45,7 @@ pub struct Review {
     prices: Vec<Money>,
     payment: ProposedPayment,
     checkout: Option<CheckoutTerms>,
+    crate_packs: Option<Vec<NonZeroU32>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,6 +66,7 @@ pub struct ConfirmationFixture {
     checkout_products: BTreeMap<u64, ProductTerms>,
     checkout_approvals: BTreeMap<DraftId, Review>,
     loading_rate: Money,
+    crate_rate: Option<Money>,
     terms_revision: u64,
     draft_revision: u64,
     drafts: BTreeMap<DraftId, (u64, ProvisionalDraft)>,
@@ -103,6 +107,7 @@ impl ConfirmationFixture {
             checkout_products: BTreeMap::new(),
             checkout_approvals: BTreeMap::new(),
             loading_rate: Money::from_minor_units(0),
+            crate_rate: None,
             terms_revision: 0,
             draft_revision: 0,
             drafts: BTreeMap::new(),
@@ -200,6 +205,7 @@ impl ConfirmationFixture {
             prices,
             payment: ProposedPayment::Legacy,
             checkout: None,
+            crate_packs: None,
         })
     }
 
@@ -228,7 +234,6 @@ impl ConfirmationFixture {
         if current.0 != review.draft_revision
             || current.1 != review.draft
             || self.terms_revision != review.terms_revision
-            || self.catalog.prices(&review.draft).ok().as_ref() != Some(&review.prices)
             || !self.checkout_current(review)
             || !self.checkout_approved(review)
         {

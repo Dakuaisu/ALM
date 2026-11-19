@@ -79,6 +79,7 @@ impl SalesSession<'_> {
 }
 
 mod checkout_snapshot;
+mod crate_snapshot;
 
 fn hex(text: &str) -> String {
     use std::fmt::Write;
@@ -102,12 +103,32 @@ fn unhex(text: &str) -> Result<String, DraftStorageError> {
     String::from_utf8(result).map_err(|_| DraftStorageError::InvalidOutput)
 }
 
-pub(super) fn encode(review: &Review) -> String {
-    let customer = match review.draft.customer() {
+fn encode_customer(customer: &DraftCustomer) -> String {
+    match customer {
         DraftCustomer::Unassigned => "0,,".to_owned(),
         DraftCustomer::Typed(name) => format!("1,,{}", hex(name)),
         DraftCustomer::Selected { id, name } => format!("2,{},{}", hex(id.value()), hex(name)),
-    };
+    }
+}
+
+fn decode_customer(customer: &str) -> Result<DraftCustomer, DraftStorageError> {
+    let parts: Vec<_> = customer.split(',').collect();
+    Ok(match parts.as_slice() {
+        ["0", "", ""] => DraftCustomer::Unassigned,
+        ["1", "", name] => DraftCustomer::Typed(unhex(name)?),
+        ["2", id, name] => DraftCustomer::Selected {
+            id: DraftCustomerId::new(unhex(id)?),
+            name: unhex(name)?,
+        },
+        _ => return Err(DraftStorageError::InvalidOutput),
+    })
+}
+
+pub(super) fn encode(review: &Review) -> String {
+    if let Some(snapshot) = crate_snapshot::encode(review) {
+        return snapshot;
+    }
+    let customer = encode_customer(review.draft.customer());
     let lines = review
         .draft
         .lines()
@@ -145,6 +166,9 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     if snapshot.starts_with("4|") {
         return checkout_snapshot::decode(snapshot);
     }
+    if snapshot.starts_with("5|") {
+        return crate_snapshot::decode(snapshot);
+    }
     let mut fields: Vec<_> = snapshot.split('|').collect();
     let payment = if fields.first() == Some(&"3") {
         let value = fields
@@ -171,16 +195,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     if *version != "1" && *version != "2" && *version != "3" {
         return Err(invalid());
     }
-    let parts: Vec<_> = customer.split(',').collect();
-    let customer = match parts.as_slice() {
-        ["0", "", ""] => DraftCustomer::Unassigned,
-        ["1", "", name] => DraftCustomer::Typed(unhex(name)?),
-        ["2", id, name] => DraftCustomer::Selected {
-            id: DraftCustomerId::new(unhex(id)?),
-            name: unhex(name)?,
-        },
-        _ => return Err(invalid()),
-    };
+    let customer = decode_customer(customer)?;
     let mut decoded = Vec::new();
     if !lines.is_empty() {
         for line in lines.split(';') {
@@ -219,6 +234,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         prices,
         payment,
         checkout: None,
+        crate_packs: None,
     })
 }
 
@@ -270,6 +286,7 @@ mod tests {
                 prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
                 payment: ProposedPayment::Legacy,
                 checkout: None,
+                crate_packs: None,
             };
             assert_eq!(decode(&encode(&review)).unwrap(), review);
         }

@@ -61,6 +61,7 @@ fn customer_entry_survives_process_restart_and_isolated_edit() {
         tables.lines().collect::<Vec<_>>(),
         [
             "pending_owner_confirmations",
+            "provisional_draft_crates",
             "provisional_draft_customers",
             "provisional_draft_lines",
             "provisional_drafts"

@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 
-use crate::DraftCustomer;
 use crate::drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
+use crate::{DraftCustomer, crate_row_codec};
 
 mod customer;
 mod pending;
@@ -43,6 +43,13 @@ CREATE TABLE IF NOT EXISTS provisional_draft_customers (
 CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
     request_id TEXT PRIMARY KEY NOT NULL,
     snapshot TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS provisional_draft_crates (
+    draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
+    definition TEXT NOT NULL CHECK (
+        length(definition) > 0 AND instr(definition, char(0)) = 0
+        AND definition NOT GLOB '*[^0-9,;]*'
+    )
 ) STRICT;
 COMMIT;
 ";
@@ -126,7 +133,8 @@ impl SqliteDraftStore {
              BEGIN IMMEDIATE;
              INSERT INTO provisional_drafts (id) VALUES ('{id}') ON CONFLICT(id) DO NOTHING;
              DELETE FROM provisional_draft_customers WHERE draft_id = '{id}';
-             DELETE FROM provisional_draft_lines WHERE draft_id = '{id}';"
+             DELETE FROM provisional_draft_lines WHERE draft_id = '{id}';
+             DELETE FROM provisional_draft_crates WHERE draft_id = '{id}';"
         )?;
         match draft.customer() {
             DraftCustomer::Unassigned => {}
@@ -155,6 +163,13 @@ impl SqliteDraftStore {
                  VALUES ('{id}', {position}, '{product}', {quantity});"
             )?;
         }
+        if let Some(row) = draft.crate_row() {
+            writeln!(
+                sql,
+                "INSERT INTO provisional_draft_crates VALUES ('{id}', {});",
+                customer::sql_text(&crate_row_codec::encode(row))
+            )?;
+        }
         sql.extend_from_slice(b"COMMIT;\n");
         self.run(&sql, false).map(|_| ())
     }
@@ -164,10 +179,11 @@ impl SqliteDraftStore {
         id: DraftId,
     ) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
         let sql = format!(
-            "SELECT COALESCE(c.kind, 0), hex(c.customer_id), hex(c.name), l.position, l.product_id, l.quantity
+            "SELECT COALESCE(c.kind, 0), hex(c.customer_id), hex(c.name), k.definition, l.position, l.product_id, l.quantity
              FROM provisional_drafts AS d
              LEFT JOIN provisional_draft_customers AS c ON c.draft_id = d.id
              LEFT JOIN provisional_draft_lines AS l ON l.draft_id = d.id
+             LEFT JOIN provisional_draft_crates AS k ON k.draft_id = d.id
              WHERE d.id = '{}'
              ORDER BY l.position;\n",
             id.value()
@@ -180,6 +196,7 @@ impl SqliteDraftStore {
         };
         let mut lines = Vec::new();
         let mut customer = None;
+        let mut definition = None;
         for (position, row) in std::iter::once(first).chain(rows).enumerate() {
             let mut columns = row.split('|');
             let kind = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
@@ -193,6 +210,13 @@ impl SqliteDraftStore {
                 return Err(DraftStorageError::InvalidOutput);
             }
             customer = Some(decoded);
+            let crate_value = columns.next().ok_or(DraftStorageError::InvalidOutput)?;
+            if definition
+                .replace(crate_value)
+                .is_some_and(|value| value != crate_value)
+            {
+                return Err(DraftStorageError::InvalidOutput);
+            }
             let (Some(index), Some(product), Some(quantity), None) = (
                 columns.next(),
                 columns.next(),
@@ -215,9 +239,14 @@ impl SqliteDraftStore {
                 .map_err(|_| DraftStorageError::InvalidOutput)?;
             lines.push(DraftLine::new(ProductId::new(product), quantity));
         }
-        Ok(Some(ProvisionalDraft::new(id, lines).with_customer(
-            customer.ok_or(DraftStorageError::InvalidOutput)?,
-        )))
+        let mut draft = ProvisionalDraft::new(id, lines)
+            .with_customer(customer.ok_or(DraftStorageError::InvalidOutput)?);
+        if let Some(value) = definition.filter(|value| *value != "NULL") {
+            draft
+                .add_crate_row(crate_row_codec::decode(value)?)
+                .map_err(|_| DraftStorageError::InvalidOutput)?;
+        }
+        Ok(Some(draft))
     }
 
     fn run(&self, sql: &[u8], read_only: bool) -> Result<Vec<u8>, DraftStorageError> {

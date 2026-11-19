@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod confirmation;
+mod crate_row_codec;
 pub mod draft_entry;
 mod drafts;
 mod sqlite;
@@ -9,7 +10,10 @@ mod sqlite;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub use drafts::{DraftCustomer, DraftCustomerId, DraftId, DraftLine, ProductId, ProvisionalDraft};
+pub use drafts::{
+    CrateComponent, CrateRow, CrateRowAlreadyPresent, DraftCustomer, DraftCustomerId, DraftId,
+    DraftLine, ProductId, ProvisionalDraft, SaleUnit,
+};
 pub use sqlite::DraftStorageError;
 use sqlite::SqliteDraftStore;
 

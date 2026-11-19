@@ -34,7 +34,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         return Err(invalid());
     };
     let decoded_base = unhex(base)?;
-    if decoded_base.starts_with("4|") {
+    if !decoded_base.starts_with("3|") {
         return Err(invalid());
     }
     let mut review = super::decode(&decoded_base)?;

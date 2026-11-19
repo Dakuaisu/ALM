@@ -7,6 +7,7 @@ use std::{env, fs, process};
 mod checkout;
 mod codec;
 mod competing;
+mod crate_checkout;
 mod fifo;
 mod named_payment;
 mod sqlite_pending;
@@ -176,6 +177,7 @@ fn client_worker() {
             sqlite_pending::worker(mode.as_str(), &database, &mut input);
         }
         "sqlite_compete" => competing::worker(&database, &mut input),
+        "sqlite_crate_reopen" => crate_checkout::reopen_worker(&database),
         "stall" => {
             let _ = input.next();
         }

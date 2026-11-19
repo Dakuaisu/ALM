@@ -96,7 +96,7 @@ impl Catalog {
     }
 
     pub(super) fn prices(&self, draft: &ProvisionalDraft) -> Result<Vec<Money>, ConfirmationError> {
-        if draft.lines().is_empty() {
+        if draft.lines().is_empty() || draft.crate_row().is_some() {
             return Err(ConfirmationError::InvalidDraft);
         }
         draft
@@ -116,8 +116,14 @@ impl Catalog {
         let amounts = review.amounts()?;
         let mut sale_cost = 0_i64;
         let mut cost_known = true;
-        for (line_index, line) in review.draft.lines().iter().enumerate() {
-            let (packets, _) = review.line_values(line_index)?;
+        let crate_demands = review.crate_packet_demands()?;
+        let lines = crate_demands.as_deref().unwrap_or(review.draft.lines());
+        for (line_index, line) in lines.iter().enumerate() {
+            let packets = if crate_demands.is_some() {
+                line.quantity().get()
+            } else {
+                review.line_values(line_index)?.0
+            };
             let product = staged
                 .products
                 .get_mut(&line.product_id().value())

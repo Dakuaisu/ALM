@@ -60,7 +60,7 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
             .unwrap(),
         Some(draft)
     );
-    let sql = "SELECT m.name || ':' || (SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info(m.name) ORDER BY cid)) FROM sqlite_schema m WHERE m.type='table' ORDER BY m.name; SELECT 'draft|' || id FROM provisional_drafts; SELECT 'line|' || draft_id || '|' || position || '|' || product_id || '|' || quantity FROM provisional_draft_lines ORDER BY position; SELECT 'pending|' || request_id || '|' || snapshot FROM pending_owner_confirmations; SELECT 'customers|' || count(*) FROM provisional_draft_customers;";
+    let sql = "SELECT m.name || ':' || (SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info(m.name) ORDER BY cid)) FROM sqlite_schema m WHERE m.type='table' ORDER BY m.name; SELECT 'draft|' || id FROM provisional_drafts; SELECT 'line|' || draft_id || '|' || position || '|' || product_id || '|' || quantity FROM provisional_draft_lines ORDER BY position; SELECT 'pending|' || request_id || '|' || snapshot FROM pending_owner_confirmations; SELECT 'customers|' || count(*) FROM provisional_draft_customers; SELECT 'crates|' || count(*) FROM provisional_draft_crates;";
     let output = Command::new("sqlite3")
         .arg("-readonly")
         .arg(&database)
@@ -70,7 +70,7 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
-        "pending_owner_confirmations:request_id,snapshot\nprovisional_draft_customers:draft_id,kind,customer_id,name\nprovisional_draft_lines:draft_id,position,product_id,quantity\nprovisional_drafts:id\ndraft|43\nline|43|0|1|2\nline|43|1|1|3\npending|987|2|43|1|0|125,125|0,,|1,2;1,3\ncustomers|0\n"
+        "pending_owner_confirmations:request_id,snapshot\nprovisional_draft_crates:draft_id,definition\nprovisional_draft_customers:draft_id,kind,customer_id,name\nprovisional_draft_lines:draft_id,position,product_id,quantity\nprovisional_drafts:id\ndraft|43\nline|43|0|1|2\nline|43|1|1|3\npending|987|2|43|1|0|125,125|0,,|1,2;1,3\ncustomers|0\ncrates|0\n"
     );
     first.write_frame("CONTINUE");
     assert_eq!(first.finish(), ["REPLY_EOF"]);

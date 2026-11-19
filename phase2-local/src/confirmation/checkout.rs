@@ -6,12 +6,9 @@ use super::{
 };
 use crate::ProductId;
 
-/// Case corresponds to the legacy Packet unit, not a multiple of the pack size.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SaleUnit {
-    Piece,
-    Case,
-}
+use crate::SaleUnit;
+
+mod crate_checkout;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ProductTerms {
@@ -46,6 +43,9 @@ impl Review {
     }
 
     pub fn amounts(&self) -> Result<CheckoutAmounts, ConfirmationError> {
+        if self.draft.crate_row().is_some() {
+            return self.crate_amounts();
+        }
         let mut packets = 0_u32;
         let mut subtotal = 0_i64;
         for (index, line) in self.draft.lines().iter().enumerate() {
@@ -62,6 +62,14 @@ impl Review {
                 )
                 .ok_or(ConfirmationError::Overflow)?;
         }
+        self.calculate_amounts(packets, subtotal)
+    }
+
+    fn calculate_amounts(
+        &self,
+        packets: u32,
+        subtotal: i64,
+    ) -> Result<CheckoutAmounts, ConfirmationError> {
         let rate = self
             .checkout
             .as_ref()
@@ -163,6 +171,7 @@ impl ConfirmationFixture {
         Ok(())
     }
 
+    /// Reviews regular lines with their requested units, or a sole crate with an empty `units` slice.
     pub fn review_checkout(
         &mut self,
         role: Role,
@@ -170,6 +179,20 @@ impl ConfirmationFixture {
         units: &[SaleUnit],
         received: Money,
     ) -> Result<Review, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        let (_, draft) = self
+            .drafts
+            .get(&id)
+            .ok_or(ConfirmationError::DraftNotFound)?;
+        if draft.crate_row().is_some() {
+            if !units.is_empty() {
+                return Err(ConfirmationError::InvalidDraft);
+            }
+            let review = self.build_crate_review(id, received)?;
+            return self.approve_checkout(review);
+        }
         let mut review = self.review(role, id)?;
         if units.len() != review.draft.lines().len() {
             return Err(ConfirmationError::InvalidDraft);
@@ -192,12 +215,17 @@ impl ConfirmationFixture {
             loading_rate: self.loading_rate,
         });
         review.payment = ProposedPayment::Named(received);
+        self.approve_checkout(review)
+    }
+
+    fn approve_checkout(&mut self, review: Review) -> Result<Review, ConfirmationError> {
         payment::stage(
             &review,
             review.amounts()?.total.minor_units(),
             &BTreeMap::new(),
         )?;
-        self.checkout_approvals.insert(id, review.clone());
+        self.checkout_approvals
+            .insert(review.draft.id(), review.clone());
         Ok(review)
     }
 
@@ -213,6 +241,18 @@ impl ConfirmationFixture {
     }
 
     pub(super) fn checkout_current(&self, review: &Review) -> bool {
+        if review.draft.crate_row().is_some() {
+            let ProposedPayment::Named(received) = review.payment else {
+                return false;
+            };
+            return self
+                .build_crate_review(review.draft.id(), received)
+                .as_ref()
+                == Ok(review);
+        }
+        if self.catalog.prices(&review.draft).as_ref() != Ok(&review.prices) {
+            return false;
+        }
         review.checkout.as_ref().is_none_or(|checkout| {
             checkout.loading_rate == self.loading_rate
                 && checkout.lines.len() == review.draft.lines().len()

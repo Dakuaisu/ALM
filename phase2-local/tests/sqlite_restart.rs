@@ -159,6 +159,7 @@ fn edited_and_empty_drafts_survive_a_fresh_process_without_posting_tables() {
         tables.lines().collect::<Vec<_>>(),
         [
             "pending_owner_confirmations",
+            "provisional_draft_crates",
             "provisional_draft_customers",
             "provisional_draft_lines",
             "provisional_drafts"
