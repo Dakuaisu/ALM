@@ -44,6 +44,8 @@ Use the [synthetic L01-02/L01-03 fixture](phase1-storage-arbitration.json) only 
 
 Capture the in-memory marker at selection before any `saveDB()` call. When localStorage wins, `loadDB()` migrates and returns without calling `saveDB()` on that branch. When IndexedDB wins, it migrates and then attempts `saveDB()`, which increments the revision and attempts persistence. Record the save attempt and later durable readback separately; neither is evidence of the initial winner (L694-704, L717-734).
 
+**L01-02 localStorage-only control (NOT RUN):** On a fresh disposable profile after the same isolation gate passes, use the same `baseDB` and the `localstorage-newer` variant's `localStorageMeta` override. Seed only `alm_db_v1`; leave IndexedDB `kv/db` absent. The source-derived selection expectation is `DB.meta.name` = `L01-FIXTURE-LS`. Record the initial route separately: the synthetic customer makes the database nonempty, so expect **Counter** (L684-698, L11637-11645). Neither the marker nor the route proves persistence. This selection branch does not call `saveDB()`; check any write attempt and durable readback independently.
+
 ### IndexedDB eligibility before revision comparison (NOT RUN)
 
 **L01-03 (source only):** On independent synthetic copies, keep the same valid localStorage object and use a distinct `meta.name` marker for IndexedDB. Keep the IndexedDB objects identical except for `products`, with the same `meta.rev` strictly above the localStorage revision in all variants. Use otherwise valid fixture data so the eligible copies can complete migration.
