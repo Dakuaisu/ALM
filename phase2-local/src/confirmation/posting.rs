@@ -1,6 +1,8 @@
 use crate::{DraftCustomer, Money, ProvisionalDraft, Role};
 
-use super::{ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, payment};
+use super::{
+    ConfirmationAck, ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, payment,
+};
 
 pub(super) fn validate_bill(draft: &ProvisionalDraft) -> Result<(), ConfirmationError> {
     if draft.lines().is_empty()
@@ -23,7 +25,31 @@ pub(super) fn validate_bill(draft: &ProvisionalDraft) -> Result<(), Confirmation
     Ok(())
 }
 
+impl ConfirmationAck {
+    pub const fn receipt(&self) -> &Receipt {
+        &self.receipt
+    }
+
+    pub(crate) fn into_receipt_for(self, request: RequestId, review: &Review) -> Option<Receipt> {
+        (self.request == request && &self.review == review).then_some(self.receipt)
+    }
+}
+
 impl ConfirmationFixture {
+    pub fn confirm_acknowledged(
+        &mut self,
+        role: Role,
+        request: RequestId,
+        review: &Review,
+    ) -> Result<ConfirmationAck, ConfirmationError> {
+        let receipt = self.confirm(role, request, review)?;
+        Ok(ConfirmationAck {
+            request,
+            review: review.clone(),
+            receipt,
+        })
+    }
+
     /// Replays return the original receipt; all fallible calculations precede mutation.
     pub fn confirm(
         &mut self,

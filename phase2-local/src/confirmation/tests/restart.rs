@@ -18,6 +18,8 @@ mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};
 use transport::{Client, emit, send};
 
+mod walk_in;
+
 const MODE: &str = "ALM_CONFIRMATION_RESTART_MODE";
 const SCRATCH: &str = "ALM_CONFIRMATION_RESTART_SCRATCH";
 const PREFIX: &str = "confirmation-restart-";
@@ -181,6 +183,10 @@ fn client_worker() {
         }
         "sqlite_compete" => competing::worker(&database, &mut input),
         "sqlite_crate_reopen" => crate_checkout::reopen_worker(&database),
+        "walk_in_submit" | "walk_in_reopen" | "walk_in_denied" | "walk_in_retry"
+        | "walk_in_edit" | "walk_in_reject" => {
+            walk_in::worker(mode.as_str(), &database, &mut input)
+        }
         "stall" => {
             let _ = input.next();
         }

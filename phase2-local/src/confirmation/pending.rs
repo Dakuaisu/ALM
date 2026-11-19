@@ -7,10 +7,11 @@ use crate::{
     ProductId, ProvisionalDraft, Role, SalesSession,
 };
 
-/// Local persistence and authorization failures, never an authority receipt.
+/// Local precondition, authorization or persistence failure, not an authority outcome.
 #[derive(Debug)]
 pub enum PendingError {
     AccessDenied,
+    ActiveDraftMismatch,
     DurableStoreRequired,
     NotFound,
     Storage(DraftStorageError),
@@ -20,6 +21,7 @@ impl fmt::Display for PendingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AccessDenied => f.write_str("Owner access required"),
+            Self::ActiveDraftMismatch => f.write_str("approved draft is not the active snapshot"),
             Self::DurableStoreRequired => f.write_str("SQLite store required"),
             Self::NotFound => f.write_str("pending approval not found"),
             Self::Storage(error) => write!(f, "pending approval storage: {error}"),
@@ -78,6 +80,7 @@ impl SalesSession<'_> {
     }
 }
 
+mod cash_snapshot;
 mod checkout_snapshot;
 mod crate_snapshot;
 
@@ -126,9 +129,13 @@ fn decode_customer(customer: &str) -> Result<DraftCustomer, DraftStorageError> {
 
 pub(super) fn encode(review: &Review) -> String {
     let payload = encode_undated(review);
-    match review.draft.bill_date() {
+    let dated = match review.draft.bill_date() {
         Some(date) => format!("6|{date}|{payload}"),
         None => payload,
+    };
+    match review.payment {
+        ProposedPayment::WalkInCash(received) => format!("7|{}|{dated}", received.minor_units()),
+        ProposedPayment::Legacy | ProposedPayment::Named(_) => dated,
     }
 }
 
@@ -160,7 +167,7 @@ fn encode_undated(review: &Review) -> String {
         lines
     );
     let base = match review.payment {
-        ProposedPayment::Legacy => base,
+        ProposedPayment::Legacy | ProposedPayment::WalkInCash(_) => base,
         ProposedPayment::Named(amount) => format!("3{}|{}", &base[1..], amount.minor_units()),
     };
     match &review.checkout {
@@ -170,6 +177,9 @@ fn encode_undated(review: &Review) -> String {
 }
 
 pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
+    if let Some(cash) = snapshot.strip_prefix("7|") {
+        return cash_snapshot::decode(cash);
+    }
     let Some(dated) = snapshot.strip_prefix("6|") else {
         return decode_undated(snapshot);
     };

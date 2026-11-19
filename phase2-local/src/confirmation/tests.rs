@@ -9,6 +9,7 @@ mod multiline;
 mod named_payment;
 mod pending;
 mod restart;
+mod walk_in;
 
 fn draft(id: u64, quantity: u32) -> ProvisionalDraft {
     dated_named_draft(

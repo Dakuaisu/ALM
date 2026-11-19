@@ -63,6 +63,14 @@ pub struct Receipt {
     pub customer_balance: Option<Money>,
 }
 
+/// An authority-issued receipt bound to the request and the exact approved review.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConfirmationAck {
+    request: RequestId,
+    review: Review,
+    receipt: Receipt,
+}
+
 /// Trusted synthetic fixture. Role selection is not authentication.
 pub struct ConfirmationFixture {
     product: ProductId,

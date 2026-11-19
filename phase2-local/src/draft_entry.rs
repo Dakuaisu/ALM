@@ -293,5 +293,8 @@ impl<'a> PendingDraftChoice<'a> {
     }
 }
 
+mod confirmation;
+pub use confirmation::{BillEntryState, ConfirmationAttempt, ConfirmationOutcome};
+
 #[cfg(test)]
 mod tests;

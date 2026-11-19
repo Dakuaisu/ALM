@@ -27,6 +27,7 @@ impl Review {
 pub enum ProposedPayment {
     Legacy,
     Named(Money),
+    WalkInCash(Money),
 }
 
 pub(super) struct FinancialStage {
@@ -43,15 +44,7 @@ impl ConfirmationFixture {
         id: DraftId,
         received: Money,
     ) -> Result<Review, ConfirmationError> {
-        match role {
-            Role::Owner => {}
-            Role::Manager => return Err(ConfirmationError::AccessDenied),
-        }
-        let (_, draft) = self
-            .drafts
-            .get(&id)
-            .ok_or(ConfirmationError::DraftNotFound)?;
-        super::posting::validate_bill(draft)?;
+        self.bill_for_payment(role, id)?;
         let mut review = self.review(role, id)?;
         review.payment = ProposedPayment::Named(received);
         let total = review.amounts()?.total.minor_units();
@@ -59,9 +52,62 @@ impl ConfirmationFixture {
         Ok(review)
     }
 
+    /// Explicitly approves the checked full total for the unlinked walk-in label.
+    pub fn review_walk_in_cash(
+        &self,
+        role: Role,
+        id: DraftId,
+    ) -> Result<Review, ConfirmationError> {
+        walk_in_identity(self.bill_for_payment(role, id)?)?;
+        let mut review = self.review(role, id)?;
+        review.payment = ProposedPayment::WalkInCash(review.amounts()?.total);
+        Ok(review)
+    }
+
+    fn bill_for_payment(
+        &self,
+        role: Role,
+        id: DraftId,
+    ) -> Result<&ProvisionalDraft, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        let (_, draft) = self
+            .drafts
+            .get(&id)
+            .ok_or(ConfirmationError::DraftNotFound)?;
+        super::posting::validate_bill(draft)?;
+        Ok(draft)
+    }
+
     pub fn customer_due(&self, id: &str) -> Money {
         Money::from_minor_units(self.customer_balances.get(id).copied().unwrap_or_default())
     }
+}
+
+fn walk_in_identity(draft: &ProvisionalDraft) -> Result<(), ConfirmationError> {
+    match draft.customer() {
+        DraftCustomer::Typed(name) if name == "Local - Neighbor" => Ok(()),
+        DraftCustomer::Typed(_) | DraftCustomer::Selected { .. } | DraftCustomer::Unassigned => {
+            Err(ConfirmationError::InvalidDraft)
+        }
+    }
+}
+
+pub(super) fn walk_in_stage(
+    draft: &ProvisionalDraft,
+    received: Money,
+    total: Money,
+) -> Result<FinancialStage, ConfirmationError> {
+    walk_in_identity(draft)?;
+    if received != total || received.minor_units() < 0 {
+        return Err(ConfirmationError::InvalidAmount);
+    }
+    Ok(FinancialStage {
+        received: Some(received),
+        due: Some(Money::from_minor_units(0)),
+        balance: None,
+    })
 }
 
 pub(super) fn stage(
@@ -78,6 +124,9 @@ pub(super) fn stage(
             });
         }
         ProposedPayment::Named(received) => received.minor_units(),
+        ProposedPayment::WalkInCash(received) => {
+            return walk_in_stage(&review.draft, received, Money::from_minor_units(total));
+        }
     };
     let DraftCustomer::Selected { id, name } = review.draft.customer() else {
         return Err(ConfirmationError::InvalidDraft);
