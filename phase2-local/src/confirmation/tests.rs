@@ -3,6 +3,7 @@ use crate::{BillDate, DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
 mod bill_guard;
+mod cancellation;
 mod checkout_guard;
 mod edit;
 mod fifo;

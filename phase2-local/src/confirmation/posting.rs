@@ -95,6 +95,10 @@ impl ConfirmationFixture {
             .next_invoice
             .checked_add(1)
             .ok_or(ConfirmationError::Overflow)?;
+        let movement = self
+            .movement_epoch
+            .checked_add(1)
+            .ok_or(ConfirmationError::Overflow)?;
         let receipt = Receipt {
             draft_id: id,
             invoice: self.next_invoice,
@@ -114,6 +118,8 @@ impl ConfirmationFixture {
             self.customer_balances.insert(customer, balance);
         }
         self.next_invoice = next_invoice;
+        self.movement_epoch = movement;
+        self.lifecycle.insert(id, (false, movement));
         self.requests
             .insert(request, (review.clone(), receipt.clone()));
         self.current_sales

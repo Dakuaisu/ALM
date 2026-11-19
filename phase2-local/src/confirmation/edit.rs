@@ -46,6 +46,13 @@ impl ConfirmationFixture {
             .current_sales
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
+        if self
+            .lifecycle
+            .get(&id)
+            .is_some_and(|(cancelled, _)| *cancelled)
+        {
+            return Err(ConfirmationError::InvalidDraft);
+        }
         if *revision != 0
             || original.draft.lines().len() != 1
             || original.checkout.is_some()
@@ -73,6 +80,13 @@ impl ConfirmationFixture {
             return Err(ConfirmationError::AccessDenied);
         }
         let id = edit.original.draft.id();
+        if self
+            .lifecycle
+            .get(&id)
+            .is_some_and(|(cancelled, _)| *cancelled)
+        {
+            return Err(ConfirmationError::StaleReview);
+        }
         if self.current_sales.get(&id)
             != Some(&(edit.original.clone(), edit.receipt.clone(), edit.revision))
         {
@@ -121,6 +135,10 @@ impl ConfirmationFixture {
         appended.draft = ProvisionalDraft::new(id, vec![edit.changes.appended_line]);
         appended.prices = vec![edit.changes.appended_price];
         let catalog = self.catalog.stage_append(&appended)?;
+        let movement = self
+            .movement_epoch
+            .checked_add(1)
+            .ok_or(ConfirmationError::Overflow)?;
         let receipt = Receipt {
             draft_id: id,
             invoice: edit.receipt.invoice,
@@ -131,6 +149,8 @@ impl ConfirmationFixture {
             customer_balance: Some(Money::from_minor_units(balance)),
         };
         self.catalog = catalog;
+        self.movement_epoch = movement;
+        self.lifecycle.insert(id, (false, movement));
         self.ledger = ledger;
         self.customer_balances
             .insert(customer.value().to_owned(), balance);

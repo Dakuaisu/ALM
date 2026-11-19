@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
+mod cancellation;
 mod edit;
 
 #[derive(Clone)]

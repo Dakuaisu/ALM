@@ -4,12 +4,14 @@ use std::num::NonZeroU32;
 
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
+mod cancellation;
 mod catalog;
 mod checkout;
 mod edit;
 mod payment;
 mod pending;
 mod posting;
+mod reporting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
@@ -92,6 +94,8 @@ pub struct ConfirmationFixture {
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
     current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
+    lifecycle: BTreeMap<DraftId, (bool, u64)>,
+    movement_epoch: u64,
 }
 
 impl ConfirmationFixture {
@@ -134,6 +138,8 @@ impl ConfirmationFixture {
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
             current_sales: BTreeMap::new(),
+            lifecycle: BTreeMap::new(),
+            movement_epoch: 0,
         })
     }
 
@@ -186,7 +192,12 @@ impl ConfirmationFixture {
             .terms_revision
             .checked_add(1)
             .ok_or(ConfirmationError::Overflow)?;
+        let movement = self
+            .movement_epoch
+            .checked_add(1)
+            .ok_or(ConfirmationError::Overflow)?;
         self.catalog.add(product, stock, price)?;
+        self.movement_epoch = movement;
         self.terms_revision = revision;
         Ok(())
     }
