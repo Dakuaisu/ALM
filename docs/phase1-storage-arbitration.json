@@ -1,0 +1,91 @@
+{
+  "baseDB": {
+    "meta": {
+      "schema": 3,
+      "name": "",
+      "tagline": "",
+      "owner": "",
+      "mobile": "",
+      "address": "",
+      "gst": "",
+      "fssai": "",
+      "syncUrl": "",
+      "msme": "SYNTHETIC-MSME-001",
+      "gstHsn": "SYNTHETIC-HSN-001",
+      "created": 1700000000000,
+      "loadingCharge": 0,
+      "lastSync": 0,
+      "defaultReorder": 1,
+      "gstRate": 0
+    },
+    "products": [],
+    "customers": [
+      {
+        "id": "SYNTHETIC-CUSTOMER-001",
+        "name": "Synthetic Fixture Customer",
+        "mobile": "",
+        "addr1": "",
+        "addr2": "",
+        "openingBalance": 0
+      }
+    ],
+    "suppliers": [],
+    "sales": [],
+    "purchases": [],
+    "purchaseOrders": [],
+    "expenses": [],
+    "payments": [],
+    "stock": {},
+    "crates": [],
+    "priceSuppliers": [],
+    "gstBills": [],
+    "stockLog": [],
+    "log": [],
+    "godown": [],
+    "deleted": []
+  },
+  "variants": [
+    {
+      "id": "localstorage-newer",
+      "case": "L01-02",
+      "status": "NOT RUN",
+      "localStorageMeta": {
+        "name": "L01-FIXTURE-LS",
+        "rev": 2
+      },
+      "indexedDBMeta": {
+        "name": "L01-FIXTURE-IDB",
+        "rev": 1
+      },
+      "expectedMarker": "L01-FIXTURE-LS"
+    },
+    {
+      "id": "tied",
+      "case": "L01-02",
+      "status": "NOT RUN",
+      "localStorageMeta": {
+        "name": "L01-FIXTURE-LS",
+        "rev": 3
+      },
+      "indexedDBMeta": {
+        "name": "L01-FIXTURE-IDB",
+        "rev": 3
+      },
+      "expectedMarker": "L01-FIXTURE-LS"
+    },
+    {
+      "id": "indexeddb-newer",
+      "case": "L01-03",
+      "status": "NOT RUN",
+      "localStorageMeta": {
+        "name": "L01-FIXTURE-LS",
+        "rev": 1
+      },
+      "indexedDBMeta": {
+        "name": "L01-FIXTURE-IDB",
+        "rev": 2
+      },
+      "expectedMarker": "L01-FIXTURE-IDB"
+    }
+  ]
+}

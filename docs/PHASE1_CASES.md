@@ -32,6 +32,18 @@ For a populated seed, use a synthetic `meta.name` marker and a single synthetic 
 | L01-08 | After successful boot, press Alt/Option+N with no pending draft; repeat using an event whose printable key differs but code is `KeyN`. | New Bill opens; `KeyN` branch handles the alternate printable key. Use the separate draft cases for already-pending work. | 11645-11651 |
 | L01-15 | X: compare synthetic saves immediately below and exactly at the [localStorage mirror cutoff](#localstorage-mirror-cutoff-not-run). | Expect a mirror write attempt only below the cutoff and an IndexedDB write attempt in both variants (**NOT RUN**). | 717-734 |
 
+### Fixed revision arbitration fixtures (NOT RUN)
+
+Use the [synthetic L01-02/L01-03 fixture](phase1-storage-arbitration.json) only after the [inert browser gate](PHASE1_DISCOVERY.md#inert-browser-gate-not-run) passes. For each variant, start with a fresh disposable profile on the candidate's loopback origin. Make two independent copies of `baseDB` and merge `localStorageMeta` or `indexedDBMeta` into the corresponding copy's `meta`. Before candidate startup, seed the localStorage copy as JSON at `alm_db_v1` and the IndexedDB copy as an object in `alm_store` (version 1), store `kv`, key `db`. Create both `kv` and `fs` if initializing the database; leave `fs` empty. Ensure the IndexedDB seed transaction completes before startup. The shared base carries one synthetic customer and `products: []` so the IndexedDB copy is eligible (L361, L629-639, L670-693).
+
+| Variant | Synthetic input revisions (localStorage / IndexedDB) | Source-derived expected `DB.meta.name` | Status |
+| --- | --- | --- | --- |
+| L01-02 `localstorage-newer` | 2 / 1 | `L01-FIXTURE-LS` | NOT RUN |
+| L01-02 `tied` | 3 / 3 | `L01-FIXTURE-LS` | NOT RUN |
+| L01-03 `indexeddb-newer` | 1 / 2 | `L01-FIXTURE-IDB` | NOT RUN |
+
+Capture the in-memory marker at selection before any `saveDB()` call. When localStorage wins, `loadDB()` migrates and returns without calling `saveDB()` on that branch. When IndexedDB wins, it migrates and then attempts `saveDB()`, which increments the revision and attempts persistence. Record the save attempt and later durable readback separately; neither is evidence of the initial winner (L694-704, L717-734).
+
 ### IndexedDB eligibility before revision comparison (NOT RUN)
 
 **L01-03 (source only):** On independent synthetic copies, keep the same valid localStorage object and use a distinct `meta.name` marker for IndexedDB. Keep the IndexedDB objects identical except for `products`, with the same `meta.rev` strictly above the localStorage revision in all variants. Use otherwise valid fixture data so the eligible copies can complete migration.
