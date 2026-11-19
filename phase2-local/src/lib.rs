@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod confirmation;
+pub mod draft_entry;
 mod drafts;
 mod sqlite;
 
