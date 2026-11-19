@@ -2,6 +2,7 @@ use super::*;
 use crate::{DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
+mod pending;
 mod restart;
 
 fn draft(id: u64, quantity: u32) -> ProvisionalDraft {

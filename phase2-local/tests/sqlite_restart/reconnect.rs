@@ -32,6 +32,7 @@ fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
     assert_eq!(
         tables.lines().collect::<Vec<_>>(),
         [
+            "pending_owner_confirmations",
             "provisional_draft_customers",
             "provisional_draft_lines",
             "provisional_drafts"

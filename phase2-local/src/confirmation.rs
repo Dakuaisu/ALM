@@ -3,8 +3,11 @@ use std::collections::BTreeMap;
 
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
+mod pending;
+pub use pending::PendingError;
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct RequestId(u64);
+pub struct RequestId(pub(crate) u64);
 
 impl RequestId {
     pub const fn new(value: u64) -> Self {

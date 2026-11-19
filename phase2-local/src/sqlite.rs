@@ -9,6 +9,7 @@ use crate::DraftCustomer;
 use crate::drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
 
 mod customer;
+mod pending;
 
 // IDs use canonical decimal text because SQLite integers are signed 64-bit.
 const SCHEMA: &str = "
@@ -38,6 +39,10 @@ CREATE TABLE IF NOT EXISTS provisional_draft_customers (
     customer_id TEXT,
     name TEXT NOT NULL,
     CHECK ((kind = 1 AND customer_id IS NULL) OR (kind = 2 AND customer_id IS NOT NULL))
+) STRICT;
+CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
+    request_id TEXT PRIMARY KEY NOT NULL,
+    snapshot TEXT NOT NULL
 ) STRICT;
 COMMIT;
 ";

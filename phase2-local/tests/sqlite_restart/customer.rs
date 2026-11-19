@@ -60,6 +60,7 @@ fn customer_entry_survives_process_restart_and_isolated_edit() {
     assert_eq!(
         tables.lines().collect::<Vec<_>>(),
         [
+            "pending_owner_confirmations",
             "provisional_draft_customers",
             "provisional_draft_lines",
             "provisional_drafts"

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
 mod codec;
+mod sqlite_pending;
 mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};
 use transport::{Client, emit, send};
@@ -164,6 +165,12 @@ fn client_worker() {
             let receipt = read_receipt(&reply).expect("expected an authority receipt");
             emit(&format!("RECEIVED {}", receipt_frame(&receipt)));
         }
+        "sqlite_submit" | "sqlite_reopen" | "sqlite_manager" | "sqlite_retry" | "sqlite_fail" => {
+            sqlite_pending::worker(mode.as_str(), &database, &mut input);
+        }
+        "stall" => {
+            let _ = input.next();
+        }
         _ => panic!("unknown confirmation restart mode: {mode}"),
     }
 }
@@ -177,10 +184,10 @@ fn load_pending(path: &Path) -> OwnerRequest {
     OwnerRequest::decode(&fs::read_to_string(path).expect("read persisted Owner request"))
 }
 
-struct Scratch(PathBuf);
+pub(super) struct Scratch(pub(super) PathBuf);
 
 impl Scratch {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let target = target();
         fs::create_dir_all(&target).expect("create manifest target directory");
         assert_eq!(target.canonicalize().unwrap(), target);

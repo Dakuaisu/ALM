@@ -2,7 +2,10 @@ use super::{MODE, SCRATCH, codec::OwnerRequest};
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const FRAME: &str = "ALM_RESTART ";
 
@@ -18,7 +21,8 @@ pub(super) fn emit(event: &str) {
 
 pub(super) struct Client {
     child: Child,
-    stdout: BufReader<ChildStdout>,
+    events: Receiver<io::Result<String>>,
+    timeout: Duration,
 }
 
 impl Client {
@@ -41,7 +45,29 @@ impl Client {
             .spawn()
             .expect("spawn fresh confirmation client");
         let stdout = BufReader::new(child.stdout.take().expect("client stdout pipe"));
-        Self { child, stdout }
+        let (sender, events) = mpsc::channel();
+        thread::spawn(move || {
+            for line in stdout.lines() {
+                match line {
+                    Ok(line) => {
+                        if let Some(event) = line.strip_prefix(FRAME)
+                            && sender.send(Ok(event.to_owned())).is_err()
+                        {
+                            return;
+                        }
+                    }
+                    Err(error) => {
+                        let _ = sender.send(Err(error));
+                        return;
+                    }
+                }
+            }
+        });
+        Self {
+            child,
+            events,
+            timeout: Duration::from_secs(10),
+        }
     }
 
     pub(super) fn write_frame(&mut self, frame: &str) {
@@ -50,11 +76,11 @@ impl Client {
     }
 
     fn event(&mut self) -> Option<String> {
-        (&mut self.stdout).lines().find_map(|line| {
-            line.expect("read client stdout")
-                .strip_prefix(FRAME)
-                .map(str::to_owned)
-        })
+        match self.events.recv_timeout(self.timeout) {
+            Ok(event) => Some(event.expect("read client stdout")),
+            Err(RecvTimeoutError::Disconnected) => None,
+            Err(RecvTimeoutError::Timeout) => panic!("timed out waiting for client event"),
+        }
     }
 
     pub(super) fn sent(&mut self) -> OwnerRequest {
@@ -65,7 +91,18 @@ impl Client {
     pub(super) fn finish(mut self) -> Vec<String> {
         drop(self.child.stdin.take());
         let rest = std::iter::from_fn(|| self.event()).collect();
-        assert!(self.child.wait().expect("wait for client").success());
+        let deadline = Instant::now() + self.timeout;
+        loop {
+            if let Some(status) = self.child.try_wait().expect("wait for client") {
+                assert!(status.success());
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for client exit"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
         rest
     }
 }
@@ -76,5 +113,25 @@ impl Drop for Client {
             let _ = self.child.kill();
             let _ = self.child.wait();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::confirmation::tests::restart::Scratch;
+    use std::time::Duration;
+
+    #[test]
+    fn missing_send_times_out_when_worker_waits_for_input() {
+        let scratch = Scratch::new();
+        let mut client = Client::start("stall", &scratch.0);
+        client.timeout = Duration::from_millis(50);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| client.sent()));
+        let error = result.expect_err("a stalled worker must time out");
+        assert_eq!(
+            error.downcast_ref::<&str>(),
+            Some(&"timed out waiting for client event")
+        );
     }
 }
