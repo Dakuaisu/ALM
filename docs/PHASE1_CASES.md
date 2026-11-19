@@ -85,6 +85,16 @@ Use independent synthetic copies with sync off, `meta.schema` below 2, and a fix
 | L01-12 | X: compare a pre-2 copy, a schema-2 control and a saved schema-3 result from the preceding cases. Reload the saved result; separately reload a winning legacy localStorage seed without a subsequent app save. | Expected: pre-2 enters the identity/stock branch and then the pre-3 log/meta branch; schema-2 runs only the latter. Missing log IDs and revision fields are backfilled there. Reloading a persisted schema-3 result skips both branches, retaining migrated IDs, adjustment totals and history without appending another migrated row. A still-legacy persisted input can re-enter the branch: verify written schema, backup availability, and storage revision separately for localStorage, IndexedDB or confirmed JSON restore. | 504-624, 641-667, 684-734, 10021-10049 |
 | L01-13 | X/P: seed two suppliers with the same exact name, one missing its ID and one with a stable ID. Seed POs with a missing `supId` for that name and for an unmatched name, and a PO whose existing nonempty `supId` points to the second supplier despite the duplicate name. Reverse supplier order on an independent copy with stable IDs. | Expected: migration generates missing supplier IDs and preserves existing ones. Missing PO links use the first exact-name supplier in array order, or `null` for an unmatched name; an existing nonempty `supId` is not replaced or validated by this branch. Compare raw IDs and links after upgrade and persisted reload. The PO supplier display and any downstream name-based behavior still need a walkthrough. | 504, 571-587, 600-624 |
 
+#### Pre-v2 backup contents (NOT RUN)
+
+**L01-12 (source only):** Use an otherwise valid synthetic input with `meta.schema` below 2, an `expenses` field containing a plain object, and a `products` array containing one named product with no `id`. Compare three states:
+
+- **Original input:** Preserve a copy before migration. Expect `expenses` to be the seeded object and the product to have no `id`.
+- **Backup write attempt:** Capture the argument passed to `idbSet("kv", "pre_v2_backup", ...)`. Expect `expenses: []` because collection normalization has already run, but no product `id` because ID assignment has not run yet. The argument is a JSON copy, not a reference to the live `DB` (L471-474, L504-511).
+- **Migrated in-memory DB:** Expect `expenses` to remain `[]` and the same product to have a generated `id`. The later assignment does not appear in the captured backup payload (L504-515).
+
+Record the call and payload separately from durable readback. `migrate()` does not await the backup write; after it settles, independently read `kv/pre_v2_backup` to determine what was stored (L504-507, L641-667).
+
 ### Inline page resources (NOT RUN)
 
 **L01-14 (source only):** Extend the L01-01 startup walkthrough on the isolated loopback origin after containment passes. Use the unchanged candidate and a fresh disposable profile with integrations disabled. Keep three distinct records:
