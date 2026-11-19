@@ -113,22 +113,20 @@ impl Catalog {
 
     pub(super) fn stage(&self, review: &Review) -> Result<(Self, u32, i64), ConfirmationError> {
         let mut staged = self.clone();
-        let mut quantity = 0_u32;
-        let mut total = 0_i64;
+        let amounts = review.amounts()?;
         let mut sale_cost = 0_i64;
         let mut cost_known = true;
-        for (line_index, (line, price)) in
-            review.draft.lines().iter().zip(&review.prices).enumerate()
-        {
+        for (line_index, line) in review.draft.lines().iter().enumerate() {
+            let (packets, _) = review.line_values(line_index)?;
             let product = staged
                 .products
                 .get_mut(&line.product_id().value())
                 .ok_or(ConfirmationError::InvalidDraft)?;
             product.stock = product
                 .stock
-                .checked_sub(line.quantity().get())
+                .checked_sub(packets)
                 .ok_or(ConfirmationError::InsufficientStock)?;
-            let mut remaining = line.quantity().get();
+            let mut remaining = packets;
             // Fixture lots are seeded in trusted oldest-first order; no date or tie policy is inferred.
             for (lot_index, lot) in product.lots.iter_mut().enumerate() {
                 let taken = remaining.min(lot.remaining);
@@ -173,22 +171,12 @@ impl Catalog {
             if remaining != 0 {
                 return Err(ConfirmationError::InsufficientStock);
             }
-            quantity = quantity
-                .checked_add(line.quantity().get())
-                .ok_or(ConfirmationError::Overflow)?;
-            let line_total = price
-                .minor_units()
-                .checked_mul(i64::from(line.quantity().get()))
-                .ok_or(ConfirmationError::Overflow)?;
-            total = total
-                .checked_add(line_total)
-                .ok_or(ConfirmationError::Overflow)?;
         }
         staged
             .allocations
             .sale_costs
             .insert(review.draft.id().value(), cost_known.then_some(sale_cost));
-        Ok((staged, quantity, total))
+        Ok((staged, amounts.packets, amounts.total.minor_units()))
     }
 
     pub(super) fn seed_lots(

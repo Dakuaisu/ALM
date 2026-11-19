@@ -4,6 +4,7 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
+mod checkout;
 mod codec;
 mod competing;
 mod fifo;

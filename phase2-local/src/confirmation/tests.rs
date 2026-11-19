@@ -2,6 +2,7 @@ use super::*;
 use crate::{DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
+mod checkout_guard;
 mod fifo;
 mod multiline;
 mod named_payment;

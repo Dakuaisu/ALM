@@ -78,6 +78,8 @@ impl SalesSession<'_> {
     }
 }
 
+mod checkout_snapshot;
+
 fn hex(text: &str) -> String {
     use std::fmt::Write;
     let mut result = String::new();
@@ -128,14 +130,21 @@ pub(super) fn encode(review: &Review) -> String {
         customer,
         lines
     );
-    match review.payment {
+    let base = match review.payment {
         ProposedPayment::Legacy => base,
         ProposedPayment::Named(amount) => format!("3{}|{}", &base[1..], amount.minor_units()),
+    };
+    match &review.checkout {
+        None => base,
+        Some(terms) => checkout_snapshot::encode(&base, terms),
     }
 }
 
 pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     let invalid = || DraftStorageError::InvalidOutput;
+    if snapshot.starts_with("4|") {
+        return checkout_snapshot::decode(snapshot);
+    }
     let mut fields: Vec<_> = snapshot.split('|').collect();
     let payment = if fields.first() == Some(&"3") {
         let value = fields
@@ -209,6 +218,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
         prices,
         payment,
+        checkout: None,
     })
 }
 
@@ -226,6 +236,14 @@ mod tests {
     #[test]
     fn versioned_snapshot_rejects_mismatched_line_prices() {
         assert!(decode("2|43|2|3|125,210|0,,|1,2;2,3;1,1").is_err());
+    }
+
+    #[test]
+    fn checkout_snapshot_rejects_invalid_unit_and_zero_pack() {
+        let base = hex("3|43|2|3|125|2,61,62|1,12|100");
+        assert!(decode(&format!("4|{base}|13|2,6,17,150")).is_err());
+        assert!(decode(&format!("4|{base}|13|0,0,17,150")).is_err());
+        assert!(decode(&format!("4|{base}|13|0,5,17,150")).is_err());
     }
 
     #[test]
@@ -251,6 +269,7 @@ mod tests {
                 terms_revision: 39,
                 prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
                 payment: ProposedPayment::Legacy,
+                checkout: None,
             };
             assert_eq!(decode(&encode(&review)).unwrap(), review);
         }

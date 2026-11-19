@@ -4,9 +4,11 @@ use std::collections::BTreeMap;
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
 mod catalog;
+mod checkout;
 mod payment;
 mod pending;
 use catalog::Catalog;
+pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms, SaleUnit};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 
@@ -40,6 +42,7 @@ pub struct Review {
     terms_revision: u64,
     prices: Vec<Money>,
     payment: ProposedPayment,
+    checkout: Option<CheckoutTerms>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,6 +60,9 @@ pub struct Receipt {
 pub struct ConfirmationFixture {
     product: ProductId,
     catalog: Catalog,
+    checkout_products: BTreeMap<u64, ProductTerms>,
+    checkout_approvals: BTreeMap<DraftId, Review>,
+    loading_rate: Money,
     terms_revision: u64,
     draft_revision: u64,
     drafts: BTreeMap<DraftId, (u64, ProvisionalDraft)>,
@@ -94,6 +100,9 @@ impl ConfirmationFixture {
         Ok(Self {
             product,
             catalog: Catalog::new(product, stock, unit_price),
+            checkout_products: BTreeMap::new(),
+            checkout_approvals: BTreeMap::new(),
+            loading_rate: Money::from_minor_units(0),
             terms_revision: 0,
             draft_revision: 0,
             drafts: BTreeMap::new(),
@@ -144,11 +153,6 @@ impl ConfirmationFixture {
         self.review(role, id)
     }
 
-    /// Replaces fixture terms and invalidates all prior reviews, even if the price is unchanged.
-    pub fn set_unit_price(&mut self, unit_price: Money) -> Result<(), ConfirmationError> {
-        self.set_product_price(self.product, unit_price)
-    }
-
     /// Adds a distinct synthetic product to the fixture catalog.
     pub fn add_product(
         &mut self,
@@ -195,6 +199,7 @@ impl ConfirmationFixture {
             terms_revision: self.terms_revision,
             prices,
             payment: ProposedPayment::Legacy,
+            checkout: None,
         })
     }
 
@@ -224,6 +229,8 @@ impl ConfirmationFixture {
             || current.1 != review.draft
             || self.terms_revision != review.terms_revision
             || self.catalog.prices(&review.draft).ok().as_ref() != Some(&review.prices)
+            || !self.checkout_current(review)
+            || !self.checkout_approved(review)
         {
             return Err(ConfirmationError::StaleReview);
         }
@@ -266,12 +273,6 @@ impl ConfirmationFixture {
         Ok(receipt)
     }
 
-    pub fn stock(&self) -> u32 {
-        self.catalog.stock(self.product).unwrap_or_default()
-    }
-    pub fn product_stock(&self, product: ProductId) -> Option<u32> {
-        self.catalog.stock(product)
-    }
     pub const fn ledger(&self) -> Money {
         Money::from_minor_units(self.ledger)
     }

@@ -45,16 +45,7 @@ impl ConfirmationFixture {
     ) -> Result<Review, ConfirmationError> {
         let mut review = self.review(role, id)?;
         review.payment = ProposedPayment::Named(received);
-        let total = review.draft.lines().iter().zip(&review.prices).try_fold(
-            0_i64,
-            |sum, (line, price)| {
-                price
-                    .minor_units()
-                    .checked_mul(i64::from(line.quantity().get()))
-                    .and_then(|value| sum.checked_add(value))
-                    .ok_or(ConfirmationError::Overflow)
-            },
-        )?;
+        let total = review.amounts()?.total.minor_units();
         stage(&review, total, &BTreeMap::new())?;
         Ok(review)
     }
