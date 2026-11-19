@@ -7,6 +7,7 @@ mod cancellation;
 mod checkout_guard;
 mod edit;
 mod fifo;
+mod l05_01;
 mod multiline;
 mod named_payment;
 mod pending;

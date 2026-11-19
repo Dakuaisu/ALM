@@ -11,6 +11,7 @@ mod edit;
 mod payment;
 mod pending;
 mod posting;
+mod preview;
 mod reporting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
@@ -18,6 +19,8 @@ pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use edit::{EditChanges, SaleEdit};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
+use preview::PreviewPayment;
+pub use preview::{BalanceMode, BillPreview, PreviewLine, PreviousBalance};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RequestId(pub(crate) u64);
@@ -94,6 +97,7 @@ pub struct ConfirmationFixture {
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
     current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
+    preview_payments: Vec<PreviewPayment>,
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
     movement_epoch: u64,
 }
@@ -138,6 +142,7 @@ impl ConfirmationFixture {
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
             current_sales: BTreeMap::new(),
+            preview_payments: Vec::new(),
             lifecycle: BTreeMap::new(),
             movement_epoch: 0,
         })
