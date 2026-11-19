@@ -33,10 +33,11 @@ For a populated seed, use a synthetic `meta.name` marker and a single synthetic 
 
 ### IndexedDB eligibility before revision comparison (NOT RUN)
 
-**L01-03 (source only):** On independent synthetic copies, keep the same valid localStorage object and use a distinct `meta.name` marker for IndexedDB. Keep the IndexedDB objects identical except for `products`, with the same `meta.rev` strictly above the localStorage revision in both variants. Start with otherwise valid fixture data so the `products: []` variant can complete migration.
+**L01-03 (source only):** On independent synthetic copies, keep the same valid localStorage object and use a distinct `meta.name` marker for IndexedDB. Keep the IndexedDB objects identical except for `products`, with the same `meta.rev` strictly above the localStorage revision in all variants. Use otherwise valid fixture data so the eligible copies can complete migration.
 
 - **Missing `products`:** The `m && m.products` guard leaves `ic` unset, so the stored IndexedDB revision never enters the comparison. Expect the localStorage marker to win and no `saveDB()` call from that selection branch (L684-698).
 - **`products: []`:** The empty array is truthy, so the IndexedDB revision enters the comparison and wins in this fixture. Expect the IndexedDB marker to be selected before migration and the subsequent `saveDB()` attempt. This is an eligibility check, not full schema validation (L684-704).
+- **Truthy non-array `products` (NOT RUN):** Set `products` to a plain object such as `{ marker: "synthetic-products-object" }`. Check three steps separately: (1) the object is truthy, so `m && m.products` admits the IndexedDB copy; (2) its higher revision wins, so `DB` takes the IndexedDB marker while `products` is still that object; (3) `migrate()` replaces the non-array value with `[]` before `loadDB()` attempts `saveDB()`. Check the normalized value at the save attempt separately from durable readback (L471-474, L684-704).
 
 Capture the selected in-memory `DB.meta.name` independently of any save attempt or durable storage readback. A later rewrite of the mirror is not the selection oracle, and a `saveDB()` call is not proof that a write completed (L694-704, L717-734).
 
