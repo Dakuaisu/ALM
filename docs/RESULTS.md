@@ -176,3 +176,27 @@ Source trace: [L05-03](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [`waI
 | P2-ESTIMATE-FALLBACK / L05-04 | development | Offline Rust crate at `3d6f6b38d37b27d82618383b4dfa8c6e6f35cf82`; synthetic posted regular packet estimate with prior balance and later receipt; stub render outcomes and in-memory sinks. | An HTML PNG bypasses canvas. After an HTML miss, canvas PNG uses L05-03 once; if canvas also misses, emit only encoded `waText` to the phone-specific or empty-phone destination. Manager invokes no callbacks; bill and payment state are unchanged. | HTML hit: HTML → file probe → download → chat intent. Canvas hit: HTML → canvas → file probe → download → chat intent, with exact PNG bytes, `image/png`, and `Estimate-2.png` at probe and download; neither image path emitted text. Both miss: HTML → canvas → one `_blank` text intent, no file callbacks. Its destination was `https://wa.me/910000000000?text=…` for a matching mobile and `https://wa.me/?text=…` for absent, unmatched, or short mobile. The query escaped `&` as `%26` and decoded to the independently specified source text, including reserved characters, Unicode, and the selected bill-date or latest balance. Manager: `AccessDenied`, zero callbacks. Whole fixture unchanged in every run. Focused: 5 passed, 0 failed; full: 146 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy and build passed; editor diagnostics timed out. | PASS (local fallback only) | `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l05_04`; `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet`; [ordered sink captures](../phase2-local/src/confirmation/tests/l05_04.rs) |
 
 Source trace: [L05-04](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [`waInvoice`](../ALM_Business_Manager.html#L4795) at lines 4795–4817 and [`waText`](../ALM_Business_Manager.html#L4459) at lines 4459–4476. The text check covers the regular synthetic packet fixture, not crate, loading-rate, or MRP variants. The frozen HTML was not executed, no URL was opened and no recipient was contacted. Canvas rendering, image legibility, actual WhatsApp handoff, and all acceptance gates remain open.
+
+### Read-only ordinary-sale GST breakdown
+
+**P2-GST-ORDINARY / L06-01 (development, PASS):** Offline Rust crate at `a8e99ddf2cbe28351a26ef7f122765b2b994c4bf`. Both jurisdiction requests used the same posted synthetic invoice `1`, dated `2024-02-29`, with ₹100 paid. Only the pre-resolved jurisdiction changed. The input prices were inclusive; the expected taxable unit price was independently calculated as ₹100 on each line.
+
+| Saved line and tax inputs | Expected effective HSN, GST + cess | Expected taxable / combined tax | Observed emitted fields |
+| --- | --- | --- | --- |
+| Water, 2 × ₹105; no override | `22011010`, 5% + 0% | ₹200 / ₹10 | `22011010`, 5% + 0%; ₹100 taxable per unit, ₹200 taxable / ₹10 tax |
+| Product, 1 × ₹120; product override 18%, cess 2%, HSN `22029920` | `22029920`, 18% + 2% | ₹100 / ₹20 | `22029920`, 18% + 2%; ₹100 taxable per unit, ₹100 taxable / ₹20 tax |
+| Override, 1 × ₹112; product 18%, cess 5%, HSN `22029090`; saved line 12%, HSN `21069099` | `21069099`, 12% + 0% | ₹100 / ₹12 | `21069099`, 12% + 0%; ₹100 taxable per unit, ₹100 taxable / ₹12 tax |
+
+| Output | Expected CGST / SGST / IGST | Observed CGST / SGST / IGST |
+| --- | --- | --- |
+| Intrastate invoice | ₹21 / ₹21 / ₹0 | ₹21 / ₹21 / ₹0 |
+| Intrastate HSN groups, in line order | ₹5 / ₹5 / ₹0; ₹10 / ₹10 / ₹0; ₹6 / ₹6 / ₹0 | ₹5 / ₹5 / ₹0; ₹10 / ₹10 / ₹0; ₹6 / ₹6 / ₹0 |
+| Interstate invoice | ₹0 / ₹0 / ₹42 | ₹0 / ₹0 / ₹42 |
+| Interstate HSN groups, in line order | ₹0 / ₹0 / ₹10; ₹0 / ₹0 / ₹20; ₹0 / ₹0 / ₹12 | ₹0 / ₹0 / ₹10; ₹0 / ₹0 / ₹20; ₹0 / ₹0 / ₹12 |
+
+Expected and observed in both outputs: ₹400 taxable, ₹42 combined tax, ₹442 grand total. Cess is included in the split, not added to the grand total again. The whole fixture was unchanged: saved sale intact, remaining stock `3 / 4 / 4`, paid ₹100, and customer balance ₹342. The allowlisted invoice exposed no cost or profit and was identical across different private FIFO costs. Manager access was denied before emission. Inexact arithmetic was rejected without emitting rather than rounded.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l06_01` → 6 passed, 0 failed.
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 152 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy and build passed; editor diagnostics timed out.
+
+Source trace: [L06-01](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [`gstInfo`](../ALM_Business_Manager.html#L4872), [`gstInvoiceHTML`](../ALM_Business_Manager.html#L4989) and [ordinary Sales actions](../ALM_Business_Manager.html#L6140). Evidence: [captured invoices](../phase2-local/src/confirmation/tests/l06_01.rs) and [HSN splits](../phase2-local/src/confirmation/tests/l06_01_hsn.rs). No operator action was added. Crates, fractional-line rounding, deployed tax treatment, operator reachability, and all acceptance gates remain open.
