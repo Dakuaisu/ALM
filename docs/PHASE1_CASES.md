@@ -25,11 +25,17 @@ For a populated seed, use a synthetic `meta.name` marker and a single synthetic 
 | L01-01 | Open an empty origin; wait for local writes to settle, then reload. | Dashboard on initial load and reload; seeded transaction collections are empty and available storage receives the seed. | 441-462, 684-734, 11626-11645 |
 | L01-02 | Populate only localStorage, then repeat with both stores populated and localStorage newer or tied. | Counter; localStorage marker wins, including ties, and no IndexedDB-only recovery toast. | 670-714, 11637-11645 |
 | L01-03 | Populate both stores with IndexedDB newer; allow persistence to settle. | Counter with IndexedDB marker; save advances revision and mirrors it if possible. No missing-mirror recovery toast. | 684-734, 11637-11645 |
-| L01-04 | Populate IndexedDB only; repeat with malformed localStorage JSON. | Counter with recovered marker and recovery toast. In malformed variant, preserve original raw payload under the corrupt mirror key. | 670-714, 11637-11645 |
-| L01-05 | Use malformed localStorage JSON with no IndexedDB record. | Dashboard from fresh seed; corrupt mirror holds original payload. Parser fallback does not itself trigger the recovery screen. | 670-714, 11626-11645 |
+| L01-04 | Populate IndexedDB only; repeat with malformed localStorage JSON. | Counter with recovered marker and recovery toast. The malformed variant attempts to copy the raw payload to the corrupt mirror slot; see the [slot variants](#corrupt-mirror-backup-slot-not-run). | 670-714, 11637-11645 |
+| L01-05 | Use malformed localStorage JSON with no IndexedDB record. | Dashboard from fresh seed whether or not the corrupt mirror slot write succeeds. Parser fallback does not itself trigger the recovery screen. | 670-714, 11626-11645 |
 | L01-06 | Seed valid JSON primitive `true` in localStorage and an older usable IndexedDB copy with revision omitted. Open, then use Download stored data with a local sink. | The tied revision selects localStorage; migration fails on the primitive. Data problem screen renders; downloads offer raw browser and serialized IndexedDB copies without replacing either. | 464-469, 684-698, 11570-11636 |
 | L01-07 | From L01-06, choose invalid JSON, then valid synthetic JSON but decline confirmation, then confirm valid restore. | Invalid import warns; decline leaves storage unchanged. Confirm migrates the replacement, attempts to rewind the push watermark, calls `saveDB()` and opens Dashboard. Verify durable readback separately before expecting a reload with the synthetic customer to select Counter. | 10021-10058, 11574-11579, 11637-11645 |
 | L01-08 | After successful boot, press Alt/Option+N with no pending draft; repeat using an event whose printable key differs but code is `KeyN`. | New Bill opens; `KeyN` branch handles the alternate printable key. Use the separate draft cases for already-pending work. | 11645-11651 |
+
+### Corrupt mirror backup slot (NOT RUN)
+
+**L01-04/L01-05:** On independent synthetic copies, seed a nonempty malformed string at `LS_KEY` and a distinct existing value at `LS_KEY + "_corrupt"`. Let the backup-slot `setItem()` succeed in one variant; in the other, stub only that write to throw before modifying storage. On success, expect the malformed string to replace the previous slot value verbatim, not append to it. On failure, expect the old slot value to remain and the write error to be swallowed. Check the slot separately from any later rewrite of `LS_KEY` by `saveDB()` (L670-683, L717-734).
+
+In both variants, `parseLS()` returns `null` and `loadDB()` continues selection. With a usable IndexedDB record, expect the L01-04 recovery path, including its scheduled toast. Without one, expect the L01-05 fresh seed path. Neither path reads the corrupt slot as a database, and the recovery toast does not confirm that the slot write succeeded (L684-714).
 
 ### One-time schema upgrade (NOT RUN)
 
