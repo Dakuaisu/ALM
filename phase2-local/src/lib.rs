@@ -9,7 +9,7 @@ mod sqlite;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub use drafts::{DraftId, DraftLine, ProductId, ProvisionalDraft};
+pub use drafts::{DraftCustomer, DraftCustomerId, DraftId, DraftLine, ProductId, ProvisionalDraft};
 pub use sqlite::DraftStorageError;
 use sqlite::SqliteDraftStore;
 

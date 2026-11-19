@@ -57,17 +57,52 @@ impl DraftLine {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DraftCustomerId(String);
+
+impl DraftCustomerId {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Customer input owned by a provisional draft.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DraftCustomer {
+    Unassigned,
+    Typed(String),
+    Selected { id: DraftCustomerId, name: String },
+}
+
 /// Editable local draft with no payment, stock, or final invoice state.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvisionalDraft {
     id: DraftId,
     lines: Vec<DraftLine>,
+    customer: DraftCustomer,
 }
 
 impl ProvisionalDraft {
     /// Takes ownership of the draft lines, which may be empty while editing.
     pub const fn new(id: DraftId, lines: Vec<DraftLine>) -> Self {
-        Self { id, lines }
+        Self {
+            id,
+            lines,
+            customer: DraftCustomer::Unassigned,
+        }
+    }
+
+    pub fn with_customer(mut self, customer: DraftCustomer) -> Self {
+        self.customer = customer;
+        self
+    }
+
+    pub const fn customer(&self) -> &DraftCustomer {
+        &self.customer
     }
 
     /// Returns the draft identity.

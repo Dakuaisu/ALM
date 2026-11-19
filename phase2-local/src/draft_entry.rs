@@ -3,6 +3,8 @@
 
 use crate::ProvisionalDraft;
 
+mod snapshot;
+
 /// Matches the text check in the frozen HTML's `draftHasWork` (L3369-3370).
 fn has_form_text(text: &str) -> bool {
     !text

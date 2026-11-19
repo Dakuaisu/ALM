@@ -1,5 +1,5 @@
 use super::*;
-use crate::DraftLine;
+use crate::{DraftCustomer, DraftLine};
 use std::num::NonZeroU32;
 
 fn draft(id: u64, quantity: u32) -> ProvisionalDraft {
@@ -80,6 +80,28 @@ fn changed_draft_or_terms_rejects_stale_review() {
         Err(ConfirmationError::StaleReview)
     );
     assert_eq!((f.stock(), f.ledger().minor_units()), (5, 0));
+}
+
+#[test]
+fn customer_only_edit_invalidates_the_previous_review_without_posting() {
+    let mut f = fixture(5);
+    let original = f.review(Role::Owner, DraftId::new(1)).unwrap();
+    let edited = draft(1, 2).with_customer(DraftCustomer::Typed("Synthetic customer".into()));
+
+    let updated = f.reconnect_review(Role::Owner, edited.clone()).unwrap();
+    let stale = f.confirm(Role::Owner, RequestId::new(1), &original);
+
+    assert_eq!(updated.draft(), &edited);
+    assert_eq!(stale, Err(ConfirmationError::StaleReview));
+    assert_eq!(
+        (
+            f.stock(),
+            f.ledger().minor_units(),
+            f.next_invoice,
+            f.posted_count()
+        ),
+        (5, 0, 1, 0)
+    );
 }
 
 #[test]
