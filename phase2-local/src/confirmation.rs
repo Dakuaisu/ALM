@@ -9,6 +9,8 @@ mod catalog;
 mod checkout;
 mod edit;
 mod estimate;
+mod gst_defaults;
+mod gst_invoice;
 mod image_handoff;
 mod payment;
 mod pending;
@@ -22,6 +24,9 @@ pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
     PrintIntent,
+};
+pub use gst_invoice::{
+    GstError, GstGroup, GstInvoice, GstJurisdiction, GstLine, GstLineMetadata, GstRequest,
 };
 pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,

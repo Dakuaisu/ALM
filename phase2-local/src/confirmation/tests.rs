@@ -13,6 +13,8 @@ mod l05_02_display;
 mod l05_02_privacy;
 mod l05_03;
 mod l05_04;
+mod l06_01;
+mod l06_01_hsn;
 mod multiline;
 mod named_payment;
 mod pending;
