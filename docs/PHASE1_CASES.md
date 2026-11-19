@@ -30,6 +30,7 @@ For a populated seed, use a synthetic `meta.name` marker and a single synthetic 
 | L01-06 | Seed valid JSON primitive `true` in localStorage and an older usable IndexedDB copy with revision omitted. Open, then use Download stored data with a local sink. | The tied revision selects localStorage; migration fails on the primitive. Data problem screen renders; see the [stored-copy download check](#recovery-download-contents-not-run) for payload scope and count. | 464-469, 684-698, 10001-10014, 11570-11636 |
 | L01-07 | From L01-06, choose invalid JSON, then valid synthetic JSON but decline confirmation, then confirm valid restore. | Invalid import warns; decline leaves storage unchanged. Confirm migrates the replacement, attempts to rewind the push watermark, calls `saveDB()` and opens Dashboard. Verify durable readback separately before expecting a reload with the synthetic customer to select Counter. | 10021-10058, 11574-11579, 11637-11645 |
 | L01-08 | After successful boot, press Alt/Option+N with no pending draft; repeat using an event whose printable key differs but code is `KeyN`. | New Bill opens; `KeyN` branch handles the alternate printable key. Use the separate draft cases for already-pending work. | 11645-11651 |
+| L01-15 | X: compare synthetic saves immediately below and exactly at the [localStorage mirror cutoff](#localstorage-mirror-cutoff-not-run). | Expect a mirror write attempt only below the cutoff and an IndexedDB write attempt in both variants (**NOT RUN**). | 717-734 |
 
 ### IndexedDB eligibility before revision comparison (NOT RUN)
 
@@ -40,6 +41,15 @@ For a populated seed, use a synthetic `meta.name` marker and a single synthetic 
 - **Truthy non-array `products` (NOT RUN):** Set `products` to a plain object such as `{ marker: "synthetic-products-object" }`. Check three steps separately: (1) the object is truthy, so `m && m.products` admits the IndexedDB copy; (2) its higher revision wins, so `DB` takes the IndexedDB marker while `products` is still that object; (3) `migrate()` replaces the non-array value with `[]` before `loadDB()` attempts `saveDB()`. Check the normalized value at the save attempt separately from durable readback (L471-474, L684-704).
 
 Capture the selected in-memory `DB.meta.name` independently of any save attempt or durable storage readback. A later rewrite of the mirror is not the selection oracle, and a `saveDB()` call is not proof that a write completed (L694-704, L717-734).
+
+### localStorage mirror cutoff (NOT RUN)
+
+**L01-15 (source only):** Use independent synthetic DB copies with the same starting revision. Adjust an inert padding field so `JSON.stringify(DB)` inside `saveDB()`, after the revision increment, yields a nonempty string with JavaScript `.length` of 4,499,999 in one variant and 4,500,000 in the other. Use the serialized string's UTF-16 code unit count, not file bytes or browser quota (L717-725).
+
+- **Immediately below the cutoff:** Expect an attempted `localStorage.setItem(LS_KEY, str)` and an attempted `idbSet("kv", "db", DB)`.
+- **Exactly at the cutoff:** Expect no mirror write attempt because the guard is strictly `str.length < 4500000`. Expect the IndexedDB write attempt to proceed because it is outside that guard (L725-733).
+
+Capture each write attempt at its call boundary. In a separate readback check, seed a distinct existing mirror at `LS_KEY` before each save, let writes settle, and verify what each store contains. At the cutoff, expect the existing mirror to remain unchanged: `saveDB()` skips the mirror write and does not clear the slot. An attempted call is not proof of a durable write (L725-733).
 
 ### Corrupt mirror backup slot (NOT RUN)
 
