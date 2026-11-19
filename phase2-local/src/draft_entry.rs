@@ -3,13 +3,87 @@
 
 use crate::ProvisionalDraft;
 
-/// Caller-supplied classification of active draft work. The source guard checks
-/// more than the line data represented by [`ProvisionalDraft`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DraftWork<'a> {
-    /// There is no active draft, or it has no qualifying work.
-    None,
-    InProgress(&'a ProvisionalDraft),
+/// Matches the text check in the frozen HTML's `draftHasWork` (L3369-3370).
+fn has_form_text(text: &str) -> bool {
+    !text
+        .trim_matches(|ch: char| ch == '\u{FEFF}' || (ch != '\u{0085}' && ch.is_whitespace()))
+        .is_empty()
+}
+
+/// Incomplete row values read from the active bill form.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DraftRowFacts<'a> {
+    is_crate: bool,
+    item: &'a str,
+    quantity: f64,
+}
+
+impl<'a> DraftRowFacts<'a> {
+    pub const fn crate_row() -> Self {
+        Self {
+            is_crate: true,
+            item: "",
+            quantity: 0.0,
+        }
+    }
+
+    pub const fn item(item: &'a str) -> Self {
+        Self {
+            is_crate: false,
+            item,
+            quantity: 0.0,
+        }
+    }
+
+    pub const fn quantity(quantity: f64) -> Self {
+        Self {
+            is_crate: false,
+            item: "",
+            quantity,
+        }
+    }
+
+    fn has_work(self) -> bool {
+        self.is_crate
+            || has_form_text(self.item)
+            || (self.quantity != 0.0 && !self.quantity.is_nan())
+    }
+}
+
+/// Active form facts, separate from finalized provisional draft lines.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActiveBillFacts<'a> {
+    rows: &'a [DraftRowFacts<'a>],
+    customer: &'a str,
+    paid: f64,
+    note: &'a str,
+}
+
+impl<'a> ActiveBillFacts<'a> {
+    pub const fn blank() -> Self {
+        Self::new(&[], "", 0.0, "")
+    }
+
+    pub const fn new(
+        rows: &'a [DraftRowFacts<'a>],
+        customer: &'a str,
+        paid: f64,
+        note: &'a str,
+    ) -> Self {
+        Self {
+            rows,
+            customer,
+            paid,
+            note,
+        }
+    }
+
+    fn has_work(self) -> bool {
+        self.rows.iter().copied().any(DraftRowFacts::has_work)
+            || has_form_text(self.customer)
+            || (self.paid != 0.0 && !self.paid.is_nan())
+            || has_form_text(self.note)
+    }
 }
 
 /// Guarded New Bill and the two direct actions from the bill form.
@@ -50,14 +124,17 @@ pub enum DraftEntryOutcome<'a> {
 }
 
 impl DraftEntryAction {
-    /// Resolves direct actions immediately; only New Bill consults the guard.
-    pub const fn begin(self, work: DraftWork<'_>) -> DraftEntry<'_> {
+    /// Resolves direct actions immediately; New Bill derives its guard from active form facts.
+    pub fn begin<'a>(
+        self,
+        active: Option<(&'a ProvisionalDraft, ActiveBillFacts<'_>)>,
+    ) -> DraftEntry<'a> {
         match self {
-            Self::NewBill => match work {
-                DraftWork::None => DraftEntry::Resolved(DraftEntryOutcome::OpenFresh),
-                DraftWork::InProgress(draft) => {
+            Self::NewBill => match active {
+                Some((draft, facts)) if facts.has_work() => {
                     DraftEntry::AwaitingChoice(PendingDraftChoice(draft))
                 }
+                Some(_) | None => DraftEntry::Resolved(DraftEntryOutcome::OpenFresh),
             },
             Self::FreshBill | Self::Clear => DraftEntry::Resolved(DraftEntryOutcome::OpenFresh),
         }
@@ -75,115 +152,4 @@ impl<'a> PendingDraftChoice<'a> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::num::NonZeroU32;
-
-    use super::{
-        DraftChoice, DraftEntry, DraftEntryAction, DraftEntryOutcome, DraftWork, PendingDraftChoice,
-    };
-    use crate::{DraftId, DraftLine, ProductId, ProvisionalDraft};
-
-    fn populated_draft() -> ProvisionalDraft {
-        ProvisionalDraft::new(
-            DraftId::new(1),
-            vec![DraftLine::new(ProductId::new(2), NonZeroU32::MIN)],
-        )
-    }
-
-    fn guarded_choice(draft: &ProvisionalDraft) -> PendingDraftChoice<'_> {
-        let DraftEntry::AwaitingChoice(pending) =
-            DraftEntryAction::NewBill.begin(DraftWork::InProgress(draft))
-        else {
-            panic!("New Bill must await a choice when work is in progress");
-        };
-        pending
-    }
-
-    #[test]
-    fn cancel_keeps_the_current_location_and_draft() {
-        // Given a populated draft and a pending choice.
-        let draft = populated_draft();
-        let pending = guarded_choice(&draft);
-
-        // When the entry is canceled.
-        let outcome = pending.resolve(DraftChoice::Cancel);
-
-        // Then neither the location nor draft changes.
-        assert_eq!(outcome, DraftEntryOutcome::StayWithDraft(&draft));
-    }
-
-    #[test]
-    fn discard_opens_a_fresh_provisional_draft() {
-        // Given a populated draft and a pending choice.
-        let draft = populated_draft();
-        let pending = guarded_choice(&draft);
-
-        // When the active draft is discarded.
-        let outcome = pending.resolve(DraftChoice::Discard);
-
-        // Then bill entry requests a fresh active draft only.
-        assert_eq!(outcome, DraftEntryOutcome::OpenFresh);
-    }
-
-    #[test]
-    fn continue_opens_the_same_provisional_draft() {
-        // Given a populated draft and a pending choice.
-        let draft = populated_draft();
-        let pending = guarded_choice(&draft);
-
-        // When the draft is continued.
-        let outcome = pending.resolve(DraftChoice::Continue);
-
-        // Then bill entry opens the existing draft unchanged.
-        assert_eq!(outcome, DraftEntryOutcome::OpenExisting(&draft));
-    }
-
-    #[test]
-    fn new_bill_without_pending_work_opens_fresh_directly() {
-        // Given no qualifying work.
-        let work = DraftWork::None;
-
-        // When New Bill is requested.
-        let entry = DraftEntryAction::NewBill.begin(work);
-
-        // Then bill entry requests a fresh draft without a choice.
-        assert_eq!(entry, DraftEntry::Resolved(DraftEntryOutcome::OpenFresh));
-    }
-
-    #[test]
-    fn new_bill_can_be_guarded_even_without_draft_lines() {
-        // Given qualifying work outside the synthetic draft's line data.
-        let draft = ProvisionalDraft::new(DraftId::new(1), Vec::new());
-        let work = DraftWork::InProgress(&draft);
-
-        // When New Bill is requested.
-        let entry = DraftEntryAction::NewBill.begin(work);
-
-        // Then it still awaits a choice.
-        assert!(matches!(entry, DraftEntry::AwaitingChoice(_)));
-    }
-
-    #[test]
-    fn fresh_bill_bypasses_the_guard_with_work_in_progress() {
-        // Given a populated active draft.
-        let draft = populated_draft();
-
-        // When Fresh Bill is requested directly.
-        let entry = DraftEntryAction::FreshBill.begin(DraftWork::InProgress(&draft));
-
-        // Then it requests an active-draft reset without a choice.
-        assert_eq!(entry, DraftEntry::Resolved(DraftEntryOutcome::OpenFresh));
-    }
-
-    #[test]
-    fn clear_bypasses_the_guard_with_work_in_progress() {
-        // Given a populated active draft.
-        let draft = populated_draft();
-
-        // When Clear is requested directly.
-        let entry = DraftEntryAction::Clear.begin(DraftWork::InProgress(&draft));
-
-        // Then it requests the same active-draft reset as Fresh Bill.
-        assert_eq!(entry, DraftEntry::Resolved(DraftEntryOutcome::OpenFresh));
-    }
-}
+mod tests;
