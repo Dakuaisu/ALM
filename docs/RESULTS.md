@@ -237,3 +237,21 @@ Stock stayed at 17 in the main fixture. In a separate control, the full inventor
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 166 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L07-01/L07-02](PHASE1_CASES.md#po-parse--fill-not-run), [paste parser](../ALM_Business_Manager.html#L6390), [fill and warnings](../ALM_Business_Manager.html#L6585), and [explicit Save](../ALM_Business_Manager.html#L6713). Evidence: [draft, warnings, and saved records](../phase2-local/tests/l07_purchase_orders.rs) and [prior receipt controls](../phase2-local/src/confirmation/purchase_orders/tests.rs). The frozen HTML was not executed. This covers the typed, positive whole-quantity, headered TSV slice, not general paste parity. Receipt processing, supplier output, hosted and device checks, and acceptance gates remain open.
+
+### Partially received PO outputs
+
+**P2-PO-OUTPUT / L07-03 (development, PASS):** Offline Rust fixture at `9e45ebe485b48243c0a3ef6395f918f432e59212`. Synthetic `PO-042` was supplied explicitly for output, with 4 ordered cases, 1 already received, and a seeded dated receipt on `2025-01-06` at ₹3.30. The saved private purchase rate was ₹3.00. No receipt processing was used to create the fixture.
+
+| Output | Expected | Observed |
+| --- | --- | --- |
+| Internal View | Partially received; ordered 4, received 1, cancelled 0, remaining 3. | Matched; item-name metadata supplied 12 bottles and ₹67.50 MRP. |
+| Supplier Print/PDF sink and image-renderer input | Original 4 cases, product-ID MRP ₹89.50 and pack; no purchase rate, receipt progress, or monetary total. | Both captured the same supplier body with 24 tins & jars, ₹89.50, 4 ordered cases and 4 total cases. The print sink captured `_p` and a 350 ms after-load intent; the renderer input width was 760. Neither exposed the purchase rate or receipt progress. |
+| Purchase-rate control | Change only the saved line purchase rate from ₹3.00 to ₹22.22; both complete supplier payloads stay identical. | Both complete captured payloads were identical. |
+| Synthetic recipient and fallback intents | Resolve supplier ID/name as in source. Native share rejection is terminal; unsupported share downloads then requests chat only for a valid phone; absent PNG requests encoded text only. | Source lookup precedence and valid/invalid phone cases matched. Native branch captured the `o.png` probe then `Order-PO-042.png` share; rejection did not fall back. Unsupported branch captured download then optional chat. No-PNG branch captured only encoded text with the original 4 cases. |
+
+Manager was denied before all sinks. Whole-fixture snapshots showed the order, dated receipt, and stock unchanged across outputs. The supplied PNG was a valid synthetic image fixture, not a bill rendering.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l07_03` → 7 passed, 0 failed.
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 173 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L07-03](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [supplier document and WhatsApp](../ALM_Business_Manager.html#L6777), [internal View](../ALM_Business_Manager.html#L6848), and [phone normalization](../ALM_Business_Manager.html#L4819). Evidence: [view and supplier content](../phase2-local/src/confirmation/purchase_orders/tests/output.rs) and [handoff branches](../phase2-local/src/confirmation/purchase_orders/tests/output/whatsapp.rs). Frozen HTML was not executed; no printer, recipient, or URL was invoked. Actual rendering, device handoff, hosted checks, and acceptance gates remain open.
