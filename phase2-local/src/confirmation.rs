@@ -46,11 +46,11 @@ pub use preview::{BalanceMode, BillPreview, PreviewLine, PreviousBalance};
 use purchase_orders::PurchaseBook;
 pub use purchase_orders::{
     PurchaseBusiness, PurchaseDraft, PurchaseError, PurchaseLine, PurchaseOrder,
-    PurchaseOrderHandoff, PurchaseOrderId, PurchaseOrderSelection, PurchaseOrderStatus,
-    PurchaseOrderView, PurchaseOutputRequest, PurchasePasteWarnings, PurchaseProduct,
-    PurchaseProductDisplay, PurchaseProgressLine, PurchaseReceipt, PurchaseSupplier,
-    PurchaseSupplierContact, PurchaseSupplierId, PurchaseWhatsAppRequest, ReceiveLine,
-    ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier,
+    PurchaseOrderHandoff, PurchaseOrderId, PurchaseOrderNoteEdit, PurchaseOrderSelection,
+    PurchaseOrderStatus, PurchaseOrderView, PurchaseOutputRequest, PurchasePasteWarnings,
+    PurchaseProduct, PurchaseProductDisplay, PurchaseProgressLine, PurchaseReceipt,
+    PurchaseSupplier, PurchaseSupplierContact, PurchaseSupplierId, PurchaseWhatsAppRequest,
+    ReceiveLine, ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

@@ -1,3 +1,4 @@
+mod note_edit;
 mod output;
 mod paste;
 mod receiving;
@@ -10,6 +11,7 @@ use crate::{BillDate, Money, ProductId, Role};
 
 use super::{ConfirmationError, ConfirmationFixture};
 
+pub use note_edit::PurchaseOrderNoteEdit;
 pub use output::{
     PurchaseBusiness, PurchaseOrderHandoff, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseOrderView, PurchaseOutputRequest, PurchaseProductDisplay, PurchaseProgressLine,
@@ -104,6 +106,8 @@ pub struct PurchaseOrder {
 pub enum PurchaseError {
     AccessDenied,
     OrderNotFound,
+    OrderNotPending,
+    StaleOrderNote,
     NoUsableRows,
     MissingSupplier,
     MissingItems,
@@ -117,6 +121,8 @@ impl fmt::Display for PurchaseError {
         f.write_str(match self {
             Self::AccessDenied => "Only Owner can access purchase orders",
             Self::OrderNotFound => "Purchase order not found",
+            Self::OrderNotPending => "Only pending purchase orders can be edited",
+            Self::StaleOrderNote => "Purchase order changed; reopen it to edit the note",
             Self::NoUsableRows => "Nothing usable found — select the rows in the sheet, copy, and paste them here unchanged.",
             Self::MissingSupplier => "Enter supplier",
             Self::MissingItems => "Add at least one item with an order quantity",

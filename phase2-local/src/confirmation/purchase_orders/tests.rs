@@ -1,5 +1,6 @@
 use super::*;
 
+mod note_edit;
 mod output;
 mod receiving;
 

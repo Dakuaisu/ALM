@@ -69,11 +69,37 @@ pub enum PurchaseOrderStatus {
 }
 
 impl PurchaseOrderStatus {
+    /// Whether the owner can open Edit for an order with this status.
+    pub const fn can_edit(self) -> bool {
+        match self {
+            Self::Pending => true,
+            Self::PartiallyReceived | Self::Completed | Self::Cancelled => false,
+        }
+    }
+
     /// Whether the legacy View would offer Receive Goods. Does not receive anything.
     pub const fn can_receive(self) -> bool {
         match self {
             Self::Pending | Self::PartiallyReceived => true,
             Self::Completed | Self::Cancelled => false,
+        }
+    }
+}
+
+impl PurchaseOrder {
+    pub(super) fn status(&self) -> PurchaseOrderStatus {
+        if self.cancelled {
+            PurchaseOrderStatus::Cancelled
+        } else if self.items.iter().all(|line| line.remaining() == 0) {
+            PurchaseOrderStatus::Completed
+        } else if self
+            .items
+            .iter()
+            .any(|line| line.received > 0 || line.cancelled > 0)
+        {
+            PurchaseOrderStatus::PartiallyReceived
+        } else {
+            PurchaseOrderStatus::Pending
         }
     }
 }
@@ -130,23 +156,11 @@ impl ConfirmationFixture {
                 }
             })
             .collect();
-        let status = if order.cancelled {
-            PurchaseOrderStatus::Cancelled
-        } else if lines.iter().all(|line| line.remaining == 0) {
-            PurchaseOrderStatus::Completed
-        } else if lines
-            .iter()
-            .any(|line| line.received > 0 || line.cancelled > 0)
-        {
-            PurchaseOrderStatus::PartiallyReceived
-        } else {
-            PurchaseOrderStatus::Pending
-        };
         Ok(PurchaseOrderView {
             number: selection.number(),
             supplier: order.supplier_name.clone(),
             date: order.date,
-            status,
+            status: order.status(),
             lines,
         })
     }
