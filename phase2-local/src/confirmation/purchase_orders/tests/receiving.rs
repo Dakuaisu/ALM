@@ -2,6 +2,7 @@ use super::*;
 use crate::confirmation::{ReceiveLine, ReceiveRequest, ReceiveResult};
 mod close_remaining;
 mod matching;
+mod rate_inputs;
 
 fn date(day: u8) -> BillDate {
     BillDate::new(2025, 1, day).unwrap()
