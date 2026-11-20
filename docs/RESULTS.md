@@ -660,3 +660,27 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L13-02](PHASE1_CASES.md#L242), [planner rate](../ALM_Business_Manager.html#L10523), [checkout](../ALM_Business_Manager.html#L10546), and [explicit PO Save](../ALM_Business_Manager.html#L6713). Fractional quantities and group Add all remain outside this implementation; no permanent legacy departure is approved. The frozen HTML was unchanged and the legacy walkthrough was **NOT RUN**. Hosted, device, parity, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Order Planner Group Add All and Copy Plan
+
+**P2-ORDER-PLAN-ACTIONS / L13-02 group action and L13-03 (development, PASS):** Synthetic local Rust fixture on macOS at `05ad1101403d7fdda78fc28c71e8639d97b2b811`. [Group Add All](../phase2-local/tests/l13_02_group_add_all.rs) received a supplied list of visible members. Expected and observed cart order was Existing (17 packets, unchanged), First (8 suggested packets), Visible High (9 packets at 475 paise from Group Fixture Supplier), and Last (6 packets). The supplied above-threshold member was included; the omitted hidden member and unknown ID were not. Repeating the full action left the cart identical. Manager denial did not change the cart, quotes, stock, or order book.
+
+[Copy Plan](../phase2-local/src/confirmation/purchase_orders/order_planner/copy/tests.rs) emitted the exact expected payloads below. The nonempty cart kept the zero line and used its captured supplier rates; the buy-rate fallback had no supplier suffix. Its two nonzero line amounts of 149 paise each sum to 298 paise, displayed as ₹3 rather than the ₹2 sum of individually rounded lines. The empty cart read current catalog rows at or below threshold, independently of a restricted visible subset containing only Synthetic Lime & Soda. It excluded the above-threshold item and emitted no total. Backslash escapes below show the actual newline placement.
+
+```text
+Cart: "*ALM Order Plan* (09-Feb-2024)\n\nSynthetic Lime & Soda — 1 pkt (Synthetic Orchard ₹1.49)\nSynthetic Above — 0 pkt (Synthetic Orchard ₹1,23,456.78)\nSynthetic Equal — 1 pkt\n\nTotal ₹3"
+Empty cart: "*ALM Order Plan* (09-Feb-2024)\n\nSynthetic Equal — 10 pkt\nSynthetic Lime & Soda — 13 pkt (Synthetic Orchard ₹8.45)\nSynthetic New Low — 1,23,456 pkt\n"
+Rejected, no low rows: "*ALM Order Plan* (09-Feb-2024)\n\n"
+Numeric keys: "*ALM Order Plan* (09-Feb-2024)\n\n0 — 1 pkt\n2 — 1 pkt\n10 — 1 pkt\n4294967294 — 1 pkt\nZed — 1 pkt\n4294967295 — 1 pkt\n01 — 1 pkt\n+1 — 1 pkt\n4294967296 — 1 pkt\nAlpha — 1 pkt\n\nTotal ₹10"
+```
+
+Expected and observed feedback: `Order plan copied ✓` after one accepted write, `Copy failed` after one rejected write, and `Copy not available in this browser` when no writer was supplied. Manager received `AccessDenied`, no price data, and zero writer calls. Copy left the complete fixture and plan unchanged; neither action saved a PO, received stock, or changed quotes. The display-only Node arithmetic control `50 * 0.29` yielded `14.499999999999998`, which rounds to ₹14 in the frozen calculation; the Rust payload matched, without changing exact cart arithmetic. Additional tests cover numeric key order, signed half ties, selected large values, and overflow without a partial write; they do not establish exhaustive numeric parity.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l13_02_group_add_all -- --nocapture` (2 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l13_03 -- --nocapture` (11 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (302 passed, 0 failed, 2 ignored).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [group preservation](PHASE1_CASES.md#L622), [Copy Plan cases](PHASE1_CASES.md#L627), [frozen Group Add All handler](../ALM_Business_Manager.html#L10721), and [frozen Copy Plan handler](../ALM_Business_Manager.html#L10821). Installed UI group selection, fractional-quantity parity, actual clipboard behavior, the legacy walkthrough, and all acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
