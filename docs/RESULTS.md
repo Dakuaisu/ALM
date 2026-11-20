@@ -638,3 +638,25 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L13-01](PHASE1_CASES.md#L241), [Reorder projection, `suggestQty` and Copy List](../ALM_Business_Manager.html#L8308), [fresh PO defaults](../ALM_Business_Manager.html#L6521), and [positive receipt buy-rate update](../ALM_Business_Manager.html#L1013). These are local development results for whole-packet fixtures; the real clipboard and legacy walkthrough were **NOT RUN**. Hosted, device, parity, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Order Planner checkout and explicit PO Save
+
+**P2-ORDER-PLANNER / L13-02 (development, PASS for scoped whole-packet flow):** [Local synthetic Rust tests](../phase2-local/tests/l13_02_order_planner.rs) at `abc5459f60b633e0009c0b977d7ed9fb4dccd835` on macOS. The frozen `orderRate` handler selects the minimum positive quote from live supplier columns, or the buy rate with no supplier attribution if none qualifies. The PO supplier is inferred from the whole cart; editing the supplier in the detached PO form does not reprice the captured lines.
+
+| Main case, amounts in minor units | Expected and observed cart, checkout draft, and saved PO |
+| --- | --- |
+| Product 1, Synthetic Lime | Supplier A quote 825 beat B quote 1,100; 3 packets × 825 = 2,475 at all stages. |
+| Product 2, Synthetic Soda | A's quote was -100 and B's absent, so no eligible quote; 4 packets × buy rate 1,325 = 5,300 at all stages. |
+| Supplier and total | Cart attributed Lime to A and had no attribution for Soda. Checkout prefilled A. Owner selected B on the detached draft and explicitly saved it under B; total stayed 7,775 throughout. |
+
+The draft dated 2024-02-09 saved nothing on checkout. Explicit Save created one Pending PO (`PO-001`) with 3 and 4 packets remaining and no receipt entries, then cleared the saved lines from the cart. Billing stock stayed at 2 and 4; FIFO lots, buy rates, and quotes were unchanged. Closing without saving preserved the cart and order book. Manager plan, checkout, and Save attempts returned `AccessDenied` with no price data and left the entire fixture and cart unchanged.
+
+[Controls](../phase2-local/tests/l13_02_order_planner/controls.rs): When only B quoted Soda, checkout inferred B and kept its rate of 975, not the buy rate, when the Owner saved under A; 4 × 975 = 3,900. With both positive lines attributed to different suppliers, checkout retained both lines and the 6,375 total but left supplier blank; Save returned `MissingSupplier` without changes. Setting Soda to zero omitted it from the draft but still prevented supplier inference; removing it restored A and the Lime-only total of 2,475. Successful Save retained cart entries omitted from the saved PO.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l13_02 -- --nocapture` (8 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (289 passed, 0 failed, 2 ignored).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L13-02](PHASE1_CASES.md#L242), [planner rate](../ALM_Business_Manager.html#L10523), [checkout](../ALM_Business_Manager.html#L10546), and [explicit PO Save](../ALM_Business_Manager.html#L6713). Fractional quantities and group Add all remain outside this implementation; no permanent legacy departure is approved. The frozen HTML was unchanged and the legacy walkthrough was **NOT RUN**. Hosted, device, parity, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
