@@ -1,3 +1,4 @@
+mod fresh_form;
 mod note_edit;
 mod output;
 mod paste;
@@ -13,6 +14,7 @@ use crate::{BillDate, Money, ProductId, Role};
 
 use super::{ConfirmationError, ConfirmationFixture};
 
+pub use fresh_form::{FreshPurchaseOrderForm, FreshPurchaseOrderLine};
 pub use note_edit::PurchaseOrderNoteEdit;
 pub use output::{
     PurchaseBusiness, PurchaseOrderHandoff, PurchaseOrderSelection, PurchaseOrderStatus,
@@ -160,6 +162,15 @@ const fn owner(role: Role) -> Result<(), PurchaseError> {
 }
 
 impl ConfirmationFixture {
+    pub fn begin_fresh_purchase_order(
+        &self,
+        role: Role,
+        bill_date: BillDate,
+    ) -> Result<FreshPurchaseOrderForm, PurchaseError> {
+        owner(role)?;
+        Ok(fresh_form::begin(&self.purchases, bill_date))
+    }
+
     /// Seeds item and buy-rate metadata from the trusted fixture without changing inventory.
     pub fn register_purchase_product(
         &mut self,
