@@ -684,3 +684,52 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [group preservation](PHASE1_CASES.md#L622), [Copy Plan cases](PHASE1_CASES.md#L627), [frozen Group Add All handler](../ALM_Business_Manager.html#L10721), and [frozen Copy Plan handler](../ALM_Business_Manager.html#L10821). Installed UI group selection, fractional-quantity parity, actual clipboard behavior, the legacy walkthrough, and all acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Local terminal provisional-draft demo
+
+**DEV-DRAFT-DEMO / R-6 (development, PASS):** [Terminal launcher](../phase2-local/src/bin/alm-draft-demo.rs) and [two-process test](../phase2-local/tests/draft_demo.rs) at `3292b202f6d217b4812f8ea5ece1423fc0d9117a`, on the development Mac. The Owner approved this synthetic demo only. It uses the existing Rust `Role::Manager` session and SQLite draft store, not a real login or an Owner confirmation review. It exposes no posting, invoice, payment, stock reservation, or goods-release action.
+
+**Owner replay:** Use Cargo and `sqlite3` on `PATH`. In the same terminal, run the setup once to make a fresh, unsynced directory under the ignored local build directory. Never point the demo at a real or shared database; use one demo process at a time.
+
+```sh
+cd /Users/apple/ALM && mkdir -p /Users/apple/ALM/phase2-local/target && db_dir=$(mktemp -d /Users/apple/ALM/phase2-local/target/alm-demo.XXXXXX)
+```
+
+Run this launcher for both sessions, keeping the same `db_dir`:
+
+```sh
+cd /Users/apple/ALM && cargo run --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --bin alm-draft-demo -- --db "$db_dir/drafts.sqlite"
+```
+
+1. Enter `new`, `Synthetic Customer`, `1` (Synthetic Lime), `3`, `review`, `save`, and `quit`, one entry per line. Note the saved draft ID.
+2. Run the same launcher again. Enter `open`, the saved draft ID (`1` in a fresh database), `review`, and `quit`.
+
+**Expected and observed:** The reopened draft retained its ID, customer, item, and quantity. `SAVED` indicates SQLite persistence only; both reviews showed `PROVISIONAL — NOT POSTED`. Selected transcript from the actual launcher replay (paths and repeated prompts omitted):
+
+```text
+Launch 1
+ALM synthetic Manager demo — local drafts only; not authenticated.
+PROVISIONAL — NOT POSTED
+Draft ID: 1
+State: UNSAVED
+Customer: Synthetic Customer
+Item: Synthetic Lime | Quantity: 3
+Saved draft 1: PROVISIONAL — NOT POSTED.
+
+Launch 2
+ALM synthetic Manager demo — local drafts only; not authenticated.
+Opened draft 1: SAVED.
+PROVISIONAL — NOT POSTED
+Draft ID: 1
+State: SAVED
+Customer: Synthetic Customer
+Item: Synthetic Lime | Quantity: 3
+```
+
+The automated restart assertion checked distinct CLI process IDs. An attempted `post` was rejected as an unknown command. A read-only SQLite check of the launcher replay found 1 provisional draft and 0 pending owner confirmations. No real records were used.
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test draft_demo -- --nocapture`: 2 passed, 0 failed.
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet`: 305 passed, 0 failed, 2 ignored.
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check` and `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --bin alm-draft-demo --test draft_demo -- -D warnings` passed. The launcher built and ran offline in both sessions. Editor diagnostics timed out.
+
+Owner testing is pending. This is terminal development evidence, not visual parity, a verified legacy walkthrough, or phase acceptance. No hosted, device, migration, or production gate changed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds remain unchanged.
