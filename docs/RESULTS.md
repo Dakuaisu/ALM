@@ -345,3 +345,20 @@ A date-only header was recognized; an item/quantity-only row did not qualify as 
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (200 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L07-04](PHASE1_CASES.md#po-parse--fill-not-run), [dates and numeric cleanup](../ALM_Business_Manager.html#L6405), [header detection and positional columns](../ALM_Business_Manager.html#L6439), and [product matching and unchanged strict threshold](../ALM_Business_Manager.html#L6493). Evidence: [draft, Save, and boundary tests](../phase2-local/tests/l07_04_purchase_paste.rs). The frozen HTML was not executed. This is development evidence for the tested TSV layouts, not general legacy parser parity; all acceptance gates remain open.
+
+### Receipt-rate edge cases
+
+**P2-PO-RECEIPT-RATE / L08-06 (development, PASS):** Offline Rust tests at `34d3cfec71f4df46e9833e8aed35d7ea7a0361c7`. Each case cloned the same five-case PO after a receipt of 2 cases at ₹13.00 on `2025-01-20`, then attempted to receive 1 case dated `2025-01-10`. Baseline on-hand was 12, average cost ₹10.50, and the PO line rate, last-buy rate, and supplier quote were each ₹13.00. The only dated FIFO layer was the Jan 20 receipt, at ₹13.00 per case.
+
+| Raw rate input | Frozen source expectation (static; runtime NOT RUN) | Observed Rust result |
+| --- | --- | --- |
+| `0` | Parses as ₹0.00 and logs that rate. Stock becomes 13; average stays ₹10.50, and line rate, last buy, quote and new FIFO lot rate stay ₹13.00. | Typed zero posted 1 on Jan 10 at a recorded rate of ₹0.00. Stock became 13, total received 3, remaining 2. Average stayed ₹10.50; line rate, last buy and quote stayed ₹13.00. The new Jan 10 FIFO layer cost ₹13.00, independently of the zero receipt rate. |
+| `-3` | Parses as −₹3.00 and would log that rate. Stock becomes 13; blended average becomes ₹9.46. Line rate, last buy, quote and new FIFO lot rate stay ₹13.00. | The test decoder produced typed −₹3.00; receiving returned `InvalidReceipt`. No new receipt or lot. Whole fixture matched the baseline, including stock, PO rate, movements, and costs. |
+| `not a rate` | `+value \|\| 0` would log ₹0.00 and have the same effects as the zero input. | The test-only decoder rejected the text before constructing `Money` or calling receiving. No receipt or lot, and the whole fixture matched the baseline. This does not establish a production form parsing policy. |
+
+The successful zero-rate receipt followed Jan 20 in the receipt log but preceded it in FIFO order; dated movements remained Jan 20: 2 and Jan 10: 1. A Manager request with typed zero returned `AccessDenied` and left the whole fixture unchanged.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l08_06` (1 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (201 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [raw rate input](../ALM_Business_Manager.html#L6970), [receipt parsing and logging](../ALM_Business_Manager.html#L7031), [average and supplier quote](../ALM_Business_Manager.html#L999), and [FIFO fallback](../ALM_Business_Manager.html#L1198). Evidence: [independent receipt-rate cases](../phase2-local/src/confirmation/purchase_orders/tests/receiving/rate_inputs.rs). No operational receiving behavior changed. Frozen HTML execution, hosted and device checks, legacy parity, and all acceptance gates remain open.
