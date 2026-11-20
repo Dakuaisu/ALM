@@ -470,3 +470,21 @@ Linked history still aggregated under `p9` (3 sold, 5 received). The name-only c
 - Full: `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (235 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [historical references after deletion](PHASE1_CASES.md#historical-references-after-deletion), [product delete confirmation](../ALM_Business_Manager.html#L7769), [catalog lookups](../ALM_Business_Manager.html#L950), [record removal and tombstone](../ALM_Business_Manager.html#L974), [sale quantity keys](../ALM_Business_Manager.html#L1040), and [PO lot keys](../ALM_Business_Manager.html#L1198). Evidence: [disposable product deletion tests](../phase2-local/tests/l09_legacy_product_delete.rs). No operational deletion path was added and the frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged. Hosted, device, parity, and acceptance gates remain open.
+
+### Mixed-unit crate template checkout
+
+**P2-CRATE-TEMPLATE / L10-01 template portion (development, PASS):** Offline Rust fixture at `f246f04f025a004cc6681307cda9d7fb2755e8b5`. The template copied two distinct products into the existing checkout path.
+
+| Check | Expected and observed |
+| --- | --- |
+| Suggestion and entered rate | 6 Piece at ₹11 MRP plus 3 Case at ₹73 sell gave a ₹285 suggestion. The saved and copied price was ₹250, distinct from both the suggestion and the ad hoc crate rate of ₹321. |
+| Posted bill | One crate row at ₹250 each, quantity 2, total ₹500. The copied component order and quantities were 6 Piece then 3 Case per crate. |
+| Stock and frozen FIFO | The Piece product had 4 pieces per pack; 12 pieces took 3 packs, reducing stock from 6 to 3. The Case product took 6 cases, reducing stock from 9 to 3. FIFO froze ₹54 and ₹150 respectively, for ₹204 total; both products' remaining lot balances were `[0, 3]`. |
+| Template edit and deletion | A newly prepared draft loaded the edited order of 1 Case then 4 Piece and the edited ₹95 price. After editing and deleting the template, the original sale reopened with identical row contents, price, quantities, receipt, and frozen allocations. Stock and ledger were unchanged. |
+
+The copied row survived SQLite draft reopen and pending confirmation replay; replay returned the original receipt without another stock or ledger effect. Manager template requests were denied and left the fixture and draft unchanged.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l10_01` (2 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (239 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L10-01](PHASE1_CASES.md#L236), [template suggestion, edit and delete](../ALM_Business_Manager.html#L7967), [crate builder](../ALM_Business_Manager.html#L10124), [packet expansion](../ALM_Business_Manager.html#L1039), and [bill snapshot and FIFO](../ALM_Business_Manager.html#L4039). Evidence: [template lifecycle and checkout tests](../phase2-local/src/confirmation/tests/restart/crate_template.rs). Template storage is in-memory; only copied rows and pending approvals were exercised through SQLite. The frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Repeated-product valuation, fractional rounding, hosted and device checks, parity, and acceptance gates remain open.
