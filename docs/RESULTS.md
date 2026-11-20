@@ -219,3 +219,21 @@ Missing items, customer, and date respectively returned `Add at least one item w
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 157 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L06-02](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [standalone edit and cancellation](../ALM_Business_Manager.html#L5260), [form totals](../ALM_Business_Manager.html#L5735), [save and warning guards](../ALM_Business_Manager.html#L5770), and [saved invoice calculation](../ALM_Business_Manager.html#L4989). Evidence: [lifecycle captures](../phase2-local/src/confirmation/tests/l06_02.rs) and [exactness controls](../phase2-local/src/confirmation/tests/l06_02_edges.rs). The frozen HTML was not executed. Rounding parity, deployed tax rules, production numbering, hosted and device checks, and acceptance gates remain open.
+
+### Purchase order Parse & Fill and explicit Save
+
+**P2-PO-PARSE-SAVE / L07-01 and L07-02 (development, PASS):** Offline synthetic Rust fixture at `5a9539c6124037c73407c88d9a4ae7bd804979cb`. Initial draft: `Original Supplier`, `2024-02-29`, `Keep this note`, and `Prior item` (12 at ₹5.30). The headered tab-separated paste contained an unnamed North row on `2025-02-03` (2 at ₹1.23), followed by South rows for `fixture lime` (3 at ₹2.30, pasted total ₹6.90) and `Fixture Unknown` (4 at ₹1.05, pasted total ₹9.20).
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Draft after Parse & Fill | First party/date even though the first row is skipped; note stays; usable lines replace old lines. | `Synthetic North`, no supplier link, `2025-02-03`, `Keep this note`. `Fixture Lime` linked to product `81`, 3 at ₹2.30; `Fixture Unknown` unlinked, 4 at ₹1.05. The old item was replaced, not appended. |
+| Warnings before Save | Unknown product remains in draft; mixed parties stay in one order; flag mismatched total and skipped row. | The unmatched notice named `Fixture Unknown`; the mixed-party notice said `Paste had 2 parties — all rows went into this one PO`. The mismatch also named `Fixture Unknown`; 1 row was skipped. No supplier or order existed after filling. A paste with no usable rows did not change the existing draft. |
+| Explicit Owner Save | Store one new supplier and one linked order with both lines and no receipt. | Stored `Synthetic North` and one linked order with the parsed date, note, product links, rates, and ordered quantities. Both received counts were 0; both dated receipt lists were empty. |
+| Save with independently omitted fields | Warn and write neither record. | Missing supplier: `Enter supplier`. Missing usable item/quantity: `Add at least one item with an order quantity`. Missing date: `Pick the order date`. Each left suppliers, orders and stock unchanged. |
+
+Stock stayed at 17 in the main fixture. In a separate control, the full inventory catalog (25 on hand) and the prior order's received count and dated receipt (1 on `2025-01-06` at ₹3.30) were unchanged after both Parse & Fill and Save. Manager attempts were denied before parsing or saving.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l07_` → 9 passed, 0 failed.
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 166 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L07-01/L07-02](PHASE1_CASES.md#po-parse--fill-not-run), [paste parser](../ALM_Business_Manager.html#L6390), [fill and warnings](../ALM_Business_Manager.html#L6585), and [explicit Save](../ALM_Business_Manager.html#L6713). Evidence: [draft, warnings, and saved records](../phase2-local/tests/l07_purchase_orders.rs) and [prior receipt controls](../phase2-local/src/confirmation/purchase_orders/tests.rs). The frozen HTML was not executed. This covers the typed, positive whole-quantity, headered TSV slice, not general paste parity. Receipt processing, supplier output, hosted and device checks, and acceptance gates remain open.
