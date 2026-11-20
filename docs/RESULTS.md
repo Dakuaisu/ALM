@@ -397,3 +397,21 @@ Source trace: [L08-10](PHASE1_CASES.md#L168), [lookup and form defaults](../ALM_
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (216 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L09-01](PHASE1_CASES.md#L234), [brand filter](../ALM_Business_Manager.html#L7515), [pricing events](../ALM_Business_Manager.html#L7685), [duplicate, defaults and Save](../ALM_Business_Manager.html#L7788), and [GST defaults](../ALM_Business_Manager.html#L4872). Evidence: [entry and reopen tests](../phase2-local/tests/l09_product_entry.rs) and [fixture invariants](../phase2-local/src/confirmation/catalog/product_entry/tests.rs). The frozen HTML was not executed. This covers exact minor-unit synthetic pricing, not general rounding or rendered behavior. OPEN-009, `BillDate`, and both paste-mismatch thresholds are unchanged; rendered, hosted, device, parity, and acceptance gates remain open.
+
+### Supplier price editors and comparison
+
+**P2-SUPPLIER-PRICES / L09-02 and L09-03 (development, PASS):** Offline Rust fixture at `adeb7cd5f0be740af13662654b846e9b3bfce309`, using `Synthetic Orange`. Grove Supply's quote of ₹10.00 was seeded through the existing receipt path. Product and Comparison Editor supplier creation were exercised on independent fixtures.
+
+| Check | Expected and observed |
+| --- | --- |
+| Comparison before and after a direct quote edit | Grove Supply at ₹10.00 was initially highlighted over Market Supply at ₹12.50. After changing Market Supply to ₹8.75 and reopening, only Market Supply was highlighted. Unquoted Supply stayed blank and unhighlighted. |
+| Add through Product Entry | `Orchard Supply` was saved as a supplier and appeared as a blank comparison column immediately. Its ₹12.50 draft quote remained unsaved through a rejected Product Save, then appeared in both reopened editors after a valid Product Save. |
+| Add through Comparison | `Market Supply` was saved as a supplier and appeared as a blank column, then retained its quote across comparison reopen and Product Entry reopen. |
+| Quote-only effects and role gate | The existing sale (invoice 1, 3 units, ₹60.00 total), stock of 9, and existing PO (5 ordered, dated receipt of 2 at ₹10.00) were unchanged. Average cost stayed ₹8.33 and last buy stayed ₹10.00. Manager access to both editors, supplier creation, and quote writes was denied; saved comparison and directory were unchanged. |
+
+A stored −₹5.00 quote was not eligible for lowest price. Typed blank and zero cleared quotes. The frozen Product Editor publishes draft quotes on Product Save, whereas the frozen comparison editor persists cell changes directly; both can add the supplier before its quote is saved.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l09_supplier_prices` (4 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (220 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L09-02/L09-03](PHASE1_CASES.md#L235), [Product Editor fields and Add Supplier](../ALM_Business_Manager.html#L7725), [Product Editor Save](../ALM_Business_Manager.html#L7782), [Comparison Editor, columns and highlighting](../ALM_Business_Manager.html#L7835), and [Suppliers entry point](../ALM_Business_Manager.html#L10362). Evidence: [cross-editor tests](../phase2-local/tests/l09_supplier_prices.rs). The frozen HTML was not executed. OPEN-009, `BillDate`, and both paste-mismatch thresholds are unchanged. Product rename, deletion with historical links, and all acceptance gates remain open.
