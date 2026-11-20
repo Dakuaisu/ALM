@@ -520,3 +520,24 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L11-01](PHASE1_CASES.md#L237), [equal-date construction order](PHASE1_CASES.md#equal-date-lot-order), and [legacy Stock Lots dialog](../ALM_Business_Manager.html#L1339). The local view is a typed projection, not a native dialog; it does not reproduce the legacy source or original-quantity columns, mixed historical purchase/PO import ordering, or fractional display rounding. The legacy walkthrough remains **NOT RUN**. No real records, credentials, hosted services or target devices were used. OPEN-009 remains OWNER-BLOCKED; `BillDate`, both paste-mismatch thresholds, and all phase and acceptance gates are unchanged.
+
+### Owner physical stock counts
+
+**P2-PHYSICAL-COUNT / L11-02 (development, PASS):** [Local in-memory Rust tests](../phase2-local/tests/l11_02.rs) on macOS at `3f71adc6b953f945079ad6884dfb5d1e9795374e`. Each case began with independent synthetic stock of 7 billing packets (FIFO layers of 3 at 80 and 4 at 120 minor units), a separate fridge display of 11, and empty adjustment history. Expected deltas were calculated as counted minus billing stock, without the fridge count.
+
+| Submitted count | Billing stock, expected = observed | Fridge display, expected = observed | Adjustment history, expected = observed |
+| --- | --- | --- | --- |
+| Above: 10 | 10 | 11 | One movement dated 2025-02-12: 7 to 10, delta +3; Count correction and trimmed note `recount at close` |
+| Below: 3 | 3 | 11 | One movement dated 2025-02-12: 7 to 3, delta -4; blank note omitted |
+| Equal: 7, with and without a fridge edit | 7 in both cases | 13 after edit; otherwise 11 | No movement; FIFO layers unchanged |
+| Invalid count, with proposed fridge 12 | 7 unchanged | 11 unchanged | Rejected; no movement or FIFO change |
+
+Invalid controls covered blank, non-finite, negative, fractional, overflowing, and nonnumeric input in each field. Explicit endpoints 0 and 4,294,967,295 produced signed deltas -7 and +4,294,967,288. The increase appended 3 packets at unknown cost; after the decrease, only 3 packets at 120 remained, with FIFO value 360 minor units. A sale demanding 8 with 7 billing packets and 11 displayed in the fridge returned `InsufficientStock`, with no posting or ledger change. Manager reads and submissions returned `AccessDenied` before lookup or validation and left stock, fridge, and history unchanged. Only a nonzero correction made sale cancellation undo stale; equal, fridge-only, and invalid inputs did not. The submission-time control used current stock of 6 rather than the previously displayed 7, recording 6 to 7, delta +1.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l11_02 -- --nocapture` (9 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (255 passed, 0 failed, 2 ignored).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L11-02](PHASE1_CASES.md#L238), [frozen count handler](../ALM_Business_Manager.html#L8184), and [billing stock and fridge projection](../ALM_Business_Manager.html#L1129). The frozen handler rejects blank or non-finite count text, rounds the delta to hundredths against modal-open stock, and records only nonzero deltas. It saves the fridge separately. The fixture accepts whole nonnegative packets within its typed range, validates a supplied fridge count, and uses submission-time stock. Its unknown-cost adjustment layer is not a receipt, a transfer, or a claim of legacy FIFO equivalence. The legacy walkthrough remains **NOT RUN**. Hosted, target-device, phase, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
