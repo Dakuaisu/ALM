@@ -310,3 +310,20 @@ The duplicate-name control copied the first matching line's counts for both save
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (189 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L08-04](PHASE1_CASES.md#po-save-and-edit-not-run), [Pending-only Edit](../ALM_Business_Manager.html#L6338), [detached form copy](../ALM_Business_Manager.html#L6521), [Save reconstruction](../ALM_Business_Manager.html#L6735), [quantity](../ALM_Business_Manager.html#L1097), [FIFO fallback](../ALM_Business_Manager.html#L1198), and [movement date fallback](../ALM_Business_Manager.html#L10866). Evidence: [guarded edit tests](../phase2-local/src/confirmation/purchase_orders/tests/note_edit.rs) and [test-only comparison](../phase2-local/src/confirmation/purchase_orders/tests/legacy_edit.rs). The frozen HTML was not executed. Historical reconciliation, legacy parity, and all acceptance gates remain open.
+
+### Delete PO on a disposable copy
+
+**P2-PO-DELETE / L08-05 (development, PASS):** Offline Rust tests at `bde172297f228a9253ea5de859eabfebc243828a`. The local receive path seeded 10 opening cases at ₹10.00, a control PO with 1 case received on `2025-01-02` at ₹10.00, and a target PO with 2 cases received on `2025-01-04` at ₹13.90. Deletion was exercised only in a private test copy of the purchase records; the source fixture and its materialized catalog were not modified.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Warning, open, decline, and Manager confirmation | Warn about the selected PO's 2 cases, not the combined 3; opening, declining, or Manager denial leaves the fixture unchanged. | Exact received-case warning matched; all three paths preserved the full fixture and copied records. |
+| Owner confirmation | Remove only the target PO and its dated receipt; no compensating receipt. | The control PO and its dated receipt survived unchanged and were the only remaining order record. |
+| Derived on-hand and movements | On-hand 13 to 11. Jan 4 inbound 2 to 0; Jan 2 inbound stays 1. | Matched. Inbound on both PO document dates, Jan 1 and Jan 3, stayed at 0. |
+| Stored costs and supplier quote | No rollback of stored prices. | Average cost ₹10.60, buy rate ₹13.90, and target supplier quote ₹13.90 were carried unchanged in the copied product and cost fields. |
+| Unreceived PO control | Show the no-stock-effect warning, then remove the PO without changing stock or inbound movement. | Exact warning matched. On-hand stayed at 10 and inbound stayed at 0 after Owner confirmation. |
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l08_05` (4 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (193 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L08-05](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [warning and delete callback](../ALM_Business_Manager.html#L6342), [cumulative PO quantities](../ALM_Business_Manager.html#L1097), [dated movement contributions](../ALM_Business_Manager.html#L10866), and [stored cost and quote writes](../ALM_Business_Manager.html#L999). Evidence: [disposable tests](../phase2-local/src/confirmation/purchase_orders/tests/legacy_delete.rs). No operational delete path was added, and the frozen HTML was not executed. Historical reconciliation, legacy parity, and all acceptance gates remain open.
