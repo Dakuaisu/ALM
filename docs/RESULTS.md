@@ -415,3 +415,21 @@ A stored −₹5.00 quote was not eligible for lowest price. Typed blank and zer
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (220 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L09-02/L09-03](PHASE1_CASES.md#L235), [Product Editor fields and Add Supplier](../ALM_Business_Manager.html#L7725), [Product Editor Save](../ALM_Business_Manager.html#L7782), [Comparison Editor, columns and highlighting](../ALM_Business_Manager.html#L7835), and [Suppliers entry point](../ALM_Business_Manager.html#L10362). Evidence: [cross-editor tests](../phase2-local/tests/l09_supplier_prices.rs). The frozen HTML was not executed. OPEN-009, `BillDate`, and both paste-mismatch thresholds are unchanged. Product rename, deletion with historical links, and all acceptance gates remain open.
+
+### Quoted supplier deletion on a disposable copy
+
+**P2-QUOTED-SUPPLIER-DELETE / L09-03 (development, PASS):** Offline Rust fixture at `371152ad077b81ceef75c4fd9e462aa9d86fe222`. `Synthetic Quoted Supply` had a saved ₹8.75 quote for `Synthetic Orange` and an order dated `2025-01-02`, completed by a dated receipt of 3 cases at ₹13.00 on `2025-01-03`. `Synthetic Control Supply` was an unrelated, unquoted contact. Only the disposable directory and explicit column list modeled deletion; the frozen HTML was not executed and no operational deletion path was added.
+
+| Check | Before confirmation | Observed after Owner confirmation |
+| --- | --- | --- |
+| Supplier directory | Control and quoted supplier contacts | Only the unchanged control contact remained. |
+| Stored product quote | ₹8.75 under the quoted supplier's exact name | Same stored quote and name. |
+| Reopened comparison | Control column blank, quoted supplier column ₹8.75 | Retained supplier appeared once as an explicit column, with the same ₹8.75 price and highlight. The control column stayed blank. Both full and selected-product comparisons agreed. |
+| Purchase history and stock | Completed PO linked to the quoted supplier, dated receipt for 3 at ₹13.00, stock 13 | PO identity and supplier link, dated receipt, and stock 13 were unchanged. |
+
+The disposable prompt matched the source title and the warning that purchase history and buy rates stay visible. Opening or declining left the copy unchanged. Manager requests to open or confirm deletion and to read the directory or quotes were denied without data disclosure or mutation.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l09_03_supplier_delete` (4 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (224 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L09-03](PHASE1_CASES.md#L259), [delete confirmation and quote-column retention](../ALM_Business_Manager.html#L10466), and [comparison column order](../ALM_Business_Manager.html#L7941). Evidence: [disposable supplier tests](../phase2-local/src/confirmation/purchase_orders/supplier_prices/legacy_delete.rs). OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Product rename, product deletion with historical links, and all acceptance gates remain open.
