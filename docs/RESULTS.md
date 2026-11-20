@@ -362,3 +362,20 @@ The successful zero-rate receipt followed Jan 20 in the receipt log but preceded
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (201 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [raw rate input](../ALM_Business_Manager.html#L6970), [receipt parsing and logging](../ALM_Business_Manager.html#L7031), [average and supplier quote](../ALM_Business_Manager.html#L999), and [FIFO fallback](../ALM_Business_Manager.html#L1198). Evidence: [independent receipt-rate cases](../phase2-local/src/confirmation/purchase_orders/tests/receiving/rate_inputs.rs). No operational receiving behavior changed. Frozen HTML execution, hosted and device checks, legacy parity, and all acceptance gates remain open.
+
+### Receive form on a mixed-status PO
+
+**P2-PO-RECEIVE-FORM / L08-10 (development, PASS):** Offline Rust fixture at `4f6950376c36d40be21a4c08635275f7d36ef1cb`. The existing receive path seeded the mixed-status order for `Synthetic Grove`. The detached form retained the selected PO identity and saved row order, and defaulted its date to the injected `2025-01-20` rather than the PO or receipt date.
+
+| Form row | Ordered / received / remaining | Saved rate | Expected and observed Receive now | Expected and observed quantity / rate editability |
+| --- | --- | --- | --- | --- |
+| Tangerine | 8 / 3 / 5 | ₹11.25 | 5 | Editable / editable |
+| Apple | 2 / 2 / 0 | ₹8.90 | 0 | Disabled / disabled |
+| Lime | 4 / 0 / 4 | ₹0.00 | 4 | Editable / editable |
+
+Opening the form, changing local inputs, and discarding it preserved the whole fixture: no new receipt, and no change to stock, costs, or PO progress. Manager requests for existing and missing IDs both returned `AccessDenied` without form data or state changes. In a separate direct helper test, an Owner request for a missing ID returned exactly `PO not found`, with no form data or mutation. That direct call is not an operator action.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l08_10` (4 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (205 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L08-10](PHASE1_CASES.md#L168), [lookup and form defaults](../ALM_Business_Manager.html#L6924), and [field disabling](../ALM_Business_Manager.html#L6970). Evidence: [form projection tests](../phase2-local/src/confirmation/purchase_orders/tests/receive_form.rs). No frozen HTML was executed, and all acceptance gates remain open.
