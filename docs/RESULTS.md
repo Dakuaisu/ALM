@@ -733,3 +733,41 @@ The automated restart assertion checked distinct CLI process IDs. An attempted `
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check` and `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --bin alm-draft-demo --test draft_demo -- -D warnings` passed. The launcher built and ran offline in both sessions. Editor diagnostics timed out.
 
 Owner testing is pending. This is terminal development evidence, not visual parity, a verified legacy walkthrough, or phase acceptance. No hosted, device, migration, or production gate changed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds remain unchanged.
+
+### PC-002 milestone A: Draft to reviewed bill
+
+| Item | Disposition and commit | Run ID |
+| --- | --- | --- |
+| D1 | Contract verified at `a7f9def` (PC-002 / DEC-022). Standing approval covers reversible synthetic local work; per-case approval and optional demo-feedback waits are no longer prerequisites. No feedback file was created or awaited. | `PC002-CONTRACT` (static) |
+| D2 | Runnable local kickoff verified: shared pricing/GST `4f733ef`, Manager preview `2a624e4`, separate Owner simulation `1bdbfed`. | `A-MANAGER-REPLAY`, `A-OWNER-SIM` (executed development) |
+| D3 | Consolidated checklist verified, not satisfied as acceptance. The approved plan, prior evidence, and blocked date work were unchanged by the milestone implementation at `1bdbfed`. | `PC002-CONTRACT` (static), `A-OFFLINE` (executed development) |
+
+**PC002-CONTRACT:** `git apply --reverse --check /Users/apple/ALM/.bridge/plan/changes/PC-002.diff` confirmed the approved patch was present; `git diff --exit-code a7f9def HEAD -- /Users/apple/ALM/{CLAUDE.md,bridge.toml,docs,phase2-local/src/bill_date.rs,phase2-local/src/confirmation/purchase_orders/paste.rs}` passed before appending this entry. [OPEN.md](OPEN.md#consolidated-owner-checklist) retains the separate owner decisions and prerequisites. The replan's Done when checklist holds: routine stops are removed, milestone A has a runnable kickoff, and historical evidence, phase status, and acceptance criteria are intact. No owner replay or approval of the result is asserted.
+
+**A-MANAGER-REPLAY (development, PASS; R-6, L03-02 and L06-01 calculation slices):** On the development Mac at `1bdbfed`, used the [DEV-DRAFT-DEMO replay commands](#local-terminal-provisional-draft-demo) with a fresh disposable SQLite database. Both launches used the same database. After reopening, `review` displayed the existing draft and the new preview. The fixed synthetic catalog uses an inclusive unit price of ₹118.00 at 18% intra-state GST. The independent expectation was 3 × ₹118.00 = ₹354.00; ₹354.00 ÷ 1.18 = ₹300.00 taxable; the ₹54.00 difference splits into ₹27.00 each. The observed second-launch transcript matched:
+
+```text
+Opened draft 1: SAVED.
+PROVISIONAL — NOT POSTED
+Draft ID: 1
+State: SAVED
+Customer: Synthetic Customer
+Item: Synthetic Lime | Quantity: 3
+Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹354.00
+Taxable: ₹300.00
+CGST: ₹27.00
+SGST: ₹27.00
+Inclusive total: ₹354.00
+```
+
+The [two-process test](../phase2-local/tests/draft_demo.rs) confirmed distinct processes, unchanged SQLite logical contents and `data_version` across reopen/review, and 0 pending confirmations. The Manager output contained no cost or profit fields; `post` was rejected. The launcher has no invoice, payment, reservation, release, or posting path. The [shared GST calculation](../phase2-local/src/bill_math.rs) follows the inclusive-tax source rules for this exact fixture; this is not a legacy runtime or broader rounding comparison.
+
+**A-OWNER-SIM (development, PASS; R-7 local test double):** The [separate test](../phase2-local/tests/owner_simulation.rs) used a detached copy of the same CLI draft shape reopened from its disposable SQLite file. The unit rate changed from 11,800 to 14,160 minor units. Stale confirmation and Manager confirmation were rejected; fresh review left stock at 7, with no sale or financial effects. Explicit Owner confirmation applied one simulated sale before the test dropped its reply. Expected and observed: stock fell to 4, FIFO value moved from 47,000 to 28,000, sales ledger became 42,480, received ledger 20,000, due 22,480. Identical retry returned the original simulated receipt without another effect. Conflicting reuse returned `RequestConflict`; the SQLite draft remained unchanged. No final invoice was issued by the launcher.
+
+**A-OFFLINE (development):** Commands run from `/Users/apple/ALM` at `1bdbfed`:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test draft_demo --test owner_simulation -- --nocapture`: 3 passed, 0 failed.
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet`: 313 passed, 0 failed, 2 ignored.
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check` and `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings` passed. The launcher also built and ran offline; editor diagnostics timed out.
+
+The contained legacy walkthrough, hosted integration, actual device/parity, accounting sign-off, migration, and cutover were not run and remain gated. Phase 1 remains open; no phase exit or acceptance is recorded. OPEN-009 remains OWNER-BLOCKED. Local milestone work may continue without optional owner feedback.
