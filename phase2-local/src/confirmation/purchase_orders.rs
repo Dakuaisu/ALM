@@ -1,6 +1,7 @@
 mod note_edit;
 mod output;
 mod paste;
+mod receive_form;
 mod receiving;
 #[cfg(test)]
 mod tests;
@@ -18,6 +19,7 @@ pub use output::{
     PurchaseSupplierContact, PurchaseWhatsAppRequest,
 };
 pub use paste::PurchasePasteWarnings;
+pub use receive_form::{ReceiveForm, ReceiveFormError, ReceiveFormRow};
 pub use receiving::{ReceiveLine, ReceiveRequest, ReceiveResult};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

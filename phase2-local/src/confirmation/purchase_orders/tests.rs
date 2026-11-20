@@ -4,6 +4,7 @@ mod legacy_delete;
 mod legacy_edit;
 mod note_edit;
 mod output;
+mod receive_form;
 mod receiving;
 
 const PRODUCT: ProductId = ProductId::new(8);
