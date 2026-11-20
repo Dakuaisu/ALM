@@ -126,9 +126,7 @@ impl ConfirmationFixture {
                     ordered,
                     received: saved.received,
                     cancelled: saved.cancelled,
-                    remaining: ordered
-                        .saturating_sub(saved.received)
-                        .saturating_sub(saved.cancelled),
+                    remaining: saved.remaining(),
                 }
             })
             .collect();

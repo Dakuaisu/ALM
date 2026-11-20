@@ -4,6 +4,8 @@ use super::{
 };
 use std::num::NonZeroU32;
 
+mod close_remaining;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReceiveLine {
     pub quantity: u32,
@@ -64,13 +66,7 @@ impl ConfirmationFixture {
             if input.rate.minor_units() < 0 {
                 return Err(PurchaseError::InvalidReceipt);
             }
-            let remaining = line
-                .line
-                .ordered
-                .get()
-                .saturating_sub(line.received)
-                .saturating_sub(line.cancelled);
-            let quantity = input.quantity.min(remaining);
+            let quantity = input.quantity.min(line.remaining());
             let Some(quantity) = NonZeroU32::new(quantity) else {
                 continue;
             };

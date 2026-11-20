@@ -1,5 +1,6 @@
 use super::*;
 use crate::confirmation::{ReceiveLine, ReceiveRequest, ReceiveResult};
+mod close_remaining;
 mod matching;
 
 fn date(day: u8) -> BillDate {

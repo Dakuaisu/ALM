@@ -72,6 +72,14 @@ impl SavedPurchaseLine {
     pub const fn receipts(&self) -> &[PurchaseReceipt] {
         self.receipts.as_slice()
     }
+
+    pub(crate) const fn remaining(&self) -> u32 {
+        self.line
+            .ordered
+            .get()
+            .saturating_sub(self.received)
+            .saturating_sub(self.cancelled)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
