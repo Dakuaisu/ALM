@@ -608,3 +608,33 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L12-02](PHASE1_CASES.md#L240), [frozen register buckets](../ALM_Business_Manager.html#L10850), [receipt remainder](../ALM_Business_Manager.html#L10866), and [row calculation](../ALM_Business_Manager.html#L11188). This is a typed local projection, not a verified legacy or installed-app display. The legacy walkthrough remains **NOT RUN**. Historical date attribution, production location boundaries, hosted and device checks, and all acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Owner Reorder Planner and Copy List
+
+**P2-REORDER / L13-01 (development, PASS):** [Local synthetic Rust fixture](../phase2-local/src/confirmation/catalog/reorder/l13_01.rs) on macOS at `1ba36d115b50c326ad388ab71fc13e227af4da81`. The expected and observed rows below are in ascending billing on-hand order. The suggested quantity is `max(ceil(3 × reorder level − on-hand), 1)`. Rate and raw estimate are in minor units; display estimates round to rupees.
+
+| Item | On hand / reorder | Suggested packets | Rate source / rate | Raw estimate | Display |
+| --- | --- | ---: | --- | ---: | ---: |
+| Synthetic Zero | 0 / 0 | 1 | Buy fallback / 151 | 151 | ₹2 |
+| Synthetic Lime & Soda | 2 / 5 | 13 | Synthetic Orchard / 835 | 10,855 | ₹109 |
+| Synthetic Tied Stock | 2 / 123,458 | 370,372 | Buy fallback / 101 | 37,407,572 | ₹3,74,076 |
+| Synthetic Equal | 5 / 5 | 10 | Buy fallback / 2,350 | 23,500 | ₹235 |
+
+Synthetic Above (6 on hand, threshold 5) was excluded. The two equal-stock rows retained insertion order. A lower quote outside the active comparison columns did not determine the minimum; among eligible positive quotes, the minimum beat the higher quote, and stored quote order broke the tie. Zero and negative quotes did not replace the buy-rate fallback. The [buy-rate controls](../phase2-local/src/confirmation/catalog/reorder/l13_01/buy_rate.rs) checked fallback after clearing the positive receipt's quote, explicit manual Buy edits, and a later receipt. At 12 suggested packets the current receipt rate of 1,235 yielded 14,820, and the explicit manual rate of 950 yielded 11,400. The later receipt at 1,475 yielded 16,225 for 11 packets. Receiving preserved the sell rate and refreshed the product margin.
+
+Exact expected and observed Copy List payloads, escaped to show trailing newlines. Each Owner copy called the inert sink once; the nonempty lines matched the planner's order and quantities. The empty planner returned no rows, but copying still emitted its header.
+
+```text
+Nonempty: "*ALM Reorder List* (09-Feb-2024)\n\nSynthetic Zero — 1 pkt\nSynthetic Lime & Soda — 13 pkt (Synthetic Orchard ₹8.35)\nSynthetic Tied Stock — 3,70,372 pkt\nSynthetic Equal — 10 pkt\n"
+Empty:    "*ALM Reorder List* (09-Feb-2024)\n\n"
+```
+
+[New Purchase Order](../phase2-local/src/confirmation/purchase_orders/fresh_form/tests.rs) returned a detached draft dated 2025-03-14, with no supplier, an empty note, and one blank item, quantity and rate. The expected previews `PO-001` with an empty book and `PO-002` with an existing order matched observation; opening did not reserve the number or import suggestions. Fixture equality confirmed that opening, copying, and starting the draft did not create a saved PO, receive stock, or change quotes. Manager requests were denied with no price data and zero sink calls.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l13_01 -- --nocapture` (15 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (281 passed, 0 failed, 2 ignored).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L13-01](PHASE1_CASES.md#L241), [Reorder projection, `suggestQty` and Copy List](../ALM_Business_Manager.html#L8308), [fresh PO defaults](../ALM_Business_Manager.html#L6521), and [positive receipt buy-rate update](../ALM_Business_Manager.html#L1013). These are local development results for whole-packet fixtures; the real clipboard and legacy walkthrough were **NOT RUN**. Hosted, device, parity, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
