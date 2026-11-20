@@ -379,3 +379,21 @@ Opening the form, changing local inputs, and discarding it preserved the whole f
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (205 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L08-10](PHASE1_CASES.md#L168), [lookup and form defaults](../ALM_Business_Manager.html#L6924), and [field disabling](../ALM_Business_Manager.html#L6970). Evidence: [form projection tests](../phase2-local/src/confirmation/purchase_orders/tests/receive_form.rs). No frozen HTML was executed, and all acceptance gates remain open.
+
+### Product entry and pricing
+
+**P2-PRODUCT-ENTRY / L09-01 (development, PASS):** Offline Rust fixture at `e5d25cf05bbcb73685745bdcdb9cf1ed9db1086c`.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Brand filter and duplicate add | Exact brand match only; a case- and whitespace-variant of an existing name is rejected even under a different brand. | `Grove` displayed only the soda, `grove` only the juice, and `Gro` neither. The duplicate warning named `Synthetic Soda` and advised using a different name. Filtering and duplicate rejection left the entire fixture unchanged. |
+| Buy and margin inputs | Changing buy to ₹12.34 with the existing ₹2.00 margin gives sell ₹14.34; margin ₹2.67 then gives sell ₹15.01. | Both calculated values matched. Save and reopen returned buy ₹12.34, margin ₹2.67 and sell ₹15.01. |
+| Sell input | Changing sell to ₹14.25 at buy ₹12.34 gives margin ₹1.91. | Save and reopen returned buy ₹12.34, margin ₹1.91 and sell ₹14.25. A fresh catalog-backed sale review used ₹14.25. On-hand stock stayed 11; stock lots and movement epoch were unchanged. |
+| Blank versus zero reorder | Blank uses the current default; explicit zero remains zero. | Reopened values were 5 for the fresh fixture, 13 for the configured default, and 0 for an explicit zero. |
+| Blank versus zero tax settings | Blank GST, cess and HSN remain unset and use defaults; explicit zero is retained. | Reopened soda overrides were unset and resolved to GST 18%, cess 0% and HSN `22011010`. Explicit GST and cess zero and HSN `12345678` survived reopen; clearing Mango Juice HSN restored `22029920` while retaining cess 1.25%. |
+| Manager boundary | No private product data and no edits. | Manager filter, open, add and save were denied; denied writes left the entire fixture unchanged. |
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l09_01` (11 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (216 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L09-01](PHASE1_CASES.md#L234), [brand filter](../ALM_Business_Manager.html#L7515), [pricing events](../ALM_Business_Manager.html#L7685), [duplicate, defaults and Save](../ALM_Business_Manager.html#L7788), and [GST defaults](../ALM_Business_Manager.html#L4872). Evidence: [entry and reopen tests](../phase2-local/tests/l09_product_entry.rs) and [fixture invariants](../phase2-local/src/confirmation/catalog/product_entry/tests.rs). The frozen HTML was not executed. This covers exact minor-unit synthetic pricing, not general rounding or rendered behavior. OPEN-009, `BillDate`, and both paste-mismatch thresholds are unchanged; rendered, hosted, device, parity, and acceptance gates remain open.
