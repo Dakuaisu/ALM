@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, ProposedPayment, Role};
+use crate::bill_math::checked_line_amount;
 use crate::{BillDate, DraftCustomer, ProductId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,15 +106,13 @@ impl ConfirmationFixture {
             .enumerate()
             .map(|(index, line)| {
                 let (quantity, price) = review.line_values(index)?;
-                let amount = price
-                    .minor_units()
-                    .checked_mul(i64::from(quantity))
-                    .ok_or(ConfirmationError::Overflow)?;
+                let amount =
+                    checked_line_amount(price, quantity).ok_or(ConfirmationError::Overflow)?;
                 Ok(PreviewLine {
                     product: line.product_id(),
                     quantity: line.quantity(),
                     price,
-                    amount: Money::from_minor_units(amount),
+                    amount,
                 })
             })
             .collect::<Result<Vec<_>, ConfirmationError>>()?;

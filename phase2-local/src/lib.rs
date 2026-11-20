@@ -2,10 +2,12 @@
 #![forbid(unsafe_code)]
 
 mod bill_date;
+mod bill_math;
 pub mod confirmation;
 mod crate_row_codec;
 pub mod draft_entry;
 mod drafts;
+pub mod provisional_preview;
 mod sqlite;
 
 use std::collections::BTreeMap;

@@ -1,6 +1,7 @@
 //! Read-only synthetic ordinary-sale GST projection. Rates are basis points.
 use super::gst_defaults::defaults;
 use super::{BalanceMode, ConfirmationError, ConfirmationFixture, DraftId, Money, Role};
+use crate::bill_math::{ExactGstError, exact_intra_half, exact_taxable};
 use crate::{BillDate, ProductId};
 use std::num::NonZeroU32;
 
@@ -80,14 +81,13 @@ pub struct GstInvoice {
     pub total: Money,
 }
 
-fn exact(numerator: i64, multiplier: i64, divisor: i64) -> Result<i64, GstError> {
-    let value = numerator
-        .checked_mul(multiplier)
-        .ok_or(GstError::Overflow)?;
-    if value % divisor != 0 {
-        return Err(GstError::UnsupportedRounding);
+impl From<ExactGstError> for GstError {
+    fn from(error: ExactGstError) -> Self {
+        match error {
+            ExactGstError::UnsupportedRounding => Self::UnsupportedRounding,
+            ExactGstError::Overflow => Self::Overflow,
+        }
     }
-    Ok(value / divisor)
 }
 
 impl ConfirmationFixture {
@@ -126,9 +126,8 @@ impl ConfirmationFixture {
                 metadata.product_cess
             };
             let combined = rate.checked_add(cess).ok_or(GstError::Overflow)?;
-            let denominator = 10_000_i64 + i64::from(combined);
-            let taxable = exact(line.amount.minor_units(), 10_000, denominator)?;
-            let taxable_rate = exact(line.price.minor_units(), 10_000, denominator)?;
+            let taxable = exact_taxable(line.amount, combined)?;
+            let taxable_rate = exact_taxable(line.price, combined)?;
             taxable_total = taxable_total
                 .checked_add(taxable)
                 .ok_or(GstError::Overflow)?;
@@ -193,7 +192,7 @@ impl ConfirmationFixture {
         for group in &mut groups {
             let (cgst, sgst, igst) = match request.jurisdiction {
                 GstJurisdiction::Intra => {
-                    let half = exact(group.tax.minor_units(), 1, 2)?;
+                    let half = exact_intra_half(group.tax.minor_units())?;
                     (half, half, 0)
                 }
                 GstJurisdiction::Inter => (0, 0, group.tax.minor_units()),
@@ -204,7 +203,7 @@ impl ConfirmationFixture {
         }
         let (cgst, sgst, igst) = match request.jurisdiction {
             GstJurisdiction::Intra => {
-                let half = exact(tax, 1, 2)?;
+                let half = exact_intra_half(tax)?;
                 (half, half, 0)
             }
             GstJurisdiction::Inter => (0, 0, tax),
