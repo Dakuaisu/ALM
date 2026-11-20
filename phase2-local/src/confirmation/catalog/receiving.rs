@@ -2,6 +2,18 @@ use super::{Catalog, ConfirmationError, Lot, Money, ProductId};
 use crate::BillDate;
 
 impl Catalog {
+    pub(in crate::confirmation) fn record_receipt_buy(
+        &mut self,
+        id: ProductId,
+        rate: Money,
+    ) -> Result<(), ConfirmationError> {
+        self.products
+            .get_mut(&id.value())
+            .ok_or(ConfirmationError::InvalidDraft)?
+            .pricing
+            .set_receipt_buy(rate)
+    }
+
     pub(in crate::confirmation) fn receive_lot(
         &mut self,
         id: ProductId,

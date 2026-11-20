@@ -35,6 +35,17 @@ impl ProductPricing {
         self.sell
     }
 
+    pub(super) fn set_receipt_buy(&mut self, buy: Money) -> Result<(), ConfirmationError> {
+        let margin = self
+            .sell
+            .minor_units()
+            .checked_sub(buy.minor_units())
+            .ok_or(ConfirmationError::Overflow)?;
+        self.buy = buy;
+        self.margin = Money::from_minor_units(margin);
+        Ok(())
+    }
+
     pub(super) fn apply(&mut self, input: ProductPriceInput) -> Result<(), ConfirmationError> {
         let amount = |value: Option<i64>| {
             value

@@ -173,6 +173,24 @@ impl PurchaseBook {
         self.quotes.get(&id.value()).cloned().unwrap_or_default()
     }
 
+    pub(in crate::confirmation) fn set_registered_buy(&mut self, id: ProductId, rate: Money) {
+        if let Some(product) = self.products.iter_mut().find(|product| product.id == id) {
+            product.buy_rate = rate;
+        }
+    }
+
+    pub(in crate::confirmation) fn reorder_quote(
+        &self,
+        id: ProductId,
+        columns: &[SavedPurchaseSupplier],
+    ) -> Option<(&str, Money)> {
+        let quotes = self.quotes.get(&id.value())?;
+        let (_, minimum) = quotes.best(columns)?;
+        // Legacy Reorder names the first stored quote at the live minimum, even off-column.
+        let (name, _) = quotes.0.iter().find(|(_, rate)| *rate == minimum)?;
+        Some((name.as_str(), minimum))
+    }
+
     pub(in crate::confirmation) fn save_product_quotes(
         &mut self,
         id: ProductId,
@@ -262,19 +280,13 @@ impl ConfirmationFixture {
         Ok(())
     }
 
-    fn supplier_price_product(&self, id: ProductId) -> Option<(&str, Money)> {
+    pub(in super::super) fn supplier_price_product(&self, id: ProductId) -> Option<(&str, Money)> {
         let catalog = self.catalog.entered_price_product(id);
-        match self
-            .purchases
-            .products
-            .iter()
-            .find(|product| product.id == id)
-        {
-            Some(product) => Some((
-                catalog.map_or(product.item.as_str(), |(item, _)| item),
-                product.buy_rate,
-            )),
-            None => catalog,
-        }
+        let products = &self.purchases.products;
+        let Some(product) = products.iter().find(|product| product.id == id) else {
+            return catalog;
+        };
+        let item = catalog.map_or(product.item.as_str(), |(item, _)| item);
+        Some((item, product.buy_rate))
     }
 }

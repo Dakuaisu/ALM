@@ -65,6 +65,7 @@ pub struct ProductEntry {
     pub item: String,
     pub brand: String,
     pricing: ProductPricing,
+    buy_edited: bool,
     pub reorder_level: Option<u32>,
     pub tax: ProductTaxOverrides,
     supplier_prices: SupplierPriceDraft,
@@ -76,7 +77,9 @@ impl ProductEntry {
     }
 
     pub fn apply_price(&mut self, input: ProductPriceInput) -> Result<(), ConfirmationError> {
-        self.pricing.apply(input)
+        self.pricing.apply(input)?;
+        self.buy_edited |= matches!(input, ProductPriceInput::Buy(_));
+        Ok(())
     }
 
     pub fn effective_tax(&self) -> ResolvedProductTax<'_> {
@@ -93,8 +96,8 @@ impl ProductEntry {
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct ProductDetails {
     pub(super) item: String,
-    brand: String,
-    reorder_level: u32,
+    pub(super) brand: String,
+    pub(super) reorder_level: u32,
     tax: ProductTaxOverrides,
 }
 
@@ -167,6 +170,7 @@ impl ConfirmationFixture {
                 item: details.item.clone(),
                 brand: details.brand.clone(),
                 pricing: product.pricing,
+                buy_edited: false,
                 reorder_level: Some(details.reorder_level),
                 tax: details.tax.clone(),
                 supplier_prices,
@@ -242,8 +246,7 @@ impl ConfirmationFixture {
                 Ok(())
             }
         }?;
-        self.purchases
-            .save_product_quotes(id, form.supplier_prices.quotes.clone());
+        self.save_product_entry_prices(id, form);
         Ok(())
     }
 

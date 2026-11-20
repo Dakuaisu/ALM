@@ -10,6 +10,7 @@ mod receiving;
 
 mod pricing;
 mod product_entry;
+mod reorder;
 mod stock_lots;
 
 #[cfg(test)]
@@ -23,6 +24,7 @@ pub use physical_count::{
 pub use pricing::{ProductPriceInput, ProductPricing};
 use product_entry::ProductDetails;
 pub use product_entry::{ProductEntry, ProductEntryError, ProductTaxOverrides, ResolvedProductTax};
+pub use reorder::{ReorderError, ReorderRow, ReorderStatus};
 pub use stock_lots::{StockLotRow, StockLots, StockLotsError};
 
 #[derive(Clone)]
@@ -85,6 +87,7 @@ type Allocation = (u32, Option<i64>);
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct Catalog {
     products: BTreeMap<u64, Product>,
+    product_order: Vec<ProductId>,
     allocations: AllocationState,
 }
 
@@ -95,6 +98,7 @@ impl Catalog {
                 id.value(),
                 Product::new(stock, ProductPricing::at_sell(price)),
             )]),
+            product_order: vec![id],
             allocations: AllocationState {
                 records: BTreeMap::new(),
                 sale_costs: BTreeMap::new(),
@@ -110,6 +114,7 @@ impl Catalog {
             return Err(ConfirmationError::InvalidDraft);
         }
         self.products.insert(id.value(), product);
+        self.product_order.push(id);
         Ok(())
     }
 

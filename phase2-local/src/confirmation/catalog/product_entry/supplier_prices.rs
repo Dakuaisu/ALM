@@ -25,6 +25,7 @@ impl ProductEntry {
             item: String::new(),
             brand: String::new(),
             pricing,
+            buy_edited: false,
             reorder_level: None,
             tax: ProductTaxOverrides::default(),
             supplier_prices,
@@ -60,6 +61,14 @@ impl ProductEntry {
 }
 
 impl ConfirmationFixture {
+    pub(super) fn save_product_entry_prices(&mut self, id: ProductId, form: &ProductEntry) {
+        if form.buy_edited {
+            self.purchases.set_registered_buy(id, form.pricing.buy());
+        }
+        self.purchases
+            .save_product_quotes(id, form.supplier_prices.quotes.clone());
+    }
+
     pub(super) fn product_quote_draft(&self, id: ProductId) -> SupplierPriceDraft {
         SupplierPriceDraft {
             columns: self.purchases.price_suppliers(),

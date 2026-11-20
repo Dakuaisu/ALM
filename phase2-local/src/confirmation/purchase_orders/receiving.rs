@@ -118,6 +118,9 @@ impl ConfirmationFixture {
                         .map_err(|_| PurchaseError::ReceiptOverflow)?,
                 );
                 if rate.minor_units() > 0 {
+                    catalog
+                        .record_receipt_buy(product.id, rate)
+                        .map_err(|_| PurchaseError::ReceiptOverflow)?;
                     product.buy_rate = rate;
                     purchases
                         .quotes
