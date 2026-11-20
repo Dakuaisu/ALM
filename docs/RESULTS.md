@@ -570,3 +570,41 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L12-01](PHASE1_CASES.md#L239), [manual storage list and save handler](../ALM_Business_Manager.html#L10950), and [billing movement computation](../ALM_Business_Manager.html#L10850). Whole-case input is a synthetic fixture restriction, not legacy fractional-input parity. The comparison does not implement L12-02 or resolve undated movement attribution or production location boundaries. The legacy walkthrough remains **NOT RUN**; hosted, device, phase, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Owner daily movement register
+
+**P2-MOVEMENT-REGISTER / L12-02 (development, PASS):** [Local in-memory Rust fixture](../phase2-local/src/confirmation/tests/l12_02.rs) on macOS at `7c3ff1d79f8543e26f085f51da243cc295d27815`. Each row was independently calculated from 16 seeded billing packets, dated PO receipts entered out of date order, the posted sale, and signed physical adjustments. Fridge 13 packets and manual Godown 31 cases did not enter the calculation. Values below are packets; expectations matched observations. A dash represents a zero display quantity; display dispatch is shown with a minus sign.
+
+| Date | Sale state | Opening | PO receipts | Sale dispatch | Net adjustment | Display received | Display dispatched | Closing |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2025-02-08 | Active | 16 | 0 | 0 | 0 | — | — | 16 |
+| 2025-02-10 | Active | 16 | 5 | 0 | +2 | +7 | — | 23 |
+| 2025-02-11 | Active | 23 | 4 | 7 | -3 | +4 | -10 | 17 |
+| 2025-02-12 | Active | 17 | 0 | 0 | 0 | — | — | 17 |
+| 2025-02-25 | Active | 17 | 0 | 0 | 0 | — | — | 17 |
+| 2025-02-11 | Cancelled | 23 | 4 | 0 | -3 | +4 | -3 | 24 |
+| 2025-02-12 | Cancelled | 24 | 0 | 0 | 0 | — | — | 24 |
+
+Cancellation removed the 7-packet dispatch on its original bill date and changed the next opening without adding a return. Opening left the entire fixture unchanged; Manager received `AccessDenied`, not rows. The focused suite also checked idle-row omission for offsetting adjustments, overflow, and frozen dispatch quantities after bill edit, checkout unit conversion, and crate expansion.
+
+[PO key controls](../phase2-local/src/confirmation/tests/l12_02/purchase_receipts.rs) retain the frozen register distinction between a name-only line and a present stale ID. Expected and observed name-only rows `(opening, received, closing)` on Feb 10, 11, and 12 were `(10, 3, 13)`, `(13, 5, 18)`, and `(18, 0, 18)` after the current name matched. A stale stored ID was not rekeyed onto the name match: the matched product's Feb 11 and 12 rows were both `(10, 0, 10)`. Local on-hand ended at 15 in both controls. This disagreement is recorded, not resolved as a production attribution policy.
+
+**P2-MOVEMENT-REMAINDER / L12-02 (development, PASS on the same revision):** The [disposable Node fixture](../phase2-local/tests/l12_02_remainder.cjs) executed only the hash-checked frozen helpers against fresh synthetic copies. No operational Rust fallback was enabled. Cumulative received was 5, with 2 supported by a dated Feb 12 log and 3 attributed to the Feb 10 PO date by the source rule. The PO date is **not** evidence of a historical receipt date. Expected and observed rows:
+
+| Selected date | Opening | Received | Dispatched | Closing |
+| --- | ---: | ---: | ---: | ---: |
+| 2025-02-09 | 0 | 0 | 0 | 0 |
+| 2025-02-10 (PO-date fallback) | 0 | 3 | 0 | 3 |
+| 2025-02-12 (dated log) | 3 | 2 | 0 | 5 |
+| 2025-02-13 | 5 | 0 | 0 | 5 |
+
+Neither quantity was counted twice. The fully logged control received all 5 on Feb 12 and none on the PO date. An undated log put 2 into opening and left 3 for the PO date; without a PO date the remainder of 3 went into opening and the dated receipt of 2 remained on Feb 12. All synthetic inputs were unchanged by the helper reads.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l12_02 -- --nocapture` (8 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (266 passed, 0 failed, 2 ignored).
+- `NODE_OPTIONS= node --test /Users/apple/ALM/phase2-local/tests/l12_02_remainder.cjs` (4 passed, 0 failed).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L12-02](PHASE1_CASES.md#L240), [frozen register buckets](../ALM_Business_Manager.html#L10850), [receipt remainder](../ALM_Business_Manager.html#L10866), and [row calculation](../ALM_Business_Manager.html#L11188). This is a typed local projection, not a verified legacy or installed-app display. The legacy walkthrough remains **NOT RUN**. Historical date attribution, production location boundaries, hosted and device checks, and all acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
