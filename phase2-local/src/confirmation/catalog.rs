@@ -6,12 +6,35 @@ mod cancellation;
 mod edit;
 mod receiving;
 
+mod pricing;
+mod product_entry;
+
+pub use pricing::{ProductPriceInput, ProductPricing};
+use product_entry::ProductDetails;
+pub use product_entry::{ProductEntry, ProductEntryError, ProductTaxOverrides, ResolvedProductTax};
+
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct Product {
     stock: u32,
-    price: Money,
+    pricing: ProductPricing,
+    details: Option<ProductDetails>,
     lots: Vec<Lot>,
+}
+
+impl Product {
+    fn new(stock: u32, pricing: ProductPricing) -> Self {
+        Self {
+            stock,
+            pricing,
+            details: None,
+            lots: vec![Lot {
+                remaining: stock,
+                unit_cost: None,
+                date: None,
+            }],
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -43,15 +66,7 @@ impl Catalog {
         Self {
             products: BTreeMap::from([(
                 id.value(),
-                Product {
-                    stock,
-                    price,
-                    lots: vec![Lot {
-                        remaining: stock,
-                        unit_cost: None,
-                        date: None,
-                    }],
-                },
+                Product::new(stock, ProductPricing::at_sell(price)),
             )]),
             allocations: AllocationState {
                 records: BTreeMap::new(),
@@ -60,30 +75,14 @@ impl Catalog {
         }
     }
 
-    pub(super) fn add(
-        &mut self,
-        id: ProductId,
-        stock: u32,
-        price: Money,
-    ) -> Result<(), ConfirmationError> {
-        if price.minor_units() < 0 {
+    fn add(&mut self, id: ProductId, product: Product) -> Result<(), ConfirmationError> {
+        if product.pricing.sell().minor_units() < 0 {
             return Err(ConfirmationError::InvalidAmount);
         }
         if self.products.contains_key(&id.value()) {
             return Err(ConfirmationError::InvalidDraft);
         }
-        self.products.insert(
-            id.value(),
-            Product {
-                stock,
-                price,
-                lots: vec![Lot {
-                    remaining: stock,
-                    unit_cost: None,
-                    date: None,
-                }],
-            },
-        );
+        self.products.insert(id.value(), product);
         Ok(())
     }
 
@@ -98,8 +97,8 @@ impl Catalog {
         self.products
             .get_mut(&id.value())
             .ok_or(ConfirmationError::InvalidDraft)?
-            .price = price;
-        Ok(())
+            .pricing
+            .apply(ProductPriceInput::Sell(price))
     }
 
     pub(super) fn stock(&self, id: ProductId) -> Option<u32> {
@@ -116,7 +115,7 @@ impl Catalog {
             .map(|line| {
                 self.products
                     .get(&line.product_id().value())
-                    .map(|p| p.price)
+                    .map(|p| p.pricing.sell())
                     .ok_or(ConfirmationError::InvalidDraft)
             })
             .collect()

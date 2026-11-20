@@ -22,6 +22,10 @@ mod purchase_orders;
 mod reporting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
+pub use catalog::{
+    ProductEntry, ProductEntryError, ProductPriceInput, ProductPricing, ProductTaxOverrides,
+    ResolvedProductTax,
+};
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{
@@ -115,6 +119,7 @@ pub struct ConfirmationAck {
 pub struct ConfirmationFixture {
     product: ProductId,
     catalog: Catalog,
+    product_reorder_default: u32,
     checkout_products: BTreeMap<u64, ProductTerms>,
     checkout_approvals: BTreeMap<DraftId, Review>,
     loading_rate: Money,
@@ -162,6 +167,7 @@ impl ConfirmationFixture {
         Ok(Self {
             product,
             catalog: Catalog::new(product, stock, unit_price),
+            product_reorder_default: 5,
             checkout_products: BTreeMap::new(),
             checkout_approvals: BTreeMap::new(),
             loading_rate: Money::from_minor_units(0),
@@ -220,27 +226,6 @@ impl ConfirmationFixture {
             self.register_draft(draft)?;
         }
         self.review(role, id)
-    }
-
-    /// Adds a distinct synthetic product to the fixture catalog.
-    pub fn add_product(
-        &mut self,
-        product: ProductId,
-        stock: u32,
-        price: Money,
-    ) -> Result<(), ConfirmationError> {
-        let revision = self
-            .terms_revision
-            .checked_add(1)
-            .ok_or(ConfirmationError::Overflow)?;
-        let movement = self
-            .movement_epoch
-            .checked_add(1)
-            .ok_or(ConfirmationError::Overflow)?;
-        self.catalog.add(product, stock, price)?;
-        self.movement_epoch = movement;
-        self.terms_revision = revision;
-        Ok(())
     }
 
     /// Changes the price for a synthetic product and invalidates prior reviews.
