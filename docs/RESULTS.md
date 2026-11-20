@@ -272,3 +272,21 @@ An unmatched item retained its dated movement of 2 without changing the matched 
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (180 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L08-01/L08-02](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [receive handler](../ALM_Business_Manager.html#L7022), [cost and quote](../ALM_Business_Manager.html#L999), [remaining and status](../ALM_Business_Manager.html#L6252), [FIFO layers](../ALM_Business_Manager.html#L1180), and [movement dates](../ALM_Business_Manager.html#L10866). Evidence: [receipt and movement checks](../phase2-local/src/confirmation/purchase_orders/tests/receiving.rs) and [matching and allocation controls](../phase2-local/src/confirmation/purchase_orders/tests/receiving/matching.rs). The frozen HTML was not executed. Same-day ordering across POs and repricing old zero-rate FIFO layers after subsequent rate changes are not established by this slice. Close-remaining, historical reconciliation, hosted and device checks, and all acceptance gates remain open.
+
+### Close Remaining on a partially received PO
+
+**P2-PO-CLOSE / L08-03 (development, PASS):** Offline Rust fixture at `db82a82f14ce21871a97ec626e6ea5493febaae1`. The existing receiving path recorded 2 of 5 ordered cases on `2025-01-20` at ₹13.00 each.
+
+| Action | Expected and observed ordered / received / cancelled / remaining | Status |
+| --- | --- | --- |
+| Open and dismiss the confirmation | 5 / 2 / 0 / 3; whole fixture unchanged | Partially Received |
+| Manager attempts confirmation | 5 / 2 / 0 / 3; `AccessDenied`, whole fixture unchanged | Partially Received |
+| Owner confirms | 5 / 2 / 3 / 0; only the line cancelled quantity changed | Completed, not Cancelled |
+| Owner repeats confirmation | 5 / 2 / 3 / 0; whole fixture unchanged from first close | Completed |
+
+No receipt or stock movement was created. Before and after confirmation, the dated receipt and movement still showed 2 cases on `2025-01-20`, on-hand stock was 12, the FIFO catalog was unchanged (including the Jan 20 layer of 2 at ₹13.00), average cost was ₹10.50, and the buy rate and supplier quote were ₹13.00.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l08_close_remaining` (1 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (181 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L08-03](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [Close Remaining confirmation](../ALM_Business_Manager.html#L7007) and [remaining and status](../ALM_Business_Manager.html#L6252). Evidence: [close lifecycle and invariants](../phase2-local/src/confirmation/purchase_orders/tests/receiving/close_remaining.rs). The frozen HTML was not executed. Historical reconciliation, hosted and device checks, and all acceptance gates remain open.
