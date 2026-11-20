@@ -452,3 +452,21 @@ In every modeled case, the primary stamp `(_m, _v, _d)` changed from `(92, 4, ca
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (231 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy and offline build passed; editor diagnostics timed out.
 
 Source trace: [L09-04](PHASE1_CASES.md#L362), [rename cascade](../ALM_Business_Manager.html#L735), [product Save and stamps](../ALM_Business_Manager.html#L7814), and [stock delta filter](../ALM_Business_Manager.html#L9486). Evidence: [operational history checks](../phase2-local/src/confirmation/l09_04_operational.rs) and [disposable source model](../phase2-local/tests/l09_04_legacy_rename.rs). The frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Product deletion, hosted sync, device checks, and all acceptance gates remain open.
+
+### Product deletion with historical links on a disposable copy
+
+**P2-PRODUCT-DELETE / L09-02 and L09-03 (development, PASS):** Offline test-only source model at `d47ce919d08ff162f1018a32f3b05a2a5a9d63a5`. The synthetic catalog contained `p9` (`Synthetic Orange 250ml`) and unrelated control `p10` (`Synthetic Lime 250ml`). Declining as Owner and attempting confirmation as Manager left the whole copy unchanged. The Manager check is local fixture policy, not a claim about the frozen dialog.
+
+| Check | Before | Expected and observed after Owner confirmation |
+| --- | --- | --- |
+| Catalog and delete marker | `p9` and `p10` resolve; no marker. | Only `p9` was removed. One `products:p9` marker was recorded; `p10` still resolved unchanged. With no exact-name replacement, both linked and name-only bill and PO lookups failed. |
+| Stored linked bill | `p9`, `Synthetic Orange 250ml`, quantity 3, MRP 25, rate 20, amount 60, frozen cost-at-sale field 11 (synthetic money units). | All stored fields unchanged. |
+| Stored linked PO and receipt | `p9`, same label, 12 ordered and 5 received, line rate 13; receipt `2025-01-02`, quantity 5, rate 14 (synthetic money units). | Line identity, text, quantities, rate and dated receipt unchanged. |
+| Stored stock | `p9` opening/fridge `42/6`; `p10` opening/fridge `17/4`. | Both stock keys and values unchanged. No stock was moved. |
+
+Linked history still aggregated under `p9` (3 sold, 5 received). The name-only controls (2 sold, 2 received) aggregated under `n:Synthetic Orange 250ml` without an exact-name master. On a separate copy with exact-name product `p8`, both line lookups resolved to `p8` after deletion, but only name-only history aggregated there. Linked IDs and the `p9` stock entry did not move to `p8`.
+
+- Focused: `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l09_legacy_product_delete` (4 passed, 0 failed).
+- Full: `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (235 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [historical references after deletion](PHASE1_CASES.md#historical-references-after-deletion), [product delete confirmation](../ALM_Business_Manager.html#L7769), [catalog lookups](../ALM_Business_Manager.html#L950), [record removal and tombstone](../ALM_Business_Manager.html#L974), [sale quantity keys](../ALM_Business_Manager.html#L1040), and [PO lot keys](../ALM_Business_Manager.html#L1198). Evidence: [disposable product deletion tests](../phase2-local/tests/l09_legacy_product_delete.rs). No operational deletion path was added and the frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged. Hosted, device, parity, and acceptance gates remain open.
