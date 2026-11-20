@@ -290,3 +290,23 @@ No receipt or stock movement was created. Before and after confirmation, the dat
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (181 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L08-03](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [Close Remaining confirmation](../ALM_Business_Manager.html#L7007) and [remaining and status](../ALM_Business_Manager.html#L6252). Evidence: [close lifecycle and invariants](../phase2-local/src/confirmation/purchase_orders/tests/receiving/close_remaining.rs). The frozen HTML was not executed. Historical reconciliation, hosted and device checks, and all acceptance gates remain open.
+
+### Pending-only purchase order Edit
+
+**P2-PO-EDIT / L08-04 (development, PASS):** Offline Rust fixture at `45febd397022eae6e0f6391ddd95c794d73d0be0`. On a pending 4-case order, Owner Save changed `Original note` to `Updated note` under the same PO ID. The rest of the fixture was unchanged, including on-hand stock of 25 and receipt history. With an edit copy open, the existing receive path recorded 2 cases on `2025-01-12` at ₹14.00 each. That made the order Partially Received and removed Edit availability. Saving the stale copy returned `OrderNotPending` and left the note, received count of 2, dated receipt, on-hand stock of 27, Jan 12 FIFO layer of 2 at ₹14.00, and Jan 12 movement of 2 unchanged. A competing note save while Pending invalidated the older copy; Manager open and save were denied without mutation.
+
+**Static source-derived comparison, not a legacy walkthrough:** A test-only model rebuilt separate copies of a PO dated `2025-01-10`. The target line, Alpha, began with 5 ordered, 1 received, 1 cancelled, a ₹10.00 line rate, and a dated receipt for 1 at ₹14.00 on `2025-01-12`. Save carries received and cancelled counts from the first exact, case-sensitive item-name match, not from the product ID, and omits the dated receipt list. Expected and observed model values for Alpha:
+
+| Variant | Stored result | On-hand quantity | Inbound movement | FIFO value |
+| --- | --- | ---: | --- | ---: |
+| Before Save | 1 received, 1 cancelled, receipt retained | 1 | Jan 12: 1 | ₹14.00 |
+| Note-only | 1 received, 1 cancelled, receipt list omitted | 1 | Jan 10: 1 | ₹10.00 |
+| Case-only rename, same product ID | 0 received, 0 cancelled, receipt list omitted | 0 | None | ₹0.00 |
+| Remove Alpha, retain Beta | Alpha absent | 0 | None | ₹0.00 |
+
+The duplicate-name control copied the first matching line's counts for both saved rows, even with different product IDs; reversing the prior rows changed which counts were copied. No operational code calls the source model.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l08_04` (8 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (189 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L08-04](PHASE1_CASES.md#po-save-and-edit-not-run), [Pending-only Edit](../ALM_Business_Manager.html#L6338), [detached form copy](../ALM_Business_Manager.html#L6521), [Save reconstruction](../ALM_Business_Manager.html#L6735), [quantity](../ALM_Business_Manager.html#L1097), [FIFO fallback](../ALM_Business_Manager.html#L1198), and [movement date fallback](../ALM_Business_Manager.html#L10866). Evidence: [guarded edit tests](../phase2-local/src/confirmation/purchase_orders/tests/note_edit.rs) and [test-only comparison](../phase2-local/src/confirmation/purchase_orders/tests/legacy_edit.rs). The frozen HTML was not executed. Historical reconciliation, legacy parity, and all acceptance gates remain open.
