@@ -541,3 +541,32 @@ Commands run from `/Users/apple/ALM` on the recorded revision:
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
 
 Source trace: [L11-02](PHASE1_CASES.md#L238), [frozen count handler](../ALM_Business_Manager.html#L8184), and [billing stock and fridge projection](../ALM_Business_Manager.html#L1129). The frozen handler rejects blank or non-finite count text, rounds the delta to hundredths against modal-open stock, and records only nonzero deltas. It saves the fridge separately. The fixture accepts whole nonnegative packets within its typed range, validates a supplied fridge count, and uses submission-time stock. Its unknown-cost adjustment layer is not a receipt, a transfer, or a claim of legacy FIFO equivalence. The legacy walkthrough remains **NOT RUN**. Hosted, target-device, phase, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
+
+### Manual Godown count isolation
+
+**P2-MANUAL-GODOWN / L12-01 (development, PASS):** [Local in-memory Rust fixture](../phase2-local/src/confirmation/tests/l12_01.rs) on macOS at `d4fbce40359585913ca3cb2be8080fe287982485`, with one synthetic product. Expected billing quantities were calculated from dated receipts and a posted sale before the edit. The Owner edited the same manual row using different case and surrounding whitespace. Reopening it returned the new count and preserved the `back rack` note.
+
+| Reopened view | Before edit, expected = observed | After edit, expected = observed |
+| --- | --- | --- |
+| Manual Godown | 3 cases | 8 cases |
+| Billing stock | 7 packets | 7 packets |
+| Fridge display | 11 packets | 11 packets |
+| FIFO lots (money in minor units) | Feb 10: 3 at 80 (value 240); Feb 11: 4 at 120 (value 480); total 720; posted sale cost 160 | Identical dates, quantities, costs, and values |
+
+The [test-only dated register](../phase2-local/src/confirmation/tests/l12_01/dated_register.rs) was recomputed from billing records on both sides of the edit. Each below is in packets; expected rows matched both observations.
+
+| Date | Opening | Received | Dispatched | Closing |
+| --- | ---: | ---: | ---: | ---: |
+| 2025-02-10 | 0 | 5 | 0 | 5 |
+| 2025-02-11 | 5 | 4 | 2 | 7 |
+| 2025-02-12 | 7 | 0 | 0 | 7 |
+
+Whole-fixture equality with only the expected manual row changed confirmed that the edit created no receipt, dispatch, adjustment, or transfer. Manager read and save attempts returned `AccessDenied` before validation; each left the entire fixture unchanged. The Owner validation test also covered atomic rejection and saving a manual-only item without a billing product link.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l12_01 -- --nocapture` (3 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (258 passed, 0 failed, 2 ignored).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L12-01](PHASE1_CASES.md#L239), [manual storage list and save handler](../ALM_Business_Manager.html#L10950), and [billing movement computation](../ALM_Business_Manager.html#L10850). Whole-case input is a synthetic fixture restriction, not legacy fractional-input parity. The comparison does not implement L12-02 or resolve undated movement attribution or production location boundaries. The legacy walkthrough remains **NOT RUN**; hosted, device, phase, and acceptance gates remain open. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds are unchanged.
