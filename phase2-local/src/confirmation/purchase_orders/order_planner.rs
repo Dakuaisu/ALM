@@ -72,6 +72,19 @@ impl OrderPlanner {
         true
     }
 
+    /// Adds supplied visible group members in order without changing existing cart lines.
+    pub fn add_all(
+        &mut self,
+        role: Role,
+        members: &[(ProductId, Option<i64>)],
+    ) -> Result<(), OrderPlannerError> {
+        owner(role).map_err(|_| OrderPlannerError::AccessDenied)?;
+        for &(product, quantity) in members {
+            self.add_item(product, quantity);
+        }
+        Ok(())
+    }
+
     /// Editing a cart line to zero keeps it in the cart, including its best supplier.
     pub fn set_quantity(&mut self, product: ProductId, quantity: i64) -> bool {
         let Some(line) = self.cart.iter_mut().find(|line| line.product == product) else {
