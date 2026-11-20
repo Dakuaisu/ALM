@@ -20,3 +20,7 @@ The owner must authorize the isolated hosted project and test access and separat
 ## OPEN-007 Cutover and rollback authority
 - Status: OWNER-BLOCKED
 The owner must confirm the production write pause, identify the accounting signer and rollback authority, and separately authorize production cutover after rehearsal and parity sign-off. The rollback proposal remains unapproved under DEC-016. Confirm how post-switch sales will be retained and reconciled before any rollback.
+
+## OPEN-009 PO paste calendar date discrepancy (L07-04)
+- Status: OWNER-BLOCKED
+The [frozen parser](../ALM_Business_Manager.html#L6405) can produce a calendar-invalid date string. The Rust fixture instead retains the prior valid draft date when the paste has no valid date ([L07-04 development result](RESULTS.md#purchase-order-paste-formats-and-mismatch-boundaries)). Legacy runtime behavior is NOT RUN and remains unverified. Any permanent departure requires written owner approval. Keep `BillDate` validation and both mismatch thresholds unchanged.
