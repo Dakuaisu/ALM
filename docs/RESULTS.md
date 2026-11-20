@@ -327,3 +327,21 @@ Source trace: [L08-04](PHASE1_CASES.md#po-save-and-edit-not-run), [Pending-only 
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (193 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L08-05](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [warning and delete callback](../ALM_Business_Manager.html#L6342), [cumulative PO quantities](../ALM_Business_Manager.html#L1097), [dated movement contributions](../ALM_Business_Manager.html#L10866), and [stored cost and quote writes](../ALM_Business_Manager.html#L999). Evidence: [disposable tests](../phase2-local/src/confirmation/purchase_orders/tests/legacy_delete.rs). No operational delete path was added, and the frozen HTML was not executed. Historical reconciliation, legacy parity, and all acceptance gates remain open.
+
+### Purchase order paste formats and mismatch boundaries
+
+**P2-PO-PASTE-FORMATS / L07-04 (development, PASS):** Offline Rust fixture at `829604cc6546fea7779c1095a8c6d680ded87a74`. Reordered headered TSV and headerless positional TSV both replaced the existing draft lines, kept `Keep this note`, selected `North Supply`, and resolved `29-Feb-24` or `29/02/24` to `2024-02-29`. Each produced `Fixture Lime Green` (unique partial match, product `7`, 2 at ₹1,234.56) and `Fixture Lime` (ambiguous between Green and Gold, unlinked, 1 at ₹505.01). One zero-quantity row was skipped. The unmatched-product, total-mismatch, and mixed-party notices were captured before Save. Explicit Owner Save preserved both lines and their links exactly, with zero received and empty receipt lists. Parse alone created no supplier or order; both actions preserved the two stock counts of 12 and 5. Manager was denied both actions.
+
+| Pasted total | Computed total | Difference | Expected and observed mismatch |
+| --- | --- | --- | --- |
+| ₹100.00 (₹2 floor) | ₹102.00 | ₹2.00 | No |
+| ₹100.00 (₹2 floor) | ₹102.01 | ₹2.01 | Yes |
+| ₹500.00 (1% = ₹5) | ₹505.00 | ₹5.00 | No |
+| ₹500.00 (1% = ₹5) | ₹505.01 | ₹5.01 | Yes |
+
+A date-only header was recognized; an item/quantity-only row did not qualify as a header. Calendar-invalid inputs left the existing typed draft date unchanged without dropping an otherwise usable line. The frozen source normalizes some impossible dates without validating them; that behavior was not reproduced. Formatted money stayed exact in minor units; malformed or out-of-range amounts were skipped by the Rust slice.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l07_04` (7 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (200 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L07-04](PHASE1_CASES.md#po-parse--fill-not-run), [dates and numeric cleanup](../ALM_Business_Manager.html#L6405), [header detection and positional columns](../ALM_Business_Manager.html#L6439), and [product matching and unchanged strict threshold](../ALM_Business_Manager.html#L6493). Evidence: [draft, Save, and boundary tests](../phase2-local/tests/l07_04_purchase_paste.rs). The frozen HTML was not executed. This is development evidence for the tested TSV layouts, not general legacy parser parity; all acceptance gates remain open.
