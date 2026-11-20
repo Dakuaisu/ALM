@@ -488,3 +488,35 @@ The copied row survived SQLite draft reopen and pending confirmation replay; rep
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (239 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L10-01](PHASE1_CASES.md#L236), [template suggestion, edit and delete](../ALM_Business_Manager.html#L7967), [crate builder](../ALM_Business_Manager.html#L10124), [packet expansion](../ALM_Business_Manager.html#L1039), and [bill snapshot and FIFO](../ALM_Business_Manager.html#L4039). Evidence: [template lifecycle and checkout tests](../phase2-local/src/confirmation/tests/restart/crate_template.rs). Template storage is in-memory; only copied rows and pending approvals were exercised through SQLite. The frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Repeated-product valuation, fractional rounding, hosted and device checks, parity, and acceptance gates remain open.
+
+### Owner Stock Lots and shortage valuation
+
+**P2-STOCK-LOTS / L11-01 (development, PASS):** Local in-memory Rust fixture on macOS at `aa8cb6a942d36a9b8bdd8a4f87946950161deb4f`. Before the run, expected rows were calculated from the receipt quantities and rates, consuming the oldest lot and one packet from the next in each four-packet sale. The [fixture observations](../phase2-local/src/confirmation/catalog/l11_01.rs) matched at all stages. Rows below are in displayed projection order, as `receipt day: packets left × unit cost`; money is in minor units and receipt dates are in February 2025.
+
+| Receipt entry order | Before sale: expected = observed | After sale: expected = observed | After cancellation: expected = observed |
+| --- | --- | --- | --- |
+| Feb 17, then backdated Feb 4 | `4: 3 × 110; 17: 5 × 230` → 8 on hand, value 1,480 | `17: 4 × 230` → 4 on hand, value 920; frozen sale cost 560 | Original rows, 8 on hand, value 1,480 |
+| Feb 8, rate 110 then 230 | `8: 3 × 110; 8: 3 × 230` → 6 on hand, value 1,020 | `8: 2 × 230` → 2 on hand, value 460; frozen sale cost 560 | Original rows, 6 on hand, value 1,020 |
+| Feb 8, rate 230 then 110 | `8: 3 × 230; 8: 3 × 110` → 6 on hand, value 1,020 | `8: 2 × 110` → 2 on hand, value 220; frozen sale cost 800 | Original rows, 6 on hand, value 1,020 |
+
+There was no intervening stock movement between the sale and cancellation. Whole-fixture equality held around every open. Manager got `AccessDenied` with no rows or costs for known and unknown products; Owner got `ProductNotFound` for the unknown product. Both multiplication and total overflow returned `Overflow` with no state change. An undated opening layer of 2 packets with unknown cost plus 1 receipt packet at 110 returned 3 on hand and unknown total, not a fabricated rate. Empty stock returned no rows and zero value.
+
+**P2-STOCK-LOTS-SHORT / L11-01 (development, PASS on the same revision):** The [Node fixture](../phase2-local/tests/l11_01_shortage.cjs) executed only the extracted, hash-checked [frozen `fifoCostOf` helper](../ALM_Business_Manager.html#L1252) against fresh disposable in-memory synthetic copies, with synthetic dependencies. No browser or application boot ran. With 8 units requested, the expected and observed shortage entries all had `short: true`:
+
+| Fallback condition | Shortfall quantity × rate | Total cost | Unit cost |
+| --- | --- | --- | --- |
+| Nonzero buy rate takes priority over the last lot | 4 × 31 | 162 | 20.25 |
+| Zero buy rate uses the last lot | 4 × 11 | 82 | 10.25 |
+| Missing buy rate uses the last lot even when it is exhausted | 8 × 11 | 88 | 11 |
+| No buy rate or lot | 8 × 0 | 0 | 0 |
+
+Separately, the [local posting regression](../phase2-local/tests/l11_01_shortage.rs) expected and observed `InsufficientStock` for 4 units against 3 on hand. Stock stayed at 3; sales ledger, received ledger, customer due and posted request count stayed at 0. There was no posted sale and the draft was unchanged. Correcting the same draft to 3 units and reusing request `21` issued invoice `1`, with total 300, received 125, due 175 and stock 0. The helper is not used to authorize or post a sale.
+
+Commands run from `/Users/apple/ALM` on the recorded revision:
+
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l11_01 -- --nocapture` (7 passed, 0 failed).
+- `cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (246 passed, 0 failed, 2 ignored).
+- `NODE_OPTIONS= node --test /Users/apple/ALM/phase2-local/tests/l11_01_shortage.cjs` (4 passed, 0 failed).
+- `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check`, `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings`, and `cargo build --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml` passed. Editor diagnostics timed out.
+
+Source trace: [L11-01](PHASE1_CASES.md#L237), [equal-date construction order](PHASE1_CASES.md#equal-date-lot-order), and [legacy Stock Lots dialog](../ALM_Business_Manager.html#L1339). The local view is a typed projection, not a native dialog; it does not reproduce the legacy source or original-quantity columns, mixed historical purchase/PO import ordering, or fractional display rounding. The legacy walkthrough remains **NOT RUN**. No real records, credentials, hosted services or target devices were used. OPEN-009 remains OWNER-BLOCKED; `BillDate`, both paste-mismatch thresholds, and all phase and acceptance gates are unchanged.
