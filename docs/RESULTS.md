@@ -200,3 +200,22 @@ Expected and observed in both outputs: ₹400 taxable, ₹42 combined tax, ₹44
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 152 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy and build passed; editor diagnostics timed out.
 
 Source trace: [L06-01](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [`gstInfo`](../ALM_Business_Manager.html#L4872), [`gstInvoiceHTML`](../ALM_Business_Manager.html#L4989) and [ordinary Sales actions](../ALM_Business_Manager.html#L6140). Evidence: [captured invoices](../phase2-local/src/confirmation/tests/l06_01.rs) and [HSN splits](../phase2-local/src/confirmation/tests/l06_01_hsn.rs). No operator action was added. Crates, fractional-line rounding, deployed tax treatment, operator reachability, and all acceptance gates remain open.
+
+### Standalone GST bill lifecycle
+
+**P2-GST-STANDALONE / L06-02 (development, PASS):** Offline Rust fixture at `061b19a77157817768b02f80d4ea92fea4d03e95`. Saved synthetic standalone record ID `1`, invoice number `700`, with 2 Cola at ₹140 inclusive (40% GST), 1 Water at ₹105 inclusive (5% GST), and an explicit interstate jurisdiction. The initial form also had an unnamed row at ₹105 (5%), which contributed to form totals but was not saved. Editing changed Cola quantity to 3, replacing the same record. Cancellation kept that record, number, and line data, and the emitted invoice carried the cancelled flag. A subsequent edit of the cancelled record did not write or emit.
+
+| Check | Expected taxable / CGST / SGST / IGST / total | Observed taxable / CGST / SGST / IGST / total |
+| --- | --- | --- |
+| Initial draft form | ₹400 / ₹45 / ₹45 / ₹0 / ₹490 | ₹400 / ₹45 / ₹45 / ₹0 / ₹490 |
+| Saved interstate invoice | ₹300 / ₹0 / ₹0 / ₹85 / ₹385 | ₹300 / ₹0 / ₹0 / ₹85 / ₹385 |
+| Edited draft form | ₹400 / ₹62.50 / ₹62.50 / ₹0 / ₹525 | ₹400 / ₹62.50 / ₹62.50 / ₹0 / ₹525 |
+| Edited and then cancelled interstate invoice | ₹400 / ₹0 / ₹0 / ₹125 / ₹525 | ₹400 / ₹0 / ₹0 / ₹125 / ₹525 |
+| Intrastate control, initial named lines | ₹300 / ₹42.50 / ₹42.50 / ₹0 / ₹385 | ₹300 / ₹42.50 / ₹42.50 / ₹0 / ₹385 |
+
+Missing items, customer, and date respectively returned `Add at least one item with quantity`, `Enter the customer name`, and `Pick the invoice date`. Malformed optional fields returned `GSTIN must be exactly 15 characters` and `E-Way Bill number must be 12 digits`. Rejected writes emitted nothing and preserved the saved record. Manager access was denied for form, save, view, and cancel. Fixture snapshots showed no changes to ordinary sales, stock, payments, or customer balances. A fractional-rupee total was rejected rather than rounded.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l06_02` → 5 passed, 0 failed.
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` → 157 passed, 0 failed, 2 reported ignored by the top-level harness. Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
+
+Source trace: [L06-02](PHASE1_CASES.md#counter-checkout-edit-and-outputs), [standalone edit and cancellation](../ALM_Business_Manager.html#L5260), [form totals](../ALM_Business_Manager.html#L5735), [save and warning guards](../ALM_Business_Manager.html#L5770), and [saved invoice calculation](../ALM_Business_Manager.html#L4989). Evidence: [lifecycle captures](../phase2-local/src/confirmation/tests/l06_02.rs) and [exactness controls](../phase2-local/src/confirmation/tests/l06_02_edges.rs). The frozen HTML was not executed. Rounding parity, deployed tax rules, production numbering, hosted and device checks, and acceptance gates remain open.
