@@ -1,5 +1,6 @@
 mod output;
 mod paste;
+mod receiving;
 #[cfg(test)]
 mod tests;
 
@@ -15,6 +16,7 @@ pub use output::{
     PurchaseSupplierContact, PurchaseWhatsAppRequest,
 };
 pub use paste::PurchasePasteWarnings;
+pub use receiving::{ReceiveLine, ReceiveRequest, ReceiveResult};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PurchaseSupplierId(usize);
@@ -98,6 +100,8 @@ pub enum PurchaseError {
     MissingSupplier,
     MissingItems,
     MissingDate,
+    InvalidReceipt,
+    ReceiptOverflow,
 }
 
 impl fmt::Display for PurchaseError {
@@ -109,18 +113,21 @@ impl fmt::Display for PurchaseError {
             Self::MissingSupplier => "Enter supplier",
             Self::MissingItems => "Add at least one item with an order quantity",
             Self::MissingDate => "Pick the order date",
+            Self::InvalidReceipt => "Invalid receipt",
+            Self::ReceiptOverflow => "Receipt amount or quantity overflow",
         })
     }
 }
 
 impl std::error::Error for PurchaseError {}
 
-#[derive(Default)]
-#[cfg_attr(test, derive(Clone, Debug, Eq, PartialEq))]
+#[derive(Clone, Default)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct PurchaseBook {
     products: Vec<PurchaseProduct>,
     suppliers: Vec<SavedPurchaseSupplier>,
     orders: Vec<PurchaseOrder>,
+    costs: Vec<receiving::PurchaseCost>,
 }
 
 const fn owner(role: Role) -> Result<(), PurchaseError> {

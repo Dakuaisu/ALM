@@ -49,8 +49,8 @@ pub use purchase_orders::{
     PurchaseOrderHandoff, PurchaseOrderId, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseOrderView, PurchaseOutputRequest, PurchasePasteWarnings, PurchaseProduct,
     PurchaseProductDisplay, PurchaseProgressLine, PurchaseReceipt, PurchaseSupplier,
-    PurchaseSupplierContact, PurchaseSupplierId, PurchaseWhatsAppRequest, SavedPurchaseLine,
-    SavedPurchaseSupplier,
+    PurchaseSupplierContact, PurchaseSupplierId, PurchaseWhatsAppRequest, ReceiveLine,
+    ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

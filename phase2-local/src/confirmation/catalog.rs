@@ -4,6 +4,7 @@ use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
 mod cancellation;
 mod edit;
+mod receiving;
 
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
@@ -18,6 +19,7 @@ struct Product {
 struct Lot {
     remaining: u32,
     unit_cost: Option<i64>,
+    date: Option<crate::BillDate>,
 }
 
 #[derive(Clone)]
@@ -47,6 +49,7 @@ impl Catalog {
                     lots: vec![Lot {
                         remaining: stock,
                         unit_cost: None,
+                        date: None,
                     }],
                 },
             )]),
@@ -77,6 +80,7 @@ impl Catalog {
                 lots: vec![Lot {
                     remaining: stock,
                     unit_cost: None,
+                    date: None,
                 }],
             },
         );
@@ -140,8 +144,11 @@ impl Catalog {
                 .checked_sub(packets)
                 .ok_or(ConfirmationError::InsufficientStock)?;
             let mut remaining = packets;
-            // Fixture lots are seeded in trusted oldest-first order; no date or tie policy is inferred.
-            for (lot_index, lot) in product.lots.iter_mut().enumerate() {
+            // Sort indices, never the lots: stored allocation indices must remain stable.
+            let mut indices: Vec<_> = (0..product.lots.len()).collect();
+            indices.sort_by_key(|&index| product.lots[index].date.map(crate::BillDate::parts));
+            for lot_index in indices {
+                let lot = &mut product.lots[lot_index];
                 let taken = remaining.min(lot.remaining);
                 if taken == 0 {
                     continue;
@@ -210,6 +217,7 @@ impl Catalog {
             ordered.push(Lot {
                 remaining: quantity,
                 unit_cost: Some(unit_cost),
+                date: None,
             });
         }
         let product = self
