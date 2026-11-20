@@ -1,5 +1,6 @@
 use super::*;
 
+mod legacy_edit;
 mod note_edit;
 mod output;
 mod receiving;
