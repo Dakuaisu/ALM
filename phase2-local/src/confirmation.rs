@@ -55,7 +55,8 @@ pub use purchase_orders::{
     PurchaseProduct, PurchaseProductDisplay, PurchaseProgressLine, PurchaseReceipt,
     PurchaseSupplier, PurchaseSupplierContact, PurchaseSupplierId, PurchaseWhatsAppRequest,
     ReceiveForm, ReceiveFormError, ReceiveFormRow, ReceiveLine, ReceiveRequest, ReceiveResult,
-    SavedPurchaseLine, SavedPurchaseSupplier,
+    SavedPurchaseLine, SavedPurchaseSupplier, SupplierPrice, SupplierPriceComparison,
+    SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

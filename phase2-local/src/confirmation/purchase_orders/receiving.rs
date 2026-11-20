@@ -41,7 +41,6 @@ impl ReceiveResult {
 pub(super) struct PurchaseCost {
     product: ProductId,
     average: Money,
-    quotes: Vec<(String, Money)>,
 }
 
 impl ConfirmationFixture {
@@ -98,7 +97,6 @@ impl ConfirmationFixture {
                         purchases.costs.push(PurchaseCost {
                             product: product.id,
                             average: product.buy_rate,
-                            quotes: Vec::new(),
                         });
                         purchases
                             .costs
@@ -121,15 +119,11 @@ impl ConfirmationFixture {
                 );
                 if rate.minor_units() > 0 {
                     product.buy_rate = rate;
-                    if let Some(quote) = cost
+                    purchases
                         .quotes
-                        .iter_mut()
-                        .find(|(name, _)| name.eq_ignore_ascii_case(&order.supplier_name))
-                    {
-                        quote.1 = rate;
-                    } else {
-                        cost.quotes.push((order.supplier_name.clone(), rate));
-                    }
+                        .entry(product.id.value())
+                        .or_default()
+                        .record_receipt(&order.supplier_name, rate);
                 }
                 let fifo_rate = if rate.minor_units() > 0 {
                     rate
@@ -186,12 +180,11 @@ impl ConfirmationFixture {
             .map(|p| {
                 let cost = self.purchases.costs.iter().find(|cost| cost.product == id);
                 let average = cost.map_or(p.buy_rate, |cost| cost.average);
-                let quote = cost.and_then(|cost| {
-                    cost.quotes
-                        .iter()
-                        .find(|(name, _)| name.eq_ignore_ascii_case(supplier))
-                        .map(|(_, rate)| *rate)
-                });
+                let quote = self
+                    .purchases
+                    .quotes
+                    .get(&id.value())
+                    .and_then(|quotes| quotes.receipt_quote(supplier));
                 (average, p.buy_rate, quote)
             }))
     }

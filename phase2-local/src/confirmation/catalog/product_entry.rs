@@ -2,6 +2,10 @@ use super::{Product, ProductPriceInput, ProductPricing};
 use crate::confirmation::{ConfirmationError, ConfirmationFixture, gst_defaults};
 use crate::{Money, ProductId, Role};
 
+mod supplier_prices;
+
+use supplier_prices::SupplierPriceDraft;
+
 /// Overrides in basis points; `None` means automatic, not zero.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ProductTaxOverrides {
@@ -63,6 +67,7 @@ pub struct ProductEntry {
     pricing: ProductPricing,
     pub reorder_level: Option<u32>,
     pub tax: ProductTaxOverrides,
+    supplier_prices: SupplierPriceDraft,
 }
 
 impl ProductEntry {
@@ -80,17 +85,6 @@ impl ProductEntry {
             gst_rate: self.tax.gst_rate.unwrap_or(rate),
             cess: self.tax.cess.unwrap_or(0),
             hsn: self.tax.hsn().unwrap_or(hsn),
-        }
-    }
-
-    fn blank(target: Target, pricing: ProductPricing) -> Self {
-        Self {
-            target,
-            item: String::new(),
-            brand: String::new(),
-            pricing,
-            reorder_level: None,
-            tax: ProductTaxOverrides::default(),
         }
     }
 }
@@ -130,6 +124,7 @@ impl ConfirmationFixture {
         Ok(ProductEntry::blank(
             Target::New(id),
             ProductPricing::at_sell(Money::from_minor_units(0)),
+            self.product_quote_draft(id),
         ))
     }
 
@@ -165,6 +160,7 @@ impl ConfirmationFixture {
             .get(&id.value())
             .ok_or(ProductEntryError::ProductNotFound)?;
         let target = Target::Existing(id);
+        let supplier_prices = self.product_quote_draft(id);
         Ok(match &product.details {
             Some(details) => ProductEntry {
                 target,
@@ -173,8 +169,9 @@ impl ConfirmationFixture {
                 pricing: product.pricing,
                 reorder_level: Some(details.reorder_level),
                 tax: details.tax.clone(),
+                supplier_prices,
             },
-            None => ProductEntry::blank(target, product.pricing),
+            None => ProductEntry::blank(target, product.pricing, supplier_prices),
         })
     }
 
@@ -244,7 +241,10 @@ impl ConfirmationFixture {
                 self.terms_revision = revision;
                 Ok(())
             }
-        }
+        }?;
+        self.purchases
+            .save_product_quotes(id, form.supplier_prices.quotes.clone());
+        Ok(())
     }
 
     /// Adds a distinct synthetic product to the fixture catalog.

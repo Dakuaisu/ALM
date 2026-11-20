@@ -3,6 +3,7 @@ mod output;
 mod paste;
 mod receive_form;
 mod receiving;
+pub(super) mod supplier_prices;
 #[cfg(test)]
 mod tests;
 
@@ -21,6 +22,9 @@ pub use output::{
 pub use paste::PurchasePasteWarnings;
 pub use receive_form::{ReceiveForm, ReceiveFormError, ReceiveFormRow};
 pub use receiving::{ReceiveLine, ReceiveRequest, ReceiveResult};
+pub use supplier_prices::{
+    SupplierPrice, SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PurchaseSupplierId(usize);
@@ -144,6 +148,8 @@ pub(super) struct PurchaseBook {
     suppliers: Vec<SavedPurchaseSupplier>,
     orders: Vec<PurchaseOrder>,
     costs: Vec<receiving::PurchaseCost>,
+    quotes: supplier_prices::ProductQuotes,
+    price_suppliers: Vec<PurchaseSupplierId>,
 }
 
 const fn owner(role: Role) -> Result<(), PurchaseError> {
@@ -242,8 +248,7 @@ impl PurchaseBook {
                 }
             })
             .collect();
-        let existing = self.suppliers.iter().find(|supplier| supplier.name == name);
-        let supplier_id = existing.map_or(PurchaseSupplierId(self.suppliers.len()), |s| s.id);
+        let supplier_id = self.supplier_id_or_insert(name);
         let id = PurchaseOrderId(self.orders.len());
         let order = PurchaseOrder {
             id,
@@ -255,12 +260,6 @@ impl PurchaseBook {
             cancelled: false,
         };
 
-        if existing.is_none() {
-            self.suppliers.push(SavedPurchaseSupplier {
-                id: supplier_id,
-                name: name.to_owned(),
-            });
-        }
         self.orders.push(order);
         Ok(id)
     }
