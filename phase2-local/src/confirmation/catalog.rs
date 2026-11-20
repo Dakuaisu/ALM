@@ -8,10 +8,15 @@ mod receiving;
 
 mod pricing;
 mod product_entry;
+mod stock_lots;
+
+#[cfg(test)]
+mod l11_01;
 
 pub use pricing::{ProductPriceInput, ProductPricing};
 use product_entry::ProductDetails;
 pub use product_entry::{ProductEntry, ProductEntryError, ProductTaxOverrides, ResolvedProductTax};
+pub use stock_lots::{StockLotRow, StockLots, StockLotsError};
 
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
@@ -38,6 +43,13 @@ impl Product {
                 date: None,
             }],
         }
+    }
+
+    fn fifo_lot_indices(&self) -> Vec<usize> {
+        // Sort indices, never storage: allocations refer to the original indices.
+        let mut indices: Vec<_> = (0..self.lots.len()).collect();
+        indices.sort_by_key(|&index| self.lots[index].date.map(crate::BillDate::parts));
+        indices
     }
 }
 
@@ -155,10 +167,7 @@ impl Catalog {
                 .checked_sub(packets)
                 .ok_or(ConfirmationError::InsufficientStock)?;
             let mut remaining = packets;
-            // Sort indices, never the lots: stored allocation indices must remain stable.
-            let mut indices: Vec<_> = (0..product.lots.len()).collect();
-            indices.sort_by_key(|&index| product.lots[index].date.map(crate::BillDate::parts));
-            for lot_index in indices {
+            for lot_index in product.fifo_lot_indices() {
                 let lot = &mut product.lots[lot_index];
                 let taken = remaining.min(lot.remaining);
                 if taken == 0 {

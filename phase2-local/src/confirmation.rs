@@ -25,7 +25,7 @@ pub use crate::SaleUnit;
 use catalog::Catalog;
 pub use catalog::{
     ProductEntry, ProductEntryError, ProductPriceInput, ProductPricing, ProductTaxOverrides,
-    ResolvedProductTax,
+    ResolvedProductTax, StockLotRow, StockLots, StockLotsError,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 use crate_templates::CrateTemplateBook;
