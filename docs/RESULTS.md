@@ -433,3 +433,22 @@ The disposable prompt matched the source title and the warning that purchase his
 - Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (224 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy, and offline build passed; editor diagnostics timed out.
 
 Source trace: [L09-03](PHASE1_CASES.md#L259), [delete confirmation and quote-column retention](../ALM_Business_Manager.html#L10466), and [comparison column order](../ALM_Business_Manager.html#L7941). Evidence: [disposable supplier tests](../phase2-local/src/confirmation/purchase_orders/supplier_prices/legacy_delete.rs). OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Product rename, product deletion with historical links, and all acceptance gates remain open.
+
+### Product rename with historical links
+
+**P2-PRODUCT-RENAME / L09-04 (development, PASS):** Offline Rust fixture at `9caea0077abc14ed2bf08fcd177ecac559b48cbe`. Owner Save renamed product `9` from `Synthetic Peach Soda` to `Synthetic Peach Fizz`. As expected, exact catalog lookup changed from old name → `9`, new name → no match to old name → no match, new name → `9`. Separately, posted invoice `1` retained its stored `Synthetic Peach Soda` label and product `9`, quantity 2, total ₹10.00 and due ₹8.00. The saved PO line retained the old label and product `9`, ordered quantity 5, and its dated receipt of 4 at ₹3.00 on `2025-02-02`. On-hand stayed at 3, FIFO lot balances stayed `[0, 3]`, and allocations were unchanged. Replay returned the original receipt without mutation; a new sale used the new label. Manager denial left the entire fixture unchanged.
+
+**Disposable source model, not an observed legacy run:** Each independent copy renamed `Orange 250ml` to `Orange Glass 250ml`; the stock pairs below are `(opening, fridge)`.
+
+| Legacy stock case | Expected and observed key changes | Expected and observed dependent names |
+| --- | --- | --- |
+| Destination absent | Old `(17, 4)` was rekeyed to the new name with the same `(101, 7, legacy)` stamp. | Matching Godown and name-only crate names changed; the PID-linked crate component kept the old label and `p9`. |
+| Destination occupied | New `(3, 1)` and its `(100, 5, destination)` stamp stayed; old `(17, 4)` was dropped, not merged. | Matching Godown and name-only crate names changed; the PID-linked component stayed unchanged. |
+| Exact old-name twin | The twin retained the old name; the cascade left the old key and all dependents unchanged. | Godown and both crate components kept the old label. The primary product still saved under the new name. |
+
+In every modeled case, the primary stamp `(_m, _v, _d)` changed from `(92, 4, catalog)` to `(200, 5, editor)`. Existing ID-keyed stock `(42, 6)` and its stamp were unchanged. Godown, crate, posted bill and PO metadata were not restamped. The modeled stock delta with cursor `100` included the rekeyed row in the empty-destination case, no stock row in the occupied case, and the unchanged old row in the twin case. No deletion marker was emitted. The rekey or removal does not establish a stock transfer or hosted sync behavior.
+
+- Focused: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml l09_04` (7 passed, 0 failed).
+- Full: `cargo test --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (231 passed, 0 failed, 2 reported ignored by the top-level harness). Formatting, offline Clippy and offline build passed; editor diagnostics timed out.
+
+Source trace: [L09-04](PHASE1_CASES.md#L362), [rename cascade](../ALM_Business_Manager.html#L735), [product Save and stamps](../ALM_Business_Manager.html#L7814), and [stock delta filter](../ALM_Business_Manager.html#L9486). Evidence: [operational history checks](../phase2-local/src/confirmation/l09_04_operational.rs) and [disposable source model](../phase2-local/tests/l09_04_legacy_rename.rs). The frozen HTML was not executed. OPEN-009 remains OWNER-BLOCKED; `BillDate` and both paste-mismatch thresholds were unchanged. Product deletion, hosted sync, device checks, and all acceptance gates remain open.
