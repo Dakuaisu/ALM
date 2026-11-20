@@ -102,3 +102,46 @@ fn l07_02_save_preserves_a_seeded_partially_received_order_and_inventory() {
     assert_eq!(fixture.catalog, inventory_before);
     assert_eq!(fixture.purchases.suppliers, suppliers_before);
 }
+
+#[test]
+fn l13_02_manager_denials_leave_entire_fixture_and_cart_unchanged() {
+    use super::order_planner::OrderPlannerError;
+
+    let (mut fixture, _) = fixture_with_prior_receipt();
+    let supplier = fixture.purchase_suppliers(OWNER).unwrap()[0].id;
+    fixture
+        .edit_comparison_price(
+            OWNER,
+            SupplierPriceEdit {
+                product: PRODUCT,
+                supplier,
+                rate: Some(Money::from_minor_units(315)),
+            },
+        )
+        .unwrap();
+    let date = BillDate::new(2025, 1, 7).unwrap();
+    let mut plan = fixture.open_order_planner(OWNER).unwrap();
+    assert!(plan.add_item(PRODUCT, Some(2)));
+    let mut draft = plan.checkout(OWNER, date).unwrap();
+    draft.supplier = Some(PurchaseSupplier {
+        id: None,
+        name: "Synthetic New Supplier".into(),
+    });
+    let fixture_before = fixture.clone();
+    let plan_before = plan.clone();
+
+    let open = fixture.open_order_planner(Role::Manager);
+    assert_eq!(open, Err(OrderPlannerError::AccessDenied));
+    assert_eq!(fixture, fixture_before);
+    let checkout = plan.checkout(Role::Manager, date);
+    assert_eq!(checkout, Err(OrderPlannerError::AccessDenied));
+    assert_eq!(fixture, fixture_before);
+    assert_eq!(plan, plan_before);
+    let save = fixture.save_order_plan(Role::Manager, &mut plan, &draft);
+    assert_eq!(save, Err(PurchaseError::AccessDenied));
+    assert_eq!(fixture, fixture_before);
+    assert_eq!(plan, plan_before);
+    println!(
+        "Manager: plan={open:?}, checkout={checkout:?}, save={save:?}; whole fixture and cart unchanged"
+    );
+}

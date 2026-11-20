@@ -1,5 +1,6 @@
 mod fresh_form;
 mod note_edit;
+pub mod order_planner;
 mod output;
 mod paste;
 mod receive_form;

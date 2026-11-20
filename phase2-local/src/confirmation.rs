@@ -55,6 +55,7 @@ pub use pending::PendingError;
 use preview::PreviewPayment;
 pub use preview::{BalanceMode, BillPreview, PreviewLine, PreviousBalance};
 use purchase_orders::PurchaseBook;
+pub use purchase_orders::order_planner;
 pub use purchase_orders::{
     FreshPurchaseOrderForm, FreshPurchaseOrderLine, PurchaseBusiness, PurchaseDraft, PurchaseError,
     PurchaseLine, PurchaseOrder, PurchaseOrderHandoff, PurchaseOrderId, PurchaseOrderNoteEdit,

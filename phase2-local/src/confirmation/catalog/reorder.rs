@@ -6,6 +6,8 @@ use crate::confirmation::estimate::display_date;
 use crate::confirmation::image_handoff::{format_amount, group_indian_digits};
 use crate::{BillDate, Money, ProductId, Role};
 
+use super::Catalog;
+
 #[cfg(test)]
 mod l13_01;
 
@@ -52,6 +54,22 @@ struct Candidate<'a> {
     reorder_level: u32,
     suggested_quantity: NonZeroU64,
     buy_rate: Money,
+}
+
+impl Catalog {
+    pub(in crate::confirmation) fn order_planner_stock(
+        &self,
+        default_reorder: u32,
+    ) -> impl Iterator<Item = (ProductId, u32, u32)> + '_ {
+        self.product_order.iter().filter_map(move |&id| {
+            let product = self.products.get(&id.value())?;
+            let reorder_level = product
+                .details
+                .as_ref()
+                .map_or(default_reorder, |details| details.reorder_level);
+            Some((id, product.stock, reorder_level))
+        })
+    }
 }
 
 const fn owner(role: Role) -> Result<(), super::ReorderError> {
