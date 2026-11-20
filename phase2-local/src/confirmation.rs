@@ -7,6 +7,7 @@ use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 mod cancellation;
 mod catalog;
 mod checkout;
+mod crate_templates;
 mod edit;
 mod estimate;
 mod gst_defaults;
@@ -27,6 +28,8 @@ pub use catalog::{
     ResolvedProductTax,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
+use crate_templates::CrateTemplateBook;
+pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
@@ -133,6 +136,7 @@ pub struct ConfirmationFixture {
     checkout_approvals: BTreeMap<DraftId, Review>,
     loading_rate: Money,
     crate_rate: Option<Money>,
+    crate_templates: CrateTemplateBook,
     terms_revision: u64,
     draft_revision: u64,
     drafts: BTreeMap<DraftId, (u64, ProvisionalDraft)>,
@@ -182,6 +186,7 @@ impl ConfirmationFixture {
             checkout_approvals: BTreeMap::new(),
             loading_rate: Money::from_minor_units(0),
             crate_rate: None,
+            crate_templates: CrateTemplateBook::default(),
             terms_revision: 0,
             draft_revision: 0,
             drafts: BTreeMap::new(),

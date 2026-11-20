@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::BillDate;
+use crate::{BillDate, Money};
 
 /// Identity of a draft; not an invoice number.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -88,6 +88,13 @@ impl CrateComponent {
 pub struct CrateRow {
     quantity: NonZeroU32,
     components: Vec<CrateComponent>,
+    price: Option<CrateRowPrice>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CrateRowPrice {
+    name: String,
+    rate: Money,
 }
 
 impl CrateRow {
@@ -95,7 +102,21 @@ impl CrateRow {
         Self {
             quantity,
             components,
+            price: None,
         }
+    }
+
+    pub(crate) fn with_price(mut self, name: String, rate: Money) -> Self {
+        self.price = Some(CrateRowPrice { name, rate });
+        self
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.price.as_ref().map(|price| price.name.as_str())
+    }
+
+    pub fn rate(&self) -> Option<Money> {
+        self.price.as_ref().map(|price| price.rate)
     }
 
     pub const fn quantity(&self) -> NonZeroU32 {

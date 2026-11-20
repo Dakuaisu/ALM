@@ -11,6 +11,7 @@ mod checkout;
 mod codec;
 mod competing;
 mod crate_checkout;
+mod crate_template;
 mod fifo;
 mod named_payment;
 mod sqlite_pending;

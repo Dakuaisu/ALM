@@ -109,6 +109,12 @@ impl Catalog {
         self.products.get(&id.value()).map(|product| product.stock)
     }
 
+    pub(super) fn sell_rate(&self, id: ProductId) -> Option<Money> {
+        self.products
+            .get(&id.value())
+            .map(|product| product.pricing.sell())
+    }
+
     pub(super) fn item_name(&self, id: ProductId) -> Option<&str> {
         self.products.get(&id.value()).and_then(Product::item_name)
     }
@@ -121,9 +127,7 @@ impl Catalog {
             .lines()
             .iter()
             .map(|line| {
-                self.products
-                    .get(&line.product_id().value())
-                    .map(|p| p.pricing.sell())
+                self.sell_rate(line.product_id())
                     .ok_or(ConfirmationError::InvalidDraft)
             })
             .collect()

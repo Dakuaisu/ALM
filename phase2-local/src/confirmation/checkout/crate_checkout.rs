@@ -98,7 +98,10 @@ impl ConfirmationFixture {
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
         let row = draft.crate_row().ok_or(ConfirmationError::InvalidDraft)?;
-        let rate = self.crate_rate.ok_or(ConfirmationError::InvalidDraft)?;
+        let rate = row
+            .rate()
+            .or(self.crate_rate)
+            .ok_or(ConfirmationError::InvalidDraft)?;
         let packs = row
             .components()
             .iter()

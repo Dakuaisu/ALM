@@ -66,6 +66,10 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
             .ok_or_else(invalid)
     };
     let row = crate_row_codec::decode(definition)?;
+    let rate = amount(rate)?;
+    if row.rate().is_some_and(|copied| copied != rate) {
+        return Err(invalid());
+    }
     let packs = packs
         .split(',')
         .map(|value| value.parse::<NonZeroU32>().map_err(|_| invalid()))
@@ -86,7 +90,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         draft,
         draft_revision: revision.parse().map_err(|_| invalid())?,
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
-        prices: vec![amount(rate)?],
+        prices: vec![rate],
         payment: ProposedPayment::Named(amount(received)?),
         checkout: Some(CheckoutTerms {
             lines: Vec::new(),
