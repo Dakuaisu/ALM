@@ -15,6 +15,7 @@ mod gst_invoice;
 mod gst_standalone;
 mod gst_standalone_totals;
 mod image_handoff;
+mod manual_godown;
 mod payment;
 mod pending;
 mod posting;
@@ -47,6 +48,7 @@ pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
     InvoiceImageAttempts, ShareRejected, TextHandoffIntent,
 };
+pub use manual_godown::{GodownCases, ManualGodownError, ManualGodownInput, ManualGodownRow};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
@@ -154,6 +156,7 @@ pub struct ConfirmationFixture {
     movement_epoch: u64,
     gst_bills: BTreeMap<GstBillId, GstBill>,
     purchases: PurchaseBook,
+    manual_godown: BTreeMap<String, ManualGodownRow>,
 }
 
 impl ConfirmationFixture {
@@ -204,6 +207,7 @@ impl ConfirmationFixture {
             movement_epoch: 0,
             gst_bills: BTreeMap::new(),
             purchases: PurchaseBook::default(),
+            manual_godown: BTreeMap::new(),
         })
     }
 

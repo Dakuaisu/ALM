@@ -16,6 +16,7 @@ mod l05_04;
 mod l06_01;
 mod l06_01_hsn;
 mod l06_02;
+mod l12_01;
 mod multiline;
 mod named_payment;
 mod pending;
