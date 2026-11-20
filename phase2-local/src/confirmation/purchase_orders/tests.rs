@@ -1,5 +1,7 @@
 use super::*;
 
+mod output;
+
 const PRODUCT: ProductId = ProductId::new(8);
 const OWNER: Role = Role::Owner;
 

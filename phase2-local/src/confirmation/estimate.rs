@@ -181,7 +181,7 @@ pub(super) fn display_date(date: BillDate) -> String {
     format!("{day:02}-{}-{year:04}", months[usize::from(month - 1)])
 }
 
-fn escape_text(value: &str) -> String {
+pub(super) fn escape_text(value: &str) -> String {
     let mut escaped = String::new();
     for character in value.chars() {
         match character {

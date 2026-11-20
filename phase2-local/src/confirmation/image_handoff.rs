@@ -151,7 +151,7 @@ fn saved_phone(customer: &DraftCustomer, saved_mobile: Option<(&str, &str)>) -> 
     }
 }
 
-fn clean_phone(mobile: &str) -> Option<String> {
+pub(super) fn clean_phone(mobile: &str) -> Option<String> {
     let digits: String = mobile.chars().filter(char::is_ascii_digit).collect();
     (digits.len() >= 10).then(|| format!("91{}", &digits[digits.len() - 10..]))
 }
@@ -200,7 +200,7 @@ fn invoice_text(preview: &BillPreview, request: InvoiceHandoffRequest<'_>) -> St
     text
 }
 
-fn group_indian_digits(value: u64) -> String {
+pub(super) fn group_indian_digits(value: u64) -> String {
     let digits = value.to_string();
     let prefix = digits.len().saturating_sub(3);
     let mut grouped = String::new();
@@ -213,7 +213,7 @@ fn group_indian_digits(value: u64) -> String {
     grouped
 }
 
-fn format_amount(amount: Money) -> String {
+pub(super) fn format_amount(amount: Money) -> String {
     let value = amount.minor_units();
     let magnitude = value.unsigned_abs();
     let sign = if value < 0 { "-" } else { "" };
@@ -225,7 +225,7 @@ fn format_amount(amount: Money) -> String {
     }
 }
 
-fn append_uri_component(url: &mut String, text: &str) {
+pub(super) fn append_uri_component(url: &mut String, text: &str) {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
     for byte in text.bytes() {
         if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {

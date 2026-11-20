@@ -1,3 +1,4 @@
+mod output;
 mod paste;
 #[cfg(test)]
 mod tests;
@@ -8,6 +9,11 @@ use crate::{BillDate, Money, ProductId, Role};
 
 use super::{ConfirmationError, ConfirmationFixture};
 
+pub use output::{
+    PurchaseBusiness, PurchaseOrderHandoff, PurchaseOrderSelection, PurchaseOrderStatus,
+    PurchaseOrderView, PurchaseOutputRequest, PurchaseProductDisplay, PurchaseProgressLine,
+    PurchaseSupplierContact, PurchaseWhatsAppRequest,
+};
 pub use paste::PurchasePasteWarnings;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,6 +62,7 @@ pub struct SavedPurchaseSupplier {
 pub struct SavedPurchaseLine {
     pub line: PurchaseLine,
     pub received: u32,
+    cancelled: u32,
     receipts: Vec<PurchaseReceipt>,
 }
 
@@ -76,14 +83,17 @@ pub struct PurchaseReceipt {
 pub struct PurchaseOrder {
     pub id: PurchaseOrderId,
     pub supplier_id: PurchaseSupplierId,
+    pub supplier_name: String,
     pub date: BillDate,
     pub note: String,
     pub items: Vec<SavedPurchaseLine>,
+    cancelled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PurchaseError {
     AccessDenied,
+    OrderNotFound,
     NoUsableRows,
     MissingSupplier,
     MissingItems,
@@ -94,6 +104,7 @@ impl fmt::Display for PurchaseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::AccessDenied => "Only Owner can access purchase orders",
+            Self::OrderNotFound => "Purchase order not found",
             Self::NoUsableRows => "Nothing usable found — select the rows in the sheet, copy, and paste them here unchanged.",
             Self::MissingSupplier => "Enter supplier",
             Self::MissingItems => "Add at least one item with an order quantity",
@@ -203,6 +214,7 @@ impl PurchaseBook {
                 SavedPurchaseLine {
                     line,
                     received: 0,
+                    cancelled: 0,
                     receipts: Vec::new(),
                 }
             })
@@ -213,9 +225,11 @@ impl PurchaseBook {
         let order = PurchaseOrder {
             id,
             supplier_id,
+            supplier_name: name.to_owned(),
             date,
             note: draft.note.clone(),
             items,
+            cancelled: false,
         };
 
         if existing.is_none() {
