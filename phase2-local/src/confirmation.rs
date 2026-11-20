@@ -11,6 +11,8 @@ mod edit;
 mod estimate;
 mod gst_defaults;
 mod gst_invoice;
+mod gst_standalone;
+mod gst_standalone_totals;
 mod image_handoff;
 mod payment;
 mod pending;
@@ -27,6 +29,10 @@ pub use estimate::{
 };
 pub use gst_invoice::{
     GstError, GstGroup, GstInvoice, GstJurisdiction, GstLine, GstLineMetadata, GstRequest,
+};
+pub use gst_standalone::{
+    GstBill, GstBillDraft, GstBillError, GstBillId, GstBillInvoice, GstBillLine, GstBillLineInput,
+    GstBillNumber, GstBillTotals,
 };
 pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
@@ -115,6 +121,7 @@ pub struct ConfirmationFixture {
     preview_payments: Vec<PreviewPayment>,
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
     movement_epoch: u64,
+    gst_bills: BTreeMap<GstBillId, GstBill>,
 }
 
 impl ConfirmationFixture {
@@ -160,6 +167,7 @@ impl ConfirmationFixture {
             preview_payments: Vec::new(),
             lifecycle: BTreeMap::new(),
             movement_epoch: 0,
+            gst_bills: BTreeMap::new(),
         })
     }
 
