@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,6 +12,11 @@ const PROVISIONAL: &str = "PROVISIONAL — NOT POSTED";
 const DRAFT_ID: &str = "Draft ID: 1";
 const CUSTOMER: &str = "Customer: Synthetic Customer";
 const ITEM: &str = "Item: Synthetic Lime | Quantity: 3";
+const LINE_AMOUNTS: &str = "Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹354.00";
+const TAXABLE: &str = "Taxable: ₹300.00";
+const CGST: &str = "CGST: ₹27.00";
+const SGST: &str = "SGST: ₹27.00";
+const TOTAL: &str = "Inclusive total: ₹354.00";
 
 struct ScratchDir(PathBuf);
 
@@ -107,6 +112,33 @@ fn assert_no_pending_confirmations(scratch: &ScratchDir) {
     println!("SQLite (read-only): 0 pending owner confirmations");
 }
 
+fn logical_snapshot(scratch: &ScratchDir) -> Vec<u8> {
+    let output = scratch
+        .command("sqlite3")
+        .args(["-batch", "-bail", "-readonly"])
+        .arg(scratch.database())
+        .arg(".dump")
+        .output()
+        .expect("run read-only SQLite dump");
+    assert!(output.status.success() && output.stderr.is_empty());
+    output.stdout
+}
+
+fn data_version(input: &mut impl Write, output: &mut impl BufRead) -> u64 {
+    writeln!(input, "PRAGMA data_version;").expect("request SQLite data version");
+    input.flush().expect("flush SQLite data version query");
+    let mut line = String::new();
+    assert_ne!(
+        output
+            .read_line(&mut line)
+            .expect("read SQLite data version"),
+        0
+    );
+    line.trim()
+        .parse()
+        .expect("SQLite data version is an integer")
+}
+
 fn assert_transcript(launch: &str, stdout: &str, expected: &[&str]) {
     println!("{launch} (selected CLI output):");
     let mut lines = stdout.lines().map(str::trim);
@@ -125,7 +157,28 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
 
     // When: one process saves and exits, then a second process opens draft 1.
     let (before_pid, before) = run_demo(&scratch, CREATE_DRAFT, "Launch 1: create and save");
+    let mut observer = scratch
+        .command("sqlite3")
+        .args(["-batch", "-bail", "-list", "-noheader", "-readonly"])
+        .arg(scratch.database())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start read-only SQLite observer");
+    let mut observer_input = observer.stdin.take().expect("SQLite observer stdin");
+    let mut observer_output =
+        BufReader::new(observer.stdout.take().expect("SQLite observer stdout"));
+    let version_before = data_version(&mut observer_input, &mut observer_output);
+    let snapshot_before = logical_snapshot(&scratch);
     let (after_pid, after) = run_demo(&scratch, REOPEN_DRAFT, "Launch 2: open and review");
+    let version_after = data_version(&mut observer_input, &mut observer_output);
+    let snapshot_after = logical_snapshot(&scratch);
+    drop(observer_input);
+    let observer_result = observer
+        .wait_with_output()
+        .expect("wait for SQLite observer");
+    assert!(observer_result.status.success() && observer_result.stderr.is_empty());
 
     // Then: review shows the same synthetic draft, still provisional, across distinct launches.
     assert_ne!(
@@ -142,6 +195,11 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
             "State: UNSAVED",
             CUSTOMER,
             ITEM,
+            LINE_AMOUNTS,
+            TAXABLE,
+            CGST,
+            SGST,
+            TOTAL,
             "Saved draft 1: PROVISIONAL — NOT POSTED.",
         ],
     );
@@ -156,9 +214,27 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
             "State: SAVED",
             CUSTOMER,
             ITEM,
+            LINE_AMOUNTS,
+            TAXABLE,
+            CGST,
+            SGST,
+            TOTAL,
         ],
     );
+    assert_eq!(
+        version_before, version_after,
+        "review must not commit SQLite writes"
+    );
+    assert_eq!(
+        snapshot_before, snapshot_after,
+        "review must not change SQLite contents"
+    );
+    for transcript in [&before, &after] {
+        let lower = transcript.to_ascii_lowercase();
+        assert!(!lower.contains("profit") && !lower.contains("cost"));
+    }
     println!("Process check: distinct CLI launches");
+    println!("SQLite check: no committed writes or logical changes during reopen/review");
     assert_no_pending_confirmations(&scratch);
 }
 

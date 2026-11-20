@@ -10,6 +10,9 @@ use alm_phase2_local::{
     SalesSession,
 };
 
+#[path = "alm-draft-demo/review.rs"]
+mod review;
+
 struct CurrentDraft {
     id: NonZeroU64,
     draft: ProvisionalDraft,
@@ -102,27 +105,6 @@ fn new_draft<R: BufRead, W: Write>(
     }))
 }
 
-fn review(output: &mut impl Write, current: &CurrentDraft) -> io::Result<()> {
-    writeln!(output, "PROVISIONAL — NOT POSTED")?;
-    writeln!(output, "Draft ID: {}", current.id)?;
-    let state = if current.saved { "SAVED" } else { "UNSAVED" };
-    writeln!(output, "State: {state}")?;
-    let customer = match current.draft.customer() {
-        DraftCustomer::Unassigned => "Unassigned",
-        DraftCustomer::Typed(name) | DraftCustomer::Selected { name, .. } => name,
-    };
-    writeln!(output, "Customer: {customer}")?;
-    for line in current.draft.lines() {
-        let item = if line.product_id() == ProductId::new(1) {
-            "Synthetic Lime"
-        } else {
-            "Unrecognized item"
-        };
-        writeln!(output, "Item: {item} | Quantity: {}", line.quantity())?;
-    }
-    Ok(())
-}
-
 fn run_menu(
     input: &mut impl BufRead,
     output: &mut impl Write,
@@ -196,7 +178,7 @@ fn run_menu(
                 }
             }
             "review" => match &current {
-                Some(draft) => review(console.output, draft)?,
+                Some(draft) => review::render(console.output, draft)?,
                 None => writeln!(console.output, "No draft is open.")?,
             },
             "quit" => return Ok(()),
