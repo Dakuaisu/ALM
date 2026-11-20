@@ -5,6 +5,9 @@ use super::{
     SavedPurchaseSupplier, owner,
 };
 
+#[cfg(test)]
+mod legacy_delete;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupplierPrice {
     pub supplier: SavedPurchaseSupplier,
@@ -106,6 +109,11 @@ impl SupplierQuotes {
     }
 }
 
+struct PriceSupplierColumns<'a> {
+    explicit: &'a [PurchaseSupplierId],
+    contacts: &'a [SavedPurchaseSupplier],
+}
+
 impl PurchaseBook {
     pub(super) fn supplier_id_or_insert(&mut self, name: &str) -> PurchaseSupplierId {
         if let Some(supplier) = self.suppliers.iter().find(|supplier| supplier.name == name) {
@@ -133,13 +141,29 @@ impl PurchaseBook {
     }
 
     pub(in crate::confirmation) fn price_suppliers(&self) -> Vec<SavedPurchaseSupplier> {
-        self.price_suppliers
+        self.project_price_suppliers(self.supplier_columns())
+    }
+
+    fn supplier_columns(&self) -> PriceSupplierColumns<'_> {
+        PriceSupplierColumns {
+            explicit: &self.price_suppliers,
+            contacts: &self.suppliers,
+        }
+    }
+
+    fn project_price_suppliers(
+        &self,
+        columns: PriceSupplierColumns<'_>,
+    ) -> Vec<SavedPurchaseSupplier> {
+        columns
+            .explicit
             .iter()
             .map(|id| &self.suppliers[id.0])
             .chain(
-                self.suppliers
+                columns
+                    .contacts
                     .iter()
-                    .filter(|supplier| !self.price_suppliers.contains(&supplier.id)),
+                    .filter(|supplier| !columns.explicit.contains(&supplier.id)),
             )
             .cloned()
             .collect()
@@ -179,8 +203,17 @@ impl ConfirmationFixture {
         role: Role,
         product: Option<ProductId>,
     ) -> Result<SupplierPriceComparison, SupplierPriceError> {
+        self.compare_supplier_prices_with_columns(role, product, self.purchases.supplier_columns())
+    }
+
+    fn compare_supplier_prices_with_columns(
+        &self,
+        role: Role,
+        product: Option<ProductId>,
+        columns: PriceSupplierColumns<'_>,
+    ) -> Result<SupplierPriceComparison, SupplierPriceError> {
         owner(role).map_err(|_| SupplierPriceError::AccessDenied)?;
-        let suppliers = self.purchases.price_suppliers();
+        let suppliers = self.purchases.project_price_suppliers(columns);
         let row = |id| {
             let (item, our_buy) = self.supplier_price_product(id)?;
             let quotes = self.purchases.quotes.get(&id.value());
