@@ -139,8 +139,60 @@ Options: Treat the rollback proposal as delegated authority to pause, recover or
 Decision: Defer approval. Keep rollback authority, write pause, accounting sign-off and post-switch reconciliation unapproved. Implementation and production cutover require separate explicit owner approvals; neither this deferral nor a rehearsal grants either.
 Why: A documented procedure does not identify who can order a switch or prove that committed post-switch records can be retained before reopening legacy billing.
 
+## DEC-017 PC-001 Provision a contained browser for the Phase 1 walkthrough
+- Decided by: planner (re-plan requested by the supervisor at exchange 123)
+- Status: APPLIED (non-material)
+- Change: PC-001 (.bridge/plan/changes/PC-001.diff)
+
+Reason: docs/RESULTS.md records that Docker's local daemon was unavailable, the macOS sandbox smoke check did not demonstrate browser network confinement, and the Playwright MCP session showed only about:blank. No qualifying probe or application walkthrough ran. docs/PHASE1_DISCOVERY.md already defines the required inert gate. The missing prerequisite is an environment that can enforce and demonstrate that gate, not a different acceptance criterion.
+
+Context: The current macOS run has no verified containment for the browser that would execute the legacy HTML. Options: retry the unchanged setup, rely on browser-context isolation, or provision a disposable Linux guest with OS-level egress controls and a controlled marker listener. Decision: record OPEN-008 and use the Linux guest route once provisioned; keep the existing inert gate and PRD exit criteria unchanged. Why: this provides a way to verify containment in the actual walkthrough browser without contacting live services or treating source findings as runtime evidence.
+
+## DEC-018 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: supervisor: opencode openai/gpt-6.2-sol -> opencode openai/gpt-6.2-astra.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 7b7bdb41a005321019d2c5098f673f5c6b30235ab2dc15a1206065edeec9ccca
+- CLAUDE.md: sha256 407bbc6e4b6d788c713f6ea4f7ef693e659a36687e0750d88fcc36411af0acb1
+- bridge.toml: sha256 42a70f0acb70c91f5a20010723e7bd5a6f38f389bb10fa56b90ad1543742f13c
+
 ## DEC-019 Local synthetic Phase 2 slice
 - Decided by: owner
 - Status: APPROVED (local synthetic implementation only)
 
 The owner authorized a small Rust slice for provisional sales drafts and Owner/Manager access. Owner can use all operations in the slice; Manager must not receive total profit. This does not close Phase 1 checks, approve the full production permission matrix, authorize hosted or production access, or authorize Phase 3.
+
+## DEC-020 Contract re-approved by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge approve)
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 7b7bdb41a005321019d2c5098f673f5c6b30235ab2dc15a1206065edeec9ccca
+- CLAUDE.md: sha256 407bbc6e4b6d788c713f6ea4f7ef693e659a36687e0750d88fcc36411af0acb1
+- bridge.toml: sha256 fb25e99c09fc1485b0ea0ec2927cf21c6ddb0b05c8882ca54800e8d65b862f04
+
+## DEC-021 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: planner: opencode openai/gpt-6.2-sol -> opencode openai/gpt-6.2-astra.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 7b7bdb41a005321019d2c5098f673f5c6b30235ab2dc15a1206065edeec9ccca
+- CLAUDE.md: sha256 407bbc6e4b6d788c713f6ea4f7ef693e659a36687e0750d88fcc36411af0acb1
+- bridge.toml: sha256 b5008eafdde5cb2c0da40e9b3198c418938f0061043282b8bedcb8a6de802d70
+
+## DEC-022 PC-002 Authorize parallel local development and deliver the next billing workflow as a runnable batch
+- Decided by: planner (the owner's decisions in docs/OWNER_DELIVERY_REPLAN.md)
+- Status: OWNER DECISION (docs/OWNER_DELIVERY_REPLAN.md)
+- Change: PC-002 (.bridge/plan/changes/PC-002.diff)
+
+Reason: docs/RESULTS.md records DEV-DRAFT-DEMO at 3292b20: the synthetic Manager can save a provisional draft, quit, reopen it in a second process, and review it without posting. It does not record owner acceptance. The Phase 1 stop in docs/PRD.md, the corresponding rule in CLAUDE.md, and the wording of OPEN-006 would still stop the builder before extending that workflow. D1–D3 in docs/OWNER_DELIVERY_REPLAN.md grant that local authority now while reserving access, business-rule decisions, and acceptance for the owner.
+
+Context: DEC-019 and the recorded demo result document earlier narrow local approvals. The owner's `docs/OWNER_DELIVERY_REPLAN.md` now expands local delivery authority. Preserve those historical entries and results. Options: continue requesting approval per slice; remove all gates; or preauthorize reversible local work and retain access and acceptance gates. Owner decisions: D1 selects standing local authorization, optional demo feedback, and continued independent work. D2 selects integrated runnable milestones, beginning with the existing draft-to-bill workflow, with case-level evidence and milestone-level review. D3 retains separate access, real-data, material-departure, migration and cutover decisions, plus actual device/parity and accounting sign-offs. Why: the owner can try useful workflows sooner without confusing a synthetic demonstration with a verified release. No owner replay, acceptance, phase completion, or new access is recorded.
