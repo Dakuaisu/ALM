@@ -24,8 +24,9 @@ mod reporting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
 pub use catalog::{
-    ProductEntry, ProductEntryError, ProductPriceInput, ProductPricing, ProductTaxOverrides,
-    ResolvedProductTax, StockLotRow, StockLots, StockLotsError,
+    PhysicalCount, PhysicalCountError, PhysicalCountInput, ProductEntry, ProductEntryError,
+    ProductPriceInput, ProductPricing, ProductTaxOverrides, ResolvedProductTax, StockCountMovement,
+    StockCountReason, StockLotRow, StockLots, StockLotsError,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 use crate_templates::CrateTemplateBook;

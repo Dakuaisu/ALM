@@ -4,6 +4,7 @@ use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
 mod cancellation;
 mod edit;
+mod physical_count;
 mod receiving;
 
 mod pricing;
@@ -13,6 +14,10 @@ mod stock_lots;
 #[cfg(test)]
 mod l11_01;
 
+use physical_count::PhysicalCountState;
+pub use physical_count::{
+    PhysicalCount, PhysicalCountError, PhysicalCountInput, StockCountMovement, StockCountReason,
+};
 pub use pricing::{ProductPriceInput, ProductPricing};
 use product_entry::ProductDetails;
 pub use product_entry::{ProductEntry, ProductEntryError, ProductTaxOverrides, ResolvedProductTax};
@@ -25,6 +30,7 @@ struct Product {
     pricing: ProductPricing,
     details: Option<ProductDetails>,
     lots: Vec<Lot>,
+    physical_count: PhysicalCountState,
 }
 
 impl Product {
@@ -42,6 +48,7 @@ impl Product {
                 unit_cost: None,
                 date: None,
             }],
+            physical_count: PhysicalCountState::default(),
         }
     }
 
