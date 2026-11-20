@@ -1,5 +1,6 @@
 use super::{
-    ConfirmationError, ConfirmationFixture, DraftId, Money, ProposedPayment, Receipt, Review, Role,
+    ConfirmationError, ConfirmationFixture, DraftId, Money, PostedLineItem, ProposedPayment,
+    Receipt, Review, Role,
 };
 use crate::{DraftCustomer, DraftLine, ProvisionalDraft};
 
@@ -148,6 +149,13 @@ impl ConfirmationFixture {
             due: Some(Money::from_minor_units(due)),
             customer_balance: Some(Money::from_minor_units(balance)),
         };
+        self.posted_sale_items
+            .get_mut(&id)
+            .ok_or(ConfirmationError::StaleReview)?
+            .push(PostedLineItem::capture(
+                &catalog,
+                edit.changes.appended_line.product_id(),
+            ));
         self.catalog = catalog;
         self.movement_epoch = movement;
         self.lifecycle.insert(id, (false, movement));

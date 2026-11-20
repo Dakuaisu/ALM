@@ -1,7 +1,8 @@
-use crate::{DraftCustomer, Money, ProvisionalDraft, Role};
+use crate::{DraftCustomer, DraftId, DraftLine, Money, ProductId, ProvisionalDraft, Role};
 
 use super::{
-    ConfirmationAck, ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, payment,
+    Catalog, ConfirmationAck, ConfirmationError, ConfirmationFixture, PostedLineItem, Receipt,
+    RequestId, Review, payment,
 };
 
 pub(super) fn validate_bill(draft: &ProvisionalDraft) -> Result<(), ConfirmationError> {
@@ -35,7 +36,31 @@ impl ConfirmationAck {
     }
 }
 
+impl PostedLineItem {
+    pub(super) fn capture(catalog: &Catalog, product_id: ProductId) -> Self {
+        Self {
+            product_id,
+            item: catalog.item_name(product_id).map(str::to_owned),
+        }
+    }
+}
+
 impl ConfirmationFixture {
+    /// Returns stored product text in bill-line order (component order for a crate sale).
+    pub fn posted_sale_items(
+        &self,
+        role: Role,
+        id: DraftId,
+    ) -> Result<&[PostedLineItem], ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        self.posted_sale_items
+            .get(&id)
+            .map(Vec::as_slice)
+            .ok_or(ConfirmationError::DraftNotFound)
+    }
+
     pub fn confirm_acknowledged(
         &mut self,
         role: Role,
@@ -111,6 +136,22 @@ impl ConfirmationFixture {
                 .as_ref()
                 .map(|(_, value)| Money::from_minor_units(*value)),
         };
+        let products = review
+            .draft
+            .lines()
+            .iter()
+            .copied()
+            .map(DraftLine::product_id);
+        let components = review
+            .draft
+            .crate_row()
+            .into_iter()
+            .flat_map(|row| row.components())
+            .map(|component| component.product);
+        let items = products
+            .chain(components)
+            .map(|id| PostedLineItem::capture(&catalog, id))
+            .collect();
         self.catalog = catalog;
         self.ledger = ledger;
         self.received_ledger = received_ledger;
@@ -124,7 +165,12 @@ impl ConfirmationFixture {
             .insert(request, (review.clone(), receipt.clone()));
         self.current_sales
             .insert(id, (review.clone(), receipt.clone(), 0));
+        self.posted_sale_items.insert(id, items);
         self.posted.insert(id, request);
         Ok(receipt)
     }
 }
+
+#[cfg(test)]
+#[path = "l09_04_operational.rs"]
+mod l09_04_operational;

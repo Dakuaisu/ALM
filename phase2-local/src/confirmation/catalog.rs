@@ -23,6 +23,10 @@ struct Product {
 }
 
 impl Product {
+    fn item_name(&self) -> Option<&str> {
+        self.details.as_ref().map(|details| details.item.as_str())
+    }
+
     fn new(stock: u32, pricing: ProductPricing) -> Self {
         Self {
             stock,
@@ -103,6 +107,10 @@ impl Catalog {
 
     pub(super) fn stock(&self, id: ProductId) -> Option<u32> {
         self.products.get(&id.value()).map(|product| product.stock)
+    }
+
+    pub(super) fn item_name(&self, id: ProductId) -> Option<&str> {
+        self.products.get(&id.value()).and_then(Product::item_name)
     }
 
     pub(super) fn prices(&self, draft: &ProvisionalDraft) -> Result<Vec<Money>, ConfirmationError> {
@@ -249,5 +257,19 @@ impl Catalog {
     #[cfg(test)]
     pub(super) fn allocated_cost(&self, id: super::DraftId) -> Option<Option<i64>> {
         self.allocations.sale_costs.get(&id.value()).copied()
+    }
+}
+
+impl super::ConfirmationFixture {
+    /// Looks up the current catalog name without case folding or trimming the query.
+    pub fn find_product_by_exact_name(
+        &self,
+        role: crate::Role,
+        item: &str,
+    ) -> Result<Option<ProductId>, ProductEntryError> {
+        product_entry::owner(role)?;
+        Ok(self.catalog.products.iter().find_map(|(&id, product)| {
+            (product.item_name() == Some(item)).then_some(ProductId::new(id))
+        }))
     }
 }

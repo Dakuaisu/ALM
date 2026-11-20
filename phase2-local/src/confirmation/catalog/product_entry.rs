@@ -92,13 +92,13 @@ impl ProductEntry {
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct ProductDetails {
-    item: String,
+    pub(super) item: String,
     brand: String,
     reorder_level: u32,
     tax: ProductTaxOverrides,
 }
 
-const fn owner(role: Role) -> Result<(), ProductEntryError> {
+pub(super) const fn owner(role: Role) -> Result<(), ProductEntryError> {
     match role {
         Role::Owner => Ok(()),
         Role::Manager => Err(ProductEntryError::AccessDenied),

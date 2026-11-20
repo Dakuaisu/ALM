@@ -107,6 +107,14 @@ pub struct Receipt {
     pub customer_balance: Option<Money>,
 }
 
+/// The product identity and catalog text recorded when a line becomes part of a posted bill.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostedLineItem {
+    pub product_id: ProductId,
+    /// Anonymous catalog products have no item text.
+    pub item: Option<String>,
+}
+
 /// An authority-issued receipt bound to the request and the exact approved review.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfirmationAck {
@@ -135,6 +143,7 @@ pub struct ConfirmationFixture {
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
     current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
+    posted_sale_items: BTreeMap<DraftId, Vec<PostedLineItem>>,
     preview_payments: Vec<PreviewPayment>,
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
     movement_epoch: u64,
@@ -183,6 +192,7 @@ impl ConfirmationFixture {
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
             current_sales: BTreeMap::new(),
+            posted_sale_items: BTreeMap::new(),
             preview_payments: Vec::new(),
             lifecycle: BTreeMap::new(),
             movement_epoch: 0,
