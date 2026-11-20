@@ -1,3 +1,7 @@
+mod copy;
+
+pub use copy::{CopyPlanFeedback, CopyPlanRejected};
+
 use std::num::NonZeroU32;
 
 use crate::{BillDate, Money, ProductId, Role};
