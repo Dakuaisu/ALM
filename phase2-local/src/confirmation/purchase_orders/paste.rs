@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 
-use crate::{BillDate, Money};
+use crate::Money;
 
 use super::{
     PurchaseBook, PurchaseDraft, PurchaseError, PurchaseLine, PurchaseProduct, PurchaseSupplier,
 };
+
+mod fields;
 
 /// The draft has already been filled when these notices are returned.
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -43,19 +45,36 @@ struct Columns {
 }
 
 impl Columns {
+    // The intervening columns are pack size, UOM, packet quantity, and MRP.
+    const POSITIONAL: Self = Self {
+        date: Some(0),
+        party: Some(1),
+        item: Some(2),
+        rate: Some(7),
+        qty: Some(8),
+        total: Some(9),
+    };
+
     fn from_header(header: &str) -> Option<Self> {
         let mut cols = Self::default();
+        let mut has_item = false;
+        let mut has_rate_or_date = false;
         for (index, heading) in header.split('\t').enumerate() {
             let heading = heading.trim().to_ascii_lowercase();
-            if heading.contains("date") {
+            let item = heading.contains("item");
+            let rate = heading.contains("rate");
+            let date = heading.contains("date");
+            has_item |= item;
+            has_rate_or_date |= rate || date;
+            if date {
                 cols.date = Some(index);
             } else if heading.contains("party") || heading.contains("supplier") {
                 cols.party = Some(index);
-            } else if heading.contains("item") {
+            } else if item {
                 cols.item = Some(index);
             } else if heading.contains("packet") && heading.contains("qty") {
                 // Packet Qty is pack metadata, not the ordered case count.
-            } else if heading.contains("rate") {
+            } else if rate {
                 cols.rate = Some(index);
             } else if heading.contains("total") {
                 cols.total = Some(index);
@@ -63,9 +82,7 @@ impl Columns {
                 cols.qty = Some(index);
             }
         }
-        cols.item?;
-        cols.qty?;
-        Some(cols)
+        (has_item && has_rate_or_date).then_some(cols)
     }
 }
 
@@ -74,11 +91,14 @@ pub(super) fn fill(
     draft: &mut PurchaseDraft,
     text: &str,
 ) -> Result<PurchasePasteWarnings, PurchaseError> {
-    let mut rows = text.lines().filter(|row| !row.trim().is_empty());
-    let cols = rows
-        .next()
-        .and_then(Columns::from_header)
-        .ok_or(PurchaseError::NoUsableRows)?;
+    let mut rows = text.lines().filter(|row| !row.trim().is_empty()).peekable();
+    let cols = match rows.peek().and_then(|row| Columns::from_header(row)) {
+        Some(header) => {
+            rows.next();
+            header
+        }
+        None => Columns::POSITIONAL,
+    };
     let mut date = None;
     let mut items = Vec::new();
     let mut warnings = PurchasePasteWarnings::default();
@@ -89,13 +109,15 @@ pub(super) fn fill(
         if !party.is_empty() && !warnings.parties.iter().any(|name| name == party) {
             warnings.parties.push(party.to_owned());
         }
-        date = date.or_else(|| cell(cols.date).parse::<BillDate>().ok());
+        date = date.or_else(|| fields::date(cell(cols.date)));
 
         let item = cell(cols.item);
         let qty = cell(cols.qty).parse::<NonZeroU32>();
-        let (Ok(ordered), Ok(rate), Ok(total)) =
-            (qty, money(cell(cols.rate)), money(cell(cols.total)))
-        else {
+        let (Ok(ordered), Ok(rate), Ok(total)) = (
+            qty,
+            fields::money(cell(cols.rate)),
+            fields::money(cell(cols.total)),
+        ) else {
             warnings.skipped_rows += 1;
             continue;
         };
@@ -182,33 +204,6 @@ fn supplier_key(name: &str) -> String {
         .or_else(|| name.strip_prefix("ms"))
         .unwrap_or(&name);
     ascii_name_key(name)
-}
-
-#[derive(Debug)]
-struct InvalidMoney;
-
-fn money(text: &str) -> Result<Option<Money>, InvalidMoney> {
-    if text.is_empty() {
-        return Ok(None);
-    }
-    let (sign, digits) = text.strip_prefix('-').map_or((1, text), |rest| (-1, rest));
-    let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
-    if whole.is_empty()
-        || !whole.bytes().all(|b| b.is_ascii_digit())
-        || !fraction.bytes().all(|b| b.is_ascii_digit())
-        || fraction.len() > 2
-    {
-        return Err(InvalidMoney);
-    }
-    let whole = i128::from(whole.parse::<u64>().map_err(|_| InvalidMoney)?);
-    let fraction = match fraction.as_bytes() {
-        [] => 0,
-        [tenths] => i128::from(tenths - b'0') * 10,
-        [tenths, hundredths] => i128::from(tenths - b'0') * 10 + i128::from(hundredths - b'0'),
-        _ => return Err(InvalidMoney),
-    };
-    let minor = i64::try_from(sign * (whole * 100 + fraction)).map_err(|_| InvalidMoney)?;
-    Ok(Some(Money::from_minor_units(minor)))
 }
 
 fn total_mismatch(quantity: NonZeroU32, rate: Money, pasted_total: Money) -> bool {
