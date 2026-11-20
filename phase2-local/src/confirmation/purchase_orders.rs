@@ -214,6 +214,13 @@ impl ConfirmationFixture {
 }
 
 impl PurchaseBook {
+    pub(super) fn receipt_lines(&self) -> impl Iterator<Item = &SavedPurchaseLine> {
+        self.orders
+            .iter()
+            .flat_map(|order| &order.items)
+            .filter(|line| !line.receipts().is_empty())
+    }
+
     fn save(&mut self, draft: &PurchaseDraft) -> Result<PurchaseOrderId, PurchaseError> {
         let name = draft
             .supplier

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
 mod cancellation;
+mod daily_movement;
 mod edit;
 mod physical_count;
 mod receiving;
@@ -14,6 +15,7 @@ mod stock_lots;
 #[cfg(test)]
 mod l11_01;
 
+pub use daily_movement::{DailyMovementError, DailyMovementRow};
 use physical_count::PhysicalCountState;
 pub use physical_count::{
     PhysicalCount, PhysicalCountError, PhysicalCountInput, StockCountMovement, StockCountReason,
@@ -27,6 +29,7 @@ pub use stock_lots::{StockLotRow, StockLots, StockLotsError};
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct Product {
     stock: u32,
+    seeded_opening: u32,
     pricing: ProductPricing,
     details: Option<ProductDetails>,
     lots: Vec<Lot>,
@@ -41,6 +44,7 @@ impl Product {
     fn new(stock: u32, pricing: ProductPricing) -> Self {
         Self {
             stock,
+            seeded_opening: stock,
             pricing,
             details: None,
             lots: vec![Lot {
@@ -136,6 +140,12 @@ impl Catalog {
 
     pub(super) fn item_name(&self, id: ProductId) -> Option<&str> {
         self.products.get(&id.value()).and_then(Product::item_name)
+    }
+
+    fn product_id_by_exact_name(&self, item: &str) -> Option<ProductId> {
+        self.products.iter().find_map(|(&id, product)| {
+            (product.item_name() == Some(item)).then_some(ProductId::new(id))
+        })
     }
 
     pub(super) fn prices(&self, draft: &ProvisionalDraft) -> Result<Vec<Money>, ConfirmationError> {
@@ -252,6 +262,7 @@ impl Catalog {
             .get_mut(&id.value())
             .ok_or(ConfirmationError::InvalidDraft)?;
         product.stock = stock;
+        product.seeded_opening = stock;
         product.lots = ordered;
         Ok(())
     }
@@ -288,8 +299,6 @@ impl super::ConfirmationFixture {
         item: &str,
     ) -> Result<Option<ProductId>, ProductEntryError> {
         product_entry::owner(role)?;
-        Ok(self.catalog.products.iter().find_map(|(&id, product)| {
-            (product.item_name() == Some(item)).then_some(ProductId::new(id))
-        }))
+        Ok(self.catalog.product_id_by_exact_name(item))
     }
 }

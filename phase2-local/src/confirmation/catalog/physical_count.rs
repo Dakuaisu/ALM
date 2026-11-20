@@ -63,7 +63,7 @@ pub enum PhysicalCountError {
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(super) struct PhysicalCountState {
     fridge: u32,
-    movements: Vec<StockCountMovement>,
+    pub(super) movements: Vec<StockCountMovement>,
 }
 
 const fn require_owner(role: Role) -> Result<(), PhysicalCountError> {
