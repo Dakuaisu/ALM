@@ -18,6 +18,7 @@ mod payment;
 mod pending;
 mod posting;
 mod preview;
+mod purchase_orders;
 mod reporting;
 pub use crate::SaleUnit;
 use catalog::Catalog;
@@ -42,6 +43,12 @@ pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
 pub use preview::{BalanceMode, BillPreview, PreviewLine, PreviousBalance};
+use purchase_orders::PurchaseBook;
+pub use purchase_orders::{
+    PurchaseDraft, PurchaseError, PurchaseLine, PurchaseOrder, PurchaseOrderId,
+    PurchasePasteWarnings, PurchaseProduct, PurchaseReceipt, PurchaseSupplier, PurchaseSupplierId,
+    SavedPurchaseLine, SavedPurchaseSupplier,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RequestId(pub(crate) u64);
@@ -122,6 +129,7 @@ pub struct ConfirmationFixture {
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
     movement_epoch: u64,
     gst_bills: BTreeMap<GstBillId, GstBill>,
+    purchases: PurchaseBook,
 }
 
 impl ConfirmationFixture {
@@ -168,6 +176,7 @@ impl ConfirmationFixture {
             lifecycle: BTreeMap::new(),
             movement_epoch: 0,
             gst_bills: BTreeMap::new(),
+            purchases: PurchaseBook::default(),
         })
     }
 
