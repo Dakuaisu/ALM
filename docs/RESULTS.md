@@ -962,3 +962,25 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-FOLDER-d1ea4e5-focused:** [Transcript](../phase2-local/target/D-FOLDER-d1ea4e5-focused.log): 11 passed, 0 failed, 0 ignored.
 - **D-FOLDER-d1ea4e5-offline:** [Transcript](../phase2-local/target/D-FOLDER-d1ea4e5-offline.log): 343 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual browser picker and permissions, IndexedDB handle durability, boot warning and Settings rendering, unsupported picker, missing permission methods, rejected queries, initial current-file failure, full `persist()` fan-out, and device behavior. The staged dated-file publication is a test model, not evidence of browser write atomicity. OPEN-009 remains owner-blocked and independent.
+
+#### Persist fan-out before local write completion
+
+**D-PERSIST-89a8c38 (development, scoped PASS).** Tested `89a8c3893b75b230001093c9bc1b97a6d2e5a9b6` on the development Mac. The [offline Rust replay](../phase2-local/tests/persist_replay.rs) models [L19-04](PHASE1_CASES.md#persist-fan-out-not-run) from frozen [`saveDB()`](../ALM_Business_Manager.html#L717) and [`persist()`](../ALM_Business_Manager.html#L785). It seeded two disposable JSON files as stand-ins for the localStorage mirror and IndexedDB primary. Capture and completion were controlled independently; scheduler calls were recorded in-process, without transport adapters.
+
+**Expected and observed order for every call:** revision increment → mirror write attempt and result → IndexedDB invocation → folder scheduler → cloud scheduler → clear previous Sheets timer and register its 2,500 ms replacement → side-statistics refresh. The burst canceled the first pending Sheets timer and retained only the second. All synchronous follow-up events were recorded with IndexedDB completion held, including when the mirror had already failed. The delay is a modeled timer argument, not measured browser time.
+
+| Scenario | Expected and observed local file contents and deferred warning |
+| --- | --- |
+| Single, both writes succeed | Before releasing IndexedDB, mirror held revision 11 (`first`) and primary still held seed revision 10. After release, both held 11; no warning. |
+| Burst, both writes succeed | Before either release, mirror held revision 12 (`second`) and primary still held 10. Releases in the scripted order wrote primary 11 (`first`), then 12 (`second`); no warning. |
+| Single or burst, neither store writes | The model advanced to 11 or 12 respectively and ran the same scheduling and stats sequence. Both files retained the original seed bytes. No warning while pending; each failed release produced the matching save's “Could not save — use folder/cloud backup!” warning (`bad`, 6,000 ms argument). |
+| Mixed burst, later primary released first | Mirror failed for 11 and saved 12 (`second`); primary stayed at seed 10. The later failed primary emitted no warning because its mirror saved. The earlier failed primary emitted the warning for 11 only. This is scripted release order, not an IndexedDB ordering claim. |
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test persist_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-PERSIST-89a8c38-focused:** [Ordered trace](../phase2-local/target/D-PERSIST-89a8c38-focused.log): 2 passed, 0 failed, 0 ignored.
+- **D-PERSIST-89a8c38-offline:** [Transcript](../phase2-local/target/D-PERSIST-89a8c38-offline.log): 345 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual browser timing, storage and warning display, mirror serialization or size-limit skips, scheduler callback execution in this replay, hosted delivery, and device parity. The prior folder replay covers its own simulated callback cases; L20 delivery and callback guards are not covered by the scheduler call trace. OPEN-009 remains owner-blocked and independent.
