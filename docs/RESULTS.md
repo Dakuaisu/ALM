@@ -1191,3 +1191,29 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=
 - **D-GST-289dfaf-focused:** [Transcript](../phase2-local/target/D-GST-289dfaf-focused.log): 6 passed, 0 failed, 0 ignored, 256 filtered out. Before the final replay, the harness failed on two padding assertions and an unsupported rounding fixture; the model and synthetic fixture were corrected without changing production code.
 - **D-GST-289dfaf-offline:** [Transcript](../phase2-local/target/D-GST-289dfaf-offline.log): 378 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy (`-D warnings`) and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run / blocked:** Frozen HTML remained unserved under OPEN-008. No browser, installed device, registration, numbering policy or accounting acceptance is implied.
+
+#### Milestone D handoff rerun
+
+**Scoped local development evidence** at `ab376e9c9f7711ed2691e0c7b227ad56d70146c1`. See the [coverage crosswalk](MILESTONE_D_COVERAGE.md#handoff-rerun-dispositions).
+
+| Run ID / log | Observed |
+| --- | --- |
+| [D-HANDOFF-ab376e9-focused](../phase2-local/target/D-HANDOFF-ab376e9-focused.log) | 10 passed, 0 failed, 0 ignored: `l18_04` (1), `milestone_d_replay` (8, one joined pre-raster workflow plus separate encoder/routing tests), `milestone_d_structured` (1). |
+| [D-HANDOFF-ab376e9-offline](../phase2-local/target/D-HANDOFF-ab376e9-offline.log) | 378 passed, 0 failed, 2 ignored. The green regression suite does not establish a full handoff PASS. |
+| [D-HANDOFF-ab376e9-gst-guard](../phase2-local/target/D-HANDOFF-ab376e9-gst-guard.log) | 1 passed, 0 failed, 0 ignored, 261 filtered out. Ordinary GST negative control only: asserted `UnsupportedRounding` and no output. |
+
+Replay commands:
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured --test milestone_d_replay --test l18_04 -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib confirmation::tests::l06_01::l06_01_unrepresentable_taxable_rate_emits_nothing -- --exact --nocapture
+```
+
+- **End-to-end, structured exports and reorder setting only:** The Owner changed the reorder default from 5 to 13, reopened the source store, generated Sales CSV and SpreadsheetML from C's cancelled bill and an active control, and saved the backup before restoring. The populated store also held a separate receipt. The test restored to an absent destination, reopened without reseeding, and regenerated both exports. Assertions checked date-sorted CSV rows with Mode/Pack, stored-order SpreadsheetML Sales rows without those columns, first-line totals and paid amounts, and survival of IDs, nested crate components, and the receipt. Before and after restore, an Owner product save with the reorder field blank reopened with level 13. On the source store the Manager received no CSV, SpreadsheetML or backup output and could not restore or modify the setting; applying the setting was denied before and after restore.
+- **Retained structured artifacts:** [source.json](../phase2-local/target/structured-d-1119-1795266188096201000/source.json), [backup.json](../phase2-local/target/structured-d-1119-1795266188096201000/backup.json), [restored.json](../phase2-local/target/structured-d-1119-1795266188096201000/restored.json), [sales.csv](../phase2-local/target/structured-d-1119-1795266188096201000/sales.csv) and [regenerated-sales.csv](../phase2-local/target/structured-d-1119-1795266188096201000/regenerated-sales.csv), [workbook.xls](../phase2-local/target/structured-d-1119-1795266188096201000/workbook.xls) and [regenerated-workbook.xls](../phase2-local/target/structured-d-1119-1795266188096201000/regenerated-workbook.xls). `cmp` found exact matches for both original versus regenerated export pairs; the content and restored control assertions above went beyond byte equality.
+- **Separate SQLite pre-raster replay:** The joined workflow produced estimate HTML and reconstructed SVG, captured inert Print/PDF/share/clipboard intents, checked the exact ordinary GST projection, and verified scoped archive restore readback. The CSV was copied, not regenerated. Provisional Manager output contained no restricted markers; restricted output attempts and the SQLite backup helper call as Manager were denied. No artifacts were retained from this nonraster replay. Encoder and routing tests ran separately from the joined workflow.
+- **Separate `l18_04` identity replay:** Restored profile settings from an archive with empty sales and bound them to in-memory bills to check estimate markup, canvas identity lines, and standalone GST header markup. This was not full bill recovery.
+- **Unsupported / not run:** Regenerating estimates, GST, PO and other outputs from the same reopened populated store was not supported or run. No passing helper was substituted for that integration step. Separately, the original standalone L06-03 fixture at an inclusive rate of 10,500 paise and 18% GST failed with `UnsupportedRounding`; `289dfaf` replaced it with the exact 11,800-paise fixture. The original is excluded and unsupported, was not tested in this handoff, and is not covered by the ordinary GST guard.
+
+OPEN-008 still gates the legacy walkthrough, and OPEN-005 still gates actual device outputs and handoff. No full application restore, accounting sign-off, acceptance, or phase completion is claimed.

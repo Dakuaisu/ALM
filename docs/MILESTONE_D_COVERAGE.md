@@ -4,7 +4,19 @@
 
 **How to read this crosswalk:** A linked result is development evidence for the exact fixture and branches it reports, not a complete case pass. All unnamed or untested local branches remain **not run**, including within rows with existing evidence. For named variants, use the linked sections in [PHASE1_CASES.md](PHASE1_CASES.md), including the entire [source-order audit](PHASE1_CASES.md#source-order-audit) and its additional branch assertions and candidate follow-ups. Those sections define the variants and distinguish ordinary controls from helper-only probes.
 
-The [structured follow-up](RESULTS.md#structured-sales-exports-and-fresh-recovery) tested `190ee03` (`D-STRUCTURED-190ee03-focused` and `D-STRUCTURED-190ee03-offline`). Unlike the SQLite archive replay, the new run regenerated exports from structured records reopened after a fresh JSON restore. Neither store reconstitutes posting authority.
+The earlier [structured follow-up](RESULTS.md#structured-sales-exports-and-fresh-recovery) tested `190ee03` (`D-STRUCTURED-190ee03-focused` and `D-STRUCTURED-190ee03-offline`). Neither the structured store nor the SQLite archive reconstitutes posting authority.
+
+## Handoff rerun dispositions
+
+[Rerun commands, logs and retained artifacts](RESULTS.md#milestone-d-handoff-rerun) for `ab376e9c9f7711ed2691e0c7b227ad56d70146c1`:
+
+| Cases / requested step | Disposition |
+| --- | --- |
+| L18-01, L19-01, L19-03: populated structured store | **End-to-end, exports and reorder setting only.** Same C cancelled bill, active control and separate receipt. Owner saves reorder default 5 to 13, exports, backs up, restores to an absent destination, reopens without reseeding, and regenerates CSV and SpreadsheetML. Row, workbook structure and nested-record checks passed alongside exact file comparisons. A product saved with the reorder field blank reopened at 13 on both sides of recovery. Manager received no CSV, SpreadsheetML or backup from the source store, could not restore or modify the setting, and was denied applying it before and after restore. |
+| L05-01 through L05-04, L06-01, L13-03, L19-01: joined SQLite replay | **Separate pre-raster workflow.** Estimate HTML and reconstructed SVG, inert Print/PDF/share/clipboard intents, exact ordinary GST projection and scoped archive readback. CSV was copied, not regenerated. Provisional Manager output had no restricted markers; restricted outputs and the SQLite backup helper were denied to Manager. No retained nonraster artifacts. Encoder/routing tests, including the PO routing slice, were separate checks. |
+| L18-04: profile and identity outputs | **Separate settings replay.** Restored an archive with empty sales and bound the restored profile to in-memory bills for estimate markup, canvas identity lines and standalone GST header markup. No full bill recovery. |
+| L06-01 guard vs. historical L06-03 fixture | **Separate negative guard / excluded fixture.** The ordinary GST guard passed by asserting `UnsupportedRounding` and no output. The original standalone L06-03 fixture (10,500 paise inclusive at 18%) failed with `UnsupportedRounding` and was replaced by the exact 11,800-paise fixture in `289dfaf`. The original remains unsupported and was not rerun or covered by the ordinary guard. |
+| Regenerate estimates, GST, PO and other outputs from the same reopened populated store | **Unsupported / not run.** No passing helper was substituted. Green offline regression is not a full handoff PASS or evidence of full application restore. OPEN-008 and OPEN-005 remain gated; accounting sign-off, acceptance and phase completion are not claimed. |
 
 ## Startup, draft and bill history
 
