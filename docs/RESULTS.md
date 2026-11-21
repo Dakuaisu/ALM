@@ -1025,3 +1025,24 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-MODAL-6e420d5-focused:** [Transcript](../phase2-local/target/D-MODAL-6e420d5-focused.log): 7 passed, 0 failed, 0 ignored, including the expected-panic mutation control.
 - **D-MODAL-6e420d5-offline:** [Transcript](../phase2-local/target/D-MODAL-6e420d5-offline.log): 355 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual browser keyboard, pointer or event propagation, installed-device behavior, visual blur, real footer validation or save execution, and hosted authorization. OPEN-009 remains owner-blocked and independent.
+
+#### Rate List selection and output capture
+
+**D-RATE-73f4099 (development, scoped PASS).** Tested `73f4099340a61d605c15424e13cab62c618500c3` on the development Mac. The [offline Rust workflow](../phase2-local/tests/rate_list_replay.rs) uses a synthetic Alpha/Beta catalog and a later unbranded item. Expectations are from [L17-01 through L17-03](PHASE1_CASES.md#rate-list-selection-and-output-guards-not-run), [selection source](../ALM_Business_Manager.html#L11263), and [output source](../ALM_Business_Manager.html#L11475). No browser or production Rate List was run.
+
+| Case | Expected and observed |
+| --- | --- |
+| L17-01: shown, selected, emitted | First visit showed IDs `[3,2,1]`, selected `[1,2,3]`, and chose them in catalog order `[1,2,3]`. Filtering Alpha to show only ID 2 and clearing shown left `[1,3]`; the filtered group toggle changed only 2, preserving hidden 3 and Beta 1. With Beta showing the unticked ID 1 and only hidden ID 3 selected, Preview, Print, PDF-request markup and WhatsApp emitted 3 only. With no picker matches in the session scenario, selected IDs 1 and 4 still reached all four outputs. With all rows selected, HTML grouped by brand and kept catalog order within each group: `[2,3,1,4]`. |
+| L17-02: format and sink behavior | For ID 3 the picker rate was ₹123; markup and WhatsApp used ₹123.46. HTML included escaped item text, `1 L ×4`, MRP ₹200, business/date header, brand subset and footer. Print and PDF captured identical HTML with an inert print trigger, each requested `_rl` at `820 × 900`, and PDF added the 3,800 ms hint. WhatsApp captured the exact plain-text heading, date, group, item and sell rate, without Pack, MRP or mobile, plus the encoded recipient-free URI. Restricted fixture markers were excluded from the public row projection and absent from the generated and retained outputs. The blocked-popup case recorded attempts but no document; PDF still emitted the hint. |
+| L17-03: new IDs, revisit, empty guard | A later visit selected new ID 4 but left deselected known IDs 2 and 3 off. Same-session revisit preserved the Alpha and search filters and selected `[1,4]`; fresh-session initialization showed `[4,3,2,1]` and selected all. With a populated catalog and no selection, preview emitted no document; Print, PDF and WhatsApp made no popup, document or chat calls. They warned, and PDF also emitted its hint. |
+
+Retained [preview](../phase2-local/target/rate-list-replay-22290-1795257561321851000/preview.html), [Print markup](../phase2-local/target/rate-list-replay-22290-1795257561321851000/print.html), [PDF-request markup](../phase2-local/target/rate-list-replay-22290-1795257561321851000/pdf-print.html), [WhatsApp text](../phase2-local/target/rate-list-replay-22290-1795257561321851000/whatsapp.txt) and [captured URI as text](../phase2-local/target/rate-list-replay-22290-1795257561321851000/whatsapp-uri.txt). The Print and PDF-request files share SHA-256 `d64e1de14fea13661f31bc23ef2060d7521fb1358d812bf53c6902f70d935375`. These are disposable local artifacts, not delivered outputs.
+
+```sh
+cd /Users/apple/ALM && ALM_RATE_LIST_ARTIFACTS=1 cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test rate_list_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-RATE-73f4099-focused:** [Transcript](../phase2-local/target/D-RATE-73f4099-focused.log): 4 passed, 0 failed, 0 ignored.
+- **D-RATE-73f4099-offline:** [Transcript](../phase2-local/target/D-RATE-73f4099-offline.log): 359 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual Rate List UI or browser locale/rounding parity beyond the fixed fixture, print layout and printer delivery, PDF creation, WhatsApp delivery, installed-device parity and hosted role authorization. The replay did not change application permissions. OPEN-009 remains owner-blocked and independent.
