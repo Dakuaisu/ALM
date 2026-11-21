@@ -1604,3 +1604,47 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-ACCOUNT-e1f531a-offline](../phase2-local/target/L14-ACCOUNT-e1f531a-offline.log): 399 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unchanged and unserved under OPEN-008. No legacy editor, browser persistence or deletion was executed. Browser parity and accounting acceptance remain open.
+
+#### Customer rename snapshot and local delta merge
+
+**L14-05: PASS (development only)** at `dba9932ec1763fa56c1945a280c13401d2419885`. The [offline replay](../phase2-local/tests/l14_05_customer_rename_replay.rs) exercised a [typed source model](../phase2-local/tests/l14_05_customer_rename_replay/model.rs), traced to the [rename cases](PHASE1_CASES.md#rename-cascades-and-other-source-order-cases) and frozen HTML L717–734, L776–783, L961–965, L7292–7313 and L9472–9562. No Rust application rename or sync path ran. The snapshot check used an in-memory JSON serialization and independent decode, not a browser storage write or reload. The payload was serialized and decoded separately and never sent.
+
+**Save and decoded snapshot.** Expected and observed matched by ID. Stamps below are `(_m, _v, _d)`. A duplicate-name control (` shared `) was rejected without mutation; the permitted input `  Renamed A  ` was trimmed and saved on `c-a`.
+
+| Collection and ID | Link | Name before → after (expected = observed) | Stamp before → after (expected = observed) |
+| --- | --- | --- | --- |
+| customers `c-a` | target | `Shared` → `Renamed A` | `(92, 4, seed)` → `(200, 5, sender)` |
+| customers `c-b` | same-name control | `Shared` → `Shared` | `(91, 3, seed)` unchanged |
+| sales `s-a`, `s-cancel`; payments `p-a` | `c-a` | `Shared` → `Renamed A` | `(_m, 4, seed)` unchanged, with `_m` seeded to 99, 100, or 101 per copy |
+| sales `s-b`; payments `p-b` | `c-b` | `Shared` → `Shared` | `(80, 2, seed)`; `(82, 2, seed)` unchanged |
+| sales `s-none`; payments `p-none` | no ID | `Shared` → `Shared` | `(81, 2, seed)`; `(83, 2, seed)` unchanged |
+
+The cancelled flag on `s-cancel` remained set. Snapshot `meta.rev` advanced from 7 to 8 while the meta stamp `(90, 2, seed)` remained unchanged. Only `c-a` acquired a new modification stamp.
+
+**Unsent payload.** Each independent copy used fixed `pushedM=100`. All three linked labels changed in every snapshot, but payload IDs matched the strict `_m > pushedM` expectation:
+
+| Linked `_m` | Expected payload IDs | Observed payload IDs |
+| --- | --- | --- |
+| 99 (below) | `c-a` | `c-a` |
+| 100 (equal) | `c-a` | `c-a` |
+| 101 (above) | `s-a`, `s-cancel`, `p-a`, `c-a` | `s-a`, `s-cancel`, `p-a`, `c-a` |
+
+The above-watermark dependents were already eligible before Save with `Shared`. After Save, they carried `Renamed A` with the same `(101, 4, seed)` stamps and corresponding outer envelope fields. Control records were omitted in all copies.
+
+**Local receiver.** On every independent receiver `c-a` became `Renamed A` at `(200, 5, sender)`. The linked rows `s-a`, `s-cancel`, and `p-a` were evaluated separately; same-name and unlinked controls remained unchanged.
+
+| Input to receiver | Expected and observed linked names and stamps |
+| --- | --- |
+| Customer-only payload | All stayed `Shared`, `(99, 4, seed)`; customer arrival did not rewrite history |
+| Dependent version 4 vs receiver version 4; incoming `_m=101` vs receiver `_m=50` | All stayed `Shared`, `(50, 4, receiver)`; newer `_m` did not break the version tie |
+| Dependent version 4 vs receiver version 3; incoming `_m=101` vs receiver `_m=300` | All became `Renamed A`, `(101, 4, seed)`; higher version applied despite the older `_m` |
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_05_customer_rename_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-RENAME-dba9932-focused](../phase2-local/target/L14-RENAME-dba9932-focused.log): 1 passed, 0 failed, 0 ignored.
+- [L14-RENAME-dba9932-offline](../phase2-local/target/L14-RENAME-dba9932-offline.log): 400 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unchanged and unserved under OPEN-008. No sync request, hosted merge, browser persistence, or cloud rebuild was run. This does not establish browser parity, deployed convergence, or accounting acceptance.
