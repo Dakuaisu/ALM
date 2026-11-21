@@ -1263,4 +1263,24 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [D-ORD-GST-focused](../phase2-local/target/D-ORD-GST-focused.log): 2 passed (Milestones C and D), 0 failed, 0 ignored.
 - [D-ORD-GST-offline](../phase2-local/target/D-ORD-GST-offline.log): 380 passed, 0 failed, 2 ignored. Formatting, all-target Clippy, and build passed; Rust LSP timed out.
 
-Same-store PO regeneration remains **not run**. The separate standalone ₹105 inclusive fixture at 18% remains unsupported. OPEN-008 and OPEN-005 remain in force. This is local typed JSON evidence only, not actual print or device evidence, accounting sign-off, or phase acceptance.
+Same-store PO regeneration was **not run at `a3f3af9`**; see the PO follow-up below. The separate standalone ₹105 inclusive fixture at 18% remains unsupported. OPEN-008 and OPEN-005 remain in force. This is local typed JSON evidence only, not actual print or device evidence, accounting sign-off, or phase acceptance.
+
+#### Milestone D same-store purchase-order recovery
+
+**Scoped L07-03 / L19-01 development PASS** at `68c661a68fd6a13e10ef6ca1c15fa822d378fbe8` (renderer `fae3b7e`). After dropping the Milestone B and C fixtures, the structured test restored from backup and freshly reopened the store. It regenerated supplier HTML and internal PO readback from saved records, without replaying receipts or using cached markup. The store is a read model, not posting authority.
+
+- **Supplier HTML:** Independent golden checks on both outputs confirmed original quantities of 12 and 9 cases and MRPs of ₹67.50 and ₹89.50, rendered as ₹67.5 and ₹89.5. The only total was 21 cases; no order rates, receipt progress, or monetary total appeared.
+- **Internal readback:** Ordered/received/outstanding quantities were A 12/8/4 and B 9/5/4; cancelled quantities were zero. Receipt entries were unchanged across restore and retained append order: Feb 12, then Feb 11.
+- **Access and state:** Manager requests for known and unknown POs returned `AccessDenied` with no output. Readback and rendering left state and persisted bytes unchanged.
+
+`cmp` matched both artifact pairs exactly: [purchase-order.html](../phase2-local/target/structured-d-15409-1795271320015425000/purchase-order.html) and [regenerated-purchase-order.html](../phase2-local/target/structured-d-15409-1795271320015425000/regenerated-purchase-order.html); [purchase-order-readback.txt](../phase2-local/target/structured-d-15409-1795271320015425000/purchase-order-readback.txt) and [regenerated-purchase-order-readback.txt](../phase2-local/target/structured-d-15409-1795271320015425000/regenerated-purchase-order-readback.txt). Retained recovery files: [backup.json](../phase2-local/target/structured-d-15409-1795271320015425000/backup.json) and [restored.json](../phase2-local/target/structured-d-15409-1795271320015425000/restored.json).
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured --test milestone_b_replay -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-PO-RESTORE-68c661a-focused](../phase2-local/target/D-PO-RESTORE-68c661a-focused.log): 4 passed (Milestone B and structured D: 2 each), 0 failed, 0 ignored.
+- [D-PO-RESTORE-68c661a-offline](../phase2-local/target/D-PO-RESTORE-68c661a-offline.log): 384 passed, 0 failed, 2 ignored. All-target Clippy and build passed. The initial format check failed; formatting was corrected and the final check passed. Rust LSP timed out.
+
+The standalone ₹105 inclusive GST fixture at 18% remains unsupported. OPEN-008 and OPEN-005 remain in force; no actual printing, PDF creation, or delivery was tested. No accounting or phase acceptance is claimed.
