@@ -1373,3 +1373,33 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L15-MODE-9fc4ad8-offline](../phase2-local/target/L15-MODE-9fc4ad8-offline.log): 388 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
 
 The historical `1b83700` replay did not exercise an Online bill payment; its original limitation stands. This follow-up covers only the synthetic Owner named-bill path. Hosted authorization, device isolation, legacy runtime (OPEN-008) and accounting acceptance remain open.
+
+#### Cash Book signed inputs and numeric rounding
+
+**L15-01 / L15-02 scoped development PASS** at `c32eafb258c07b8a322bd5e76f129e4c002cb513`. The [test-only replay](../phase2-local/src/confirmation/tests/l15_cashbook_numeric_replay.rs) exercised the [numeric case expectations](PHASE1_CASES.md#cash-book-day-close-comparison-not-run) using existing Rust projections and manual-row APIs. No production code or payment-entry validation changed.
+
+| Independent fixture | Expected and observed count | Exact Cash / Online (paise) | Rounded Cash / Online (rupees) |
+| --- | ---: | ---: | ---: |
+| Signed history | 4 | 250 / -150 | 3 / -1 |
+| Two 25-paise standalone entries per bucket | 4 | 50 / 50 | 1 / 1 |
+
+The signed day counted the 175-paise Cash bill payment and the same-date standalone receipts of +75 paise Cash, -150 paise Online and zero Online, each once. The zero-paid bill and the seeded -125-paise bill contributed neither amount nor count. The normal APIs still rejected a negative bill-paid submission and a zero standalone receipt; only the test seeded those historical values directly.
+
+With the quarter-paise fixture fixed, these manual comparisons used the rounded system figures, summed Paytm and PhonePe before subtraction, and rounded only the resulting differences:
+
+| Entered Cash / Paytm / PhonePe (paise) | Expected Cash / Online difference (rupees) | Observed |
+| --- | ---: | ---: |
+| 150 / 25 / 24 | +1 / -1 | +1 / -1 |
+| 49 / 75 / 75 | -1 / +1 | -1 / +1 |
+| 50 / 25 / 25 | 0 / 0 | 0 / 0 |
+| 100 / 60 / 40 | 0 / 0 | 0 / 0 |
+
+Discarding the detached draft and reopening the saved row retained the original `111 / 222 / 333` paise. Explicit Save retained the same row identity and stored `149 / 76 / 73` paise as separate fields rather than the rounded comparison values. These are numeric checks only; signs and unsigned-zero rendering, browser cancellation and durable browser storage were not exercised. Legacy execution remains gated by OPEN-008 and accounting acceptance remains open.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l15_cashbook_numeric_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L15-NUMERIC-c32eafb-focused](../phase2-local/target/L15-NUMERIC-c32eafb-focused.log): 1 passed, 0 failed, 0 ignored, 269 filtered out.
+- [L15-NUMERIC-c32eafb-offline](../phase2-local/target/L15-NUMERIC-c32eafb-offline.log): 389 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
