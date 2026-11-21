@@ -1385,7 +1385,7 @@ The historical `1b83700` replay did not exercise an Online bill payment; its ori
 
 The signed day counted the 175-paise Cash bill payment and the same-date standalone receipts of +75 paise Cash, -150 paise Online and zero Online, each once. The zero-paid bill and the seeded -125-paise bill contributed neither amount nor count. The normal APIs still rejected a negative bill-paid submission and a zero standalone receipt; only the test seeded those historical values directly.
 
-With the quarter-paise fixture fixed, these manual comparisons used the rounded system figures, summed Paytm and PhonePe before subtraction, and rounded only the resulting differences:
+With the 25-paise fixture fixed, these manual comparisons used the rounded system figures, summed Paytm and PhonePe before subtraction, and rounded only the resulting differences:
 
 | Entered Cash / Paytm / PhonePe (paise) | Expected Cash / Online difference (rupees) | Observed |
 | --- | ---: | ---: |
@@ -1403,3 +1403,44 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 
 - [L15-NUMERIC-c32eafb-focused](../phase2-local/target/L15-NUMERIC-c32eafb-focused.log): 1 passed, 0 failed, 0 ignored, 269 filtered out.
 - [L15-NUMERIC-c32eafb-offline](../phase2-local/target/L15-NUMERIC-c32eafb-offline.log): 389 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
+
+#### Sales history filters and drilldown inputs
+
+**L04-03 / L04-04: PASS (development only)** at Rust commit `1c1cf9a3f1f613dbca8fb1fe89f402906af4bbea`. One [offline replay](../phase2-local/src/confirmation/tests/l04_sales_history_replay.rs) used an in-memory `ConfirmationFixture` and a test-only Sales projection traced to [the case expectations](PHASE1_CASES.md#L149) and [drilldown expectations](PHASE1_CASES.md#L359). Fixed Today: `2025-03-15`. Bill IDs below are fixture draft IDs; the posting sequence `41, 12, 73, 36, 24, 58` stands in for creation timestamps. Document dates deliberately disagree with that sequence. Separately dated customer receipts have replay IDs assigned by append position. The projection resolves stable fixture party names by customer ID; it does not cover historical name changes.
+
+Every observed sequence and amount matched the literal expectation. The active column applies to **both** Profit and Collected; the receipt column applies only to Collected. Amounts are exact paise, ordered as **Sales / bill paid / receipt paid / Collected / Est. Profit**.
+
+| Filter | Sales row IDs (ordered) | Active bill IDs (ordered) | Matched receipt IDs (ordered inputs) | Expected and observed exact paise |
+| --- | --- | --- | --- | --- |
+| Today | 58, 24, 36 | 58, 36 | 4 | 2548 / 149 / 151 / 300 / 998 |
+| This Month (no upper cutoff) | 58, 24, 36, 73, 41 | 58, 36, 73, 41 | 1, 2, 4, 5, 6, 7 | 6145 / 447 / 499 / 946 / 2445 |
+| All | 58, 24, 36, 73, 12, 41 | 58, 36, 73, 12, 41 | 1, 2, 3, 4, 5, 6, 7 | 7194 / 522 / 550 / 1072 / 2894 |
+| Custom Mar 1–15, inclusive | 58, 24, 36, 73 | 58, 36, 73 | 1, 2, 4, 6, 7 | 4047 / 298 / 450 / 748 / 1547 |
+| Custom start only, Mar 10 | 58, 24, 36, 41 | 58, 36, 41 | 1, 2, 4, 5, 6 | 4646 / 298 / 449 / 747 / 1896 |
+| Custom end only, Mar 15 | 58, 24, 36, 73, 12 | 58, 36, 73, 12 | 1, 2, 3, 4, 6, 7 | 5096 / 373 / 501 / 874 / 1996 |
+| Reversed custom bounds | none | none | none | 0 / 0 / 0 / 0 / 0 |
+| Mar 1–15, party `gRoVe` | 36, 73 | 36, 73 | 1, 6, 7 | 2548 / 298 / 250 / 548 / 998 |
+| Mar 1–15, item `LiMe` | 58, 24, 73 | 58, 73 | none | 2998 / 149 / 0 / 149 / 1098 |
+| Mar 10 only | none | none | 1, 2, 6 | 0 / 0 / 249 / 249 / 0 |
+| Mar 10 only, party `gRoVe` | none | none | 1, 6 | 0 / 0 / 200 / 200 / 0 |
+
+On Today, cancelled bill `24` remained visible with a saved 1248-paise remainder and a zero shown balance; it was excluded from the active totals and inputs. The active packet count was 2. Linked bill `36` used the current Grove ledger balance of 3849 paise, not its own 900-paise remainder. Guest bill `58` showed its own 1499-paise remainder. The Manager profit request returned `Err(AccessDenied)` without a payload at the test projection boundary; the reads did not change fixture state.
+
+For Mar 1–15, Collected detail sorted in this order by document date then synthetic creation order: receipt `4` (151p), bill `36` (149p), receipt `6` (51p), receipt `2` (49p), receipt `1` (149p), receipt `7` (50p), bill `73` (149p). The test asserted the following fixture display strings separately from the exact amounts:
+
+| Output | Exact paise | Expected and observed local rounded display |
+| --- | --- | --- |
+| Collected tile: bills / receipts / total | 298 / 450 / 748 | ₹3 / ₹5 / ₹7 |
+| Collected detail: Cash / Online / total | 397 / 351 / 748 | ₹4 / ₹4 / ₹7 |
+| Collected detail rows in the order above | 151 / 149 / 51 / 49 / 149 / 50 / 149 | ₹2 / ₹1 / ₹1 / ₹0 / ₹1 / ₹1 / ₹1 |
+| Est. Profit: revenue / frozen cost / profit | 4047 / 2500 / 1547 | ₹40 / ₹25 / ₹15 |
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l04_sales_history_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L04-HISTORY-1c1cf9a-focused](../phase2-local/target/L04-HISTORY-1c1cf9a-focused.log): 1 replay passed, 0 failed, 0 ignored, 270 filtered out.
+- [L04-HISTORY-1c1cf9a-offline](../phase2-local/target/L04-HISTORY-1c1cf9a-offline.log): 390 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; editor diagnostics timed out.
+
+The replay is limited to synthetic regular bills with known FIFO costs and local whole-rupee formatting. It does not exercise browser controls, rendered drilldowns, production authorization, or legacy display parity. The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
