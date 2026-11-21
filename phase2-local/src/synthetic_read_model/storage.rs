@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::{BusinessProfile, Records};
+use super::{AccountScope, BusinessProfile, Records};
 use crate::Role;
 use crate::confirmation::{ConfirmationFixture, ProductEntryError};
 
@@ -36,6 +36,8 @@ struct Archive {
     records: Records,
     #[serde(default)]
     profile: BusinessProfile,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scope: Option<AccountScope>,
 }
 
 fn owner(role: Role) -> Result<(), Error> {
@@ -49,6 +51,7 @@ pub struct Store {
     path: PathBuf,
     records: Records,
     profile: BusinessProfile,
+    pub(super) scope: Option<AccountScope>,
 }
 
 impl Store {
@@ -60,11 +63,33 @@ impl Store {
                 version: 1,
                 records,
                 profile: BusinessProfile::default(),
+                scope: None,
+            },
+        )
+    }
+
+    pub fn create_scoped(
+        path: &Path,
+        role: Role,
+        records: Records,
+        scope: AccountScope,
+    ) -> Result<Self, Error> {
+        owner(role)?;
+        Self::create_archive(
+            path,
+            Archive {
+                version: 1,
+                records,
+                profile: BusinessProfile::default(),
+                scope: Some(scope),
             },
         )
     }
 
     fn create_archive(path: &Path, archive: Archive) -> Result<Self, Error> {
+        if let Some(scope) = &archive.scope {
+            scope.validate(&archive.records)?;
+        }
         let data = serde_json::to_vec(&archive)?;
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         file.write_all(&data)?;
@@ -73,6 +98,7 @@ impl Store {
             path: path.into(),
             records: archive.records,
             profile: archive.profile,
+            scope: archive.scope,
         })
     }
 
@@ -82,10 +108,14 @@ impl Store {
         if archive.version != 1 {
             return Err(Error::InvalidArchive);
         }
+        if let Some(scope) = &archive.scope {
+            scope.validate(&archive.records)?;
+        }
         Ok(Self {
             path: path.into(),
             records: archive.records,
             profile: archive.profile,
+            scope: archive.scope,
         })
     }
 
@@ -109,6 +139,7 @@ impl Store {
             version: 1,
             records: self.records.clone(),
             profile: self.profile.clone(),
+            scope: self.scope.clone(),
         })?)
     }
 
@@ -159,6 +190,7 @@ impl Store {
             version: 1,
             records: records.clone(),
             profile: profile.clone(),
+            scope: self.scope.clone(),
         })?;
         let staging = self.path.with_extension("setting-stage");
         let mut file = OpenOptions::new()

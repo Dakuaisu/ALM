@@ -9,6 +9,8 @@ use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Money, ProductId, Rol
 
 #[path = "milestone_d_structured/assertions.rs"]
 mod assertions;
+#[path = "milestone_d_structured/estimate.rs"]
+mod estimate;
 #[path = "milestone_d_replay/fixture.rs"]
 mod fixture;
 
@@ -137,9 +139,11 @@ fn structured_exports_survive_fresh_recovery() {
             amount_minor: receipt_entry.credit.minor_units(),
         }],
     };
+    drop(fixture);
     let mut expected = records.clone();
     expected.reorder_default = 13;
-    let mut store = Store::create(&source, Role::Owner, records).unwrap();
+    let mut store = Store::create_scoped(&source, Role::Owner, records, estimate::scope()).unwrap();
+    estimate::save_profile(&mut store);
     assert!(store.set_reorder_default(Role::Manager, 13).is_err());
     store.set_reorder_default(Role::Owner, 13).unwrap();
     drop(store);
@@ -149,6 +153,8 @@ fn structured_exports_survive_fresh_recovery() {
     assert!(store.backup(Role::Manager).is_err());
     assert!(store.sales_csv(Role::Manager).is_err());
     assert!(store.workbook(Role::Manager).is_err());
+    let original_html = estimate::document(&store, &source);
+    fs::write(dir.join("estimate.html"), &original_html).unwrap();
     let json = store.backup(Role::Owner).unwrap();
     let raw: serde_json::Value = serde_json::from_slice(&json).unwrap();
     assertions::json(&raw);
@@ -182,6 +188,10 @@ fn structured_exports_survive_fresh_recovery() {
     let saved_backup = fs::read(backup).unwrap();
     Store::restore(&restored, Role::Owner, &saved_backup).unwrap();
     let reopened = Store::open(&restored, Role::Owner).unwrap();
+    let regenerated_html = estimate::document(&reopened, &restored);
+    assert_eq!(original_html, regenerated_html);
+    fs::write(dir.join("regenerated-estimate.html"), &regenerated_html).unwrap();
+    estimate::controls(&reopened, &dir);
     assert_eq!(reopened.records(Role::Owner).unwrap(), &expected);
     assert!(Store::restore(&restored, Role::Owner, &json).is_err());
     assert_eq!(

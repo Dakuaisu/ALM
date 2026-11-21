@@ -1,10 +1,13 @@
 //! Synthetic, Owner-scoped read model; it cannot post sales or authorize transactions.
 mod date;
+mod estimate;
 mod export;
+mod scope;
 mod storage;
 
 use serde::{Deserialize, Serialize};
 
+pub use scope::{AccountId, AccountScope, ReceiptId, SaleId};
 pub use storage::{Error, Store};
 
 /// Local synthetic profile and legacy-shaped metadata; not a sync authority.
