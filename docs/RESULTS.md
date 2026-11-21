@@ -1322,3 +1322,33 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [D-EXPORT-DENIAL-c7ded1e-offline](../phase2-local/target/D-EXPORT-DENIAL-c7ded1e-offline.log): 384 passed, 0 failed, 2 ignored. Formatting and the locked offline build passed; Rust LSP timed out.
 
 This verifies local export denial only. Hosted authorization, device isolation and phase acceptance remain open; OPEN-008 and OPEN-005 are unchanged.
+
+#### Manual Cash Book close across month end
+
+**L15-01 / L15-02 scoped development PASS** at `1b83700649962ea2e91888eb280b6c3f3c4d720b`. The [runnable Rust replay](../phase2-local/tests/l15_cashbook.rs) compared the existing system day projection with disposable in-memory manual entries. The [Cash Book source](../ALM_Business_Manager.html#L8432) was read as text only. Expected and observed figures matched in both tables; all amounts are rupees.
+
+| Date and system entry kinds | System Cash / Online, exact → rounded | Manual Cash / Paytm / PhonePe before copy | Manual less rounded system Cash / Online, displayed |
+| --- | --- | --- | --- |
+| 28-Feb-2025: one Cash bill part-payment | 100.51 / 0.00 → 101 / 0 | 90.00 / 8.00 / 7.00 | -11 / +15 |
+| 01-Mar-2025: separate Cash and Online customer receipts | 21.49 / 50.50 → 21 / 51 | 88.00 / 9.00 / 16.00 | +67 / -26 |
+
+**Use system figures** copied the March buckets to Cash 21.00 and Paytm 51.00, cleared PhonePe from 16.00 to 0.00, and preserved Goods 40.01, Miscellaneous 50.02, Salary 60.03 and Debt 70.04. The stored row did not change until Save, which retained its ID. A blank date returned `MissingDate` without inserting a row. Declining deletion preserved the saved row; confirming removed only that row, leaving the other March 1 row and the February row intact. The posted sale, both dated receipts, and customer ledger stayed unchanged; the customer closing balance remained ₹63.50. A deliberate test control omitting the PhonePe clear failed before that clear was restored.
+
+| Month checkpoint | Rows | Goods | Miscellaneous | Salary | Debt (separate) | Income | Expenses | Net |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| February | 1 | 12.01 | 23.02 | 34.03 | 45.04 | 105.00 | 69.06 | 35.94 |
+| March, copy not yet saved | 2 | 41.02 | 52.04 | 63.06 | 74.08 | 239.00 | 156.12 | 82.88 |
+| March, after Save | 2 | 41.02 | 52.04 | 63.06 | 74.08 | 198.00 | 156.12 | 41.88 |
+| March, after confirmed Delete | 1 | 1.01 | 2.02 | 3.03 | 4.04 | 126.00 | 6.06 | 119.94 |
+
+Expenses include Goods, Miscellaneous and Salary only. Debt did not enter expenses or net. Monthly values are exact model readbacks, not rendered KPIs or Reports P&L totals.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l15_cashbook -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L15-1b83700-focused](../phase2-local/target/L15-1b83700-focused.log): 1 passed, 0 failed, 0 ignored.
+- [L15-1b83700-offline](../phase2-local/target/L15-1b83700-offline.log): 385 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
+
+**Unsupported / not run:** Online payment made on a bill remains unsupported in the local fixture; a standalone Online receipt is not evidence for that path. This replay did not establish browser form or storage behavior, persisted manual rows across restart, tombstones, sync, hosted authorization, device isolation or accounting acceptance. Legacy execution remained gated by OPEN-008.
