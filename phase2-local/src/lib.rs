@@ -7,6 +7,7 @@ pub mod confirmation;
 mod crate_row_codec;
 pub mod draft_entry;
 mod drafts;
+pub mod preferences;
 pub mod provisional_preview;
 mod sqlite;
 pub mod synthetic_read_model;
