@@ -1,11 +1,19 @@
 //! Read-only synthetic ordinary-sale GST projection. Rates are basis points.
 use super::gst_defaults::defaults;
 use super::{BalanceMode, ConfirmationError, ConfirmationFixture, DraftId, Money, Role};
-use crate::bill_math::{ExactGstError, exact_intra_half, exact_taxable};
+use crate::bill_math::ExactGstError;
 use crate::{BillDate, ProductId};
 use std::num::NonZeroU32;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[path = "gst_invoice_calculation.rs"]
+mod calculation;
+pub(crate) use calculation::{GstCalculationHeader, GstResolvedLine, calculate_gst_invoice};
+
+#[cfg(test)]
+#[path = "gst_invoice_tests.rs"]
+mod tests;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum GstJurisdiction {
     Intra,
     Inter,
@@ -103,126 +111,55 @@ impl ConfirmationFixture {
         let preview = self
             .bill_preview(request.role, request.draft_id, BalanceMode::AsOnBillDate)
             .map_err(GstError::Preview)?;
-        if preview.lines.len() != request.lines.len() || preview.loading.minor_units() != 0 {
-            return Err(GstError::InvalidMetadata);
-        }
-        if preview.total.minor_units() % 100 != 0 {
-            return Err(GstError::UnsupportedRounding);
-        }
-        let mut lines = Vec::with_capacity(preview.lines.len());
-        let mut groups: Vec<GstGroup> = Vec::new();
-        let mut taxable_total = 0_i64;
-        for (line, metadata) in preview.lines.iter().zip(request.lines) {
-            if line.product != metadata.product || metadata.name.is_empty() {
-                return Err(GstError::InvalidMetadata);
-            }
-            let (default_rate, default_hsn) = defaults(metadata.name);
-            let rate = metadata
-                .line_rate
-                .unwrap_or(metadata.product_rate.unwrap_or(default_rate));
-            let cess = if metadata.line_rate.is_some() {
-                0
-            } else {
-                metadata.product_cess
-            };
-            let combined = rate.checked_add(cess).ok_or(GstError::Overflow)?;
-            let taxable = exact_taxable(line.amount, combined)?;
-            let taxable_rate = exact_taxable(line.price, combined)?;
-            taxable_total = taxable_total
-                .checked_add(taxable)
-                .ok_or(GstError::Overflow)?;
-            let hsn = metadata
-                .line_hsn
-                .filter(|s| !s.is_empty())
-                .or(metadata.product_hsn.filter(|s| !s.is_empty()))
-                .unwrap_or(default_hsn);
-            let tax = line
-                .amount
-                .minor_units()
-                .checked_sub(taxable)
-                .ok_or(GstError::Overflow)?;
-            if let Some(group) = groups
-                .iter_mut()
-                .find(|g| g.hsn == hsn && g.combined_rate == combined)
-            {
-                group.taxable = Money::from_minor_units(
-                    group
-                        .taxable
-                        .minor_units()
-                        .checked_add(taxable)
-                        .ok_or(GstError::Overflow)?,
-                );
-                group.tax = Money::from_minor_units(
-                    group
-                        .tax
-                        .minor_units()
-                        .checked_add(tax)
-                        .ok_or(GstError::Overflow)?,
-                );
-            } else {
-                groups.push(GstGroup {
-                    hsn: hsn.to_owned(),
-                    combined_rate: combined,
-                    taxable: Money::from_minor_units(taxable),
-                    tax: Money::from_minor_units(tax),
-                    cgst: Money::from_minor_units(0),
-                    sgst: Money::from_minor_units(0),
-                    igst: Money::from_minor_units(0),
-                });
-            }
-            lines.push(GstLine {
-                product: line.product,
-                name: metadata.name.to_owned(),
-                quantity: line.quantity,
-                hsn: hsn.to_owned(),
-                rate,
-                cess,
-                inclusive_rate: line.price,
-                taxable_rate: Money::from_minor_units(taxable_rate),
-                inclusive: line.amount,
-                taxable: Money::from_minor_units(taxable),
-            });
-        }
-        let tax = preview
-            .items_total
-            .minor_units()
-            .checked_sub(taxable_total)
-            .ok_or(GstError::Overflow)?;
-        // Legacy groups split the combined rate, including cess, as jurisdiction tax.
-        for group in &mut groups {
-            let (cgst, sgst, igst) = match request.jurisdiction {
-                GstJurisdiction::Intra => {
-                    let half = exact_intra_half(group.tax.minor_units())?;
-                    (half, half, 0)
-                }
-                GstJurisdiction::Inter => (0, 0, group.tax.minor_units()),
-            };
-            group.cgst = Money::from_minor_units(cgst);
-            group.sgst = Money::from_minor_units(sgst);
-            group.igst = Money::from_minor_units(igst);
-        }
-        let (cgst, sgst, igst) = match request.jurisdiction {
-            GstJurisdiction::Intra => {
-                let half = exact_intra_half(tax)?;
-                (half, half, 0)
-            }
-            GstJurisdiction::Inter => (0, 0, tax),
-        };
-        sink(GstInvoice {
+        let header = GstCalculationHeader {
             invoice: preview.invoice,
             date: preview.date,
-            customer: preview.customer,
+            customer: &preview.customer,
             cancelled: preview.cancelled,
             jurisdiction: request.jurisdiction,
-            lines,
-            groups,
-            taxable: Money::from_minor_units(taxable_total),
-            tax: Money::from_minor_units(tax),
-            cgst: Money::from_minor_units(cgst),
-            sgst: Money::from_minor_units(sgst),
-            igst: Money::from_minor_units(igst),
+            line_count: preview.lines.len(),
+            items_total: preview.items_total,
+            loading: preview.loading,
             total: preview.total,
-        });
+        };
+        // Check cardinality before zip truncates the input, as in the original path.
+        if preview.lines.len() != request.lines.len() {
+            return Err(GstError::InvalidMetadata);
+        }
+        let resolved = preview
+            .lines
+            .iter()
+            .zip(request.lines)
+            .map(|(line, metadata)| {
+                if line.product != metadata.product || metadata.name.is_empty() {
+                    return Err(GstError::InvalidMetadata);
+                }
+                let (default_rate, default_hsn) = defaults(metadata.name);
+                let rate = metadata
+                    .line_rate
+                    .unwrap_or(metadata.product_rate.unwrap_or(default_rate));
+                let cess = if metadata.line_rate.is_some() {
+                    0
+                } else {
+                    metadata.product_cess
+                };
+                let hsn = metadata
+                    .line_hsn
+                    .filter(|s| !s.is_empty())
+                    .or(metadata.product_hsn.filter(|s| !s.is_empty()))
+                    .unwrap_or(default_hsn);
+                Ok(GstResolvedLine {
+                    product: line.product,
+                    name: metadata.name,
+                    quantity: line.quantity,
+                    hsn,
+                    rate,
+                    cess,
+                    price: line.price,
+                    amount: line.amount,
+                })
+            });
+        sink(calculate_gst_invoice(header, resolved)?);
         Ok(())
     }
 }

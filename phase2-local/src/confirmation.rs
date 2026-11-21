@@ -14,7 +14,7 @@ mod edit;
 pub(crate) mod estimate;
 mod estimate_view;
 mod gst_defaults;
-mod gst_invoice;
+pub(crate) mod gst_invoice;
 mod gst_standalone;
 mod gst_standalone_totals;
 mod image_handoff;
