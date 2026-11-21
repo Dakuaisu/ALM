@@ -1482,3 +1482,32 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L16-REPORTS-8f8f109-offline](../phase2-local/target/L16-REPORTS-8f8f109-offline.log): 391 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser rendering, hosted role authorization, legacy parity and accounting acceptance were not established by this replay.
+
+#### Dead stock cutoff across midnight and DST
+
+**L16-02: PASS (development only)** at `5f3b55be739c03b4737502f752c50a57ff57b3b7`. The [test-only Rust replay](../phase2-local/tests/l16_02_replay.rs) models the [L16-02 source rule](PHASE1_CASES.md#L247) for these clock windows: derive `todayISO()` from the local clock; parse that date at UTC midnight; use local `getDate()`/`setDate()` to shift back 30 calendar days; take the date from the shifted UTC ISO string. A separate [native Date probe](../phase2-local/tests/l16_02_date_probe.mjs) agreed on all local dates and shifted instants under Node `v24.20.0`, tzdata `2026c`.
+
+| Zone | Frozen clock (UTC) | Local `todayISO()` | Shifted instant (UTC) | Cutoff (expected = observed) | Expected eligible IDs | Observed eligible IDs |
+| --- | --- | --- | --- | --- | --- | --- |
+| Asia/Kolkata | 2024-11-03T18:29:59Z | 2024-11-03 | 2024-10-04T00:00:00Z | 2024-10-04 | 1, 4, 5, 8 | 1, 4, 5, 8 |
+| Asia/Kolkata | 2024-11-03T18:30:00Z | 2024-11-04 | 2024-10-05T00:00:00Z | 2024-10-05 | 1, 2, 4, 5, 8 | 1, 2, 4, 5, 8 |
+| America/New_York | 2024-11-03T05:59:59Z | 2024-11-03 | 2024-10-04T00:00:00Z | 2024-10-04 | 1, 4, 5, 8 | 1, 4, 5, 8 |
+| America/New_York | 2024-11-03T06:00:00Z | 2024-11-03 | 2024-10-04T00:00:00Z | 2024-10-04 | 1, 4, 5, 8 | 1, 4, 5, 8 |
+| America/New_York | 2024-11-04T12:00:00Z | 2024-11-04 | 2024-10-04T23:00:00Z | 2024-10-04 | 1, 4, 5, 8 | 1, 4, 5, 8 |
+
+The Kolkata pair straddled local midnight. The New York transition pair straddled fall-back: the clock offset changed from UTC-04:00 to UTC-05:00, but the parsed date-only anchor was still UTC-04:00 in both runs. On November 4 the parsed anchor was UTC-05:00 and the shifted instant was in UTC-04:00. Subtracting 30 UTC days from that anchor instead gives `2024-10-05`, which would incorrectly admit product `2` for that run.
+
+Stocked products `1`, `2`, `3` and `9` had last active sale document dates October 3, 4, 5 and 6, respectively. Equality was excluded: `2` did not qualify at the October 4 cutoff and `3` did not qualify at the October 5 cutoff. Product `2` also had an October 1 bill created on November 2, later than its October 4 bill; the later-created bill did not determine the last sale date. Reversing sale iteration produced the same IDs at every clock. The positive-stock controls `4` (never sold), `5` (only a cancelled November 1 sale) and `8` (only an undated active sale) qualified. Products `6` and `7`, with on-hand `0` and `-1`, did not qualify.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l16_02_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+cd /Users/apple/ALM && TZ=Asia/Kolkata node /Users/apple/ALM/phase2-local/tests/l16_02_date_probe.mjs
+cd /Users/apple/ALM && TZ=America/New_York node /Users/apple/ALM/phase2-local/tests/l16_02_date_probe.mjs
+```
+
+- [L16-DEAD-5f3b55b-focused](../phase2-local/target/L16-DEAD-5f3b55b-focused.log): 1 passed, 0 failed, 0 ignored.
+- [L16-DEAD-5f3b55b-offline](../phase2-local/target/L16-DEAD-5f3b55b-offline.log): 392 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed. Rust editor diagnostics timed out; no JavaScript language server was installed.
+- Native Date cross-checks passed: [Kolkata](../phase2-local/target/L16-DEAD-5f3b55b-node-kolkata.log) and [New York](../phase2-local/target/L16-DEAD-5f3b55b-node-new-york.log).
+
+The replay used seeded on-hand values and checked selection, not stock derivation, valuation, report rendering, or cross-platform timezone parity. The frozen HTML remained unchanged and unserved under OPEN-008; legacy browser parity and accounting acceptance were not established.
