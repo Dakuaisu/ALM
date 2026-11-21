@@ -9,6 +9,10 @@ mod exports;
 mod fixture;
 #[path = "milestone_d_replay/outputs.rs"]
 mod outputs;
+#[path = "milestone_d_replay/png_encoder.rs"]
+mod png_encoder;
+#[path = "milestone_d_replay/png_output.rs"]
+mod png_output;
 #[path = "milestone_d_replay/recovery.rs"]
 mod recovery;
 #[path = "milestone_d_replay/sales_output.rs"]
