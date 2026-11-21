@@ -2,6 +2,7 @@ use super::{Product, ProductPriceInput, ProductPricing};
 use crate::confirmation::{ConfirmationError, ConfirmationFixture, gst_defaults};
 use crate::{Money, ProductId, Role};
 
+mod settings;
 mod supplier_prices;
 
 use supplier_prices::SupplierPriceDraft;
@@ -109,12 +110,6 @@ pub(super) const fn owner(role: Role) -> Result<(), ProductEntryError> {
 }
 
 impl ConfirmationFixture {
-    /// Sets the trusted synthetic fallback used when an Owner saves a blank reorder field.
-    pub const fn with_product_reorder_default(mut self, default: u32) -> Self {
-        self.product_reorder_default = default;
-        self
-    }
-
     pub fn begin_product_entry(
         &self,
         role: Role,
