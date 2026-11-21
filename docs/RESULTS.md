@@ -984,3 +984,23 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-PERSIST-89a8c38-focused:** [Ordered trace](../phase2-local/target/D-PERSIST-89a8c38-focused.log): 2 passed, 0 failed, 0 ignored.
 - **D-PERSIST-89a8c38-offline:** [Transcript](../phase2-local/target/D-PERSIST-89a8c38-offline.log): 345 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual browser timing, storage and warning display, mirror serialization or size-limit skips, scheduler callback execution in this replay, hosted delivery, and device parity. The prior folder replay covers its own simulated callback cases; L20 delivery and callback guards are not covered by the scheduler call trace. OPEN-009 remains owner-blocked and independent.
+
+#### Activity log retention and unsent changes
+
+**D-ACTIVITY-4b66ccd (development, scoped PASS).** Tested `4b66ccd302c2bbc82f6d31ab8d2fc3a5a33def7e` on the development Mac. The [test-only Rust replay](../phase2-local/tests/l18_05_replay.rs) follows [L18-05](PHASE1_CASES.md#settings-activity-log-not-run) and the frozen [append](../ALM_Business_Manager.html#L838), [Settings projection](../ALM_Business_Manager.html#L9346), [backup](../ALM_Business_Manager.html#L10016), and [change selection](../ALM_Business_Manager.html#L9472) paths. It serialized and decoded the full modeled database (`log` and `deleted`) and a separate unsent `p_records` envelope. No request was sent.
+
+| Check | Expected and observed |
+| --- | --- |
+| Stored append boundary | Appending entry 4,000 retained every ID `log-1` through `log-4000`. Appending 4,001 retained exactly 3,000 IDs, `log-1002` through `log-4001`, in original order. The highest seeded timestamp belonged to `log-1` and did not save it from trimming. |
+| Independent Settings boundary | The 200-entry fixture projected Details positions 200 down to 1. The 201-entry fixture projected 201 down to 2, with 201 ahead of 200 despite its earlier timestamp, and the highest-timestamp position 1 omitted. Neither projection mutated the stored fixture. After the large trim, projected Details were 4,001 down to 3,802. |
+| Full JSON before and after trim | Before: `log-1` through `log-4000`; after: `log-1002` through `log-4001`. Thus `log-1001` disappeared, `log-3801` and `log-4000` remained, and `log-4001` entered the backup. `deleted` was empty in both captures. |
+| Unsent changes at fixed `pushedM = 50,000` | Before: exactly `log-1001`, `log-3801`; after: exactly `log-3801`, `log-4001`, all in the `log` collection. `log-3801` remained eligible despite becoming hidden in Settings. `log-4000` remained visible after trim but was ineligible because `_m` equaled the watermark. No deletion collection row was emitted. |
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l18_05_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-ACTIVITY-4b66ccd-focused:** [Transcript](../phase2-local/target/D-ACTIVITY-4b66ccd-focused.log): 3 passed, 0 failed, 0 ignored.
+- **D-ACTIVITY-4b66ccd-offline:** [Transcript](../phase2-local/target/D-ACTIVITY-4b66ccd-offline.log): 348 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Legacy or installed Settings execution, browser timestamp formatting, durable browser storage, and hosted upload or retention. Absence from Settings or the unsent payload is not evidence of remote deletion or prior delivery. OPEN-009 remains owner-blocked and independent.
