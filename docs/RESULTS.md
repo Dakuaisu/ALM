@@ -1284,3 +1284,41 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [D-PO-RESTORE-68c661a-offline](../phase2-local/target/D-PO-RESTORE-68c661a-offline.log): 384 passed, 0 failed, 2 ignored. All-target Clippy and build passed. The initial format check failed; formatting was corrected and the final check passed. Rust LSP timed out.
 
 The standalone ₹105 inclusive GST fixture at 18% remains unsupported. OPEN-008 and OPEN-005 remain in force; no actual printing, PDF creation, or delivery was tested. No accounting or phase acceptance is claimed.
+
+#### Milestone D integrated offline handoff
+
+**Scoped development PASS** at `8ba8334a5df43faecf3e7fe57fe117de70e33536`. The [existing structured replay](../phase2-local/tests/milestone_d_structured.rs) populated the read model with the synthetic Milestone C sale and customer receipt, the active export control, the Milestone B partially received PO and its receipts, and Owner settings. It dropped both origin fixtures after capturing typed records. All five source outputs came from that populated store. The replay saved one recovery backup, dropped the source store handle, restored into an absent destination, and regenerated all five outputs from the reopened store without reseeding, reposting, or using cached documents. Backup calls used for immutability assertions and separate negative-control restores are not additional inputs to the joined restore.
+
+| Output | Case expectation checked in the joined run | Source / regenerated artifact |
+| --- | --- | --- |
+| Sales CSV (L19-03) | Date-sorted records with Mode and Pack. Cancelled invoice #1 retained both item rows at ₹354 and ₹56, with ₹410 total and ₹100 paid only on the first row. The active control retained its piece and crate quantities. | [Source](../phase2-local/target/structured-d-31601-1795273429199641000/sales.csv) / [regenerated](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-sales.csv) |
+| SpreadsheetML (L19-03) | Products, Customers, Sales and Stock tabs; Sales retained stored order, omitted Mode and Pack, and preserved cancellation and first-line totals. | [Source](../phase2-local/target/structured-d-31601-1795273429199641000/workbook.xls) / [regenerated](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-workbook.xls) |
+| Cancelled estimate HTML (L05-01/L18-04) | Estimate #1 dated 21-Feb-2025 retained its cancellation marker, ₹410 total, ₹100 paid, and latest balance of ₹-50 after the linked customer receipt. The reopened profile displayed escaped FSSAI and hid GSTIN as configured. | [Source](../phase2-local/target/structured-d-31601-1795273429199641000/estimate.html) / [regenerated](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-estimate.html) |
+| Ordinary GST (L06-01) | Cancelled invoice #1 dated 21-Feb-2025 retained ₹410 total, ₹350 taxable, ₹30 each CGST and SGST, and HSN groups `22029920` and `21069099`. The retained artifact is a typed document serialized to JSON. | [Source](../phase2-local/target/structured-d-31601-1795273429199641000/gst.json) / [regenerated](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-gst.json) |
+| Supplier PO HTML (L07-03) | `PO-001` retained original supplier quantities of 12 and 9 cases and MRPs of ₹67.50 and ₹89.50, without purchase rates, receipt progress or monetary total. Internal progress remained 12/8/4 and 9/5/4 (ordered/received/outstanding). | [Source](../phase2-local/target/structured-d-31601-1795273429199641000/purchase-order.html) / [regenerated](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-purchase-order.html) |
+
+`cmp` confirmed that all five source/regenerated pairs matched byte for byte. Retained [backup](../phase2-local/target/structured-d-31601-1795273429199641000/backup.json), [reopened store](../phase2-local/target/structured-d-31601-1795273429199641000/restored.json), and [restored PO progress and receipt readback](../phase2-local/target/structured-d-31601-1795273429199641000/regenerated-purchase-order-readback.txt) are local synthetic artifacts. The restored reorder default was also exercised: a product saved with a blank reorder setting reopened at level 13. Manager requests received no restricted output: CSV and SpreadsheetML denials were exercised on the source store, and estimate, ordinary GST, PO and backup denials on the reopened store. CSV and SpreadsheetML Manager requests were not repeated after restore in this focused test.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured structured_exports_survive_fresh_recovery -- --exact --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-JOINED-8ba8334-focused](../phase2-local/target/D-JOINED-8ba8334-focused.log): 1 passed, 0 failed, 0 ignored, 1 filtered out.
+- [D-JOINED-8ba8334-offline](../phase2-local/target/D-JOINED-8ba8334-offline.log): 384 passed, 0 failed, 2 ignored.
+
+The separate image encoder and output-routing tests are regressions, not stages of the joined recovery. No raster PNG, image fidelity, physical print, PDF creation, or delivery is established by the joined run. The standalone ₹105 inclusive GST fixture at 18% remains unsupported. OPEN-008 gates legacy execution and OPEN-005 gates actual device handoff. No phase or accounting acceptance is claimed. `bridge.toml` was not changed.
+
+#### Milestone D reopened-store Manager export denial
+
+**Scoped L19-03 / R-5 development PASS** at `c7ded1e5dc5c66010db91789118acf69315743df`. In the same reopened populated store used for Owner regeneration, Manager requests for Sales CSV and SpreadsheetML each returned exactly `Err(AccessDenied)`, with no export payload. The Owner requests succeeded on that same store and retained both the pre-backup equality controls and the expected-content checks. The [original `8ba8334` run](#milestone-d-integrated-offline-handoff) still documents source-store-only Manager export checks; this follow-up does not change its evidence.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured structured_exports_survive_fresh_recovery -- --exact --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-EXPORT-DENIAL-c7ded1e-focused](../phase2-local/target/D-EXPORT-DENIAL-c7ded1e-focused.log): 1 passed, 0 failed, 0 ignored, 1 filtered out. [Retained replay artifacts](../phase2-local/target/structured-d-33987-1795273742034799000/).
+- [D-EXPORT-DENIAL-c7ded1e-offline](../phase2-local/target/D-EXPORT-DENIAL-c7ded1e-offline.log): 384 passed, 0 failed, 2 ignored. Formatting and the locked offline build passed; Rust LSP timed out.
+
+This verifies local export denial only. Hosted authorization, device isolation and phase acceptance remain open; OPEN-008 and OPEN-005 are unchanged.
