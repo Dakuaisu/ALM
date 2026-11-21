@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use alm_phase2_local::confirmation::{CustomerLedgerKind, ReceiptMode};
 use alm_phase2_local::synthetic_read_model::{
-    Component, Customer, Line, LineKind, Product, Receipt, Records, Sale, Store,
+    Component, Customer, Line, LineKind, Product, Receipt, Records, Sale, ScopedArchiveInput, Store,
 };
 use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Role};
 
@@ -17,6 +17,8 @@ mod fixture;
 mod gst;
 #[path = "common/ordinary_gst_fixture.rs"]
 mod ordinary_gst_fixture;
+#[path = "milestone_d_structured/purchase.rs"]
+mod purchase;
 
 #[test]
 fn structured_exports_survive_fresh_recovery() {
@@ -147,12 +149,21 @@ fn structured_exports_survive_fresh_recovery() {
     drop(fixture);
     let mut expected = records.clone();
     expected.reorder_default = 13;
-    let mut store =
-        Store::create_scoped_with_gst(&source, Role::Owner, records, estimate::scope(), vec![tax])
-            .unwrap();
+    let mut store = Store::create_scoped_with_gst_and_purchase_orders(
+        &source,
+        Role::Owner,
+        ScopedArchiveInput {
+            records,
+            scope: estimate::scope(),
+            gst: vec![tax],
+            purchase_orders: vec![purchase::capture()],
+        },
+    )
+    .unwrap();
     estimate::save_profile(&mut store);
     assert!(store.set_reorder_default(Role::Manager, 13).is_err());
     store.set_reorder_default(Role::Owner, 13).unwrap();
+    let original_po = purchase::document(&store, &source, "purchase-order");
     let original_gst = gst::document(&store, &source);
     fs::write(dir.join("gst.json"), gst::json(&original_gst)).unwrap();
     drop(store);
@@ -197,6 +208,9 @@ fn structured_exports_survive_fresh_recovery() {
     let saved_backup = fs::read(backup).unwrap();
     Store::restore(&restored, Role::Owner, &saved_backup).unwrap();
     let reopened = Store::open(&restored, Role::Owner).unwrap();
+    assert_eq!(reopened.backup(Role::Owner).unwrap(), saved_backup);
+    let regenerated_po = purchase::document(&reopened, &restored, "regenerated-purchase-order");
+    assert_eq!(original_po, regenerated_po);
     let regenerated_html = estimate::document(&reopened, &restored);
     let regenerated_gst = gst::document(&reopened, &restored);
     assert_eq!(original_gst, regenerated_gst);

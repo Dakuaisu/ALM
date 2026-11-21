@@ -3,12 +3,19 @@ mod date;
 mod estimate;
 mod export;
 mod gst;
+mod purchase_order;
+#[cfg(test)]
+mod purchase_order_tests;
 mod scope;
 mod storage;
 
 use serde::{Deserialize, Serialize};
 
 pub use gst::{GstArchiveError, HistoricalGst, HistoricalGstLine};
+pub use purchase_order::{
+    ArchivedPurchaseBusiness, ArchivedPurchaseLine, ArchivedPurchaseOrder, ArchivedPurchaseReceipt,
+    ArchivedPurchaseStatus, PurchaseCapture, PurchaseDisplay, ScopedArchiveInput,
+};
 pub use scope::{AccountId, AccountScope, ReceiptId, SaleId};
 pub use storage::{Error, Store};
 

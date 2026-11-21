@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use alm_phase2_local::confirmation::{
     ConfirmationError, ConfirmationFixture, CustomerReceiptInput, EditChanges, Receipt,
-    ReceiptMode, RequestId,
+    ReceiptMode, RequestId, StockLots,
 };
 use alm_phase2_local::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
@@ -16,6 +16,9 @@ mod inventory;
 
 use accounts::{AccountCheckpoint, assert_accounts};
 use inventory::{StockCheckpoint, assert_stock, receive_dated_stock};
+
+#[path = "../common/partial_po.rs"]
+pub mod partial_po;
 
 pub(super) const OWNER: Role = Role::Owner;
 pub(super) const MANAGER: Role = Role::Manager;
@@ -56,6 +59,20 @@ pub(super) const fn qty(value: u32) -> NonZeroU32 {
 
 pub(super) fn feb(day: u8) -> BillDate {
     BillDate::new(2025, 2, day).expect("valid February fixture date")
+}
+
+pub(super) fn stock(fixture: &ConfirmationFixture) -> [u32; 2] {
+    [A, B].map(|id| fixture.product_stock(id).unwrap())
+}
+
+pub(super) fn fifo(fixture: &ConfirmationFixture) -> [StockLots; 2] {
+    [A, B].map(|id| fixture.open_stock_lots(OWNER, id).unwrap())
+}
+
+pub(super) fn fifo_value(lots: &[StockLots; 2]) -> i64 {
+    lots.iter()
+        .map(|product| product.total_value.unwrap().minor_units())
+        .sum()
 }
 
 pub(super) fn march_receipt_date() -> BillDate {

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{AccountScope, BusinessProfile, HistoricalGst, Records};
+use super::{ArchivedPurchaseOrder, ScopedArchiveInput};
 use crate::Role;
 use crate::confirmation::{ConfirmationFixture, ProductEntryError};
 
@@ -40,9 +41,11 @@ struct Archive {
     scope: Option<AccountScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     gst: Option<Vec<HistoricalGst>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
 }
 
-fn owner(role: Role) -> Result<(), Error> {
+pub(super) fn owner(role: Role) -> Result<(), Error> {
     match role {
         Role::Owner => Ok(()),
         Role::Manager => Err(Error::AccessDenied),
@@ -55,6 +58,7 @@ pub struct Store {
     profile: BusinessProfile,
     pub(super) scope: Option<AccountScope>,
     pub(super) gst: Option<Vec<HistoricalGst>>,
+    pub(super) purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
 }
 
 impl Store {
@@ -68,6 +72,7 @@ impl Store {
                 profile: BusinessProfile::default(),
                 scope: None,
                 gst: None,
+                purchase_orders: None,
             },
         )
     }
@@ -87,6 +92,7 @@ impl Store {
                 profile: BusinessProfile::default(),
                 scope: Some(scope),
                 gst: None,
+                purchase_orders: None,
             },
         )
     }
@@ -107,6 +113,26 @@ impl Store {
                 profile: BusinessProfile::default(),
                 scope: Some(scope),
                 gst: Some(gst),
+                purchase_orders: None,
+            },
+        )
+    }
+
+    pub fn create_scoped_with_gst_and_purchase_orders(
+        path: &Path,
+        role: Role,
+        input: ScopedArchiveInput,
+    ) -> Result<Self, Error> {
+        owner(role)?;
+        Self::create_archive(
+            path,
+            Archive {
+                version: 1,
+                records: input.records,
+                profile: BusinessProfile::default(),
+                scope: Some(input.scope),
+                gst: Some(input.gst),
+                purchase_orders: Some(input.purchase_orders),
             },
         )
     }
@@ -115,6 +141,7 @@ impl Store {
         if let Some(scope) = &archive.scope {
             scope.validate(&archive.records)?;
         }
+        super::purchase_order::validate_orders(archive.purchase_orders.as_deref())?;
         let data = serde_json::to_vec(&archive)?;
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         file.write_all(&data)?;
@@ -125,6 +152,7 @@ impl Store {
             profile: archive.profile,
             scope: archive.scope,
             gst: archive.gst,
+            purchase_orders: archive.purchase_orders,
         })
     }
 
@@ -137,12 +165,14 @@ impl Store {
         if let Some(scope) = &archive.scope {
             scope.validate(&archive.records)?;
         }
+        super::purchase_order::validate_orders(archive.purchase_orders.as_deref())?;
         Ok(Self {
             path: path.into(),
             records: archive.records,
             profile: archive.profile,
             scope: archive.scope,
             gst: archive.gst,
+            purchase_orders: archive.purchase_orders,
         })
     }
 
@@ -168,6 +198,7 @@ impl Store {
             profile: self.profile.clone(),
             scope: self.scope.clone(),
             gst: self.gst.clone(),
+            purchase_orders: self.purchase_orders.clone(),
         })?)
     }
 
@@ -220,6 +251,7 @@ impl Store {
             profile: profile.clone(),
             scope: self.scope.clone(),
             gst: self.gst.clone(),
+            purchase_orders: self.purchase_orders.clone(),
         })?;
         let staging = self.path.with_extension("setting-stage");
         let mut file = OpenOptions::new()
