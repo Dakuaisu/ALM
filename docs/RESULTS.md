@@ -1217,3 +1217,25 @@ cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/appl
 - **Unsupported / not run:** Regenerating estimates, GST, PO and other outputs from the same reopened populated store was not supported or run. No passing helper was substituted for that integration step. Separately, the original standalone L06-03 fixture at an inclusive rate of 10,500 paise and 18% GST failed with `UnsupportedRounding`; `289dfaf` replaced it with the exact 11,800-paise fixture. The original is excluded and unsupported, was not tested in this handoff, and is not covered by the ordinary GST guard.
 
 OPEN-008 still gates the legacy walkthrough, and OPEN-005 still gates actual device outputs and handoff. No full application restore, accounting sign-off, acceptance, or phase completion is claimed.
+
+#### Milestone D same-store estimate recovery
+
+**Scoped development PASS** at `17fb557c9e68e35c1e45f8c9cbb536884952b862` (renderer refactor `1b07f6b`). This closes only the estimate HTML regeneration gap recorded in the historical `ab376e9` handoff. The joined structured test rendered from the populated source, backed it up, dropped the origin fixture and source handle, then restored and freshly reopened the JSON without reseeding. It regenerated the estimate from the reopened records and saved profile, not cached HTML. Estimate rendering is read-only and does not restore posting authority.
+
+| Check | Expected and observed |
+| --- | --- |
+| Cancelled C bill | Invoice #1, 21-Feb-2025, Synthetic Buyer, `CANCELLED`; A × 2 at ₹354.00 for the row and B × 1 at ₹56.00 for the row; bill ₹410.00, paid ₹100.00, latest balance ₹-50.00 as of 01-Mar-2025. FSSAI `A<&>` was HTML-escaped; GSTIN was hidden by the saved profile. |
+| Independent controls | In a disposable control store, changing the linked receipt to ₹70 yielded a latest balance of ₹-70.00; flipping the profile flags hid FSSAI and displayed the escaped GSTIN. In another control, assigning the active bill to the same account changed the cancelled estimate’s latest balance to ₹-42.00. Missing, duplicate, or dangling links failed closed. The supported scope uses an explicit zero opening balance; fractional latest balances and nonzero opening balances remain unsupported. Older unscoped v1 JSON remained readable but did not provide an estimate. |
+| Access and read-only behavior | Manager received exactly `AccessDenied` for estimate and backup before and after restore. Estimate reads left both the disk state and the in-memory backup unchanged. |
+
+The test independently checked the case anchors in both HTML outputs; `cmp` confirmed an exact HTML match. Retained evidence: [estimate.html](../phase2-local/target/structured-d-54111-1795267841077953000/estimate.html), [regenerated-estimate.html](../phase2-local/target/structured-d-54111-1795267841077953000/regenerated-estimate.html), [backup.json](../phase2-local/target/structured-d-54111-1795267841077953000/backup.json), and [restored.json](../phase2-local/target/structured-d-54111-1795267841077953000/restored.json).
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured --test l18_04 -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-ESTIMATE-17fb557-focused](../phase2-local/target/D-ESTIMATE-17fb557-focused.log): 2 passed, 0 failed, 0 ignored (one joined structured workflow and the existing separate `l18_04` identity replay).
+- [D-ESTIMATE-17fb557-offline](../phase2-local/target/D-ESTIMATE-17fb557-offline.log): 378 passed, 0 failed, 2 ignored. Build, formatting, and all-target Clippy passed; Rust LSP timed out.
+
+Same-store GST and PO regeneration remain **not run**. The original standalone GST fixture (10,500 paise inclusive at 18%) remains unsupported. OPEN-008 and OPEN-005 still gate the legacy walkthrough and actual device outputs and handoff. This is not a full restore, accounting sign-off, acceptance, or phase completion.
