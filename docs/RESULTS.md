@@ -1790,3 +1790,39 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-ORDER-067559b-offline](../phase2-local/target/L14-ORDER-067559b-offline.log): 408 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unchanged and unserved under OPEN-008. Browser ordering and estimate rendering remain not run; this is not browser parity or accounting acceptance.
+
+#### Owner opening balance through Rust account and estimate APIs
+
+**L14-04 / L14-01 with L05-01 preview comparison: PASS (local development only)** at `fffd3ce87e87a1c60762d688d8a1761122cde4e4`. The [application replay](../phase2-local/tests/l14_opening_balance_replay/opening_actual.rs) calls `save_customer_opening`, `customer_ledger_with_opening`, `customer_due` and `bill_preview` on the `067559b` transaction fixture. The [zero-opening regression](../phase2-local/tests/l14_ledger_ordering_replay.rs) retained its prior balance assertions. The creation instant `2025-02-11T00:15:00+05:30` to `2025-02-10T18:45:00Z` conversion remains test-modeled; the application accepts an already-normalized UTC `BillDate` or no date. It uses invoice and receipt posting order, not imported `created` timestamps.
+
+The Owner saved successive replacements by stable ID `l14-customer` with the same posted transactions. Each opening row had zero credit. The dates, IDs, debits and credits of the existing transaction rows stayed equal; no receipt was added, B2's original paid amount of 1000 paise was unchanged, and `same-name-other` retained its ledger and due. Manager saves for both a known and a missing ID returned `AccessDenied`; readbacks did not change. An overflowing Owner replacement was also rejected without changing the opening-aware ledger or Latest preview.
+
+| Save input | Expected and observed opening debit (paise) | Expected and observed due / ledger closing (paise) |
+| --- | ---: | ---: |
+| Positive | 2000 | 14600 |
+| Negative | -2000 | 10600 |
+| Explicit zero | 0 | 12600 |
+| Blank amount | 0 | 12600 |
+
+On fresh copies with a 2000-paise opening, these ordered application rows matched the literal expectations. R1/R2/R3 are fixture receipt labels distinguished by date, mode and amount. B1 is draft `20` / invoice `1`; B2 is draft `10` / invoice `2`. All dated rows other than R3 use `2025-02-10`; R3 uses `2025-02-09`.
+
+| Variant | Expected and observed order with running paise |
+| --- | --- |
+| UTC-dated opening, `2025-02-10` | `R3:-1000`, `opening:1000`, `B1:9000`, `R1:6000`, `B2:15000`, `R2:14600` |
+| Opening date absent | `opening (blank):2000`, `R3:1000`, `B1:9000`, `R1:6000`, `B2:15000`, `R2:14600` |
+| No opening configured (regression) | `R3:-1000`, `B1:7000`, `R1:4000`, `B2:13000`, `R2:12600` |
+
+| B2 readback | Expected bill-date / B2 running / Latest (paise) | Observed |
+| --- | --- | --- |
+| 2000-paise dated or blank-date opening | 16000 / 15000 / 14600 | 16000 / 15000 / 14600 |
+| No opening configured | 14000 / 13000 / 12600 | 14000 / 13000 / 12600 |
+
+With an opening, current due and ledger closing also independently read 14600 paise. The date on the opening did not become the estimate's previous transaction date. The replay covers in-memory Rust saves and projections, not browser timestamp handling, editor stamps, ageing, durable persistence, hosted authorization or accounting acceptance. The frozen HTML remained unchanged and unserved under OPEN-008.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_ledger_ordering_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-OPENING-APP-fffd3ce-focused](../phase2-local/target/L14-OPENING-APP-fffd3ce-focused.log): 8 passed, 0 failed, 0 ignored.
+- [L14-OPENING-APP-fffd3ce-offline](../phase2-local/target/L14-OPENING-APP-fffd3ce-offline.log): 413 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
