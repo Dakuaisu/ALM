@@ -36,6 +36,26 @@ pub struct OpeningLedger {
 }
 
 impl ConfirmationFixture {
+    /// Registers a stable synthetic customer identity in this in-memory fixture.
+    ///
+    /// # Errors
+    /// Denies Managers and rejects blank identities without mutation.
+    pub fn register_customer(
+        &mut self,
+        role: Role,
+        customer_id: &DraftCustomerId,
+    ) -> Result<(), ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        if customer_id.value().trim().is_empty() {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        self.registered_customers
+            .insert(customer_id.value().to_owned());
+        Ok(())
+    }
+
     /// Replaces a known customer's opening without changing posted transaction facts.
     ///
     /// # Errors
@@ -49,7 +69,7 @@ impl ConfirmationFixture {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
-        if !self.current_sales.values().any(|(review, _, _)| {
+        if !self.registered_customers.contains(customer_id.value()) && !self.current_sales.values().any(|(review, _, _)| {
             matches!(review.draft.customer(), DraftCustomer::Selected { id, .. } if id == customer_id)
         }) {
             return Err(ConfirmationError::InvalidDraft);

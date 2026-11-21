@@ -76,6 +76,7 @@ impl ConfirmationFixture {
                 DraftCustomer::Selected { id, .. } => Some(id.value().to_owned()),
                 DraftCustomer::Typed(_) | DraftCustomer::Unassigned => None,
             })
+            .chain(self.registered_customers.iter().cloned())
             .collect();
         for key in customers {
             let customer_id = DraftCustomerId::new(key);

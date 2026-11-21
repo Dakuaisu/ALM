@@ -110,7 +110,7 @@ impl ConfirmationFixture {
             return Err(ConfirmationError::AccessDenied);
         }
         let mut rows = Vec::new();
-        let mut known = false;
+        let mut known = self.registered_customers.contains(customer_id.value());
         for (id, (review, receipt, _)) in &self.current_sales {
             if !matches!(review.draft.customer(), DraftCustomer::Selected { id, .. } if id == customer_id)
             {
