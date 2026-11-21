@@ -1444,3 +1444,41 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L04-HISTORY-1c1cf9a-offline](../phase2-local/target/L04-HISTORY-1c1cf9a-offline.log): 390 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; editor diagnostics timed out.
 
 The replay is limited to synthetic regular bills with known FIFO costs and local whole-rupee formatting. It does not exercise browser controls, rendered drilldowns, production authorization, or legacy display parity. The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
+
+#### Monthly Reports and customer ranking
+
+**L16-01: PASS (development only)** at Rust commit `8f8f1092ef3a7917f5df23f271293446d0079d3c`. The [offline replay](../phase2-local/src/confirmation/tests/l16_monthly_reports_replay.rs) reuses the L04 Sales history and extends the L15 saved Cash Book fixture, preserving its counted Cash, Paytm and PhonePe amounts. The [test-only projection](../phase2-local/src/confirmation/tests/l16_reports_projection.rs) follows the [source-derived L16-01 expectations](PHASE1_CASES.md#L246); it is not a production Reports endpoint. With Today fixed to `2025-04-15`, the report offered November 2024 through April 2025, oldest first, from the calendar rather than transaction presence. This is a six-month table, not an interactive month picker.
+
+Expected and observed matched throughout. Bill IDs are fixture draft IDs; receipt IDs are one-based append positions. Exact figures are **Sales / frozen cost / Gross Profit / Goods (cash) / Misc / Salary / Net**, in paise. Display figures are **bill count / Sales / Gross Profit / Goods (cash) / Other Expenses / Net**; frozen cost is a reconciliation input, not a displayed P&L column.
+
+| Offered month | Active bill IDs | Saved Cash Book IDs | Receipt IDs excluded from P&L | Exact paise | Local rounded display |
+| --- | --- | --- | --- | --- | --- |
+| 2024-11 | none | none | none | 0 / 0 / 0 / 0 / 0 / 0 / 0 | 0 / ₹0 / ₹0 / — / ₹0 / ₹0 |
+| 2024-12 | none | none | none | 0 / 0 / 0 / 0 / 0 / 0 / 0 | 0 / ₹0 / ₹0 / — / ₹0 / ₹0 |
+| 2025-01 | none | none | 8 | 0 / 0 / 0 / 0 / 0 / 0 / 0 | 0 / ₹0 / ₹0 / — / ₹0 / ₹0 |
+| 2025-02 | 12 | 0 | 3 | 1049 / 600 / 449 / 1201 / 2302 / 3403 / -5256 | 1 / ₹10 / ₹4 / ₹12 / ₹57 / ₹-53 |
+| 2025-03 | 36, 41, 58, 73 | none | 1, 2, 4, 5, 6, 7 | 6145 / 3700 / 2445 / 0 / 0 / 0 / 2445 | 4 / ₹61 / ₹24 / — / ₹0 / ₹24 |
+| 2025-04 | 80 | 1 | none | 15025 / 5000 / 10025 / 999 / 25 / 25 / 9975 | 1 / ₹150 / ₹100 / ₹10 / ₹1 / ₹100 |
+
+Backdated bill `12` contributed to its February document month; bill `80` dated April 25 contributed to April despite the April 15 clock. Cancelled bill `24` contributed neither revenue nor cost. January's 100-paise receipt `8` affected its customer account but left the month's P&L at zero. Bill `81` dated October 20 was outside the offered months but still contributed to all-time ranking.
+
+April Net was calculated as `10025 - 25 - 25 = 9975` paise before rounding. Gross Profit and Other Expenses displayed as ₹100 and ₹1, but Net displayed as ₹100, not ₹99. Goods (cash) of 999 paise displayed as ₹10 separately and was not deducted again.
+
+| All-time rank by stored name | Contributing bill IDs (customer ID) | Exact paise | Local rounded display |
+| --- | --- | ---: | ---: |
+| Synthetic Grove | 36, 41, 73 (`grove`); 80 (`same-name`) | 19671 | ₹197 |
+| Synthetic Ancestor | 81 (`ancestor`) | 15025 | ₹150 |
+| Synthetic Guest | 58 (unlinked) | 1499 | ₹15 |
+| Synthetic Orchard | 12 (`orchard`) | 1049 | ₹10 |
+
+The two Synthetic Grove accounts remained separate: ledger closing and customer due each read back as 3849 paise for `grove` and 14925 paise for `same-name`. Manager received `Err(AccessDenied)` at the test projection boundary, before any report payload was assembled. The report reads left the Sales and Cash Book fixtures unchanged.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l16_01_monthly_reports_synthetic_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L16-REPORTS-8f8f109-focused](../phase2-local/target/L16-REPORTS-8f8f109-focused.log): 1 passed, 0 failed, 0 ignored, 271 filtered out.
+- [L16-REPORTS-8f8f109-offline](../phase2-local/target/L16-REPORTS-8f8f109-offline.log): 391 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser rendering, hosted role authorization, legacy parity and accounting acceptance were not established by this replay.
