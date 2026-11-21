@@ -202,3 +202,13 @@ Context: DEC-019 and the recorded demo result document earlier narrow local appr
 - Status: AUTONOMOUS DECISION - owner to review
 
 Pin `serde` with `derive` to `1.0.229` and `serde_json` to `1.0.154`, the versions already tested in `phase2-local/Cargo.lock`. Retain the locked offline build. Serde derives decode the versioned archive into typed Rust records; the JSON library handles grammar, escaping, and malformed input without a parallel hand-written parser to maintain. This decision covers the local JSON workflow only; it grants no hosted access and does not approve a legacy migration format or change posting authority.
+
+## DEC-024 Contract re-approved by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge approve)
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 c282440c309b210614d485bfb9ee238ab4e77b9b92dff988083b7c3a7581178b
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 41d6a4d1c5c5142172ca08ad8d17468331523f89a73846b0e87a714f1cbb16e8
