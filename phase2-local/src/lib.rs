@@ -9,6 +9,7 @@ pub mod draft_entry;
 mod drafts;
 pub mod provisional_preview;
 mod sqlite;
+pub mod synthetic_read_model;
 
 use std::collections::BTreeMap;
 use std::path::Path;
