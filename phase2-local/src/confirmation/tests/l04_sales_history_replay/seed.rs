@@ -28,7 +28,7 @@ pub(super) fn date(iso: &str) -> BillDate {
     iso.parse().unwrap()
 }
 
-pub(super) fn history_fixture() -> ConfirmationFixture {
+pub(in crate::confirmation::tests) fn history_fixture() -> ConfirmationFixture {
     let money = Money::from_minor_units;
     let mut fixture =
         ConfirmationFixture::with_ordered_lots(LIME, &[(10, money(950))], money(1499)).unwrap();

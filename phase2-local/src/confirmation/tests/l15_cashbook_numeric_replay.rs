@@ -1,7 +1,9 @@
 use super::*;
 use crate::DraftCustomerId;
 use crate::confirmation::PreviewPayment;
-use crate::confirmation::manual_cashbook::{CashBookAmounts, ManualCashBook, ManualCashBookDraft};
+use crate::confirmation::manual_cashbook::{
+    CashBookAmounts, ManualCashBook, ManualCashBookDraft, ManualCashBookRow,
+};
 
 const OWNER: Role = Role::Owner;
 const PRODUCT: ProductId = ProductId::new(1);
@@ -25,6 +27,13 @@ fn amounts(cash: i64, paytm: i64, phonepe: i64) -> CashBookAmounts {
         salary: money(0),
         debt: money(0),
     }
+}
+
+pub(super) fn saved_l15_row() -> (ManualCashBook, ManualCashBookRow) {
+    let mut book = ManualCashBook::default();
+    let original = ManualCashBookDraft::new(Some(date()), amounts(111, 222, 333));
+    let saved = book.save(OWNER, &original).unwrap();
+    (book, saved)
 }
 
 fn bill(id: u64) -> ProvisionalDraft {
@@ -210,9 +219,7 @@ fn l15_01_signed_numeric_replay_rounds_each_bucket_and_saves_exact_manual_inputs
         );
     }
 
-    let mut book = ManualCashBook::default();
-    let original = ManualCashBookDraft::new(Some(date()), amounts(111, 222, 333));
-    let saved_original = book.save(OWNER, &original).unwrap();
+    let (mut book, saved_original) = saved_l15_row();
     {
         let mut edited = saved_original.draft();
         edited.amounts = amounts(150, 25, 24);

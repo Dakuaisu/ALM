@@ -2,7 +2,7 @@ use crate::confirmation::ConfirmationError;
 use crate::{DraftCustomerId, Role};
 
 mod projection;
-mod seed;
+pub(super) mod seed;
 
 use projection::{Period, Source, money_r, round_rupees, sales_history};
 use seed::{GROVE_ID, OWNER, date, history_fixture};
