@@ -2,11 +2,13 @@
 mod date;
 mod estimate;
 mod export;
+mod gst;
 mod scope;
 mod storage;
 
 use serde::{Deserialize, Serialize};
 
+pub use gst::{GstArchiveError, HistoricalGst, HistoricalGstLine};
 pub use scope::{AccountId, AccountScope, ReceiptId, SaleId};
 pub use storage::{Error, Store};
 

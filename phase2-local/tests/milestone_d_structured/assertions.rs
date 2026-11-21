@@ -1,3 +1,30 @@
+pub(super) fn product_setting(store: &alm_phase2_local::synthetic_read_model::Store) {
+    use alm_phase2_local::confirmation::ConfirmationFixture;
+    use alm_phase2_local::{Money, ProductId, Role};
+    let mut domain =
+        ConfirmationFixture::new(ProductId::new(90), 0, Money::from_minor_units(100)).unwrap();
+    assert!(
+        store
+            .apply_product_settings(Role::Manager, &mut domain)
+            .is_err()
+    );
+    store
+        .apply_product_settings(Role::Owner, &mut domain)
+        .unwrap();
+    let mut entry = domain
+        .begin_product_entry(Role::Owner, ProductId::new(91))
+        .unwrap();
+    entry.item = "Restored setting control".into();
+    domain.save_product_entry(Role::Owner, &entry).unwrap();
+    assert_eq!(
+        domain
+            .open_product_entry(Role::Owner, ProductId::new(91))
+            .unwrap()
+            .reorder_level,
+        Some(13)
+    );
+}
+
 pub(super) fn json(raw: &serde_json::Value) {
     assert_eq!(raw["records"]["sales"][0]["id"], "sale-cancelled-id");
     assert_eq!(raw["records"]["sales"][1]["id"], "sale-active-id");

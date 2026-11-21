@@ -3,11 +3,14 @@ use std::time::Duration;
 use alm_phase2_local::BillDate;
 use alm_phase2_local::confirmation::{
     BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateError, EstimateLineDisplay,
-    EstimateRequest, GstError, GstInvoice, GstJurisdiction, GstLineMetadata, GstRequest,
-    PrintIntent,
+    EstimateRequest, GstError, GstInvoice, GstJurisdiction, GstRequest, PrintIntent,
 };
 
 use super::{A, B, BUYER, DENIED, ITEM_A, ITEM_B, MANAGER, OWNER, SALE, feb};
+
+#[path = "../common/ordinary_gst_fixture.rs"]
+mod ordinary_gst_fixture;
+use ordinary_gst_fixture::GST_METADATA;
 
 #[derive(Clone, Copy)]
 pub(super) enum BillVersion {
@@ -141,27 +144,6 @@ pub(super) fn assert_estimate(
         );
     }
 }
-
-const GST_METADATA: [GstLineMetadata<'static>; 2] = [
-    GstLineMetadata {
-        product: A,
-        name: ITEM_A,
-        product_rate: Some(1_800),
-        product_cess: 0,
-        product_hsn: Some("22029920"),
-        line_rate: None,
-        line_hsn: None,
-    },
-    GstLineMetadata {
-        product: B,
-        name: ITEM_B,
-        product_rate: Some(1_200),
-        product_cess: 0,
-        product_hsn: Some("21069099"),
-        line_rate: None,
-        line_hsn: None,
-    },
-];
 
 pub(super) fn assert_gst(
     fixture: &ConfirmationFixture,

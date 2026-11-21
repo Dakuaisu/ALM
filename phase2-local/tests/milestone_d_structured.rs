@@ -1,11 +1,11 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use alm_phase2_local::confirmation::{ConfirmationFixture, CustomerLedgerKind, ReceiptMode};
+use alm_phase2_local::confirmation::{CustomerLedgerKind, ReceiptMode};
 use alm_phase2_local::synthetic_read_model::{
     Component, Customer, Line, LineKind, Product, Receipt, Records, Sale, Store,
 };
-use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Money, ProductId, Role};
+use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Role};
 
 #[path = "milestone_d_structured/assertions.rs"]
 mod assertions;
@@ -13,6 +13,10 @@ mod assertions;
 mod estimate;
 #[path = "milestone_d_replay/fixture.rs"]
 mod fixture;
+#[path = "milestone_d_structured/gst.rs"]
+mod gst;
+#[path = "common/ordinary_gst_fixture.rs"]
+mod ordinary_gst_fixture;
 
 #[test]
 fn structured_exports_survive_fresh_recovery() {
@@ -139,17 +143,22 @@ fn structured_exports_survive_fresh_recovery() {
             amount_minor: receipt_entry.credit.minor_units(),
         }],
     };
+    let tax = gst::snapshot(&records.sales[0], review.draft().lines());
     drop(fixture);
     let mut expected = records.clone();
     expected.reorder_default = 13;
-    let mut store = Store::create_scoped(&source, Role::Owner, records, estimate::scope()).unwrap();
+    let mut store =
+        Store::create_scoped_with_gst(&source, Role::Owner, records, estimate::scope(), vec![tax])
+            .unwrap();
     estimate::save_profile(&mut store);
     assert!(store.set_reorder_default(Role::Manager, 13).is_err());
     store.set_reorder_default(Role::Owner, 13).unwrap();
+    let original_gst = gst::document(&store, &source);
+    fs::write(dir.join("gst.json"), gst::json(&original_gst)).unwrap();
     drop(store);
     let store = Store::open(&source, Role::Owner).unwrap();
     assert_eq!(store.records(Role::Owner).unwrap(), &expected);
-    assert_product_setting(&store);
+    assertions::product_setting(&store);
     assert!(store.backup(Role::Manager).is_err());
     assert!(store.sales_csv(Role::Manager).is_err());
     assert!(store.workbook(Role::Manager).is_err());
@@ -189,6 +198,14 @@ fn structured_exports_survive_fresh_recovery() {
     Store::restore(&restored, Role::Owner, &saved_backup).unwrap();
     let reopened = Store::open(&restored, Role::Owner).unwrap();
     let regenerated_html = estimate::document(&reopened, &restored);
+    let regenerated_gst = gst::document(&reopened, &restored);
+    assert_eq!(original_gst, regenerated_gst);
+    fs::write(
+        dir.join("regenerated-gst.json"),
+        gst::json(&regenerated_gst),
+    )
+    .unwrap();
+    gst::controls(&reopened, &restored, &dir);
     assert_eq!(original_html, regenerated_html);
     fs::write(dir.join("regenerated-estimate.html"), &regenerated_html).unwrap();
     estimate::controls(&reopened, &dir);
@@ -218,36 +235,11 @@ fn structured_exports_survive_fresh_recovery() {
     let xml = reopened.workbook(Role::Owner).unwrap();
     assert_eq!(xml, original_xml);
     fs::write(dir.join("regenerated-workbook.xls"), &xml).unwrap();
-    assert_product_setting(&reopened);
+    assertions::product_setting(&reopened);
     assertions::projections(&csv, &xml);
     if std::env::var_os("ALM_STRUCTURED_RETAIN").is_some() {
         println!("Structured replay evidence: {}", dir.display());
     } else {
         fs::remove_dir_all(dir).unwrap();
     }
-}
-
-fn assert_product_setting(store: &Store) {
-    let mut domain =
-        ConfirmationFixture::new(ProductId::new(90), 0, Money::from_minor_units(100)).unwrap();
-    assert!(
-        store
-            .apply_product_settings(Role::Manager, &mut domain)
-            .is_err()
-    );
-    store
-        .apply_product_settings(Role::Owner, &mut domain)
-        .unwrap();
-    let mut entry = domain
-        .begin_product_entry(Role::Owner, ProductId::new(91))
-        .unwrap();
-    entry.item = "Restored setting control".into();
-    domain.save_product_entry(Role::Owner, &entry).unwrap();
-    assert_eq!(
-        domain
-            .open_product_entry(Role::Owner, ProductId::new(91))
-            .unwrap()
-            .reorder_level,
-        Some(13)
-    );
 }

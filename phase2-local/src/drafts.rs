@@ -18,7 +18,8 @@ impl DraftId {
 }
 
 /// Identity of a product referenced by a draft line.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
 pub struct ProductId(u64);
 
 impl ProductId {

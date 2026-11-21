@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::{AccountScope, BusinessProfile, Records};
+use super::{AccountScope, BusinessProfile, HistoricalGst, Records};
 use crate::Role;
 use crate::confirmation::{ConfirmationFixture, ProductEntryError};
 
@@ -38,6 +38,8 @@ struct Archive {
     profile: BusinessProfile,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     scope: Option<AccountScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gst: Option<Vec<HistoricalGst>>,
 }
 
 fn owner(role: Role) -> Result<(), Error> {
@@ -52,6 +54,7 @@ pub struct Store {
     records: Records,
     profile: BusinessProfile,
     pub(super) scope: Option<AccountScope>,
+    pub(super) gst: Option<Vec<HistoricalGst>>,
 }
 
 impl Store {
@@ -64,6 +67,7 @@ impl Store {
                 records,
                 profile: BusinessProfile::default(),
                 scope: None,
+                gst: None,
             },
         )
     }
@@ -82,6 +86,27 @@ impl Store {
                 records,
                 profile: BusinessProfile::default(),
                 scope: Some(scope),
+                gst: None,
+            },
+        )
+    }
+
+    pub fn create_scoped_with_gst(
+        path: &Path,
+        role: Role,
+        records: Records,
+        scope: AccountScope,
+        gst: Vec<HistoricalGst>,
+    ) -> Result<Self, Error> {
+        owner(role)?;
+        Self::create_archive(
+            path,
+            Archive {
+                version: 1,
+                records,
+                profile: BusinessProfile::default(),
+                scope: Some(scope),
+                gst: Some(gst),
             },
         )
     }
@@ -99,6 +124,7 @@ impl Store {
             records: archive.records,
             profile: archive.profile,
             scope: archive.scope,
+            gst: archive.gst,
         })
     }
 
@@ -116,6 +142,7 @@ impl Store {
             records: archive.records,
             profile: archive.profile,
             scope: archive.scope,
+            gst: archive.gst,
         })
     }
 
@@ -140,6 +167,7 @@ impl Store {
             records: self.records.clone(),
             profile: self.profile.clone(),
             scope: self.scope.clone(),
+            gst: self.gst.clone(),
         })?)
     }
 
@@ -191,6 +219,7 @@ impl Store {
             records: records.clone(),
             profile: profile.clone(),
             scope: self.scope.clone(),
+            gst: self.gst.clone(),
         })?;
         let staging = self.path.with_extension("setting-stage");
         let mut file = OpenOptions::new()
