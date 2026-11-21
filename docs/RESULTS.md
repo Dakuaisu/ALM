@@ -1729,3 +1729,33 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 
 - [L09-RENAME-APP-e96c4fe-focused](../phase2-local/target/L09-RENAME-APP-e96c4fe-focused.log): 1 passed, 0 failed, 0 ignored, 272 filtered out.
 - [L09-RENAME-APP-e96c4fe-offline](../phase2-local/target/L09-RENAME-APP-e96c4fe-offline.log): 402 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+#### Receive Payment customer selection and ledger readback
+
+**L14-03 with scoped L14-01/02 ledger checks: PASS (development only)** at `b81c731179ab0e03b5aecd861d24db2ace516f9f`. The [offline replay](../phase2-local/tests/l14_receive_payment_replay.rs) models [focused input, suggestions, keyboard and pointer selection, and the missing-customer Save guard](../phase2-local/tests/l14_receive_payment_replay/picker.rs) from [L14-03](PHASE1_CASES.md#L393) and frozen HTML L1604–1665 and L5860–5959. With a valid amount and date, modeled Save passes the chosen typed ID directly to the existing Rust `record_customer_receipt`; the readback uses `customer_ledger` and `customer_due` on the synthetic fixture. No production code changed.
+
+| Modeled input and Save | Expected and observed selection and outcome |
+| --- | --- |
+| Padded `Solo Market` | Trimmed unique exact match resolved `solo` without a pick. A valid Cash request for 310 paise submitted as Manager returned `AccessDenied` from Rust without recording a receipt or changing the ledgers. |
+| Wrong-case `solo market` then Enter | `solo` was suggested, but no ID was selected. Save warned `Pick a customer`; zero receipt-writer calls. |
+| Exact duplicate `Twin Market` then Enter with no highlight | `twin-east` and `twin-west` were suggested, but neither was selected. Save warned `Pick a customer`; zero receipt-writer calls. |
+| Previously picked `twin-west`, then retyped padded duplicate and pressed Enter with no highlight | Typing cleared the stale selection; the same suggestions remained. Save warned `Pick a customer`; zero receipt-writer calls. |
+
+The two successful Owner paths started from independent copies. The existing bills were dated `2025-03-14`; the standalone receipts were dated `2025-03-17`. Amounts are exact paise. Each successful Save added one receipt row with zero debit and the shown credit, without editing the existing bill row.
+
+| Modeled pick | Expected ID / mode / credit | Observed Rust ID / mode / credit | Expected and observed closing before → after (delta) | Existing bill paid before → after |
+| --- | --- | --- | --- | --- |
+| Arrow Down then Enter on the first duplicate | `twin-east` / Online / 725 | `twin-east` / Online / 725 | 1675 → 950 (-725) | Invoice `1`: 325 → 325 |
+| Pointer on the second duplicate | `twin-west` / Cash / 430 | `twin-west` / Cash / 430 | 1490 → 1060 (-430) | Invoice `2`: 510 → 510 |
+
+The other duplicate and `solo` retained their complete ledger rows and closing balances in each Owner copy. All three rejected selection saves and the Manager attempt left all fixture ledger readbacks and posted bill totals unchanged.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_receive_payment_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-PAYMENT-b81c731-focused](../phase2-local/target/L14-PAYMENT-b81c731-focused.log): 3 passed, 0 failed, 0 ignored.
+- [L14-PAYMENT-b81c731-offline](../phase2-local/target/L14-PAYMENT-b81c731-offline.log): 405 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unchanged and unserved under OPEN-008. Browser keyboard, pointer and toast behavior were not run; the Rust receipt writes are local fixture evidence, not hosted authorization or browser parity.
