@@ -10,6 +10,7 @@ mod catalog;
 mod checkout;
 mod crate_templates;
 mod customer_accounts;
+mod customer_ageing;
 mod customer_opening;
 mod edit;
 pub(crate) mod estimate;
@@ -43,6 +44,7 @@ pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{
     CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, CustomerReceiptInput, ReceiptMode,
 };
+pub use customer_ageing::{AgeingBucket, AgeingReport, AgeingRow};
 pub use customer_opening::{OpeningBalance, OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};
 pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{

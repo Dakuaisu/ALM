@@ -6,6 +6,7 @@ mod bill_guard;
 mod cancellation;
 mod checkout_guard;
 mod customer_accounts;
+mod customer_ageing;
 mod edit;
 mod fifo;
 mod gst_action_replay;
