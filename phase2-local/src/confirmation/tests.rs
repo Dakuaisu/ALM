@@ -23,6 +23,7 @@ mod l06_02;
 mod l12_01;
 mod l12_02;
 mod l15_cashbook_numeric_replay;
+mod l16_monthly_reports_replay;
 mod multiline;
 mod named_payment;
 mod pending;
