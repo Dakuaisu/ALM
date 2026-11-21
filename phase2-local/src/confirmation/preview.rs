@@ -166,7 +166,11 @@ impl ConfirmationFixture {
         customer: &str,
         before: Option<u64>,
     ) -> Result<(i64, Option<BillDate>), ConfirmationError> {
-        let mut balance = 0_i64;
+        let opening = self.customer_openings.get(customer);
+        let mut balance = opening
+            .map(|value| value.amount)
+            .unwrap_or(Money::from_minor_units(0))
+            .minor_units();
         let mut date: Option<BillDate> = None;
         for (id, (review, receipt, _)) in &self.current_sales {
             let DraftCustomer::Selected { id: other, .. } = review.draft.customer() else {

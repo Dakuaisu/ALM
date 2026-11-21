@@ -1,6 +1,7 @@
 use super::{
     ConfirmationError, ConfirmationFixture, DraftId, Money, PreviewPayment, ProposedPayment, Role,
 };
+use super::{OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};
 use crate::{BillDate, DraftCustomer, DraftCustomerId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -77,6 +78,34 @@ impl ConfirmationFixture {
         role: Role,
         customer_id: &DraftCustomerId,
     ) -> Result<CustomerLedger, ConfirmationError> {
+        let ledger = self.customer_ledger_with_opening(role, customer_id)?;
+        let entries = ledger
+            .entries
+            .into_iter()
+            .filter_map(|entry| match entry.kind {
+                OpeningLedgerKind::Opening => None,
+                OpeningLedgerKind::Transaction(kind) => {
+                    entry.date.map(|date| CustomerLedgerEntry {
+                        date,
+                        kind,
+                        debit: entry.debit,
+                        credit: entry.credit,
+                        balance: entry.balance,
+                    })
+                }
+            })
+            .collect();
+        Ok(CustomerLedger {
+            entries,
+            closing: ledger.closing,
+        })
+    }
+
+    pub fn customer_ledger_with_opening(
+        &self,
+        role: Role,
+        customer_id: &DraftCustomerId,
+    ) -> Result<OpeningLedger, ConfirmationError> {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
@@ -108,13 +137,13 @@ impl ConfirmationFixture {
                 .ok_or(ConfirmationError::InvalidDraft)?;
             let paid = receipt.received.ok_or(ConfirmationError::InvalidDraft)?;
             rows.push((
-                (date.parts(), receipt.invoice, 0usize),
-                CustomerLedgerEntry {
-                    date,
-                    kind: CustomerLedgerKind::Bill {
+                (Some(date.parts()), 1u8, receipt.invoice, 0usize),
+                OpeningLedgerEntry {
+                    date: Some(date),
+                    kind: OpeningLedgerKind::Transaction(CustomerLedgerKind::Bill {
                         draft_id: *id,
                         invoice: receipt.invoice,
-                    },
+                    }),
                     debit: receipt.total,
                     credit: paid,
                     balance: Money::from_minor_units(0),
@@ -130,12 +159,29 @@ impl ConfirmationFixture {
             }
             let mode = payment.mode.ok_or(ConfirmationError::InvalidDraft)?;
             rows.push((
-                (payment.date.parts(), payment.after_invoice, index + 1),
-                CustomerLedgerEntry {
-                    date: payment.date,
-                    kind: CustomerLedgerKind::Receipt { mode },
+                (
+                    Some(payment.date.parts()),
+                    1u8,
+                    payment.after_invoice,
+                    index + 1,
+                ),
+                OpeningLedgerEntry {
+                    date: Some(payment.date),
+                    kind: OpeningLedgerKind::Transaction(CustomerLedgerKind::Receipt { mode }),
                     debit: Money::from_minor_units(0),
                     credit: payment.amount,
+                    balance: Money::from_minor_units(0),
+                },
+            ));
+        }
+        if let Some(opening) = self.customer_openings.get(customer_id.value()) {
+            rows.push((
+                (opening.date.map(|date| date.parts()), 0, 0, 0),
+                OpeningLedgerEntry {
+                    date: opening.date,
+                    kind: OpeningLedgerKind::Opening,
+                    debit: opening.amount,
+                    credit: Money::from_minor_units(0),
                     balance: Money::from_minor_units(0),
                 },
             ));
@@ -151,7 +197,7 @@ impl ConfirmationFixture {
             entry.balance = Money::from_minor_units(balance);
             entries.push(entry);
         }
-        Ok(CustomerLedger {
+        Ok(OpeningLedger {
             entries,
             closing: Money::from_minor_units(balance),
         })

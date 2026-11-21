@@ -10,6 +10,7 @@ mod catalog;
 mod checkout;
 mod crate_templates;
 mod customer_accounts;
+mod customer_opening;
 mod edit;
 pub(crate) mod estimate;
 mod estimate_view;
@@ -42,6 +43,7 @@ pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{
     CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, CustomerReceiptInput, ReceiptMode,
 };
+pub use customer_opening::{OpeningBalance, OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};
 pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
@@ -159,6 +161,7 @@ pub struct ConfirmationFixture {
     ledger: i64,
     received_ledger: i64,
     customer_balances: BTreeMap<String, i64>,
+    customer_openings: BTreeMap<String, customer_opening::StoredOpening>,
     next_invoice: u64,
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
@@ -210,6 +213,7 @@ impl ConfirmationFixture {
             ledger: 0,
             received_ledger: 0,
             customer_balances: BTreeMap::new(),
+            customer_openings: BTreeMap::new(),
             next_invoice: 1,
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),

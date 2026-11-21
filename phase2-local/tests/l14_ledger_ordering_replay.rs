@@ -10,6 +10,9 @@ use alm_phase2_local::{
     ProvisionalDraft, Role,
 };
 
+#[path = "l14_opening_balance_replay/opening_actual.rs"]
+mod opening_actual;
+
 const CUSTOMER_CREATED: &str = "2025-02-11T00:15:00+05:30";
 const FEB9: &str = "2025-02-09";
 const FEB10: &str = "2025-02-10";
@@ -160,8 +163,7 @@ fn l14_source_ledger_date_order_differs_from_estimate_creation_order() {
     println!("L14 source model B2 (p): as-on={as_on}, row={b2_row}, latest={latest}");
 }
 
-#[test]
-fn l14_rust_preview_uses_posting_order_when_receipt_is_backdated() {
+fn rust_fixture() -> (ConfirmationFixture, DraftCustomerId, DraftId, DraftId) {
     // Given: a zero-start public fixture, without opening data or caller-set timestamps.
     let feb9: BillDate = FEB9.parse().unwrap();
     let feb10: BillDate = FEB10.parse().unwrap();
@@ -170,7 +172,7 @@ fn l14_rust_preview_uses_posting_order_when_receipt_is_backdated() {
     let product = ProductId::new(1);
     let b1 = DraftId::new(20);
     let b2 = DraftId::new(10); // Inverted draft IDs distinguish key order from invoice order.
-    let mut fixture = ConfirmationFixture::new(product, 2, money(10_000)).unwrap();
+    let mut fixture = ConfirmationFixture::new(product, 3, money(10_000)).unwrap();
     let receipt = |date, amount, mode| CustomerReceiptInput {
         customer_id: customer_id.clone(),
         date,
@@ -209,6 +211,16 @@ fn l14_rust_preview_uses_posting_order_when_receipt_is_backdated() {
     fixture
         .record_customer_receipt(Role::Owner, receipt(feb9, 1_000, ReceiptMode::Cash))
         .unwrap();
+
+    (fixture, customer_id, b1, b2)
+}
+
+#[test]
+fn l14_rust_preview_uses_posting_order_when_receipt_is_backdated() {
+    let (fixture, customer_id, b1, b2) = rust_fixture();
+    let feb9: BillDate = FEB9.parse().unwrap();
+    let feb10: BillDate = FEB10.parse().unwrap();
+    let money = Money::from_minor_units;
 
     // Then: the ledger is document-date ordered; the preview is bounded by posting order.
     let ledger = fixture.customer_ledger(Role::Owner, &customer_id).unwrap();
