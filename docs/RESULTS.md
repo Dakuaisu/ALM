@@ -1860,3 +1860,27 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 
 - [L02-AGEING-22cc57b-focused](../phase2-local/target/L02-AGEING-22cc57b-focused.log): 2 passed, 0 failed, 0 ignored.
 - [L02-AGEING-22cc57b-offline](../phase2-local/target/L02-AGEING-22cc57b-offline.log): 415 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+#### Opening balances and ageing without sales
+
+**L02-04 / L14-04: PASS (local Rust development)** at `a03f4daac8e745a7414b0c105ab37ec96d124d81`. The [application replay](../phase2-local/src/confirmation/tests/customer_ageing_checks.rs) registered `registered-target` and `registered-other` through the Owner API, with neither bills nor receipts. The opening save and ledger read now recognize those IDs without a sale. Ageing includes registered IDs alongside IDs already known from sales, counting an ID in both sources only once. This extends the earlier [sold-customer replay](#customer-ageing-with-saved-opening-balances) without changing its scope or the ageing threshold.
+
+| Owner opening replacement for `registered-target` (paise) | Expected and observed exact ledger closing and current due (paise) | Expected and observed ageing |
+| --- | ---: | --- |
+| +51 | 51 | Exactly one undated `Old` row for `registered-target`, age 999, due 51, with no draft or invoice ID |
+| +50 | 50 | No visible rows; all bucket totals zero |
+| -125 | -125 (credit) | No visible rows; all bucket totals zero |
+
+The opening-aware ledger retained the saved date `2024-03-01` and the signed debit with zero receipt credit. Ageing on `2024-03-31` treated the opening as undated. The transaction-only ledger had no entries. `registered-other` stayed at zero with an empty ledger; the saves created no sale or receipt and left billing stock and the invoice counter unchanged.
+
+A known empty ID returned a zero ledger; the unknown ID `unknown` returned `InvalidDraft` on both ledger reads and on opening save. Manager registration, opening save, ledger and ageing calls returned `AccessDenied`, with no payload or mutation. Registration alone still did not authorize a standalone receipt. The sold-ID deduplication control returned a single row, and the previous ageing tests passed unchanged.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib customer_ageing -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-NOSALE-a03f4da-focused](../phase2-local/target/L02-NOSALE-a03f4da-focused.log): 5 passed, 0 failed, 0 ignored, 273 filtered out.
+- [L02-NOSALE-a03f4da-offline](../phase2-local/target/L02-NOSALE-a03f4da-offline.log): 418 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+This is an in-memory, ID-only application replay, not a customer editor, durable store or hosted authorization check. The frozen HTML remained unchanged and unserved under OPEN-008; browser parity and accounting acceptance remain open.
