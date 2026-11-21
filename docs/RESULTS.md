@@ -801,3 +801,27 @@ The manual Godown row for A reopened at 31 cases, then at 47 after the edit. Bil
 - **B-OFFLINE:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (314 passed, 0 failed, 2 ignored). All-target offline Clippy with `-D warnings` and formatting also passed.
 - **Blocked:** OPEN-009 remains OWNER-BLOCKED. LSP diagnostics timed out; no analyzer result is claimed.
 - **Not run by this replay:** PO completion, template edit/delete, sale cancellation or shortage, production location/date attribution, undated receipt fallback, or restart of the in-memory purchasing fixture. The contained legacy walkthrough, hosted and device checks, migration, and cutover were not run. No acceptance or phase exit is claimed. `BillDate`, both paste-mismatch thresholds, and the approved contract and gates were unchanged.
+
+### Milestone C: Bill history to accounts
+
+**C-BILL-REPLAY (development, PASS):** [Local Rust integration replay](../phase2-local/tests/milestone_c_replay.rs) on the development Mac at `aa220fad0d85c3ca50c71919b0054b3af2a3a031` (account projections `fcc273a`). Reused A's explicit synthetic Owner confirmation pattern and B's reverse-entry dated PO receipts. All amounts are minor units; A/B stock is in billing packets. Independent expected values matched the observed values below for synthetic invoice 1, dated 2025-02-21.
+
+| Checkpoint | Saved invoice total / bill paid | GST taxable / tax | Active sales / bill-paid ledger | Udhaar closing balance | Cash Book Feb 21 Cash / Mar 1 Online | FIFO A / B; remaining value |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Before confirmation | No invoice | No invoice | 0 / 0 | 0 (customer ledger not yet available) | 0 / 0 | 4 / 2; 32,000 |
+| Posted | 23,600 / 10,000 | 20,000 / 3,600 | 23,600 / 10,000 | 13,600 | 10,000 / 0 | 2 / 2; 19,000 |
+| Separate Online receipt | 23,600 / 10,000 | 20,000 / 3,600 | 23,600 / 10,000 | 8,600 | 10,000 / 5,000 | 2 / 2; 19,000 |
+| Edited | 41,000 / 10,000 | 35,000 / 6,000 | 41,000 / 10,000 | 26,000 | 10,000 / 5,000 | 2 / 1; 16,500 |
+| Cancelled | 41,000 / 10,000 (archived) | 35,000 / 6,000 (marked cancelled) | 0 / 0 | -5,000 advance | 0 / 5,000 | 4 / 2; 32,000 |
+
+The original two A packets at 11,800 consumed A's Feb 19 lot at 6,000 and one from the Feb 20 lot at 7,000. Editing repriced the retained line to 17,700 per packet and appended one B at 5,600; the edit consumed one B from Feb 20 at 2,500, without consuming A again. Cancellation restored every original lot and left the separate 5,000 receipt as the only live customer credit. Sales CSV retained both edited lines marked `CANCELLED` with the original invoice identity and date. GST kept the saved document and cancellation marker: original CGST/SGST 1,800 each; edited and cancelled 3,000 each, with the appended product in its own HSN group.
+
+Estimate As on bill date/Latest was 13,600/13,600 after posting, 13,600/8,600 after the separate receipt, 31,000/26,000 after edit, and 31,000/-5,000 after cancellation. The estimate's Print and Save as PDF intents were captured in memory only. Manager calls to restricted history/CSV, profit, GST, estimate, account and Cash Book methods returned typed denials, with no restricted output; denied writes preserved the compared Owner readbacks. Trusted fixture observers are not exposed by the provisional Manager launcher. These checks do not attest to hosted authentication or staff-device data isolation.
+
+**Case dispositions:** [L03-02, L04-01, L04-02, L05-01 and L05-02](PHASE1_CASES.md#L137): ordinary part-paid bill, current invoice readback, edit, cancel, and inert estimate slices passed. [L06-01](PHASE1_CASES.md#L145): ordinary intra-state GST renderer slice passed. [L11-01](PHASE1_CASES.md#L237): dated depletion and restoration passed. [L14-01](PHASE1_CASES.md#L243): separate receipt and customer ledger slice passed. [L15-01](PHASE1_CASES.md#L245): dated Cash Book system comparison slice passed. No complete legacy case or phase exit is asserted.
+
+- **C-BILL-REPLAY:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_c_replay -- --nocapture` (1 passed, 0 failed).
+- **C-ACCOUNTS:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml customer_accounts` (8 passed, 0 failed), including backdated receipt ordering, signed rounding, and denial/invalid/overflow atomicity.
+- **C-OFFLINE:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (323 passed, 0 failed, 2 ignored). Formatting, all-target offline Clippy with `-D warnings`, and offline build passed.
+- **Blocked:** OPEN-009 remains OWNER-BLOCKED. LSP diagnostics timed out; no analyzer pass is claimed. `BillDate` and both paste-mismatch thresholds were unchanged.
+- **Not run by this replay:** Online payment made on a bill (the synthetic ordinary bill path is Cash), manual Cash Book entry and monthly reports, full date-filtered Sales history, cancel undo, actual print/PDF/share, and broad rounding parity. The legacy walkthrough, hosted, device, accounting acceptance, migration, and cutover checks remain unrun and gated.
