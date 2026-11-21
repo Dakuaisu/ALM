@@ -914,3 +914,27 @@ cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/appl
 - **D-PREF-ec56ac6-focused:** [Transcript](../phase2-local/target/D-PREF-ec56ac6-focused.log): 1 passed, 0 failed, 0 ignored.
 - **D-PREF-ec56ac6-offline:** [Transcript](../phase2-local/target/D-PREF-ec56ac6-offline.log): 330 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Installed UI, browser storage behavior and legacy runtime parity, system theme detection, visual masking and reveal controls, actual device output, and hosted authorization. No acceptance is claimed. OPEN-009 remains owner-blocked and did not block this replay.
+
+#### Clear All versus JSON restore with split writes
+
+**D-CLEAR-f01c338 (development, scoped PASS).** Tested `f01c33865eb2bfccaf09ca60eca7859d8159d42e` on the development Mac. The [replay](../phase2-local/tests/clear_restore_replay.rs) models [L18-02 and L19-01](PHASE1_CASES.md#clear-all-data-versus-json-restore-not-run) using independent disposable fixtures, file-backed stand-ins for the localStorage mirror and IndexedDB primary, and no transport adapters. Expectations come from the frozen [clear handler](../ALM_Business_Manager.html#L9392), [save and reload logic](../ALM_Business_Manager.html#L684), and [restore handler](../ALM_Business_Manager.html#L10029).
+
+| Scenario | Expected and observed immediate state | Expected and observed slot contents before reopen (mirror / primary) | Expected and observed selection |
+| --- | --- | --- | --- |
+| Decline Clear All | Populated revision 9 and prior activity; no writes attempted | Populated 9 / populated 9 | Populated mirror 9 |
+| Confirm; both writes accepted | Cleared revision 1; only `clear` activity | Cleared 1 / cleared 1 | Cleared mirror 1 |
+| Confirm; mirror accepts, primary rejects | Cleared revision 1; only `clear` activity | Cleared 1 / populated 9 | Older populated primary 9; separately, the modeled successful follow-up saved populated revision 10 to both slots |
+| Confirm; primary accepts, mirror rejects | Cleared revision 1; only `clear` activity | Populated 9 / cleared 1 | Older populated mirror 9 |
+| Restore marked JSON; both writes accepted | Imported revision 3 advanced to 4, not from outgoing 9; imported history plus `restore` | Imported 4 / imported 4 | Imported mirror 4 |
+| Equal-revision control, distinct payloads | Not an action; reload selection only | Cleared 7 / populated 7 | Cleared mirror 7; no modeled follow-up write |
+
+The cleared payload matched a separately created fresh archive: no products or stock rows, customers, sales, or receipts; reorder default 5 and default business profile. The JSON restore used a file with distinct marked records and profile, including imported reorder default 27 instead of outgoing 11. Dark theme, privacy masking, and latest balance reopened from separate preference files after each action scenario. The typed Rust archive handled the supported records and profile; the test harness modeled revision, activity, write rejection and reload selection. The immediate cleared state did not prove durable deletion.
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test clear_restore_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-CLEAR-f01c338-focused:** [Transcript](../phase2-local/target/D-CLEAR-f01c338-focused.log): 2 passed, 0 failed, 0 ignored.
+- **D-CLEAR-f01c338-offline:** [Transcript](../phase2-local/target/D-CLEAR-f01c338-offline.log): 332 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual browser storage, asynchronous save timing, confirmation UI, legacy runtime parity, full legacy JSON migration, sync watermarks, and backup-folder handles. No remote deletion, migration, or acceptance evidence is claimed. OPEN-009 remains owner-blocked and independent.
