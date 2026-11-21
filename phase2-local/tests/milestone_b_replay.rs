@@ -10,6 +10,8 @@ use alm_phase2_local::{
     ProvisionalDraft, Role, SaleUnit,
 };
 
+#[path = "milestone_b_replay/l07_03.rs"]
+mod l07_03;
 #[path = "milestone_b_replay/purchasing.rs"]
 mod purchasing;
 use purchasing::{receive_partials, save_planned_order};
