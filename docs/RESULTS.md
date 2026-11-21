@@ -1759,3 +1759,34 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-PAYMENT-b81c731-offline](../phase2-local/target/L14-PAYMENT-b81c731-offline.log): 405 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unchanged and unserved under OPEN-008. Browser keyboard, pointer and toast behavior were not run; the Rust receipt writes are local fixture evidence, not hosted authorization or browser parity.
+
+#### Customer ledger UTC opening date and estimate ordering
+
+**L14-01 / L14-04 with L05-01 estimate comparison: PASS (development only)** at `067559bf436cae0a9026c7c7fe69913e5bddd8c7`. The [offline replay](../phase2-local/tests/l14_ledger_ordering_replay.rs) follows the [ledger-ordering case](PHASE1_CASES.md#L487) and frozen HTML L4322–4334 and L7367–7411. The test-only timestamp model converted the synthetic Asia/Kolkata creation instant `2025-02-11T00:15:00+05:30` to `2025-02-10T18:45:00Z`; the opening row was dated `2025-02-10`. With `created` absent on a separate copy, the opening date was blank. No browser timezone or host clock was used.
+
+The synthetic account had a modeled opening debit of 2000 paise. B1 and B2 each debited 10000 paise and credited their original paid amounts of 2000 and 1000. Standalone receipts R1, R2 and R3 credited 3000, 400 and 1000 paise respectively. Transaction creation order was B1, R1, B2, R2, R3, at successive UTC minutes from `2025-02-10T19:00:00Z` through `19:04:00Z`. Model input order was B2, B1, R3, R2, R1. R3 was posted last but dated February 9, before the dated opening.
+
+| Path | Expected and observed rows in order (`ID / document date / running paise`) |
+| --- | --- |
+| Source model, UTC-dated opening | `R3 / 2025-02-09 / -1000`, `opening / 2025-02-10 / 1000`, `B1 / 2025-02-10 / 9000`, `R1 / 2025-02-10 / 6000`, `B2 / 2025-02-10 / 15000`, `R2 / 2025-02-10 / 14600` |
+| Source model, absent `created` | `opening / blank / 2000`, `R3 / 2025-02-09 / 1000`, `B1 / 2025-02-10 / 9000`, `R1 / 2025-02-10 / 6000`, `B2 / 2025-02-10 / 15000`, `R2 / 2025-02-10 / 14600` |
+| Existing Rust `customer_ledger`, zero-start fixture | `R3 / 2025-02-09 / -1000`, `B1 / 2025-02-10 / 7000`, `R1 / 2025-02-10 / 4000`, `B2 / 2025-02-10 / 13000`, `R2 / 2025-02-10 / 12600` |
+
+The dated opening was not pinned ahead of R3. On February 10 the modeled rows followed creation order, not input order or bill/receipt grouping. The Rust fixture posted the same transactions for `l14-customer` through existing bill confirmation and receipt APIs. B1 was draft `20` / invoice `1`; B2 was draft `10` / invoice `2`. R1/R2/R3 are fixture labels identified in Rust readback by date, mode and amount, not returned receipt IDs. Rust uses invoice and receipt posting order as tie-breakers and has no opening-row or legacy creation-timestamp input on this path.
+
+| Reopened B2 estimate | Expected bill-date / B2 running row / latest (paise) | Observed |
+| --- | --- | --- |
+| Source model with opening debit, strict creation cutoff | 16000 / 15000 / 14600 | 16000 / 15000 / 14600 |
+| Rust `bill_preview` modes, zero-start fixture | 14000 / 13000 / 12600 | 14000 / 13000 / 12600 |
+
+R3 reduced the running balance before B2's row by document date but did not enter B2's bill-date estimate because it was created or posted later. Latest included both R2 and R3. The Rust readback exercised the estimate preview API, not a rendered estimate window.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_ledger_ordering_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-ORDER-067559b-focused](../phase2-local/target/L14-ORDER-067559b-focused.log): 3 passed, 0 failed, 0 ignored.
+- [L14-ORDER-067559b-offline](../phase2-local/target/L14-ORDER-067559b-offline.log): 408 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unchanged and unserved under OPEN-008. Browser ordering and estimate rendering remain not run; this is not browser parity or accounting acceptance.
