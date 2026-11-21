@@ -1648,3 +1648,56 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-RENAME-dba9932-offline](../phase2-local/target/L14-RENAME-dba9932-offline.log): 400 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unchanged and unserved under OPEN-008. No sync request, hosted merge, browser persistence, or cloud rebuild was run. This does not establish browser parity, deployed convergence, or accounting acceptance.
+
+#### Supplier rename snapshot and local delta merge
+
+**L09-05: PASS (development only)** at `0e3f55b890c4f079817d7503e85fe7201a357ae9`. One [offline replay](../phase2-local/tests/l09_05_supplier_rename_replay/assertions.rs) exercised the [test-only source model](../phase2-local/tests/l09_05_supplier_rename_replay/model.rs), traced to [L09-05](PHASE1_CASES.md#L364) and frozen HTML L757–774, L10483–10498 and L9451–9562. The frozen supplier Save branch rejects blank input but has no duplicate-name guard. The model rejected blank input without mutation and accepted ` Target ` even though `s2` already had that name. Zero, null and duplicate-column states were seeded inputs, not created through an editor. No legacy editor or Rust application rename or sync path ran.
+
+**Save and decoded full fixture snapshot.** Stamps are `(_m, _v, _d)`. Each copy's snapshot was serialized and decoded independently of its unsent payload. Expected and observed matched throughout.
+
+| Record ID | Expected and observed name before → after | Expected and observed stamp before → after |
+| --- | --- | --- |
+| Supplier `s1` | `Old` → `Target` | `(90, 2, seed)` → `(200, 3, sender)` |
+| Supplier `s2` | `Target` unchanged | `(91, 1, seed)` unchanged |
+| Purchase `p1` and PO `o1` | `Old` → `Target`; `supId=other` unchanged | `(_m, 3, seed)` unchanged; `_m` is 99, 100 or 101 per copy |
+| Purchase `p2` and PO `o2` | `old` unchanged despite `supId=s1` | `(99, 3, seed)` unchanged |
+
+Only `s1` received a new stamp. `meta.rev` advanced from 7 to 8 while its stamp `(90, 2, seed)` stayed unchanged. The exact-name rewrite and first-occurrence deduplication changed raw `priceSuppliers` from `[Target, Old, Other, Old, other, Other]` to `[Target, Other, other]`; the `Other`/`other` case distinction remained.
+
+| Product ID | Quotes before (`Old` / `Target`) | Expected quotes after | Observed quotes after |
+| --- | --- | --- | --- |
+| `missing-target` | 11 / absent | `Target: 11`, no `Old` | `Target: 11`, no `Old` |
+| `null-target` | 12 / null | `Target: 12`, no `Old` | `Target: 12`, no `Old` |
+| `existing-target` | 13 / 44 | `Target: 44`, no `Old` | `Target: 44`, no `Old` |
+| `zero-target` | 14 / 0 | `Target: 0`, no `Old` | `Target: 0`, no `Old` |
+| `null-old` | null / 55 | `Old: null`, `Target: 55` | `Old: null`, `Target: 55` |
+
+Product stamps were unchanged: `missing-target` kept `(_m, 3, seed)` at the tested cutoff position, and the other products kept `(99, 3, seed)`.
+
+**Unsent payload.** `pushedM=100` on independent copies. `priceSuppliers` was absent from every payload; the revision increase alone did not include `meta` either.
+
+| `_m` of `o1`, `p1` and `missing-target` | Expected and observed ordered payload collection/IDs |
+| --- | --- |
+| 99 | `suppliers/s1` |
+| 100 | `suppliers/s1` |
+| 101 | `purchaseOrders/o1`, `purchases/p1`, `products/missing-target`, `suppliers/s1` |
+
+At 101, the three dependents were already eligible before Save with the old labels and quote. After Save they carried the updated values with unchanged nested stamps `(101, 3, seed)` and matching outer envelope fields.
+
+**Local model receiver.** On every fresh receiver, `s1` became `Target` at `(200, 3, sender)`. The raw list remained `[Target, Old, Other, Old, other, Other]`, and controls and untransmitted quote maps stayed at receiver seed values.
+
+| Decoded input | Expected and observed dependent result for `o1`, `p1`, `missing-target` |
+| --- | --- |
+| Supplier only, with local dependents `(50, 3, seed)` or `(300, 2, seed)` | No replacement: labels stayed `Old`, quote stayed `Old: 11`, and local stamps stayed unchanged |
+| Full payload; incoming version 3 equals local version 3 at `_m=50` | All three rejected despite incoming `_m=101`: labels and quote stayed old at `(50, 3, seed)` |
+| Full payload; incoming version 3 exceeds local version 2 at `_m=300` | All three replaced despite incoming `_m=101` being older: labels became `Target`, quote became `Target: 11` with no `Old`, and stamps became `(101, 3, seed)` |
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l09_05_supplier_rename_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L09-RENAME-0e3f55b-focused](../phase2-local/target/L09-RENAME-0e3f55b-focused.log): 1 passed, 0 failed, 0 ignored.
+- [L09-RENAME-0e3f55b-offline](../phase2-local/target/L09-RENAME-0e3f55b-offline.log): 401 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
+
+No sync request was sent. The frozen HTML remained unchanged and unserved under OPEN-008. This replay does not establish browser persistence, deployed convergence, or accounting acceptance.
