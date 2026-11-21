@@ -869,3 +869,27 @@ Artifacts: [structured-d-61325-1795245908991209000](../phase2-local/target/struc
 - **D-STRUCTURED-190ee03-focused:** [Transcript](../phase2-local/target/D-STRUCTURED-190ee03-focused.log): 10 passed, 0 failed, 0 ignored, including the existing SQLite archive regression in the default non-raster path. An initial invocation selected the nonexistent `product_entry` target and ran no tests; the corrected target was `l09_product_entry`.
 - **D-STRUCTURED-190ee03-offline:** [Transcript](../phase2-local/target/D-STRUCTURED-190ee03-offline.log): 328 passed, 0 failed, 2 ignored (subprocess worker entry points). `cargo fmt --check`, offline locked all-target Clippy with `-D warnings`, and offline locked build passed. Rust editor diagnostics timed out; no LSP pass is claimed.
 - **Not run / blocked:** Frozen legacy runtime and pixel parity, actual WhatsApp/print/PDF/clipboard delivery, installed-device checks, hosted access and authorization, and protected-data recovery were not run. No owner or accounting acceptance, migration result, or cutover approval is claimed. OPEN-009 remains OWNER-BLOCKED and did not block this run; `BillDate` and both mismatch thresholds were unchanged.
+
+#### Business identity save and output recovery
+
+**D-L18-04-757e119 (development, scoped PASS).** Tested `757e119268b2ebf96fe2094abe0c36bb86726924` on the development Mac. The [single replay](../phase2-local/tests/l18_04.rs) used synthetic FSSAI `F<&`, business GSTIN `G<&`, and a distinct synthetic buyer GSTIN. Expectations are from [L18-04](PHASE1_CASES.md#rename-cascades-and-other-source-order-cases) and frozen source: [estimate HTML](../ALM_Business_Manager.html#L4285), [canvas](../ALM_Business_Manager.html#L4576), [GST invoice](../ALM_Business_Manager.html#L5076), and [settings save](../ALM_Business_Manager.html#L9082).
+
+| Saved profile variant | Expected and observed in estimate HTML and fallback draw calls | Observed in GST business header |
+| --- | --- | --- |
+| Both flags unset; FSSAI on/GSTIN off | FSSAI only | Both identifiers |
+| FSSAI off/GSTIN unset; both off | Neither | Both identifiers |
+| FSSAI unset/GSTIN on; both on | FSSAI then GSTIN | Both identifiers |
+| Empty FSSAI, both flags on | GSTIN only | GSTIN; no FSSAI row |
+| Empty GSTIN, both flags on | FSSAI only | FSSAI and an empty `GSTIN/UIN:` field |
+| Both values empty | Neither | No FSSAI row; empty `GSTIN/UIN:` field |
+
+For each variant, saved through the local Owner settings service, dropped and reopened the source store, backed up, then restored to a fresh local file and reopened without reseeding the settings. The replay compared generated estimate HTML, ordered literal canvas identity draw calls, and standalone GST business-header markup before and after restore. Markup escaped the synthetic values, an HTML image success skipped the canvas fallback, and the GST header did not substitute the buyer GSTIN. The local profile stamp advanced on save and survived restore; prior archives without a profile loaded the default. Manager identity save and read were denied. This did not restore posting authority or render a complete GST invoice document.
+
+```sh
+cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l18_04 -- --nocapture
+cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-L18-04-757e119-focused:** [Transcript](../phase2-local/target/D-L18-04-757e119-focused.log): 1 passed, 0 failed, 0 ignored. Final replay files were confined to a disposable repository `target` directory. An earlier development run used the OS temporary directory before the test path was corrected; it is not the cited run.
+- **D-L18-04-757e119-offline:** [Transcript](../phase2-local/target/D-L18-04-757e119-offline.log): 329 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out. [DEC-023](DECISIONS.md#dec-023-use-the-standard-rust-json-serializer-for-local-recovery) pins `serde` with `derive` at `1.0.229` and `serde_json` at `1.0.154`; `Cargo.lock` was unchanged.
+- **Not run / blocked:** Installed Settings UI, legacy runtime and pixel parity, actual raster or device delivery, hosted access, and acceptance were not run. OPEN-009 remains owner-blocked and independent.
