@@ -113,6 +113,7 @@ impl ConfirmationFixture {
             terms_revision: self.terms_revision,
             prices: vec![rate],
             payment: ProposedPayment::Named(received),
+            payment_mode: super::super::ReceiptMode::Cash,
             checkout: Some(CheckoutTerms {
                 lines: Vec::new(),
                 loading_rate: self.loading_rate,

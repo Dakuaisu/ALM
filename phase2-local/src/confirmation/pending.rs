@@ -83,6 +83,7 @@ impl SalesSession<'_> {
 mod cash_snapshot;
 mod checkout_snapshot;
 mod crate_snapshot;
+mod online_snapshot;
 
 fn hex(text: &str) -> String {
     use std::fmt::Write;
@@ -133,9 +134,13 @@ pub(super) fn encode(review: &Review) -> String {
         Some(date) => format!("6|{date}|{payload}"),
         None => payload,
     };
-    match review.payment {
+    let encoded = match review.payment {
         ProposedPayment::WalkInCash(received) => format!("7|{}|{dated}", received.minor_units()),
         ProposedPayment::Legacy | ProposedPayment::Named(_) => dated,
+    };
+    match review.payment_mode {
+        super::ReceiptMode::Cash => encoded,
+        super::ReceiptMode::Online => format!("8|{encoded}"),
     }
 }
 
@@ -177,19 +182,16 @@ fn encode_undated(review: &Review) -> String {
 }
 
 pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
+    if let Some(payload) = snapshot.strip_prefix("8|") {
+        return online_snapshot::decode(payload);
+    }
     if let Some(cash) = snapshot.strip_prefix("7|") {
         return cash_snapshot::decode(cash);
     }
     let Some(dated) = snapshot.strip_prefix("6|") else {
         return decode_undated(snapshot);
     };
-    let (date, payload) = dated
-        .split_once('|')
-        .ok_or(DraftStorageError::InvalidOutput)?;
-    let date = date.parse().map_err(|_| DraftStorageError::InvalidOutput)?;
-    let mut review = decode_undated(payload)?;
-    review.draft = review.draft.with_bill_date(Some(date));
-    Ok(review)
+    online_snapshot::decode_dated(dated)
 }
 
 fn decode_undated(snapshot: &str) -> Result<Review, DraftStorageError> {
@@ -264,6 +266,7 @@ fn decode_undated(snapshot: &str) -> Result<Review, DraftStorageError> {
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
         prices,
         payment,
+        payment_mode: super::ReceiptMode::Cash,
         checkout: None,
         crate_packs: None,
     })

@@ -92,6 +92,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,
         prices: vec![rate],
         payment: ProposedPayment::Named(amount(received)?),
+        payment_mode: crate::confirmation::ReceiptMode::Cash,
         checkout: Some(CheckoutTerms {
             lines: Vec::new(),
             loading_rate: amount(loading)?,

@@ -27,9 +27,7 @@ pub struct CashBookDay {
 impl ConfirmationFixture {
     /// Projects the system totals for one document date in this trusted fixture.
     ///
-    /// Supported Named bill payments are classified as Cash: this simulation has
-    /// no Online bill-payment mode, so this is not full legacy Cash Book parity.
-    /// Standalone receipts use their explicitly recorded Cash or Online mode.
+    /// Named bill payments and standalone receipts use their selected mode.
     /// This role-scoped projection is not authentication or a Manager surface.
     ///
     /// # Errors
@@ -75,7 +73,7 @@ impl ConfirmationFixture {
                         draft_id: *id,
                         invoice: receipt.invoice,
                     },
-                    mode: ReceiptMode::Cash,
+                    mode: review.payment_mode,
                     amount: paid,
                 });
             }

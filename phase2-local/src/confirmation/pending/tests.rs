@@ -46,6 +46,7 @@ fn snapshot_round_trips_customer_variants_and_ordered_lines() {
             terms_revision: 39,
             prices: vec![Money::from_minor_units(223), Money::from_minor_units(456)],
             payment: ProposedPayment::Legacy,
+            payment_mode: crate::confirmation::ReceiptMode::Cash,
             checkout: None,
             crate_packs: None,
         };
@@ -87,5 +88,41 @@ fn l03_03_v6_rejects_invalid_dates_and_nested_or_missing_payloads() {
             decode(&snapshot),
             Err(DraftStorageError::InvalidOutput)
         ));
+    }
+}
+
+#[test]
+fn named_online_snapshot_round_trips_and_legacy_named_defaults_to_cash() {
+    let payload = "6|2024-02-29|3|43|2|3|125|2,61,62|1,12|100";
+    let cash = decode(payload).unwrap();
+    assert_eq!(cash.payment_mode(), crate::confirmation::ReceiptMode::Cash);
+    assert_eq!(encode(&cash), payload);
+    let online = decode(&format!("8|{payload}")).unwrap();
+    assert_eq!(
+        online.payment_mode(),
+        crate::confirmation::ReceiptMode::Online
+    );
+    assert_ne!(online, cash);
+    assert_eq!(decode(&encode(&online)).unwrap(), online);
+    for invalid in [
+        "8|8|3|43|2|3|125|2,61,62|1,12|100",
+        "8|2|43|2|3|125|1,,62|1,12",
+        "8|3|43|2|3|125|1,,62|1,12|100",
+        "8|9|anything",
+    ] {
+        assert!(decode(invalid).is_err());
+    }
+}
+
+#[test]
+fn online_snapshot_rejects_undated_and_invalid_named_payments() {
+    for invalid in [
+        "8|3|43|2|3|125|2,61,62|1,1|100",
+        "8|6|2024-02-29|3|43|2|3|125|2,61,62|1,1|-1",
+        "8|6|2024-02-29|3|43|2|3|125|2,61,62|1,1|126",
+        "8|6|2024-02-29|3|43|2|3|125|2,,62|1,1|100",
+        "8|6|2024-02-29|3|43|2|3|125|2,61,|1,1|100",
+    ] {
+        assert!(decode(invalid).is_err(), "accepted {invalid}");
     }
 }

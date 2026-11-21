@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, Review, Role};
+use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, ReceiptMode, Review, Role};
 use crate::DraftCustomer;
 use crate::ProvisionalDraft;
 
@@ -19,6 +19,10 @@ impl Review {
 
     pub const fn payment(&self) -> ProposedPayment {
         self.payment
+    }
+
+    pub const fn payment_mode(&self) -> ReceiptMode {
+        self.payment_mode
     }
 }
 
@@ -49,6 +53,22 @@ impl ConfirmationFixture {
         review.payment = ProposedPayment::Named(received);
         let total = review.amounts()?.total.minor_units();
         stage(&review, total, &BTreeMap::new())?;
+        Ok(review)
+    }
+
+    /// Selects a payment mode for a regular named bill after Owner validation.
+    pub fn review_named_with_mode(
+        &self,
+        role: Role,
+        id: DraftId,
+        received: Money,
+        mode: ReceiptMode,
+    ) -> Result<Review, ConfirmationError> {
+        let mut review = self.review_named(role, id, received)?;
+        if review.draft.crate_row().is_some() {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        review.payment_mode = mode;
         Ok(review)
     }
 

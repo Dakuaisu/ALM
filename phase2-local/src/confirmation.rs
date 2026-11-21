@@ -110,6 +110,7 @@ pub struct Review {
     terms_revision: u64,
     prices: Vec<Money>,
     payment: ProposedPayment,
+    payment_mode: ReceiptMode,
     checkout: Option<CheckoutTerms>,
     crate_packs: Option<Vec<NonZeroU32>>,
 }
@@ -291,6 +292,7 @@ impl ConfirmationFixture {
             terms_revision: self.terms_revision,
             prices,
             payment: ProposedPayment::Legacy,
+            payment_mode: ReceiptMode::Cash,
             checkout: None,
             crate_packs: None,
         })

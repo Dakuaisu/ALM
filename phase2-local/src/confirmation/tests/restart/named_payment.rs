@@ -1,4 +1,5 @@
 use super::*;
+use crate::confirmation::ReceiptMode;
 use crate::{DraftCustomer, DraftCustomerId};
 
 #[test]
@@ -32,7 +33,12 @@ fn named_payment_survives_sqlite_process_restart_and_lost_response() {
     let approved = OwnerRequest {
         id: RequestId::new(987),
         review: authority
-            .review_named(Role::Owner, DraftId::new(43), Money::from_minor_units(100))
+            .review_named_with_mode(
+                Role::Owner,
+                DraftId::new(43),
+                Money::from_minor_units(100),
+                ReceiptMode::Online,
+            )
             .unwrap(),
     };
     assert_eq!(
@@ -85,6 +91,7 @@ fn named_payment_survives_sqlite_process_restart_and_lost_response() {
     let mut retry = Client::start("sqlite_retry", dir);
     let resent = retry.sent();
     assert_eq!(resent, approved);
+    assert_eq!(resent.review.payment_mode(), ReceiptMode::Online);
     let replay = authority
         .confirm(Role::Owner, resent.id, &resent.review)
         .unwrap();
