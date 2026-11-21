@@ -1238,4 +1238,29 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [D-ESTIMATE-17fb557-focused](../phase2-local/target/D-ESTIMATE-17fb557-focused.log): 2 passed, 0 failed, 0 ignored (one joined structured workflow and the existing separate `l18_04` identity replay).
 - [D-ESTIMATE-17fb557-offline](../phase2-local/target/D-ESTIMATE-17fb557-offline.log): 378 passed, 0 failed, 2 ignored. Build, formatting, and all-target Clippy passed; Rust LSP timed out.
 
-Same-store GST and PO regeneration remain **not run**. The original standalone GST fixture (10,500 paise inclusive at 18%) remains unsupported. OPEN-008 and OPEN-005 still gate the legacy walkthrough and actual device outputs and handoff. This is not a full restore, accounting sign-off, acceptance, or phase completion.
+At `17fb557`, same-store GST and PO regeneration were **not run**. See the ordinary GST follow-up below. The original standalone GST fixture (10,500 paise inclusive at 18%) remains unsupported. OPEN-008 and OPEN-005 still gate the legacy walkthrough and actual device outputs and handoff. This is not a full restore, accounting sign-off, acceptance, or phase completion.
+
+#### Milestone D same-store ordinary GST recovery
+
+**Scoped L06-01 / L19-01 development PASS** at `a3f3af989dc0ce141284a07a6a92e4e37713a355` (shared calculator `7150513`). The structured test generated a typed ordinary GST document, backed up the store, dropped the source, then restored and reopened the JSON. It regenerated the document from the saved sale and ordered tax metadata, not from saved calculated outputs, a catalog lookup, or a replay of the sale.
+
+The source and regenerated documents independently matched the Milestone C case: cancelled invoice #1, 21-Feb-2025, Synthetic Buyer; A × 2 for ₹354 and B × 1 for ₹56. Total ₹410, taxable ₹350, GST ₹60, CGST and SGST ₹30 each, IGST ₹0.
+
+| Line | HSN | GST rate | Taxable | GST | CGST | SGST |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | `22029920` | 18% | ₹300 | ₹54 | ₹27 | ₹27 |
+| B | `21069099` | 12% | ₹50 | ₹6 | ₹3 | ₹3 |
+
+**Controls:** Manager requests for known and unknown sales returned `AccessDenied`. The same cancelled sale without tax metadata returned `MissingTax`. An archived second-line rate of 1,201 basis points returned `UnsupportedRounding` with unchanged sale totals. Malformed positions, lines, or totals were invalid. The rejected cases produced no output. Both successful and rejected requests left the store file and serialized in-memory backup unchanged.
+
+`cmp` confirmed an exact match between [gst.json](../phase2-local/target/structured-d-23970-1795269290231793000/gst.json) and [regenerated-gst.json](../phase2-local/target/structured-d-23970-1795269290231793000/regenerated-gst.json). Retained recovery files: [backup.json](../phase2-local/target/structured-d-23970-1795269290231793000/backup.json) and [restored.json](../phase2-local/target/structured-d-23970-1795269290231793000/restored.json).
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured --test milestone_c_replay -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-ORD-GST-focused](../phase2-local/target/D-ORD-GST-focused.log): 2 passed (Milestones C and D), 0 failed, 0 ignored.
+- [D-ORD-GST-offline](../phase2-local/target/D-ORD-GST-offline.log): 380 passed, 0 failed, 2 ignored. Formatting, all-target Clippy, and build passed; Rust LSP timed out.
+
+Same-store PO regeneration remains **not run**. The separate standalone ₹105 inclusive fixture at 18% remains unsupported. OPEN-008 and OPEN-005 remain in force. This is local typed JSON evidence only, not actual print or device evidence, accounting sign-off, or phase acceptance.
