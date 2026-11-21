@@ -5,8 +5,12 @@ use super::{
     SavedPurchaseSupplier, owner,
 };
 
+mod rename;
+
 #[cfg(test)]
 mod legacy_delete;
+#[cfg(test)]
+mod rename_test;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupplierPrice {
@@ -155,6 +159,7 @@ impl PurchaseBook {
         &self,
         columns: PriceSupplierColumns<'_>,
     ) -> Vec<SavedPurchaseSupplier> {
+        let mut names = std::collections::BTreeSet::new();
         columns
             .explicit
             .iter()
@@ -165,6 +170,7 @@ impl PurchaseBook {
                     .iter()
                     .filter(|supplier| !columns.explicit.contains(&supplier.id)),
             )
+            .filter(|supplier| names.insert(supplier.name.clone()))
             .cloned()
             .collect()
     }
