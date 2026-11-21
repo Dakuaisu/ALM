@@ -1073,3 +1073,25 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-GST-e24c787-focused:** [Transcript](../phase2-local/target/D-GST-e24c787-focused.log): 4 passed, 0 failed, 0 ignored.
 - **D-GST-e24c787-offline:** [Transcript](../phase2-local/target/D-GST-e24c787-offline.log): 363 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual browser preview or popup, physical page fit, printer delivery, PDF creation, and installed-device behavior. OPEN-009 remains owner-blocked and independent.
+
+#### Milestone B purchase order outputs after partial receipt
+
+**D-PO-c315f51 (development, scoped PASS).** Tested `c315f512389a43dbeb03fd81f22227702007a6b1` on the development Mac. The [L07-03 replay](../phase2-local/tests/milestone_b_replay/l07_03.rs) reused Milestone B's planned `PO-001` and dated partial receipts, then invoked the existing Rust View, shared Save PDF / Print capture, and handoff paths. Expectations are from [Supplier PO Outputs](PHASE1_CASES.md#supplier-po-outputs-not-run).
+
+| Check | Expected and observed |
+| --- | --- |
+| Internal View | `PartiallyReceived`. Synthetic A: 12 ordered, 8 received, 0 cancelled, 4 outstanding; Synthetic B: 9 ordered, 5 received, 0 cancelled, 4 outstanding. View resolved A by item name to `11 jars`, MRP ₹71.75. |
+| Supplier copy | The shared Save PDF / Print HTML and PNG render input used A's product ID to show `12 bottles`, MRP ₹67.50, and 12 cases; B used the item-name fallback and showed `6 cans`, MRP ₹89.50, and 9 cases. The footer counted 21 cases, with the stored supplier name and note retained. No receipt progress, purchase rates (₹1.00 and ₹1.80), or monetary total (₹28.20) appeared. The captured `_p` document carried an inert 350 ms on-load print intent. |
+| Image and recipient branches | Native share success and rejection each stopped at one share request without download, chat or retry. Unsupported file sharing captured a download and a separate chat intent only when a usable phone resolved. The matching ID took priority over an earlier exact-name match; a stale or missing ID used the first exact-name match; without an exact name, a resolved ID served as fallback. An unusable chosen phone did not trigger another lookup. With no PNG, only targeted or generic text was captured, with the original 12 and 9 cases. Manager View, Print and handoff were denied before output. |
+| No inventory mutation | Before and after the outputs, the saved PO and receipt records were equal, billing stock stayed at 8 and 5 cases, and dated FIFO layers were unchanged at ₹9.80 and ₹10.30 (₹20.10 combined). A separate explicit Close Remaining control moved the 4 open cases on each line to cancelled without changing stock or FIFO; its supplier copy still showed the original ordered cases. |
+
+Retained [supplier HTML](../phase2-local/target/l07-03-po-51976-1795260954504708000/supplier.html), [Print/PDF-request HTML](../phase2-local/target/l07-03-po-51976-1795260954504708000/print-intent.html), [raster source SVG](../phase2-local/target/l07-03-po-51976-1795260954504708000/supplier.svg), [PNG](../phase2-local/target/l07-03-po-51976-1795260954504708000/supplier.svg.png), and [branch and inventory trace](../phase2-local/target/l07-03-po-51976-1795260954504708000/replay-trace.txt). Quick Look rasterized a fixture-specific SVG derived from the captured supplier HTML. The decoded and inspected 760 × 760 image showed both MRPs and original quantities. Its SHA-256 is `b0d7f289566961fe05582bde94324cd94bb1728eac33e9020b92d895b4f47339`; the inert share sink received the generated PNG bytes. Other image branches used routing-only bytes, and the default offline suite does not rasterize.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target/tmp ALM_L07_03_PNG=1 cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_b_replay l07_03_supplier_outputs_preserve_milestone_b_progress_and_inventory -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-PO-c315f51-focused:** [Transcript](../phase2-local/target/D-PO-c315f51-focused.log): 1 passed, 0 failed, 0 ignored; artifact mode enabled.
+- **D-PO-c315f51-offline:** [Transcript](../phase2-local/target/D-PO-c315f51-offline.log): 364 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Legacy browser HTML-to-PNG encoder and layout parity, printer delivery, PDF creation, WhatsApp delivery or attachment, and installed-device behavior. OPEN-009 remains owner-blocked and independent.
