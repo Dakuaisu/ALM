@@ -55,6 +55,16 @@ pub(super) fn json(raw: &serde_json::Value) {
 }
 
 pub(super) fn projections(csv: &str, xml: &str) {
+    assert_eq!(
+        csv,
+        concat!(
+            "Date,Bill No,Customer,Mode,Item,Pack,Rate,Pkt,Amount,Bill Total,Paid,Status\n",
+            "2025-01-01,99,Control,Online,Control item,12pc,1,6,6,11,3,\n",
+            "2025-01-01,99,Control,Online,Crate: Control bundle,,2.5,2,5,,,\n",
+            "2025-02-21,1,Synthetic Buyer,Cash,Synthetic A,12pkt,177,2,354,410,100,CANCELLED\n",
+            "2025-02-21,1,Synthetic Buyer,Cash,Synthetic B,12pkt,56,1,56,,,CANCELLED"
+        )
+    );
     for name in ["Products", "Customers", "Sales", "Stock"] {
         assert!(xml.contains(&format!("ss:Name=\"{name}\"")));
     }

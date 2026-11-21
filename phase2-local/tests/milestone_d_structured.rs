@@ -3,7 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use alm_phase2_local::confirmation::{CustomerLedgerKind, ReceiptMode};
 use alm_phase2_local::synthetic_read_model::{
-    Component, Customer, Line, LineKind, Product, Receipt, Records, Sale, ScopedArchiveInput, Store,
+    Component, Customer, Error, Line, LineKind, Product, Receipt, Records, Sale,
+    ScopedArchiveInput, Store,
 };
 use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Role};
 
@@ -235,19 +236,17 @@ fn structured_exports_survive_fresh_recovery() {
     );
     let csv = reopened.sales_csv(Role::Owner).unwrap();
     assert_eq!(csv, original_csv);
+    assert!(matches!(
+        reopened.sales_csv(Role::Manager),
+        Err(Error::AccessDenied)
+    ));
     fs::write(dir.join("regenerated-sales.csv"), &csv).unwrap();
-    assert_eq!(
-        csv,
-        concat!(
-            "Date,Bill No,Customer,Mode,Item,Pack,Rate,Pkt,Amount,Bill Total,Paid,Status\n",
-            "2025-01-01,99,Control,Online,Control item,12pc,1,6,6,11,3,\n",
-            "2025-01-01,99,Control,Online,Crate: Control bundle,,2.5,2,5,,,\n",
-            "2025-02-21,1,Synthetic Buyer,Cash,Synthetic A,12pkt,177,2,354,410,100,CANCELLED\n",
-            "2025-02-21,1,Synthetic Buyer,Cash,Synthetic B,12pkt,56,1,56,,,CANCELLED"
-        )
-    );
     let xml = reopened.workbook(Role::Owner).unwrap();
     assert_eq!(xml, original_xml);
+    assert!(matches!(
+        reopened.workbook(Role::Manager),
+        Err(Error::AccessDenied)
+    ));
     fs::write(dir.join("regenerated-workbook.xls"), &xml).unwrap();
     assertions::product_setting(&reopened);
     assertions::projections(&csv, &xml);
