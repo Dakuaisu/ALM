@@ -1004,3 +1004,24 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-ACTIVITY-4b66ccd-focused:** [Transcript](../phase2-local/target/D-ACTIVITY-4b66ccd-focused.log): 3 passed, 0 failed, 0 ignored.
 - **D-ACTIVITY-4b66ccd-offline:** [Transcript](../phase2-local/target/D-ACTIVITY-4b66ccd-offline.log): 348 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Legacy or installed Settings execution, browser timestamp formatting, durable browser storage, and hosted upload or retention. Absence from Settings or the unsent payload is not evidence of remote deletion or prior delivery. OPEN-009 remains owner-blocked and independent.
+
+#### Modal dismissal and privacy reveal
+
+**D-MODAL-6e420d5 (development, scoped PASS).** Tested `6e420d520e4ec2e1a4cad1793b47510b0e84a26b` on the development Mac. The [offline Rust replay](../phase2-local/tests/l18_03_replay.rs) follows the [L18-03 dismissal assertions](PHASE1_CASES.md#shared-modal-dismissal-not-run) and frozen [privacy and modal handlers](../ALM_Business_Manager.html#L1503), [Edit Bill](../ALM_Business_Manager.html#L4174), [Receive Payment](../ALM_Business_Manager.html#L5928), and [regular confirmation](../ALM_Business_Manager.html#L7069). Frozen HTML SHA-256 observed: `cd2887712e8a5a7e2fb9d45299d9034614cb4f9ec640a08ab1670acc42dd0043`. Events run against a test-only model, not a browser; bill and ledger readback and local role denials use the Rust synthetic fixture.
+
+| Scenario | Expected and observed |
+| --- | --- |
+| Edit Bill and Receive Payment, clean or dirty | Header Close popped the form directly, discarding any unsaved input. Escape or an overlay-target press closed a clean form but opened a discard question over a dirty form. An inside press kept the form and its input intact. A top-level clean form closed to an empty stack with each applicable close control. |
+| Discard question over either form | Keep editing, child header Close, Escape, and overlay-target press popped only the question and returned to the same dirty form with the same unsaved inputs. Repeating the original dismissal reopened the question. Discard changes then popped the question and form, dropping the unsaved inputs and leaving only the helper fixture's lower modal. |
+| Regular nested confirmation control | Cancel popped the child without invoking the callback. Yes popped the child before invoking the inert callback, which observed the original dirty form on top. Neither branch saved a record. This is a helper control, not a claim that either normal Save action opens that confirmation. |
+| Dirty events and footer controls | Body input, change and button/descendant clicks marked dirty; plain body and footer-only events did not. Restoring the original field value did not clear dirty. Dirty Edit Bill footer Cancel closed directly. A modeled failed Receive Payment footer action left a clean form eligible for direct Escape. |
+| Records and privacy | The dismissal matrix and nested actions left the synthetic posted bill, existing standalone receipt and ledger unchanged; the matrix also checked the separate New Bill draft. The record comparison's positive mutation control intentionally added a receipt and triggered the expected assertion failure. With privacy on, an eligible figure reveal consumed the modeled click, exposed only that figure, and did not open the card; tapping again re-masked it. The Owner's permitted data was unchanged. Manager bill and ledger reads remained denied before and after reveal. |
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l18_03_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-MODAL-6e420d5-focused:** [Transcript](../phase2-local/target/D-MODAL-6e420d5-focused.log): 7 passed, 0 failed, 0 ignored, including the expected-panic mutation control.
+- **D-MODAL-6e420d5-offline:** [Transcript](../phase2-local/target/D-MODAL-6e420d5-offline.log): 355 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual browser keyboard, pointer or event propagation, installed-device behavior, visual blur, real footer validation or save execution, and hosted authorization. OPEN-009 remains owner-blocked and independent.
