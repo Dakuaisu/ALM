@@ -771,3 +771,33 @@ The [two-process test](../phase2-local/tests/draft_demo.rs) confirmed distinct p
 - `cargo fmt --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml -- --check` and `cargo clippy --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --all-targets -- -D warnings` passed. The launcher also built and ran offline; editor diagnostics timed out.
 
 The contained legacy walkthrough, hosted integration, actual device/parity, accounting sign-off, migration, and cutover were not run and remain gated. Phase 1 remains open; no phase exit or acceptance is recorded. OPEN-009 remains OWNER-BLOCKED. Local milestone work may continue without optional owner feedback.
+
+### Milestone B: Purchasing to stock
+
+**B-PURCHASE-REPLAY (development, PASS):** [One local Rust replay](../phase2-local/tests/milestone_b_replay.rs), with its [purchasing checkpoints](../phase2-local/tests/milestone_b_replay/purchasing.rs), ran on the development Mac at `14fbc3a24dbc9b5b6ad1d0ed6c6fae39e1b29a51`. All quantities below are billing packets unless noted; amounts are minor units. A and B refer to the two synthetic products.
+
+| Checkpoint, February 2025 | Expected = observed (A / B) | Case disposition |
+| --- | --- | --- |
+| Feb 10, plan and explicit PO Save | Winning quotes 100 / 180 beat 160 / 260. Reorder levels 4 / 3 at zero stock suggested 12 / 9; planned value was 2,820. Checkout saved nothing. Save created one Pending PO with 12 / 9 outstanding, no receipts, no register movement, and zero on-hand and FIFO value. | [L09-02](PHASE1_CASES.md#L235), [L13-02](PHASE1_CASES.md#L242), [L07-02](PHASE1_CASES.md#L159): quote selection and save slices passed. |
+| Feb 12 receipt, entered first | Received 5 at 130 / 4 at 210. On hand 5 / 4; outstanding 7 / 5; FIFO value 1,490. | [L08-01](PHASE1_CASES.md#L161): dated partial receipt slice passed. |
+| Feb 11 receipt, entered second | Received 3 at 110 / 1 at 190. Cumulative received and on hand 8 / 5; outstanding 4 / 4; FIFO value 2,010. Both receipt dates, quantities, and rates were retained. PO remained Partially Received. | [L08-01](PHASE1_CASES.md#L161), [L11-01](PHASE1_CASES.md#L237): backdated receipt and FIFO ordering slices passed. |
+| Feb 13, simulated dispatch | Two crates loaded from a saved template used 2 Case of A and 6 Piece of B per crate, with 6 pieces per packet for B. Dispatch consumed 4 / 2 packets, exhausting the Feb 11 layers first. Only Feb 12 lots remained: 4 at 130 / 3 at 210, worth 520 / 630. PO outstanding stayed 4 / 4. | [L10-01](PHASE1_CASES.md#L236), [L11-01](PHASE1_CASES.md#L237): mixed-unit dispatch and remaining valuation slices passed. |
+
+**Valuation reconciliation:** FIFO value received, 2,010, equaled the value removed from inventory, 860 (`3×110 + 1×130 + 1×190 + 1×210`), plus 1,150 remaining (`4×130 + 3×210`). The replay compared the dated lot balances and remaining valuation; it did not read a stored sale-cost field.
+
+**Movement register:** Expected and observed tuples `(opening, received, dispatched, closing)` matched; adjustments were zero.
+
+| Date | A | B |
+| --- | --- | --- |
+| Feb 10, PO date | No row | No row |
+| Feb 11 | (0, 3, 0, 3) | (0, 1, 0, 1) |
+| Feb 12 | (3, 5, 0, 8) | (1, 4, 0, 5) |
+| Feb 13 | (8, 0, 4, 4) | (5, 0, 2, 3) |
+| Feb 14 | (4, 0, 0, 4) | (3, 0, 0, 3) |
+
+The manual Godown row for A reopened at 31 cases, then at 47 after the edit. Billing stock, FIFO, the register, and PO progress stayed unchanged. [L12-01](PHASE1_CASES.md#L239) manual isolation and [L12-02](PHASE1_CASES.md#L240) dated register slices passed. The tested Manager actions were denied at the fixture boundary.
+
+- **B-PURCHASE-REPLAY:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_b_replay -- --nocapture` (1 passed, 0 failed).
+- **B-OFFLINE:** `cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet` (314 passed, 0 failed, 2 ignored). All-target offline Clippy with `-D warnings` and formatting also passed.
+- **Blocked:** OPEN-009 remains OWNER-BLOCKED. LSP diagnostics timed out; no analyzer result is claimed.
+- **Not run by this replay:** PO completion, template edit/delete, sale cancellation or shortage, production location/date attribution, undated receipt fallback, or restart of the in-memory purchasing fixture. The contained legacy walkthrough, hosted and device checks, migration, and cutover were not run. No acceptance or phase exit is claimed. `BillDate`, both paste-mismatch thresholds, and the approved contract and gates were unchanged.
