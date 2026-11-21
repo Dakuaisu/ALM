@@ -1135,3 +1135,24 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-SALES-6e12f3a-focused:** [Transcript](../phase2-local/target/D-SALES-6e12f3a-focused.log): 3 passed, 0 failed, 0 ignored, 2 filtered out.
 - **D-SALES-6e12f3a-offline:** [Transcript](../phase2-local/target/D-SALES-6e12f3a-offline.log): 369 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run / blocked:** Actual Sales-row UI, legacy runtime and cancellation marker in a rendered image were not checked by this replay. File bytes in the active-row test were a routing sentinel. No chat opened and no file was sent; actual device handoff remains owner-blocked under OPEN-005. OPEN-009 remains independent.
+
+#### HTML PNG encoder selection offline replay
+
+**D-PNG-33d9bd8 (development, scoped PASS).** Tested `33d9bd8b13c39556ad53b79a011d9c0e73efb7fe` on the development Mac. The [test-only encoder](../phase2-local/tests/milestone_d_replay/png_encoder.rs) models the [source-defined post-image-load branch](PHASE1_CASES.md#html-png-encoder-selection-not-run). The [caller replay](../phase2-local/tests/milestone_d_replay/png_output.rs) runs the existing Rust estimate and supplier PO handoff paths with synthetic records, controlled PNG encoders and in-memory output sinks. The primary and hand-drawn fallback fixtures have distinct bytes; neither is an image of the document.
+
+| Case and control | Ordered helper calls and callback result (both callers) | Ordered caller actions after the helper callback |
+| --- | --- | --- |
+| L05-03 / L07-03: `toBlob` returns a Blob | `drawImage` → `toBlob("image/png")` → callback with the **same Blob object** (reference identity checked). No `toDataURL` or decode. | Estimate: probe → capture download of `Estimate-1.png`. PO: probe `o.png` → capture download of `Order-PO-001.png`. Probe and download bytes match the primary fixture; no fallback. |
+| L05-03 / L07-03: `toBlob` absent | `drawImage` → `toDataURL("image/png")` → base64 decode → callback with `image/png` and bytes equal to the fixed primary fixture. No `toBlob` call. | Both callers took the same file routes as above with the exact decoded bytes; no caller fallback. |
+| L05-04 / L07-03: `toBlob` calls back with `null` | `drawImage` → `toBlob("image/png")` → callback with `null`. No helper `toDataURL`, decode or second callback. The deliberate retry control failed before the retry was removed. | Estimate: separate hand-drawn canvas stub → its own `toDataURL("image/png")` → decode → probe → capture download of `Estimate-1.png` with the distinct fallback bytes. PO: one `_blank` text intent for the original Synthetic A order of 3 cases, with no second render, canvas, file probe or download. |
+
+The PO caller requested the HTML render at width 760 once in each variant. File probes reported native sharing unavailable and both fixtures deliberately omitted a recipient. No share or separate chat request was allowed. The estimate's second-canvas failure was not injected by this encoder replay; [the existing estimate fallback slice](#inert-estimate-canvas-and-text-fallback) covers that case separately.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_replay png_ -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-PNG-33d9bd8-focused:** [Transcript](../phase2-local/target/D-PNG-33d9bd8-focused.log): 3 passed, 0 failed, 0 ignored, 5 filtered out. PASS for the named helper and caller branches only.
+- **D-PNG-33d9bd8-offline:** [Transcript](../phase2-local/target/D-PNG-33d9bd8-offline.log): 372 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy (`-D warnings`) and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run / blocked:** This is branch behavior, not image fidelity. The frozen HTML was not served or executed; the Phase 1 runtime cases remain not run under OPEN-008. No chat was opened and no file was sent. Actual handoff remains owner-blocked under OPEN-005. OPEN-009 is independent and unchanged.
