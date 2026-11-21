@@ -1352,3 +1352,24 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L15-1b83700-offline](../phase2-local/target/L15-1b83700-offline.log): 385 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
 
 **Unsupported / not run:** Online payment made on a bill remains unsupported in the local fixture; a standalone Online receipt is not evidence for that path. This replay did not establish browser form or storage behavior, persisted manual rows across restart, tombstones, sync, hosted authorization, device isolation or accounting acceptance. Legacy execution remained gated by OPEN-008.
+
+#### Owner bill payment mode in Cash Book
+
+**L03-02 / L04-02 / L14-01 / L15-01 scoped development PASS** at `9fc4ad8098c2dc2222b78013a02d3bdd942a2ee5`. The [paired replay](../phase2-local/src/confirmation/tests/customer_accounts/cashbook_scope.rs) used independent synthetic fixtures identical except for the Owner-selected mode. Confirmation saved the approved mode. The payment appeared once as a bill entry on 21-Feb-2025, not as a standalone receipt. Expected and observed figures matched below; the first pair is exact paise and the second is rounded rupees.
+
+| Fixture | Bill-date Cash / Online before cancellation | Bill-date Cash / Online after cancellation | Receipt-date Cash / Online before and after cancellation |
+| --- | --- | --- | --- |
+| Cash bill payment | `75 / 0` → `1 / 0` | `0 / 0` → `0 / 0` | `0 / 50` → `0 / 1` |
+| Online bill payment | `0 / 75` → `0 / 1` | `0 / 0` → `0 / 0` | `0 / 50` → `0 / 1` |
+
+Both fixtures had a separate 50-paise Online receipt dated 01-Mar-2025. Before cancellation the ledger showed a 75-paise bill credit and a closing balance of zero; after cancellation only the standalone receipt remained and the ledger closed at -50 paise. Replaying the same approval did not duplicate the posting; a mode-only change with the same request ID returned `RequestConflict`. Manager denials were checked without changing provisional draft behavior. The focused run also checked Online approval round-trip through the pending codec and SQLite client restart after a lost response. Older named snapshots still decode as Cash.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib named_ -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L15-MODE-9fc4ad8-focused](../phase2-local/target/L15-MODE-9fc4ad8-focused.log): 13 passed, 0 failed, 0 ignored, 256 filtered out.
+- [L15-MODE-9fc4ad8-offline](../phase2-local/target/L15-MODE-9fc4ad8-offline.log): 388 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and build passed; Rust LSP timed out.
+
+The historical `1b83700` replay did not exercise an Online bill payment; its original limitation stands. This follow-up covers only the synthetic Owner named-bill path. Hosted authorization, device isolation, legacy runtime (OPEN-008) and accounting acceptance remain open.
