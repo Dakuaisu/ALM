@@ -1511,3 +1511,49 @@ cd /Users/apple/ALM && TZ=America/New_York node /Users/apple/ALM/phase2-local/te
 - Native Date cross-checks passed: [Kolkata](../phase2-local/target/L16-DEAD-5f3b55b-node-kolkata.log) and [New York](../phase2-local/target/L16-DEAD-5f3b55b-node-new-york.log).
 
 The replay used seeded on-hand values and checked selection, not stock derivation, valuation, report rendering, or cross-platform timezone parity. The frozen HTML remained unchanged and unserved under OPEN-008; legacy browser parity and accounting acceptance were not established.
+
+#### Dead stock cancellation, valuation, and identity
+
+**L16-03 / L16-04 / L16-05: PASS (development only)** at `c6ede1f9875e6d800b8eaa1e7a37c8e013d0d5ed`. One [offline replay target](../phase2-local/tests/l16_dead_stock_replay.rs) ran three [case assertions](../phase2-local/tests/l16_dead_stock_replay/cases.rs) against a shared [test-only report model](../phase2-local/tests/l16_dead_stock_replay/model.rs). It reused the verified L16-02 cutoff `2024-10-04` as a fixture input and reran the original cutoff test separately in the same focused command. The [source-derived cases](PHASE1_CASES.md#L248) describe the frozen report branches; no app path was run. Quantities below are packets; amounts are rupees.
+
+**L16-03: cancellation and undo.** Product `p` opened at 5 packets with current buy rate ₹4. `old-bill` was dated `2024-10-03` for 1 packet; `recent-bill` was dated `2024-10-05` for 2 packets. Undo toggled the cancellation flag on the same seeded bill. It did not invoke an operator action or posting API.
+
+| History | Expected last active / on hand / visible IDs | Observed last active / on hand / visible IDs | Observed raw candidate / displayed Locked Value |
+| --- | --- | --- | --- |
+| Old active + recent cancelled | 2024-10-03 / 4 / `p` | 2024-10-03 / 4 / `p` | ₹16 / ₹16 |
+| Recent cancelled only | never / 5 / `p` | never / 5 / `p` | ₹20 / ₹20 |
+| Old active + recent restored | 2024-10-05 / 2 / none | 2024-10-05 / 2 / none | ₹8 / no row |
+
+**L16-04: valuation.** All 16 ranking candidates had positive seeded opening stock and no active sale date. FIFO is a separate contrast using seeded layers, not a report input. Raw values preserve fractional paise for the ranking check.
+
+| Product(s) | On hand / current buy rate | Expected raw / displayed / FIFO | Observed raw / displayed / FIFO |
+| --- | --- | --- | --- |
+| `h01` through `h12`, each | 1 / ₹20 | ₹20 / ₹20 / ₹1 | ₹20 / ₹20 / ₹1 |
+| `higher` | 1 / ₹10.75 | ₹10.75 / ₹11 / ₹2 | ₹10.75 / ₹11 / ₹2 |
+| `fraction` | 2.5 / ₹4.25 | ₹10.625 / ₹11 / ₹65 | ₹10.625 / ₹11 / ₹65 |
+| `missing` | 1 / absent | ₹0 / ₹0 / ₹7 | ₹0 / ₹0 / ₹7 |
+| `zero` | 1 / ₹0 | ₹0 / ₹0 / ₹9 | ₹0 / ₹0 / ₹9 |
+
+The first 15 IDs matched exactly: forward `h01` through `h12` ascending, then `higher`, `fraction`, `missing`; with input reversed, `h12` through `h01` descending, then `higher`, `fraction`, `zero`. `higher` outranked `fraction` on raw value despite equal display and opposite FIFO order. Exact ties retained input order, including at the cap. The nonempty-input control excluded `no-stock` (0 on hand, never sold) and `boundary` (1 on hand, last active `2024-10-04`): expected and observed no IDs and the modeled empty message `No dead stock 👍`.
+
+**L16-05: identity.** All seeded sales were active and dated `2024-10-05`. The direct and crate scenarios each started from the same baseline. The crate contained the same renamed product with its retained ID, not a separate product. No ambiguous reference was relinked by name alone.
+
+| Line variant | Expected key / packets / matched current ID | Observed key / packets / matched current ID |
+| --- | --- | --- |
+| Direct line with old name and retained ID | `renamed` / 1 / `renamed` | `renamed` / 1 / `renamed` |
+| Crate with retained-ID component | `renamed` / 1 (2 × 0.5) / `renamed` | `renamed` / 1 (2 × 0.5) / `renamed` |
+| Stale stored ID with matching current name | `stale` / 0.5 (5 pieces, pack size 10) / none | `stale` / 0.5 / none |
+| No ID and no matching name | `n:Unmatched` / 1 / none | `n:Unmatched` / 1 / none |
+| No ID, unique exact-name control | `control` / 1 / `control` | `control` / 1 / `control` |
+
+Expected and observed baseline rows were `renamed`, `current`, each with 3 on hand, no last active date, and ₹3 Locked Value. Either matching variant moved `renamed` to 2 on hand with last date `2024-10-05`, excluding it; only `current` remained visible at 3 packets and ₹3. The unique-name control `control` had 2 on hand and last date `2024-10-05`, so was excluded in all variants. The stale key used a name lookup for packet size only; the lookup did not transfer sales activity or quantities to `current`.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l16_dead_stock_replay --test l16_02_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L16-DEAD-FOLLOWUP-c6ede1f-focused](../phase2-local/target/L16-DEAD-FOLLOWUP-c6ede1f-focused.log): 4 passed (three follow-up cases and the L16-02 regression), 0 failed, 0 ignored.
+- [L16-DEAD-FOLLOWUP-c6ede1f-offline](../phase2-local/target/L16-DEAD-FOLLOWUP-c6ede1f-offline.log): 395 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unchanged and unserved under OPEN-008. This source-model replay did not test browser rendering, duplicate-name migration, or accounting acceptance.
