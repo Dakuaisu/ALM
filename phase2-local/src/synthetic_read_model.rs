@@ -7,6 +7,32 @@ use serde::{Deserialize, Serialize};
 
 pub use storage::{Error, Store};
 
+/// Local synthetic profile and legacy-shaped metadata; not a sync authority.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BusinessProfile {
+    pub fssai: String,
+    pub gstin: String,
+    pub show_fssai: Option<bool>,
+    pub show_gstin: Option<bool>,
+    pub version: u64,
+    pub modified_at: u64,
+    pub device: String,
+}
+
+impl BusinessProfile {
+    pub fn estimate_lines(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        if !self.fssai.is_empty() && self.show_fssai != Some(false) {
+            lines.push(format!("FSSAI: {}", self.fssai));
+        }
+        if !self.gstin.is_empty() && self.show_gstin == Some(true) {
+            lines.push(format!("GSTIN: {}", self.gstin));
+        }
+        lines
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Records {

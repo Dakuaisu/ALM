@@ -47,6 +47,31 @@ pub struct TextHandoffIntent {
 }
 
 impl ConfirmationFixture {
+    pub fn handoff_invoice_with_business<'a>(
+        &self,
+        request: InvoiceHandoffRequest<'_>,
+        profile: &crate::synthetic_read_model::BusinessProfile,
+        attempts: InvoiceImageAttempts<
+            impl FnOnce() -> Option<&'a [u8]>,
+            impl FnOnce() -> Option<&'a [u8]>,
+        >,
+        draw: &mut impl FnMut(&str),
+        sinks: &mut impl InvoiceHandoff,
+    ) -> Result<(), EstimateError> {
+        self.handoff_invoice(
+            request,
+            InvoiceImageAttempts {
+                html: attempts.html,
+                canvas: || {
+                    for line in profile.estimate_lines() {
+                        draw(&line);
+                    }
+                    (attempts.canvas)()
+                },
+            },
+            sinks,
+        )
+    }
     /// Tries HTML, then canvas, then captures a text intent for a regular packet bill.
     ///
     /// # Errors

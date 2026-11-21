@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::Records;
+use super::{BusinessProfile, Records};
 use crate::Role;
 use crate::confirmation::{ConfirmationFixture, ProductEntryError};
 
@@ -12,6 +12,7 @@ use crate::confirmation::{ConfirmationFixture, ProductEntryError};
 pub enum Error {
     AccessDenied,
     InvalidArchive,
+    VersionOverflow,
     ProductEntry(ProductEntryError),
     Io(std::io::Error),
     Json(serde_json::Error),
@@ -33,6 +34,8 @@ impl From<serde_json::Error> for Error {
 struct Archive {
     version: u32,
     records: Records,
+    #[serde(default)]
+    profile: BusinessProfile,
 }
 
 fn owner(role: Role) -> Result<(), Error> {
@@ -45,21 +48,31 @@ fn owner(role: Role) -> Result<(), Error> {
 pub struct Store {
     path: PathBuf,
     records: Records,
+    profile: BusinessProfile,
 }
 
 impl Store {
     pub fn create(path: &Path, role: Role, records: Records) -> Result<Self, Error> {
         owner(role)?;
-        let data = serde_json::to_vec(&Archive {
-            version: 1,
-            records: records.clone(),
-        })?;
+        Self::create_archive(
+            path,
+            Archive {
+                version: 1,
+                records,
+                profile: BusinessProfile::default(),
+            },
+        )
+    }
+
+    fn create_archive(path: &Path, archive: Archive) -> Result<Self, Error> {
+        let data = serde_json::to_vec(&archive)?;
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         file.write_all(&data)?;
         file.sync_all()?;
         Ok(Self {
             path: path.into(),
-            records,
+            records: archive.records,
+            profile: archive.profile,
         })
     }
 
@@ -72,6 +85,7 @@ impl Store {
         Ok(Self {
             path: path.into(),
             records: archive.records,
+            profile: archive.profile,
         })
     }
 
@@ -81,7 +95,7 @@ impl Store {
         if archive.version != 1 {
             return Err(Error::InvalidArchive);
         }
-        Self::create(path, role, archive.records)
+        Self::create_archive(path, archive)
     }
 
     pub fn records(&self, role: Role) -> Result<&Records, Error> {
@@ -94,6 +108,7 @@ impl Store {
         Ok(serde_json::to_vec(&Archive {
             version: 1,
             records: self.records.clone(),
+            profile: self.profile.clone(),
         })?)
     }
 
@@ -112,9 +127,38 @@ impl Store {
         owner(role)?;
         let mut records = self.records.clone();
         records.reorder_default = value;
+        self.save_archive(records, self.profile.clone())
+    }
+
+    pub fn business_profile(&self, role: Role) -> Result<&BusinessProfile, Error> {
+        owner(role)?;
+        Ok(&self.profile)
+    }
+
+    pub fn save_business_profile(
+        &mut self,
+        role: Role,
+        profile: &BusinessProfile,
+        modified_at: u64,
+        device: &str,
+    ) -> Result<(), Error> {
+        owner(role)?;
+        let mut profile = profile.clone();
+        profile.version = self
+            .profile
+            .version
+            .checked_add(1)
+            .ok_or(Error::VersionOverflow)?;
+        profile.modified_at = modified_at;
+        profile.device = device.to_owned();
+        self.save_archive(self.records.clone(), profile)
+    }
+
+    fn save_archive(&mut self, records: Records, profile: BusinessProfile) -> Result<(), Error> {
         let data = serde_json::to_vec(&Archive {
             version: 1,
             records: records.clone(),
+            profile: profile.clone(),
         })?;
         let staging = self.path.with_extension("setting-stage");
         let mut file = OpenOptions::new()
@@ -132,6 +176,7 @@ impl Store {
         }
         result?;
         self.records = records;
+        self.profile = profile;
         Ok(())
     }
 }

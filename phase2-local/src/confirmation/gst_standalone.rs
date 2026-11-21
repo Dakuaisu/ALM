@@ -68,6 +68,24 @@ pub struct GstBillInvoice {
     pub totals: GstBillTotals,
 }
 
+impl GstBillInvoice {
+    pub fn business_header_html(
+        &self,
+        profile: &crate::synthetic_read_model::BusinessProfile,
+    ) -> String {
+        use super::estimate::escape_text;
+        let fssai = if profile.fssai.is_empty() {
+            String::new()
+        } else {
+            format!("FSSAI License Number: {}<br>", escape_text(&profile.fssai))
+        };
+        format!(
+            "<div>{fssai}GSTIN/UIN: {}<br>State Name : Uttar Pradesh, Code : 09</div>",
+            escape_text(&profile.gstin)
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GstBillError {
     AccessDenied,

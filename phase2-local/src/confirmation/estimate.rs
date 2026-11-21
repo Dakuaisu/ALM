@@ -49,6 +49,14 @@ pub struct PopupDocument {
 }
 
 impl ConfirmationFixture {
+    pub fn print_estimate_with_business(
+        &self,
+        request: EstimateRequest<'_>,
+        profile: &crate::synthetic_read_model::BusinessProfile,
+        sink: &mut impl FnMut(PopupDocument),
+    ) -> Result<(), EstimateError> {
+        self.emit_estimate(request, (PrintIntent::OnLoad, Some(profile)), sink)
+    }
     /// Captures an estimate for the legacy Print action, without opening a window.
     ///
     /// # Errors
@@ -58,7 +66,7 @@ impl ConfirmationFixture {
         request: EstimateRequest<'_>,
         sink: &mut impl FnMut(PopupDocument),
     ) -> Result<(), EstimateError> {
-        self.emit_estimate(request, PrintIntent::OnLoad, sink)
+        self.emit_estimate(request, (PrintIntent::OnLoad, None), sink)
     }
 
     /// Captures an estimate for Save as PDF, without creating a file or opening a window.
@@ -72,7 +80,7 @@ impl ConfirmationFixture {
     ) -> Result<(), EstimateError> {
         self.emit_estimate(
             request,
-            PrintIntent::AfterLoad(Duration::from_millis(350)),
+            (PrintIntent::AfterLoad(Duration::from_millis(350)), None),
             sink,
         )
     }
@@ -80,9 +88,13 @@ impl ConfirmationFixture {
     fn emit_estimate(
         &self,
         request: EstimateRequest<'_>,
-        intent: PrintIntent,
+        output: (
+            PrintIntent,
+            Option<&crate::synthetic_read_model::BusinessProfile>,
+        ),
         sink: &mut impl FnMut(PopupDocument),
     ) -> Result<(), EstimateError> {
+        let (intent, profile) = output;
         let preview = self.preview_estimate(request)?;
         let target = match intent {
             PrintIntent::OnLoad => "_print",
@@ -91,7 +103,7 @@ impl ConfirmationFixture {
         sink(PopupDocument {
             target,
             intent,
-            html: estimate_html(&preview, request.display),
+            html: estimate_html(&preview, request.display, profile),
         });
         Ok(())
     }
@@ -118,14 +130,29 @@ impl ConfirmationFixture {
     }
 }
 
-fn estimate_html(preview: &BillPreview, display: EstimateDisplay<'_>) -> String {
+fn estimate_html(
+    preview: &BillPreview,
+    display: EstimateDisplay<'_>,
+    profile: Option<&crate::synthetic_read_model::BusinessProfile>,
+) -> String {
     let customer = escape_text(&preview.customer);
     let mut html = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Estimate-{}-{customer}</title></head><body><main><h1>Estimate #{}</h1><p>Date: {}</p><p>Bill To: {customer}</p>",
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Estimate-{}-{customer}</title></head><body><main>",
         preview.invoice,
+    );
+    if let Some(profile) = profile {
+        for line in profile.estimate_lines() {
+            html.push_str(&format!(
+                "<div style=\"font-size:12px;color:#000\">{}</div>",
+                escape_text(&line)
+            ));
+        }
+    }
+    html.push_str(&format!(
+        "<h1>Estimate #{}</h1><p>Date: {}</p><p>Bill To: {customer}</p>",
         preview.invoice,
         display_date(preview.date)
-    );
+    ));
     if preview.cancelled {
         html.push_str("<p>CANCELLED</p>");
     }
