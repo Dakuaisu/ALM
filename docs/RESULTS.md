@@ -938,3 +938,27 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-CLEAR-f01c338-focused:** [Transcript](../phase2-local/target/D-CLEAR-f01c338-focused.log): 2 passed, 0 failed, 0 ignored.
 - **D-CLEAR-f01c338-offline:** [Transcript](../phase2-local/target/D-CLEAR-f01c338-offline.log): 332 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual browser storage, asynchronous save timing, confirmation UI, legacy runtime parity, full legacy JSON migration, sync watermarks, and backup-folder handles. No remote deletion, migration, or acceptance evidence is claimed. OPEN-009 remains owner-blocked and independent.
+
+#### Folder backup, scheduling, and reconnect
+
+**D-FOLDER-d1ea4e5 (development, scoped PASS).** Tested `d1ea4e5132857374bbd6e6667d1bc4a032764c6a` on the development Mac. The [Rust replay](../phase2-local/tests/folder_backup_replay.rs) models the frozen [folder flow](../ALM_Business_Manager.html#L854) and [Settings actions](../ALM_Business_Manager.html#L9273), using a controlled clock, simulated picker and permission responses, an in-memory handle-token store shared across simulated sessions, and real synthetic JSON files in disposable unsynced directories. Feedback labels are normalized, not browser toasts.
+
+| Case | Expected and observed feedback and file readback | Expected and observed timestamp and reopened handle |
+| --- | --- | --- |
+| L19-05 automatic, no handle / burst | No handle: no pending timer, callback, or files. With a handle, the burst moved the deadline from 1600 to 1700 ms. No write at the superseded deadline; both `ALM_data.json` and `ALM_backup_2024-05-01.json` parsed to the callback-time record at the replacement deadline, with no prompt or control feedback. | The successful callback advanced `lastFileBackup` from 7 to 1700 on the controlled clock; serialized files still carried 7. The directly assigned test handle was not persisted. |
+| L19-05 automatic, permission denied at callback | Queried after denial, marked reconnect needed, and neither requested permission nor wrote either file. No manual feedback. | `lastFileBackup` stayed 7; no stored token in this fixture. |
+| L19-02 manual Save and Reconnect | Save requested permission and wrote both files when granted; denied Save reported “Could not write” with neither file. Denied Reconnect reported “Permission denied”; granted retry reported “Reconnected & backed up” and updated current while preserving the same-day dated copy. Day rollover created a separate new dated copy with the updated record while retaining the earlier one. | Successful manual sequence advanced 7 to 100 to 200; rejected operations did not advance it. The directly assigned manual handles were not persisted. |
+| L19-06 / L19-08 Connect and reopen | Successful Connect reported “Backup folder set” and both parsed files matched the selected-folder snapshot. Reopen with granted, prompt, or denied permission queried without requesting permission or writing; prompt and denied marked reconnect needed. | Connect advanced 7 to 100 and the selected token reopened. |
+| L19-07 picker cancel vs. failure | Cancellation was silent; failure reported “Could not connect folder.” Neither reached the writer or produced either file. | Timestamp stayed 7 and prior handle remained selected and reopened in both cases. |
+| L19-08 Connect with denied permission | The modeled permission request was denied. Connect still reported “Backup folder set”; neither file existed. | Timestamp stayed 7; newly stored handle reopened with reconnect needed. |
+| L19-08 selected handle not persisted | A false token-store result did not stop “Backup folder set” or either backup file; both parsed to the new folder's synthetic record. | Timestamp advanced 7 to 100. Fresh session restored the prior token or none, not the newly selected handle. |
+| L19-08 dated publication failure after current close | Connect still reported “Backup folder set.” Current JSON contained the expected record; dated JSON did not publish. Manual retry wrote the dated copy and reported “Saved to folder.” | Timestamp stayed 7 and daily marker stayed unset on failure; the new token reopened. Retry advanced the timestamp to 200. |
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test folder_backup_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-FOLDER-d1ea4e5-focused:** [Transcript](../phase2-local/target/D-FOLDER-d1ea4e5-focused.log): 11 passed, 0 failed, 0 ignored.
+- **D-FOLDER-d1ea4e5-offline:** [Transcript](../phase2-local/target/D-FOLDER-d1ea4e5-offline.log): 343 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual browser picker and permissions, IndexedDB handle durability, boot warning and Settings rendering, unsupported picker, missing permission methods, rejected queries, initial current-file failure, full `persist()` fan-out, and device behavior. The staged dated-file publication is a test model, not evidence of browser write atomicity. OPEN-009 remains owner-blocked and independent.
