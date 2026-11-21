@@ -135,7 +135,45 @@ pub(super) fn estimate_html(
     display: EstimateDisplay<'_>,
     profile: Option<&crate::synthetic_read_model::BusinessProfile>,
 ) -> String {
-    let customer = escape_text(&preview.customer);
+    let lines = preview
+        .lines
+        .iter()
+        .zip(display.lines)
+        .map(|(line, label)| EstimateRow {
+            label: label.label,
+            quantity: line.quantity.get(),
+            price: line.price,
+            amount: line.amount,
+        })
+        .collect();
+    render_estimate(
+        &EstimateDocument {
+            invoice: preview.invoice,
+            date: preview.date,
+            customer: &preview.customer,
+            lines,
+            items_quantity: preview.items_quantity,
+            items_total: preview.items_total,
+            loading: preview.loading,
+            total: preview.total,
+            paid: preview.paid,
+            cancelled: preview.cancelled,
+            balance_mode: preview.balance_mode,
+            balance: preview.balance,
+            previous_balance: preview.previous_balance,
+            today: display.today,
+        },
+        profile,
+    )
+}
+
+pub(crate) use super::estimate_view::{EstimateDocument, EstimateRow};
+
+pub(crate) fn render_estimate(
+    preview: &EstimateDocument<'_>,
+    profile: Option<&crate::synthetic_read_model::BusinessProfile>,
+) -> String {
+    let customer = escape_text(preview.customer);
     let mut html = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Estimate-{}-{customer}</title></head><body><main>",
         preview.invoice,
@@ -157,10 +195,10 @@ pub(super) fn estimate_html(
         html.push_str("<p>CANCELLED</p>");
     }
     html.push_str("<table><thead><tr><th>Item</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead><tbody>");
-    for (line, display_line) in preview.lines.iter().zip(display.lines) {
+    for line in &preview.lines {
         html.push_str(&format!(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            escape_text(display_line.label),
+            escape_text(line.label),
             line.quantity,
             format_money(line.price),
             format_money(line.amount)
@@ -189,7 +227,7 @@ pub(super) fn estimate_html(
         BalanceMode::AsOnBillDate => ("Paid", String::from("Balance Due")),
         BalanceMode::Latest => (
             "Paid on this bill",
-            format!("Total Due (as on {})", display_date(display.today)),
+            format!("Total Due (as on {})", display_date(preview.today)),
         ),
     };
     html.push_str(&format!(
