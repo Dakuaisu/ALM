@@ -1046,3 +1046,30 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-RATE-73f4099-focused:** [Transcript](../phase2-local/target/D-RATE-73f4099-focused.log): 4 passed, 0 failed, 0 ignored.
 - **D-RATE-73f4099-offline:** [Transcript](../phase2-local/target/D-RATE-73f4099-offline.log): 359 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run:** Actual Rate List UI or browser locale/rounding parity beyond the fixed fixture, print layout and printer delivery, PDF creation, WhatsApp delivery, installed-device parity and hosted role authorization. The replay did not change application permissions. OPEN-009 remains owner-blocked and independent.
+
+#### Standalone GST Print, Save PDF, and markup page boundaries
+
+**D-GST-e24c787 (development, scoped PASS).** Tested `e24c7877960590a0dd988154f18c0fb1be16d908` on the development Mac. The [offline replay](../phase2-local/tests/gst_preview_replay.rs) saves and reads back synthetic standalone invoices through the local Rust fixture. It then models the frozen [preview actions](../ALM_Business_Manager.html#L5135), [popup handler](../ALM_Business_Manager.html#L4826), and [page chunker](../ALM_Business_Manager.html#L5101). This is an in-memory invoice readback and source-derived markup, not a browser run or complete invoice-layout comparison.
+
+**L06-04 (local PASS):** Print and Save PDF each rendered before requesting `_p` (`width=840,height=920`). On success each captured and closed an inert document with the same preview body and title `GST-Invoice-24-25-47`, and a 350 ms on-load print intent. An updated fixture reached the renderer rather than reusing the earlier body. For each blocked action, the trace recorded the open attempt then “Pop-up blocked — allow pop-ups for this page to print” (`warn`), with no document delivered.
+
+**L06-05 (local PASS):** Expected and observed item IDs matched in both actions' HTML readback. Only the last markup page contained CGST, SGST, grand total and footer. Each preceding page contained its next-page continuation and `page-break-after:always`. All item IDs appeared exactly once and in order.
+
+| Item count | Expected and observed page contents (`ITEM-` IDs) | Summary page |
+| --- | --- | --- |
+| 12 | `001–012` | 1, with items |
+| 13 | `001–013`; no items | 2, summary only |
+| 20 | `001–020`; no items | 2, summary only |
+| 32 | `001–020`; `021–032` | 2, with items |
+| 33 | `001–020`; `021–033`; no items | 3, summary only |
+
+Retained representative HTML: [12-row Print](../phase2-local/target/gst-preview-replay-33080-1795259050868309000/invoice-12-print.html), [33-row Print](../phase2-local/target/gst-preview-replay-33080-1795259050868309000/invoice-33-print.html), and [33-row Save PDF request](../phase2-local/target/gst-preview-replay-33080-1795259050868309000/invoice-33-save-pdf.html). The print script is inert; the replay omits unrelated invoice details such as transport metadata, the HSN breakdown and amounts in words.
+
+```sh
+cd /Users/apple/ALM && ALM_GST_PREVIEW_ARTIFACTS=1 cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test gst_preview_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-GST-e24c787-focused:** [Transcript](../phase2-local/target/D-GST-e24c787-focused.log): 4 passed, 0 failed, 0 ignored.
+- **D-GST-e24c787-offline:** [Transcript](../phase2-local/target/D-GST-e24c787-offline.log): 363 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Actual browser preview or popup, physical page fit, printer delivery, PDF creation, and installed-device behavior. OPEN-009 remains owner-blocked and independent.
