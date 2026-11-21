@@ -18,6 +18,7 @@ pub(crate) mod gst_invoice;
 mod gst_standalone;
 mod gst_standalone_totals;
 mod image_handoff;
+pub mod manual_cashbook;
 mod manual_godown;
 mod payment;
 mod pending;
