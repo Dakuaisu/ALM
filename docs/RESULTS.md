@@ -1156,3 +1156,38 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=
 - **D-PNG-33d9bd8-focused:** [Transcript](../phase2-local/target/D-PNG-33d9bd8-focused.log): 3 passed, 0 failed, 0 ignored, 5 filtered out. PASS for the named helper and caller branches only.
 - **D-PNG-33d9bd8-offline:** [Transcript](../phase2-local/target/D-PNG-33d9bd8-offline.log): 372 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy (`-D warnings`) and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run / blocked:** This is branch behavior, not image fidelity. The frozen HTML was not served or executed; the Phase 1 runtime cases remain not run under OPEN-008. No chat was opened and no file was sent. Actual handoff remains owner-blocked under OPEN-005. OPEN-009 is independent and unchanged.
+
+#### Standalone GST form and invoice actions
+
+**D-GST-289dfaf (development, scoped PASS).** Tested `289dfaf8023d0b1c07e2058ae4231b79aa83329f` on the development Mac with synthetic records. Form state and the hard-delete confirmation were modeled in Rust tests. Save, invoice readback, cancellation, billing stock and customer ledger used the existing Rust fixture APIs. No production workflow changed.
+
+**L06-06: GSTIN form behavior.** [Replay](../phase2-local/src/confirmation/tests/gst_form_replay.rs); source expectations: [input handler](../ALM_Business_Manager.html#L5421) and [initial control setup](../ALM_Business_Manager.html#L5575).
+
+| Step | Buyer state / code, expected and observed | Place of supply, expected and observed | Buyer State / Code editable | Place of Supply State / Code editable | GSTIN editable | Length warning, expected and observed |
+| --- | --- | --- | --- | --- | --- | --- |
+| Reopen populated draft with recognized `27`; no input event | Kerala / `32` retained | Goa / `30` retained | No / No | Yes / Yes | Yes | None for the stored 15-character value; the padded, lowercase reopen control retained its raw text and warned at 17. |
+| Enter recognized `27`, correct trimmed length | Maharashtra / `27` inferred | Maharashtra / `27` inferred | No / No | Yes / Yes | Yes | None. |
+| Enter recognized `27`, wrong trimmed length | Maharashtra / `27` still inferred | Maharashtra / `27` still inferred | No / No | Yes / Yes | Yes | Warned at 14, independent of recognition. |
+| Enter unrecognized `88`, correct trimmed length, on a separate copy of the prefilled form | Kerala / `32` retained | Goa / `30` retained | Yes / Yes | Yes / Yes | Yes | None. |
+| Clear after recognized input | Maharashtra / `27` retained | Maharashtra / `27` retained | Yes / Yes | Yes / Yes | Yes | None; GSTIN empty. |
+
+Modeled input uppercased the text without stripping padding; the input warning counted the trimmed value. Separately, Rust Save rejected the wrong-length value with `InvalidGstin` and emitted no invoice. The correct-length unknown prefix round-tripped through Rust Save/readback, retaining the caller-supplied `Inter` jurisdiction. Neither prefix recognition nor this Save check validates registration or establishes tax policy.
+
+**L06-03: delete versus cancel.** [Replay](../phase2-local/src/confirmation/tests/gst_action_replay.rs); source expectations: [row actions](../ALM_Business_Manager.html#L5260) and [number suggestion](../ALM_Business_Manager.html#L5170). Each branch started from an independent copy with an active target numbered `700` and control invoice `699`. Billing stock for fixture products `1`, `2`, and `3` and named-customer ledger dues were read before and after each action.
+
+| Action | Expected target | Observed Rust readback | Billing stock before → after (units) | Customer dues before → after | Modeled next number, observation only |
+| --- | --- | --- | --- | --- | --- |
+| Decline delete | Same active invoice | Full invoice unchanged, `cancelled=false`. | `[3, 4, 4]` → `[3, 4, 4]` | ₹342 → ₹342 | `701` |
+| Confirm delete | Target absent | Test-only removal; real readback returned `NotFound` and emitted nothing. | `[3, 4, 4]` → `[3, 4, 4]` | ₹342 → ₹342 | `700` |
+| Cancel invoice | Same invoice retained, flagged cancelled | Readback matched the full original record and totals except `cancelled=true`. | `[3, 4, 4]` → `[3, 4, 4]` | ₹342 → ₹342 | `701` |
+
+The control invoice and ordinary customer ledger rows remained identical in all branches. The source-shaped number observation used the remaining records, including cancelled invoices; no subsequent invoice was issued and no reuse rule was approved. Legacy deletion persistence, tombstones and sync were not exercised.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib confirmation::tests::gst_ -- --nocapture --test-threads=1
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-GST-289dfaf-focused:** [Transcript](../phase2-local/target/D-GST-289dfaf-focused.log): 6 passed, 0 failed, 0 ignored, 256 filtered out. Before the final replay, the harness failed on two padding assertions and an unsupported rounding fixture; the model and synthetic fixture were corrected without changing production code.
+- **D-GST-289dfaf-offline:** [Transcript](../phase2-local/target/D-GST-289dfaf-offline.log): 378 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy (`-D warnings`) and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run / blocked:** Frozen HTML remained unserved under OPEN-008. No browser, installed device, registration, numbering policy or accounting acceptance is implied.
