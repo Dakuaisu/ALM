@@ -11,6 +11,8 @@ mod fixture;
 mod outputs;
 #[path = "milestone_d_replay/recovery.rs"]
 mod recovery;
+#[path = "milestone_d_replay/sales_output.rs"]
+mod sales_output;
 
 static NEXT_REPLAY: AtomicU64 = AtomicU64::new(0);
 

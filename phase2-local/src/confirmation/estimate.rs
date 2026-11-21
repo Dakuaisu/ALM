@@ -130,7 +130,7 @@ impl ConfirmationFixture {
     }
 }
 
-fn estimate_html(
+pub(super) fn estimate_html(
     preview: &BillPreview,
     display: EstimateDisplay<'_>,
     profile: Option<&crate::synthetic_read_model::BusinessProfile>,

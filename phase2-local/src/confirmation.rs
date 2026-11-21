@@ -24,6 +24,7 @@ mod posting;
 mod preview;
 mod purchase_orders;
 mod reporting;
+mod sales_output;
 pub use crate::SaleUnit;
 pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
@@ -72,6 +73,7 @@ pub use purchase_orders::{
     ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier, SupplierPrice,
     SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
 };
+pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RequestId(pub(crate) u64);
