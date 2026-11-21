@@ -4,7 +4,8 @@ use crate::confirmation::{ImageFile, ImageHandoff, ShareRejected, TextHandoffInt
 
 use super::super::PurchaseSupplierId;
 use super::{
-    ConfirmationFixture, PurchaseError, PurchaseOrder, PurchaseOutputRequest, supplier_html,
+    ConfirmationFixture, PurchaseError, PurchaseOrder, PurchaseOutputRequest, supplier_document,
+    supplier_html,
 };
 
 /// Entry in the synthetic supplier directory used for recipient selection.
@@ -40,7 +41,7 @@ impl ConfirmationFixture {
         let output = request.output;
         let order = self.selected_purchase_order(output.selection)?;
         let phone = supplier_phone(order, request.contacts);
-        let html = supplier_html::order_html(order, output);
+        let html = supplier_html::order_html(&supplier_document(order, output));
         let Some(bytes) = sinks.render_png(&html, 760) else {
             let mut text = format!(
                 "*Order — {}* ({})\n\n",

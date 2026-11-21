@@ -1,30 +1,57 @@
+use std::num::NonZeroU32;
+use std::time::Duration;
+
 use crate::confirmation::estimate::{display_date, escape_text};
 use crate::confirmation::image_handoff::{format_amount, group_indian_digits};
+use crate::confirmation::{PopupDocument, PrintIntent};
+use crate::{BillDate, Money};
 
-use super::{PurchaseOrder, PurchaseOutputRequest, PurchaseProductDisplay};
+use super::PurchaseBusiness;
 
-pub(super) fn order_html(order: &PurchaseOrder, request: PurchaseOutputRequest<'_>) -> String {
-    let products = request.products;
-    let business = request.business;
+pub(crate) struct SupplierDocument<'a> {
+    pub(crate) number: u64,
+    pub(crate) supplier_name: &'a str,
+    pub(crate) date: BillDate,
+    pub(crate) note: &'a str,
+    pub(crate) business: PurchaseBusiness<'a>,
+    pub(crate) rows: Vec<SupplierRow<'a>>,
+}
+
+pub(crate) struct SupplierRow<'a> {
+    pub(crate) item: &'a str,
+    pub(crate) pack: Option<String>,
+    pub(crate) mrp: Option<Money>,
+    pub(crate) ordered: NonZeroU32,
+}
+
+pub(super) fn purchase_order_number(number: u64) -> String {
+    format!("PO-{number:03}")
+}
+
+pub(crate) fn render_supplier_print(document: &SupplierDocument<'_>) -> PopupDocument {
+    let number = purchase_order_number(document.number);
+    let title = escape_text(&format!("Order-{number}-{}", document.supplier_name));
+    let body = order_html(document);
+    PopupDocument {
+        target: "_p",
+        intent: PrintIntent::AfterLoad(Duration::from_millis(350)),
+        html: format!(
+            r#"<html><head><title>{title}</title><style>@page{{margin:0}}body{{margin:0;padding:10mm}}</style></head><body style="margin:0">{body}</body></html>"#
+        ),
+    }
+}
+
+pub(super) fn order_html(document: &SupplierDocument<'_>) -> String {
+    let business = document.business;
     let mut rows = String::new();
     let mut total = 0;
-    for (index, saved) in order.items.iter().enumerate() {
-        let line = &saved.line;
-        let product = line
-            .product_id
-            .and_then(|id| products.iter().find(|product| product.id == id))
-            .or_else(|| products.iter().find(|product| product.item == line.item))
-            .copied();
-        let item = escape_text(&line.item);
-        let pack = product
-            .and_then(PurchaseProductDisplay::pack)
-            .map_or_else(|| "—".into(), |pack| escape_text(&pack));
-        let mrp = product
-            .and_then(PurchaseProductDisplay::displayed_mrp)
-            .map_or_else(
-                || "—".into(),
-                |amount| format!("₹{}", format_amount(amount)),
-            );
+    for (index, line) in document.rows.iter().enumerate() {
+        let item = escape_text(line.item);
+        let pack = line.pack.as_deref().map_or_else(|| "—".into(), escape_text);
+        let mrp = line.mrp.map_or_else(
+            || "—".into(),
+            |amount| format!("₹{}", format_amount(amount)),
+        );
         let ordered = u64::from(line.ordered.get());
         total += ordered;
         rows.push_str(&format!(
@@ -36,14 +63,14 @@ pub(super) fn order_html(order: &PurchaseOrder, request: PurchaseOutputRequest<'
     let name = escape_text(business.name);
     let address = escape_text(business.address);
     let mobile = escape_text(business.mobile);
-    let supplier = escape_text(&order.supplier_name);
-    let number = request.selection.number();
-    let date = display_date(order.date);
+    let supplier = escape_text(document.supplier_name);
+    let number = purchase_order_number(document.number);
+    let date = display_date(document.date);
     let total = group_indian_digits(total);
-    let note = if order.note.is_empty() {
+    let note = if document.note.is_empty() {
         String::new()
     } else {
-        format!(" Note: {}", escape_text(&order.note))
+        format!(" Note: {}", escape_text(document.note))
     };
     format!(
         r#"<div style="background:#fff;color:#000;font-family:'Segoe UI',Arial,sans-serif;padding:26px 30px;width:100%;max-width:720px;margin:0 auto;box-sizing:border-box;border:1.5px solid #334155;border-radius:6px">

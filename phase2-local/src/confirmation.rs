@@ -23,7 +23,7 @@ mod payment;
 mod pending;
 mod posting;
 mod preview;
-mod purchase_orders;
+pub(crate) mod purchase_orders;
 mod reporting;
 mod sales_output;
 pub use crate::SaleUnit;

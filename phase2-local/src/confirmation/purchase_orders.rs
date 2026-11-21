@@ -1,7 +1,7 @@
 mod fresh_form;
 mod note_edit;
 pub mod order_planner;
-mod output;
+pub(crate) mod output;
 mod paste;
 mod receive_form;
 mod receiving;

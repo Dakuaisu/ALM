@@ -1,13 +1,11 @@
 mod supplier_html;
 mod whatsapp;
 
-use std::time::Duration;
-
-use crate::confirmation::estimate::escape_text;
-use crate::confirmation::{PopupDocument, PrintIntent};
+use crate::confirmation::PopupDocument;
 use crate::{BillDate, Money, ProductId, Role};
 
 use super::{ConfirmationFixture, PurchaseError, PurchaseOrder, PurchaseOrderId, owner};
+pub(crate) use supplier_html::{SupplierDocument, SupplierRow, render_supplier_print};
 pub use whatsapp::{PurchaseOrderHandoff, PurchaseSupplierContact, PurchaseWhatsAppRequest};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -19,7 +17,7 @@ pub struct PurchaseOrderSelection {
 
 impl PurchaseOrderSelection {
     fn number(self) -> String {
-        format!("PO-{:03}", self.number)
+        supplier_html::purchase_order_number(self.number)
     }
 }
 
@@ -175,19 +173,7 @@ impl ConfirmationFixture {
         sink: &mut impl FnMut(PopupDocument),
     ) -> Result<(), PurchaseError> {
         let order = self.selected_purchase_order(request.selection)?;
-        let title = escape_text(&format!(
-            "Order-{}-{}",
-            request.selection.number(),
-            order.supplier_name
-        ));
-        let body = supplier_html::order_html(order, request);
-        sink(PopupDocument {
-            target: "_p",
-            intent: PrintIntent::AfterLoad(Duration::from_millis(350)),
-            html: format!(
-                r#"<html><head><title>{title}</title><style>@page{{margin:0}}body{{margin:0;padding:10mm}}</style></head><body style="margin:0">{body}</body></html>"#
-            ),
-        });
+        sink(render_supplier_print(&supplier_document(order, request)));
         Ok(())
     }
 
@@ -200,5 +186,38 @@ impl ConfirmationFixture {
             .orders
             .get(selection.id.0)
             .ok_or(PurchaseError::OrderNotFound)
+    }
+}
+
+fn supplier_document<'a>(
+    order: &'a PurchaseOrder,
+    request: PurchaseOutputRequest<'a>,
+) -> SupplierDocument<'a> {
+    let rows = order
+        .items
+        .iter()
+        .map(|saved| {
+            let line = &saved.line;
+            let products = request.products;
+            let product = line
+                .product_id
+                .and_then(|id| products.iter().find(|product| product.id == id))
+                .or_else(|| products.iter().find(|product| product.item == line.item))
+                .copied();
+            SupplierRow {
+                item: &line.item,
+                pack: product.and_then(PurchaseProductDisplay::pack),
+                mrp: product.and_then(PurchaseProductDisplay::displayed_mrp),
+                ordered: line.ordered,
+            }
+        })
+        .collect();
+    SupplierDocument {
+        number: request.selection.number,
+        supplier_name: &order.supplier_name,
+        date: order.date,
+        note: &order.note,
+        business: request.business,
+        rows,
     }
 }
