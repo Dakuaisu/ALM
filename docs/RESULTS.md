@@ -893,3 +893,24 @@ cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/appl
 - **D-L18-04-757e119-focused:** [Transcript](../phase2-local/target/D-L18-04-757e119-focused.log): 1 passed, 0 failed, 0 ignored. Final replay files were confined to a disposable repository `target` directory. An earlier development run used the OS temporary directory before the test path was corrected; it is not the cited run.
 - **D-L18-04-757e119-offline:** [Transcript](../phase2-local/target/D-L18-04-757e119-offline.log): 329 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out. [DEC-023](DECISIONS.md#dec-023-use-the-standard-rust-json-serializer-for-local-recovery) pins `serde` with `derive` at `1.0.229` and `serde_json` at `1.0.154`; `Cargo.lock` was unchanged.
 - **Not run / blocked:** Installed Settings UI, legacy runtime and pixel parity, actual raster or device delivery, hosted access, and acceptance were not run. OPEN-009 remains owner-blocked and independent.
+
+#### Presentation preferences and storage failures
+
+**D-PREF-ec56ac6 (development, scoped PASS).** Tested `ec56ac6a5f8a393d294e822f6b1215968dcfdb2c` on the development Mac. The [single synthetic replay](../phase2-local/tests/preference_replay.rs) exercises the [L18-01/L05-01 failure cases](PHASE1_CASES.md#L625) through separate local preference files, a readable business archive, and the Rust estimate renderer. Replay Buyer's ₹250.00 bill had ₹100.00 paid and a later ₹60.00 standalone receipt. The observed markup distinguished bill-date **Balance Due: ₹150.00** from latest **Total Due (as on 01-Mar-2025): ₹90.00**.
+
+| Case | Expected and observed (development) |
+| --- | --- |
+| Successful save and reopen | Dark theme, privacy on, and latest balance returned. The business archive's bytes stayed unchanged; its records and profile remained readable and unchanged. |
+| Preference read failures only | Unreadable key fixtures fell back to light, privacy off (the sample figure remained visible), and bill-date balance with the ₹150.00 row. After restoring key reads, dark, privacy on, and the latest ₹90.00 row returned. Business reads continued to succeed. |
+| Reject each write separately with saved keys | The current session changed only the attempted preference: light theme, visible figure, or the bill-date ₹150.00 row, respectively. Each reopen returned the prior dark, privacy-on, latest ₹90.00 state. |
+| Reject each write separately with missing keys | The current session changed only the attempted preference: dark theme, masked figure, or the latest ₹90.00 row, respectively. Each reopen returned light, privacy off, and the bill-date ₹150.00 row. |
+| Manager with privacy on and off | The presentation mask changed; the local role checks did not. Named sale review, profit, and business backup remained denied, and provisional draft save/reopen remained allowed. Masking is not authorization. |
+
+```sh
+cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test preference_replay -- --nocapture
+cd /Users/apple/ALM && cargo test --offline --locked --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-PREF-ec56ac6-focused:** [Transcript](../phase2-local/target/D-PREF-ec56ac6-focused.log): 1 passed, 0 failed, 0 ignored.
+- **D-PREF-ec56ac6-offline:** [Transcript](../phase2-local/target/D-PREF-ec56ac6-offline.log): 330 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run:** Installed UI, browser storage behavior and legacy runtime parity, system theme detection, visual masking and reveal controls, actual device output, and hosted authorization. No acceptance is claimed. OPEN-009 remains owner-blocked and did not block this replay.
