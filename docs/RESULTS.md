@@ -1115,3 +1115,23 @@ cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/appl
 - **D-CONTACT-c12fa44-focused:** [Transcript](../phase2-local/target/D-CONTACT-c12fa44-focused.log): 2 passed, 0 failed, 0 ignored.
 - **D-CONTACT-c12fa44-offline:** [Transcript](../phase2-local/target/D-CONTACT-c12fa44-offline.log): 366 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
 - **Not run / blocked:** Actual legacy and installed controls remain unrun; actual handoff is owner-blocked under OPEN-005. No chat was opened and no message was sent. OPEN-009 remains independent.
+
+#### Sales-row WhatsApp and cancelled estimate history
+
+**D-SALES-6e12f3a (development, scoped PASS).** Tested `6e12f3a85c8d8426ede9a12e1fb71da57427c618` on the development Mac. The [offline replay](../phase2-local/tests/milestone_d_replay/sales_output.rs) invokes the fixture-backed Rust Sales-row and history routes against [L05-05](PHASE1_CASES.md#L150). It reuses the existing estimate renderer and inert handoff helpers but does not run the legacy or installed Sales UI.
+
+| Entry point | Expected and observed |
+| --- | --- |
+| Active Sales row → WA, usable phone | Selected stored row `DraftId(21)` for Estimate #1 with a second posted sale and a decoy contact in the fixture. The row resolved the matching customer ID to synthetic recipient `910000000000`. With the first image generator returning sentinel bytes and native sharing unavailable, the sink captured an `Estimate-1.png` download request and a separate chat target, with no text fallback or canvas attempt. |
+| Active Sales row → WA, no usable phone | The same selected row, with only the nonmatching contact available, resolved no recipient. The sink captured the same file request with no chat or text request. |
+| Cancelled history row → View → preview WA | View reopened stored Estimate #1 with `<p>CANCELLED</p>` in the preview markup. When the HTML and canvas generators both failed, in that order, the sink captured one encoded `_blank` text request for the matching synthetic recipient, without a file probe, file request or separate chat. The literal comparison used the frozen text format: 21-Feb-2025, Synthetic Buyer, Synthetic A ×2 at ₹354 and Synthetic B ×1 at ₹56 as line amounts, loading ₹0, bill amount ₹410, paid ₹100 and latest due ₹-50 as of 01-Mar-2025. The text did not include a cancellation marker. |
+| Denied routes | Manager row selection was denied; cancelled direct row WA was rejected before either image generator or any output sink was called. |
+
+```sh
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_replay sales_output:: -- --nocapture
+cd /Users/apple/ALM && cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- **D-SALES-6e12f3a-focused:** [Transcript](../phase2-local/target/D-SALES-6e12f3a-focused.log): 3 passed, 0 failed, 0 ignored, 2 filtered out.
+- **D-SALES-6e12f3a-offline:** [Transcript](../phase2-local/target/D-SALES-6e12f3a-offline.log): 369 passed, 0 failed, 2 ignored (subprocess workers). Formatting, locked offline all-target Clippy with `-D warnings`, and locked offline build passed. Rust editor diagnostics timed out.
+- **Not run / blocked:** Actual Sales-row UI, legacy runtime and cancellation marker in a rendered image were not checked by this replay. File bytes in the active-row test were a routing sentinel. No chat opened and no file was sent; actual device handoff remains owner-blocked under OPEN-005. OPEN-009 remains independent.
