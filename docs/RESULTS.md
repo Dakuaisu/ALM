@@ -1826,3 +1826,37 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 
 - [L14-OPENING-APP-fffd3ce-focused](../phase2-local/target/L14-OPENING-APP-fffd3ce-focused.log): 8 passed, 0 failed, 0 ignored.
 - [L14-OPENING-APP-fffd3ce-offline](../phase2-local/target/L14-OPENING-APP-fffd3ce-offline.log): 413 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
+
+#### Customer ageing with saved opening balances
+
+**L02-04 / L14-04: PASS (local Rust development)** at `22cc57bc37dc1fa59f001eed31f9a7e3d6cea6ae`. The Owner-only [ageing report](../phase2-local/src/confirmation/customer_ageing.rs) reads the existing opening-aware ledger. The [replay](../phase2-local/src/confirmation/tests/customer_ageing.rs) traces to [L02-04](PHASE1_CASES.md#L356) and frozen HTML L2455–2462 and L2516–2572. It used the explicit report date `2024-03-31`, calendar-day differences, and the local ledger's posting-order tie-breaker; browser time-zone behavior was not exercised. All amounts below are exact paise.
+
+Customer `a` kept the same bills, receipts, and cancellation state across every opening change. Standalone receipts `+200` and `-50` provided net credit 150. Active draft/invoice `8` (total 100, paid 200) provided another 100 of credit. That overpayment was seeded in private test history, including its effect on the balance index; ordinary payment validation was unchanged and rejected an overpaid review. Cancelled draft/invoice `9` contributed no debt or credit. Same-name accounts `b` and `c` retained separate pools by ID.
+
+| Saved opening for `a` | Expected and observed allocation | Expected and observed visible rows' sum / ledger due |
+| --- | --- | ---: |
+| Not configured | Pool 250 applied to oldest bill `1`, leaving 750 | 5750 / 5800 |
+| +500, saved date `2024-03-30` | Pool 250 applied first to undated opening; remaining 250 visible in `Old` at age 999. Bill `1` unchanged at 1000 | 6250 / 6300 |
+| +300, no saved date | Pool 250 applied first to undated opening; remaining 50 omitted. Bill `1` unchanged at 1000 | 6000 / 6100 |
+| -100, no saved date | Opening increased the pool to 350; all applied to bill `1`, leaving 650 | 5650 / 5700 |
+
+| Customer `a` draft/invoice | Document date | Expected and observed age / bucket | Remaining paise (no opening / +500 / +300 / -100) |
+| --- | --- | --- | --- |
+| `1` | `2024-01-30` | 61 / `Old` | 750 / 1000 / 1000 / 650 |
+| `2` | `2024-01-31` | 60 / `D60` | 1000 in each variant |
+| `3` | `2024-02-29` | 31 / `D60` | 1000 in each variant |
+| `4` | `2024-03-01` | 30 / `D30` | 1000 in each variant |
+| `5` | `2024-03-15` | 16 / `D30` | 1000 in each variant |
+| `6` | `2024-03-16` | 15 / `D15` | 1000 in each variant |
+
+Draft/invoice `7` for `a` started at 50 and never entered the debt list. Customer `b`'s draft/invoice `10` started at 100 and received 50 credit: the residual 50 stayed in ledger due but was not visible. Customer `c`'s draft/invoice `11` started at 101 and received 50 credit: the residual 51 remained visible in `D15` at age 15, and ledger due was also 51. Report-wide `D15 / D30 / D60` totals were `1051 / 2000 / 2000` throughout, with `Old` at `750 / 1250 / 1000 / 650` in opening-variant order. A separate `negative` account control showed a signed receipt pool of -60 increasing bill `1` from 100 to 160 in `D15`; ledger due was 160.
+
+Owner report reads left the complete fixture unchanged. The Manager request returned only `AccessDenied`. The projection inherits the local opening-aware ledger's supported transaction scope. It does not establish browser parity, hosted authorization or accounting acceptance. The frozen HTML stayed unchanged and unserved under OPEN-008.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib customer_ageing -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-AGEING-22cc57b-focused](../phase2-local/target/L02-AGEING-22cc57b-focused.log): 2 passed, 0 failed, 0 ignored.
+- [L02-AGEING-22cc57b-offline](../phase2-local/target/L02-AGEING-22cc57b-offline.log): 415 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
