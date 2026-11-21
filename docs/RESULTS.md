@@ -1557,3 +1557,50 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L16-DEAD-FOLLOWUP-c6ede1f-offline](../phase2-local/target/L16-DEAD-FOLLOWUP-c6ede1f-offline.log): 395 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unchanged and unserved under OPEN-008. This source-model replay did not test browser rendering, duplicate-name migration, or accounting acceptance.
+
+#### Customer opening balance, deletion guard, and ledger views
+
+**L14-04 / L14-02 with scoped L02-04 and L05-01 controls: PASS (development only)** at `e1f531acbd6788c5bd5d321857833abe5c59e04c`. The [offline replay](../phase2-local/tests/l14_opening_balance_replay.rs) separates [legacy source modeling](../phase2-local/tests/l14_opening_balance_replay/modeled_cases.rs) from [existing Rust application APIs](../phase2-local/tests/l14_opening_balance_replay/rust_seams.rs). The modeled branches trace to the [case inventory](PHASE1_CASES.md#L360) and frozen stamp, balance, ageing and customer editor/ledger source (HTML L961–965, L1114–1173, L2516–2572, L7269–7312, L7367–7411).
+
+**Modeled save, `acct-a`.** Each independent copy started at 1200 paise opening. The fixed `bill-a` dated `2025-02-10` contributed 10000 debit less 2000 paid; `receipt-a` dated `2025-02-12` credited 3000. `cancelled-a` dated `2025-02-11` was excluded. The signed ledger opening row was dated `2025-02-01` UTC and carried zero credit. Ageing used `2025-02-25`; the age-15 bill was in `d15`.
+
+| Input | Expected and observed saved opening / exact due (paise) | Expected and observed rounded due (rupees) | Expected and observed running ledger (opening → bill → receipt, paise) | Expected and observed ageing |
+| --- | --- | --- | --- | --- |
+| Positive | 4500 / 9500 | 95 | 4500 → 12500 → 9500 | 1500 paise undated opening (`old`, age 999); 8000 paise bill (`d15`) |
+| Negative | -7500 / -2500 | -25 | -7500 → 500 → -2500 | No debt rows |
+| Zero | 0 / 5000 | 50 | 0 → 8000 → 5000 | 5000 paise bill (`d15`) |
+| Blank | 0 / 5000 | 50 | 0 → 8000 → 5000 | 5000 paise bill (`d15`) |
+
+Each successful modeled save replaced the opening value and changed `_v` from 7 to 8, `_m` from `1738368000000` to `1740441600000` (2025-02-25 UTC), and `_d` from `old-device` to `synthetic-device`. The `created` value stayed `1738368000000` (2025-02-01 UTC). No payment was created, and the complete bill and receipt records stayed equal. `acct-b` kept its 1100-paise opening, original stamp, and 7600-paise due (`bill-b`: 8000 total / 1000 paid; `receipt-b`: 500). Its ledger and ageing also stayed unchanged.
+
+**Same-name control.** The frozen editor rejects an existing duplicate normalized name before saving. With both IDs named `Synthetic`, all four opening-save attempts were expected and observed to be rejected without changing either account, its stamp, bills, or receipts. Due remained **6200 paise for `acct-a`** and **7600 paise for `acct-b`**; their linked ledgers and ageing were separate. The successful variants above therefore use a distinct name on the control account rather than bypassing the editor guard.
+
+**Modeled deletion guard, `acct-a`.** `OfferConfirmation` means not blocked by the guard, not deleted. No confirmation action, contact deletion, or tombstone was tested.
+
+| Exact balance (expected = observed, paise) | Guard balance (expected = observed, rupees) | Expected and observed outcome |
+| --- | --- | --- |
+| 9500 | 95 | Blocked: debt |
+| -2500 | -25 | Blocked: advance |
+| 0 | 0 | Confirmation offered |
+| 25 | 0 | Confirmation offered despite nonzero debt |
+| 50 | 1 | Blocked: debt |
+| -50 | 0 | Confirmation offered; JavaScript negative zero compares equal to zero |
+
+**Existing Rust path.** Used `ConfirmationFixture` to register, review and confirm named bills, record standalone receipts, read exact due and linked ledgers, and request both bill-preview modes. No opening save, customer stamp, ageing or deletion operation used the Rust application path.
+
+| Customer / scenario | Expected and observed API result (paise) |
+| --- | --- |
+| `acct-a`, invoice 1 dated Feb 10, after Feb 12 receipt of 3000 | Bill due 8000; bill-date preview 8000; latest and current due 5000 |
+| `acct-a`, after a further 1000-paise receipt posted later but dated Feb 9 | Document-order running balances: Feb 9 -1000, Feb 10 7000, Feb 12 4000. Bill-date preview stayed 8000; latest and exact due were 4000 |
+| `acct-b`, invoice 2, same name as `acct-a` | Own separate ledger with one fully paid bill and zero closing/current due |
+| Unlinked `Local - Neighbor`, invoice 3 | Total and paid 10000; zero due and zero balance in both preview modes, with no toggle. Linked-ledger lookup returned `InvalidDraft`; rereading both named ledgers after posting returned unchanged rows |
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_opening_balance_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-ACCOUNT-e1f531a-focused](../phase2-local/target/L14-ACCOUNT-e1f531a-focused.log): 4 passed, 0 failed, 0 ignored.
+- [L14-ACCOUNT-e1f531a-offline](../phase2-local/target/L14-ACCOUNT-e1f531a-offline.log): 399 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unchanged and unserved under OPEN-008. No legacy editor, browser persistence or deletion was executed. Browser parity and accounting acceptance remain open.
