@@ -38,6 +38,7 @@ pub(super) fn estimate_fixture_with_costs(lots: &[(u32, Money)]) -> Confirmation
         amount: Money::from_minor_units(6_000),
         date: BillDate::new(2024, 3, 1).unwrap(),
         after_invoice: 1,
+        mode: None,
     });
     f
 }
@@ -254,6 +255,7 @@ fn l05_02_overflow_does_not_emit_or_mutate() {
         amount: Money::from_minor_units(i64::MIN),
         date: BillDate::new(2024, 3, 2).unwrap(),
         after_invoice: 1,
+        mode: None,
     });
     let before = f.clone();
     let mut captured = Vec::new();

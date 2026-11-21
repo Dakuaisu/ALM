@@ -5,9 +5,11 @@ use std::num::NonZeroU32;
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
 mod cancellation;
+mod cashbook;
 mod catalog;
 mod checkout;
 mod crate_templates;
+mod customer_accounts;
 mod edit;
 mod estimate;
 mod gst_defaults;
@@ -23,6 +25,7 @@ mod preview;
 mod purchase_orders;
 mod reporting;
 pub use crate::SaleUnit;
+pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
 pub use catalog::{
     DailyMovementError, DailyMovementRow, PhysicalCount, PhysicalCountError, PhysicalCountInput,
@@ -33,6 +36,9 @@ pub use catalog::{
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 use crate_templates::CrateTemplateBook;
 pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
+pub use customer_accounts::{
+    CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, CustomerReceiptInput, ReceiptMode,
+};
 pub use edit::{EditChanges, SaleEdit};
 pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,

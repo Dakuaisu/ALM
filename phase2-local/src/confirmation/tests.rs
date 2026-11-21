@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 mod bill_guard;
 mod cancellation;
 mod checkout_guard;
+mod customer_accounts;
 mod edit;
 mod fifo;
 mod l05_01;

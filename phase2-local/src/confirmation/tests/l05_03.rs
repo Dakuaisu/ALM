@@ -35,6 +35,7 @@ pub(super) fn fixture() -> ConfirmationFixture {
         amount: Money::from_minor_units(6_000),
         date: BillDate::new(2024, 3, 1).unwrap(),
         after_invoice: 1,
+        mode: None,
     });
     fixture
 }
