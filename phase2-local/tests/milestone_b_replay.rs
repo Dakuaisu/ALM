@@ -14,8 +14,12 @@ use alm_phase2_local::{
 mod count_adjustment;
 #[path = "milestone_b_replay/l07_03.rs"]
 mod l07_03;
+#[path = "common/manager_sqlite.rs"]
+mod manager_sqlite;
 #[path = "milestone_b_replay/purchasing.rs"]
 mod purchasing;
+#[path = "common/target_scratch.rs"]
+mod target_scratch;
 use purchasing::{receive_partials, save_planned_order};
 
 const OWNER: Role = Role::Owner;

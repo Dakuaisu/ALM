@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use super::fixtures::B_LINE_EDITED;
-use super::{Account, B_SAVED, DRAFT, LocalSales, Scratch, SqliteEvidence, only_database};
+use super::{Account, B_SAVED, DRAFT, LocalSales, PREFIX, Scratch, SqliteEvidence, only_database};
 
 fn run_manager_cli(root: &Path, script: &str) -> String {
     let account = Account::B.key();
@@ -40,8 +40,8 @@ fn run_manager_cli(root: &Path, script: &str) -> String {
 
 #[test]
 fn fresh_manager_cli_reads_saved_crate_without_prices_or_database_changes() {
-    let scratch = Scratch::new();
-    let root = &scratch.0;
+    let scratch = Scratch::new(PREFIX);
+    let root = scratch.path();
     let account = Account::B.key();
     let expected = B_SAVED.draft();
     LocalSales::open_manager_account(root, account)
@@ -88,8 +88,8 @@ fn fresh_manager_cli_reads_saved_crate_without_prices_or_database_changes() {
 
 #[test]
 fn displayed_line_number_selects_the_saved_product_for_quantity_edit() {
-    let scratch = Scratch::new();
-    let root = &scratch.0;
+    let scratch = Scratch::new(PREFIX);
+    let root = scratch.path();
     let account = Account::B.key();
     LocalSales::open_manager_account(root, account)
         .unwrap()

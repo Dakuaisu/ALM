@@ -1,9 +1,7 @@
 use std::env;
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::process::Command;
 
 use alm_phase2_local::confirmation::ConfirmationError;
 use alm_phase2_local::{LocalSales, Role};
@@ -14,11 +12,16 @@ mod authority;
 mod crate_review;
 #[path = "account_switch_restart/fixtures.rs"]
 mod fixtures;
+#[path = "common/manager_sqlite.rs"]
+mod manager_sqlite;
 #[path = "account_switch_restart/sqlite_evidence.rs"]
 mod sqlite_evidence;
+#[path = "common/target_scratch.rs"]
+mod target_scratch;
 
 use fixtures::{A_EDITED, A_INITIAL, Account, B_SAVED, DRAFT, MISSING};
-use sqlite_evidence::{SqliteEvidence, databases};
+use manager_sqlite::{SqliteEvidence, databases};
+use target_scratch::{Scratch, target_dir};
 
 const ROOT_ENV: &str = "ALM_ACCOUNT_SWITCH_RESTART_ROOT";
 const MODE_ENV: &str = "ALM_ACCOUNT_SWITCH_RESTART_MODE";
@@ -29,8 +32,8 @@ const DEVICE: &str = "synthetic-device";
 
 #[test]
 fn manager_switches_accounts_and_reopens_both_drafts_after_process_restart() {
-    let scratch = Scratch::new();
-    let root = scratch.0.join(DEVICE);
+    let scratch = Scratch::new(PREFIX);
+    let root = scratch.path().join(DEVICE);
     fs::create_dir(&root).expect("create synthetic device root");
     assert!(databases(&root).is_empty());
 
@@ -152,7 +155,7 @@ fn reopen_existing(root: &Path, account: Account) {
         .collect::<Vec<_>>();
     let [matched] = snapshots
         .iter()
-        .filter(|row| row.has_marker(account.marker()))
+        .filter(|row| row.dump().contains(account.marker()))
         .collect::<Vec<_>>()
         .try_into()
         .expect("exactly one on-disk database for the reopened payload");
@@ -191,18 +194,6 @@ fn run_worker(root: &Path, mode: &str) {
     print!("{stdout}");
 }
 
-fn target_dir() -> PathBuf {
-    let target = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .canonicalize()
-        .unwrap()
-        .join("target");
-    assert_eq!(
-        target.canonicalize().expect("existing Cargo target"),
-        target
-    );
-    target
-}
-
 fn verify_root(root: &Path) {
     let parent = root.parent().expect("scratch parent");
     assert_eq!(root, root.canonicalize().unwrap());
@@ -216,30 +207,4 @@ fn verify_root(root: &Path) {
             .file_name()
             .is_some_and(|name| name.to_string_lossy().starts_with(PREFIX))
     );
-}
-
-struct Scratch(PathBuf);
-
-impl Scratch {
-    fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let target = target_dir();
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = target.join(format!("{PREFIX}{}-{seq}", process::id()));
-            match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
-                Err(err) if err.kind() == ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create scratch directory {}: {err}", path.display()),
-            }
-        }
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        if let Err(error) = fs::remove_dir_all(&self.0) {
-            eprintln!("remove synthetic device directory: {error}");
-        }
-    }
 }

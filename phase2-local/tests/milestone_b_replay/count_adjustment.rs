@@ -7,11 +7,10 @@ use alm_phase2_local::confirmation::{
     ReorderError, ReorderStatus, ReportsError, StockCountMovement, StockCountReason, StockLotRow,
     StockLots, StockLotsError,
 };
-use alm_phase2_local::{
-    AccessDenied, BillDate, DraftCustomer, DraftId, DraftLine, LocalSales, ProductId,
-    ProvisionalDraft,
-};
+use alm_phase2_local::{BillDate, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft};
 
+use super::manager_sqlite::{SqliteEvidence, databases};
+use super::target_scratch::Scratch;
 use super::{
     A, B, ITEM_A, ITEM_B, MANAGER, OWNER, checked_register, feb, fifo, lot, money, movement, qty,
     stock,
@@ -83,6 +82,7 @@ pub(super) fn replay(fixture: &mut ConfirmationFixture, sale: DraftId, supplier:
 
     // When the Owner records the extra packets, without any receipt or known cost.
     fixture.submit_physical_count(OWNER, input).unwrap();
+    assert_scoped_manager_draft(supplier);
 
     // Then B leaves the reorder list while A stays visible at equality.
     assert_eq!(stock(fixture), [4, 5]);
@@ -203,39 +203,49 @@ fn assert_manager_boundary(fixture: &ConfirmationFixture, book: &ManualCashBook,
     assert_eq!(owner_cost, Some(expected_cost));
     let manager_cost = fixture.purchase_cost(MANAGER, B, supplier);
     assert_eq!(manager_cost, Err(PurchaseError::AccessDenied));
+}
 
-    // The local Manager API reopens provisional draft data, not an inventory projection.
-    let mut local = LocalSales::new(money(140));
-    let mut manager = local.session(MANAGER);
+fn assert_scoped_manager_draft(supplier: &str) {
+    const ACCOUNT: &str = "Batch2-Manager";
+    let scratch = Scratch::new("milestone-b-manager-");
     let draft_id = DraftId::new(2);
-    let lines = [DraftLine::new(A, qty(1)), DraftLine::new(B, qty(2))];
-    let draft = ProvisionalDraft::new(draft_id, lines.to_vec()).with_bill_date(Some(feb(16)));
-    manager.save_draft(draft).unwrap();
-    let reopened = manager.reopen_draft(draft_id).unwrap().unwrap();
-    assert_eq!(reopened.id(), draft_id);
-    assert_eq!(reopened.bill_date(), Some(feb(16)));
-    assert_eq!(reopened.lines(), lines);
-    assert_eq!(reopened.customer(), &DraftCustomer::Unassigned);
-    assert_eq!(reopened.crate_row(), None);
-    let payload = format!("{reopened:?}").to_ascii_lowercase();
-    let private = [
+    let expected = ProvisionalDraft::new(
+        draft_id,
+        vec![DraftLine::new(A, qty(1)), DraftLine::new(B, qty(2))],
+    )
+    .with_bill_date(Some(feb(16)));
+    {
+        let writer = LocalSales::open_manager_account(scratch.path(), ACCOUNT).unwrap();
+        writer.save_draft(expected.clone()).unwrap();
+    }
+    let reader = LocalSales::open_manager_account(scratch.path(), ACCOUNT).unwrap();
+    assert_eq!(reader.reopen_draft(draft_id).unwrap(), Some(expected));
+
+    let [path] = databases(scratch.path())
+        .try_into()
+        .expect("exactly one scoped Manager SQLite database");
+    let evidence = SqliteEvidence::read(&path);
+    evidence.assert_account_binding(ACCOUNT);
+    assert_eq!(
+        evidence.rows(),
+        "draft|2\ndate|2|2025-02-16\nline|2|0|1|1\nline|2|1|2|2\n",
+        "only the local draft header, date and ordered lines; no customer or crate rows"
+    );
+    evidence.assert_no_markers(&[
         "cost",
         "profit",
         "buy_rate",
         "locked_value",
         "supplier",
-        "money(",
-    ];
-    for field in private {
-        assert!(
-            !payload.contains(field),
-            "Manager draft leaked {field}: {reopened:?}"
-        );
-    }
-    assert_eq!(manager.total_profit(), Err(AccessDenied));
-    assert_eq!(local.session(OWNER).total_profit(), Ok(money(140)));
-    println!(
-        "Manager reopened draft lines {:?}; valuation, reports and cost reads denied",
-        reopened.lines()
-    );
+        "fifo",
+        "margin",
+        "invoice",
+        "payment",
+        "stock",
+        supplier,
+        "milestone-b-buyer",
+        "Synthetic Buyer",
+        "Synthetic Mixed Crate",
+        "two loose packets found",
+    ]);
 }
