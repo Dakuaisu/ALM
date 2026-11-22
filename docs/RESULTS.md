@@ -2694,3 +2694,33 @@ The prior Python check parsed the JSON with decimal arithmetic, checked the byte
 | 4,499,356 | 4,499,999 | 4,500,000 | IndexedDB only |
 
 No expanded payload was written, and no storage operation, mock, browser or replay ran. **OPEN-008 remains NOT RUN**; a supported guest must pass the full inert gate before serving the candidate and running synthetic L01 first.
+
+## R-5/R-6 development: Synthetic Manager account switch and restart
+
+**Tested `be3f1c9` (implementation `a284c35`).** One disposable device root, two trusted synthetic selectors, and the same `DraftId(21)` in both. The [switch replay](../phase2-local/tests/account_switch_restart.rs) selected A → B → A → B in one writer process, then launched independent `reopen-a` and `reopen-b` processes without reseeding. Each fresh selection initially returned no draft 21 before its first save; in particular B could not see A's saved 21. A's edit left B unchanged. Both restart reads matched their own payload, returned no draft 99, and showed no other-account marker.
+
+| Selector / checkpoint | Fixed payload, matched by Manager and SQLite readback |
+| --- | --- |
+| `synthetic-manager-a`, initial | Selected `SYNTHETIC-A-buyer` / `SYNTHETIC-A First's Shop`, 2025-02-11. Ordered lines PID 7 ×2, PID 9 ×4. Two crates, components PID 7 ×3 Piece then PID 9 ×1 Case. |
+| `synthetic-manager-a`, edited and reopened | Same buyer ID, `SYNTHETIC-A Revised's Shop`, 2025-02-12. Lines PID 9 ×3, PID 7 ×1. One crate, components PID 9 ×2 Case then PID 7 ×4 Piece. SQLite crate definition `1;9,2,1;7,4,0`. |
+| `synthetic-manager-b`, saved and reopened | Selected `SYNTHETIC-B-buyer` / `SYNTHETIC-B Second's Shop`, 2025-03-01. Lines PID 7 ×5, PID 9 ×2. Three crates, components PID 9 ×6 Piece then PID 7 ×2 Case. SQLite crate definition `3;9,6,0;7,2,1`. |
+
+All crates were unpriced. [Read-only SQLite inspection](../phase2-local/tests/account_switch_restart/sqlite_evidence.rs) found exactly two stores. It matched the account binding and exact table/view column allowlist: `manager_account_scope(account_hex)` and only the provisional draft ID, customer, date, ordered lines and crate definition tables. The inspected dumps lacked the other account's marker/binding and the checked cost, margin, profit, invoice, payment and stock markers. Reopen workers added no store and left both logical snapshots unchanged.
+
+**Independent posting controls.** In the writer, both reopened Manager drafts received `AccessDenied` on reconnect review in a separate in-memory Owner fixture; draft 21 never appeared as a posted sale. The full Owner readbacks stayed equal after saves, switches and denied reviews. That nonzero baseline (paise) was one invoice #1 on draft 5, sales 3,200, bill Cash 1,100, due 2,100 and gross profit 1,800; PID 7 had 10 left worth 7,000, PID 9 had 11 with unknown cost. B's independent Mar 1 Online receipt of 400 remained, with ledger closing −400; Feb 12 Cash Book stayed empty. The separate legacy CLI probe rejected `post` as unknown and found zero pending Owner confirmations; its two-launch save/review and the SQLite restart controls are not account-switch or shared-authority tests.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test account_switch_restart --test draft_demo --test sqlite_restart -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [R56-SWITCH-be3f1c9-focused](../phase2-local/target/R56-SWITCH-be3f1c9-focused.log): **10 passed, 0 failed, 2 ignored** — account switch 1, CLI 2, SQLite restart 7. The three dispatched switch-worker successes are not additional top-level passes.
+- [R56-SWITCH-be3f1c9-offline](../phase2-local/target/R56-SWITCH-be3f1c9-offline.log): **537 passed, 0 failed, 3 ignored** across 48 summaries. Ignored worker entry points: `account_switch_restart_worker` and `sqlite_restart_worker` (both runs), plus `confirmation::tests::restart::client_worker` (offline). Formatting, strict Clippy and build passed; LSP timed out.
+
+**CLI boundary.** [Scoped launch example](../phase2-local/README.md), not a command run for this handoff, using the existing target directory as a trusted root:
+
+```sh
+cd /Users/apple/ALM && cargo run --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --bin alm-draft-demo -- --device-root /Users/apple/ALM/phase2-local/target --account synthetic-manager-a
+```
+
+Select B by changing only `--account`. The scoped API derives the SQLite pathname and checks its binding; manual DB paths were not used to select accounts. `--db` remains the legacy single-account demo, not a scoped selector. This establishes local draft separation under trusted inputs, not authentication, authorization, revocation, shared posting or OS isolation. OPEN-004/006/008 remain unchanged; no phase exit claimed.
