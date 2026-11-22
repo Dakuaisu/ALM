@@ -2130,3 +2130,31 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L16-REPORTS-API-4a283d6-offline](../phase2-local/target/L16-REPORTS-API-4a283d6-offline.log): 439 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
+
+#### Owner Reports API: Dead Stock
+
+**L16-02 through L16-05: PASS for the representable local Rust cases** at `d48980e61e1f0a503d2d081bdd4e79a33aebd8e2`. The [read-only API](../phase2-local/src/confirmation/reporting/dead_stock.rs) accepts a resolved calendar cutoff and derives the report from current catalog stock and active posted sales. The [application replay](../phase2-local/src/confirmation/reporting/dead_stock_tests.rs) uses independent expectations from the `5f3b55b` and `c6ede1f` model runs. Quantities below are whole packets; raw values are paise, before display rounding.
+
+| Check | Expected and observed application result |
+| --- | --- |
+| Strict cutoff `2024-10-04` | Ordered product IDs `[4, 5, 8, 1]`: `4`, `5`, and `8` each had 4 packets and raw value 400; `1` had 3 packets and raw value 300, last sold `2024-10-03`. Product `2` was excluded at equality despite a later-posted backdated bill. Products `6` and `7` had zero stock and were excluded. |
+| Cutoff `2024-10-05` | Ordered IDs `[4, 5, 8, 1, 2]`. Product `2` entered with 2 packets, raw value 200 and last sale `2024-10-04`. Products `3` and `9`, last sold October 5 and 6, stayed out. |
+| Cancel and undo, cutoff `2024-10-04` | Product `1`, buy rate 400: with old bill `1` active and recent bill `2` cancelled, 4 packets, raw value 1,600 and last sale October 3. Undo restored recent activity and suppressed the row even with 2 packets still on hand (raw candidate 800). In the cancelled-only control, product `1` had 5 packets, raw value 2,000 and no last sale. |
+| Retained direct and crate identities | With cutoff `2024-10-04`, each separate October 5 sale followed stored product ID `1` through renaming and suppressed it with 2 packets still on hand. In both runs only product `2` appeared, with 3 packets and raw value 300. |
+| Ranking and cap | From 16 eligible products at cutoff `2024-10-04`, returned 15: IDs `1`–`12` (1 packet and 2,000 paise each), then `14` (1 / 1,075), `13` (2 / 850), `15` (1 / 0). Reversing catalog insertion reversed the first tie group and placed `16` (1 / 0) in the final slot instead of `15`. This is a distinct whole-packet fixture, not the rounded fractional model. |
+| Current rate, not FIFO | Product `1`: conflicting catalog and purchasing rates of 950 and 720 used catalog 950, yielding 1,900 for 2 packets. In the price-edit control, 2 × 845 yielded 1,690 versus FIFO 200. In the goods-receipt control, 3 × 1,235 yielded 3,705 versus FIFO 1,435. |
+| Empty result and permissions | An Owner got no rows with zero stock on product `1` and a cutoff-date sale on product `2` (1 packet remaining). Manager got `AccessDenied` without a payload. The read-only checks preserved fixture state, including the checked-value overflow control. |
+
+**Model-only / not run through the application:** fractional packets and sub-paise values, negative stock, undated posting, and unresolved or name-only historical sale lines. The API tests supplied October 4 and October 5 as already-resolved `BillDate` values; they did not exercise the model's local clock, time-zone or DST conversion. Product `8` was never sold in the API cutoff fixture, not posted with a missing date. The historical helper tests were rerun separately and do not count as API passes.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib dead_stock_tests -- --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l16_02_replay --test l16_dead_stock_replay
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L16-DEAD-API-d48980e-focused](../phase2-local/target/L16-DEAD-API-d48980e-focused.log): 9 passed, 0 failed, 0 ignored, 299 filtered out.
+- [L16-DEAD-API-d48980e-model](../phase2-local/target/L16-DEAD-API-d48980e-model.log): 4 passed, 0 failed, 0 ignored (historical helpers only).
+- [L16-DEAD-API-d48980e-offline](../phase2-local/target/L16-DEAD-API-d48980e-offline.log): 448 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
