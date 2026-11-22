@@ -303,3 +303,13 @@ Changed since the last approval: bridge.toml.
 - docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
 - CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
 - bridge.toml: sha256 760fecbf36bfb597e96e9243244bfba0dacd46dda0524e303194501cb1350a2b
+
+## DEC-033 Defer PO paste invalid-calendar-date behavior (OPEN-009)
+- Decided by: supervisor
+- Status: AUTONOMOUS DECISION - owner to review
+
+Options considered: (a) adopt the frozen parser's calendar-invalid date string; (b) adopt the Rust fixture's retention of the prior valid draft date; (c) defer.
+
+Choice: (c). Neither (a) nor (b) is approved for release. `BillDate` validation and both mismatch thresholds stay unchanged. Legacy runtime behavior stays NOT RUN until [OPEN-008](OPEN.md#open-008-contained-browser-for-phase-1-walkthrough) passes. Any permanent departure requires written owner approval.
+
+Reason: This is the most conservative option and mirrors [DEC-027](#dec-027-defer-repeated-product-crate-valuation-l10-01). See [OPEN-009](OPEN.md#open-009-po-paste-calendar-date-discrepancy-l07-04).

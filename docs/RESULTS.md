@@ -2996,3 +2996,9 @@ Frozen HTML stayed unserved; browser rendering remains **NOT RUN**. OPEN-010 and
 | Result ID | Kind | Environment / fixture | Expected | Observed | Disposition | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | FINAL-6240541-offline | development | `cargo test --locked --offline` on `phase2-local`, synthetic fixtures, HEAD `6240541` | All tests pass | **549 passed, 0 failed, 3 ignored** (sum of per-target summaries; the ignored entries are the existing subprocess workers). `cargo fmt --check` exit 0; `cargo clippy --all-targets --locked --offline -- -D warnings` finished with no warnings | Pass; development evidence only, not owner acceptance | [log](../phase2-local/target/FINAL-6240541-offline.log), run id `FINAL-6240541-offline`, commit `6240541` |
+
+## Baseline digest recheck
+
+| Result ID | Kind | Environment / fixture | Expected | Observed | Disposition | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| DISC-DEPLOY-RECHECK | development | Local `shasum -a 256` of the untracked `ALM_Business_Manager.html`; no browser, no serving | SHA-256 `cd2887712e8a5a7e2fb9d45299d9034614cb4f9ec640a08ab1670acc42dd0043` | `cd2887712e8a5a7e2fb9d45299d9034614cb4f9ec640a08ab1670acc42dd0043`, **match**. `git ls-files --error-unmatch` fails and `git status --porcelain` shows `??`: the file is untracked | Match; not committed (see [OPEN-011](OPEN.md#open-011-unattributed-working-tree-files)) | Command output at HEAD `40fcbff` |
