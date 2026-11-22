@@ -1995,3 +1995,29 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-COUNTER-6fd9187-offline](../phase2-local/target/L02-COUNTER-6fd9187-offline.log): 425 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser behavior, including output dispatch from an actual Counter click, and hosted authorization remain unverified.
+
+#### Owner-gated local Counter API
+
+**L02-01: PASS (local Rust development)** at `8b76011defe3111c5e964ddf5d825bf5532965ba`. The [Counter API](../phase2-local/src/confirmation/counter.rs) reads the posted fixture directly. The [replay](../phase2-local/src/confirmation/tests/l02_counter_replay.rs) reused the literal expectations from `6fd9187`, which remains test-only evidence. Synthetic creation keys were supplied when posting and stored on first success; they are not wall-clock readings or persistent metadata across restart. No prefiltered rows were passed to the API.
+
+| Check | Expected and observed |
+| --- | --- |
+| Billed today, 2025-03-14 | 4 active bills by document date: `(51,1)`, `(84,3)`, `(63,5)`, `(72,7)` |
+| Recent bills | 6 of 7 active bills, by stored key descending: `(14,2)`, `(63,5)`, `(72,7)`, `(84,3)`, `(38,6)`, `(27,4)`. Keyless `(51,1)` was trimmed; cancelled `(95,8)` was excluded despite key 80. |
+| Recent-row preview | Modeled selection used the API's first returned draft `14`. The existing Rust preview returned invoice `2`, dated 2025-03-12, not cancelled. The fixture was unchanged; no print, PDF, or share request was invoked. |
+| Debtor IDs | Only `counter-due` qualified. Independent ledger balances and rounded rupees: `counter-due` +1,251 paise → 13; `counter-zero` 0 → 0; `counter-credit` −850 → −8; `counter-sub-rupee` +49 → 0. |
+| Manager | Counter returned `AccessDenied` with no payload. Posted preview and confirmation of draft `96` were also denied without mutation. The existing CLI saved and reopened a provisional draft and found 0 pending Owner confirmations. |
+
+Bill pairs are `(draft ID, invoice number)`. The acknowledged retry returned the original acknowledgment without replacing the stored key. After retry and cancellation/undo, recent draft IDs were `[3, 8, 7, 2]`: equal keys retained newest-first posting order, with explicit zero and missing keys tied. An undated active fixture row was eligible for recents but did not count as billed today. The legacy edit-time fallback that assigns a timestamp to a missing or zero creation value was not implemented or verified in this reporting slice.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l02_counter_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test draft_demo -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-COUNTER-API-8b76011-focused](../phase2-local/target/L02-COUNTER-API-8b76011-focused.log): 3 passed, 0 failed, 0 ignored, 284 filtered out.
+- [L02-COUNTER-API-8b76011-manager](../phase2-local/target/L02-COUNTER-API-8b76011-manager.log): 2 passed, 0 failed, 0 ignored.
+- [L02-COUNTER-API-8b76011-offline](../phase2-local/target/L02-COUNTER-API-8b76011-offline.log): 427 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser navigation and hosted authorization remain unverified.
