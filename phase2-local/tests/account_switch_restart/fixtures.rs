@@ -120,3 +120,8 @@ pub(super) const B_SAVED: DraftSpec = DraftSpec {
     components: [(9, 6, SaleUnit::Piece), (7, 2, SaleUnit::Case)],
     crate_sql: "3;9,6,0;7,2,1",
 };
+
+pub(super) const B_LINE_EDITED: DraftSpec = DraftSpec {
+    lines: [(7, 5), (9, 8)],
+    ..B_SAVED
+};

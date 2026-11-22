@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use alm_phase2_local::{DraftCustomer, Money, ProductId, SaleUnit, provisional_preview};
+use alm_phase2_local::{DraftCustomer, Money, SaleUnit, provisional_preview};
 
 use super::CurrentDraft;
 
@@ -35,13 +35,14 @@ pub(super) fn render(output: &mut impl Write, current: &CurrentDraft) -> io::Res
     let preview = match provisional_preview::preview(&current.draft) {
         Ok(preview) => preview,
         Err(error) => {
-            for line in current.draft.lines() {
-                let item = if line.product_id() == ProductId::new(1) {
-                    "Synthetic Lime"
-                } else {
-                    "Unrecognized item"
-                };
-                writeln!(output, "Item: {item} | Quantity: {}", line.quantity())?;
+            for (index, line) in current.draft.lines().iter().enumerate() {
+                writeln!(
+                    output,
+                    "Line {}: Product ID {} | Quantity: {}",
+                    index + 1,
+                    line.product_id(),
+                    line.quantity()
+                )?;
             }
             if let Some(row) = current.draft.crate_row() {
                 writeln!(output, "Crate quantity: {}", row.quantity())?;
@@ -122,7 +123,7 @@ mod tests {
         let output = String::from_utf8(output).expect("UTF-8 output");
         assert!(output.contains("PROVISIONAL — NOT POSTED\n"));
         assert!(output.contains("State: SAVED\n"));
-        assert!(output.contains("Item: Unrecognized item | Quantity: 1\n"));
+        assert!(output.contains("Line 1: Product ID 2 | Quantity: 1\n"));
         assert!(output.contains("Bill preview unavailable: UnknownProduct"));
         assert!(!output.contains("Inclusive total:"));
         assert!(!output.contains("Unit price"));
