@@ -107,7 +107,7 @@ fn customer_accounts_receipt_updates_preview_and_account_without_touching_bill()
             .unwrap()
             .balance
             .minor_units(),
-        -50
+        0
     );
 }
 

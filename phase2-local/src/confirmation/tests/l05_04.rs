@@ -221,7 +221,7 @@ fn l05_04_text_uses_latest_balance_when_selected() {
     assert_eq!(
         text_only(request, "https://wa.me/910000000000?text="),
         format!(
-            "{MESSAGE_HEAD}Paid on this bill: ₹0.05\n*Total Due (as on 05-Mar-2024): ₹1,23,536.65*\n\nThank you! 🙏"
+            "{MESSAGE_HEAD}Paid on this bill: ₹0.05\n*Total Due (as on 05-Mar-2024): ₹1,23,537*\n\nThank you! 🙏"
         )
     );
 }

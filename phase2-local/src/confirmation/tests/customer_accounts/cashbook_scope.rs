@@ -223,6 +223,6 @@ fn backdated_later_receipt_uses_document_date_for_cashbook_not_preview_creation_
             .unwrap()
             .balance
             .minor_units(),
-        50
+        100
     );
 }

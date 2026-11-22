@@ -56,7 +56,7 @@ pub(super) struct PreviewPayment {
 
 impl ConfirmationFixture {
     /// Projects the current saved regular bill without mutating fixture state.
-    /// Historical prior balances are rounded to whole rupees; other amounts remain exact.
+    /// Historical prior balances and Latest aggregates are rounded to whole rupees.
     ///
     /// # Errors
     /// Denies managers and rejects missing, unsupported, or overflowing data.
@@ -135,13 +135,13 @@ impl ConfirmationFixture {
         let previous = if use_latest {
             previous
         } else {
-            (previous.div_euclid(100) + i64::from(previous.rem_euclid(100) >= 50))
-                .checked_mul(100)
-                .ok_or(ConfirmationError::Overflow)?
+            round_balance(previous)?
         };
         let balance = if use_latest {
-            self.preview_balance(customer_id.ok_or(ConfirmationError::InvalidDraft)?, None)?
-                .0
+            round_balance(
+                self.preview_balance(customer_id.ok_or(ConfirmationError::InvalidDraft)?, None)?
+                    .0,
+            )?
         } else {
             previous
                 .checked_add(own_due)
@@ -248,6 +248,12 @@ impl ConfirmationFixture {
         }
         Ok((balance, date))
     }
+}
+
+fn round_balance(paise: i64) -> Result<i64, ConfirmationError> {
+    (paise.div_euclid(100) + i64::from(paise.rem_euclid(100) >= 50))
+        .checked_mul(100)
+        .ok_or(ConfirmationError::Overflow)
 }
 
 // Keyed targets compare a missing peer as zero without persisting a timestamp.
