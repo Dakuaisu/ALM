@@ -1132,3 +1132,17 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **Existing coverage:** the preference-storage-failure case covers reload after a failed write; [Settings](#bounded-settings-source-walk-not-run) and the [document head and shell](#bounded-document-head-and-shell-source-walk-not-run) cover form redraw and palette declarations. **OPEN-008: frozen runtime NOT RUN.**
 
 **Next bounded span:** privacy at **L1471**; next unread line **L1472**.
+
+## Bounded privacy state and click handling (NOT RUN)
+
+**Inspected, inclusive:** [L1471–1511](../ALM_Business_Manager.html#L1471-L1511). L1512 was read only to confirm the modal boundary.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L18-01 / L01-01 | Compare a saved `"1"`, other values or a failed read, then toggle with a failed write. | Only the exact stored string `"1"` initializes the page flag to true. Toggle flips the page flag before attempting to store `"1"` or `"0"`; a thrown write does not roll back the flag or suppress application and feedback. The notice reflects page state, not successful storage. Boot calls `applyPrivacy()` at L11638 and binds the button at L11645; the capture listener is registered separately at script evaluation (L1475–1510). |
+| L18-03 | **Helper-only:** apply privacy with existing individual reveals but no privacy button. | `applyPrivacy()` sets the body flag and removes all `.reveal` classes before checking for `#privbtn`. A missing button skips only its class, label, icon and title update. Individual reveals are DOM state, not saved preferences (L1480–1489). |
+| L18-03 | Click a child of a `.priv` element twice with page privacy on; compare privacy off, no matching ancestor, and a match on body or root. | The document capture listener passes the control cases through without cancelling or stopping the click. For an eligible match it stops propagation, prevents default and toggles the nearest `.priv` element's reveal class. The second click is also intercepted; being revealed does not re-enable the underlying action. The handler changes neither the page flag nor storage (L1501–1510). |
+
+**Existing coverage:** [Settings](#bounded-settings-source-walk-not-run), the preference-storage-failure case and the [shell audit](#bounded-document-head-and-shell-source-walk-not-run) cover local preferences, reload and CSS. Privacy is presentation, not authorization. **OPEN-008: frozen runtime NOT RUN.**
+
+**Next bounded span:** modal at **L1512**; next unread line **L1513**.
