@@ -2315,3 +2315,27 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L05-LATEST-4b5d3e5-offline](../phase2-local/target/L05-LATEST-4b5d3e5-offline.log): 468 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. This is a source-derived expectation checked against local Rust output, not observed browser parity.
+
+#### Recovered cancelled estimate Latest rounding
+
+**L05-01 / L19-01: PASS (local Rust development)** at `250e083e69ffc416168aeae8f9e4a8ef336460c4`. The [signed recovery replay](../phase2-local/tests/milestone_d_structured/signed_recovery.rs) first reproduced the prior `InvalidArchive` rejection for a fractional balance. `Store::estimate_html` now uses the same checked rounding rule as the live estimate, applied once to the linked aggregate after summing the exact saved transactions. The [earlier recovery limitation](#milestone-d-same-store-estimate-recovery) remains unchanged as historical evidence.
+
+| Exact linked balance (paise) | Source estimate Latest | Freshly restored and reopened estimate Latest |
+| ---: | ---: | ---: |
+| +150 (950 due − 800 receipt) | ₹2.00 | ₹2.00 |
+| −150 (650 due − 800 receipt) | ₹-1.00 | ₹-1.00 |
+| +50 (849 due − 799 receipt) | ₹1.00 | ₹1.00 |
+
+The 849/799 control distinguishes rounding after summation from rounding each transaction. Each store was independently checked against the expected display and typed input records; the cancelled bill still displayed ₹410.00 total and ₹100.00 paid. The replay dropped the source handle, restored the saved backup to a fresh path, reopened it and regenerated from typed records without reseeding or loading cached HTML. Manager denial, invalid-link and overflow rejection, read-only disk and backup checks, and the whole-rupee ₹-50.00 recovery regression remained covered.
+
+Retained artifacts: [positive source HTML](../phase2-local/target/structured-d-76885-1795327935313401000/positive-150-source.html), [positive regenerated HTML](../phase2-local/target/structured-d-76885-1795327935313401000/positive-150-restored.html), [positive backup](../phase2-local/target/structured-d-76885-1795327935313401000/positive-150-backup.json), [positive restored store](../phase2-local/target/structured-d-76885-1795327935313401000/positive-150-restored.json); [negative source HTML](../phase2-local/target/structured-d-76885-1795327935313401000/negative-150-source.html), [negative regenerated HTML](../phase2-local/target/structured-d-76885-1795327935313401000/negative-150-restored.html), [negative backup](../phase2-local/target/structured-d-76885-1795327935313401000/negative-150-backup.json), [negative restored store](../phase2-local/target/structured-d-76885-1795327935313401000/negative-150-restored.json). `cmp` confirmed byte equality for each HTML pair and each backup/restored JSON pair.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG ALM_STRUCTURED_RETAIN=1 TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_d_structured --test l14_ledger_ordering_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [D-ESTIMATE-ROUND-250e083-focused](../phase2-local/target/D-ESTIMATE-ROUND-250e083-focused.log): 17 passed (2 structured target, 15 ledger/estimate target), 0 failed, 0 ignored.
+- [D-ESTIMATE-ROUND-250e083-offline](../phase2-local/target/D-ESTIMATE-ROUND-250e083-offline.log): 468 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. These are local output checks, not observed browser parity or accounting acceptance.
