@@ -1,30 +1,30 @@
-//! L14-03 source replay (HTML 1604-1665, 5860-5959) into the L14-01/02 Rust ledger.
-use std::num::NonZeroU32;
-
+//! L14-03 local picker and receipt replay; no browser event or collation claim.
 use alm_phase2_local::confirmation::{
-    ConfirmationError, ConfirmationFixture, CustomerLedger, CustomerLedgerEntry,
+    ConfirmationError, ConfirmationFixture, CreationKey, CustomerLedger, CustomerLedgerEntry,
     CustomerLedgerKind, ReceiptMode, RequestId,
 };
+use alm_phase2_local::receive_payment::{Customer, ReceivePayment, SaveError};
 use alm_phase2_local::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role,
 };
+use std::num::NonZeroU32;
 
-#[path = "l14_receive_payment_replay/picker.rs"]
-mod picker;
-use picker::{Customer, ReceivePayment};
+#[path = "l14_receive_payment_replay/clock.rs"]
+mod clock;
+#[path = "l14_receive_payment_replay/receipt.rs"]
+mod receipt;
+#[path = "l14_receive_payment_replay/validation.rs"]
+mod validation;
 
 const OWNER: Role = Role::Owner;
 const PRODUCT: ProductId = ProductId::new(1);
-
 const fn money(units: i64) -> Money {
     Money::from_minor_units(units)
 }
-
 fn bill_date() -> BillDate {
     BillDate::new(2025, 3, 14).unwrap()
 }
-
 fn receipt_date() -> BillDate {
     BillDate::new(2025, 3, 17).unwrap()
 }
@@ -37,7 +37,7 @@ fn seeded() -> (ConfirmationFixture, [Customer; 3]) {
     ]
     .map(|(id, name)| Customer {
         id: DraftCustomerId::new(id.into()),
-        name,
+        name: name.into(),
     });
     let mut fixture = ConfirmationFixture::new(PRODUCT, 8, money(2_000)).unwrap();
     for (customer, (invoice, paid)) in customers.iter().zip([(1, 325), (2, 510), (3, 275)]) {
@@ -46,7 +46,7 @@ fn seeded() -> (ConfirmationFixture, [Customer; 3]) {
             .with_bill_date(Some(bill_date()))
             .with_customer(DraftCustomer::Selected {
                 id: customer.id.clone(),
-                name: customer.name.into(),
+                name: customer.name.clone(),
             });
         fixture.register_draft(draft).unwrap();
         let review = fixture.review_named(OWNER, draft_id, money(paid)).unwrap();
@@ -62,12 +62,13 @@ struct LedgerReadback {
     accounts: [(CustomerLedger, Money); 3],
     bill_totals: (Money, Money, usize),
 }
-
 fn readback(fixture: &ConfirmationFixture, customers: &[Customer; 3]) -> LedgerReadback {
     LedgerReadback {
         accounts: customers.each_ref().map(|customer| {
-            let ledger = fixture.customer_ledger(OWNER, &customer.id).unwrap();
-            (ledger, fixture.customer_due(customer.id.value()))
+            (
+                fixture.customer_ledger(OWNER, &customer.id).unwrap(),
+                fixture.customer_due(customer.id.value()),
+            )
         }),
         bill_totals: (
             fixture.ledger(),
@@ -79,25 +80,21 @@ fn readback(fixture: &ConfirmationFixture, customers: &[Customer; 3]) -> LedgerR
 
 #[test]
 fn l14_03_unresolved_save_never_calls_receipt_writer() {
-    // Given the same seeded ledger for each rejected attempt.
     let (mut fixture, customers) = seeded();
     let before = readback(&fixture, &customers);
-
     let twins = &["twin-east", "twin-west"][..];
     for (case, text, ids, prior_pick) in [
         ("wrong case", "solo market", &["solo"][..], false),
         ("duplicate", "Twin Market", twins, false),
         ("stale pick cleared", " Twin Market ", twins, true),
     ] {
-        let mut form = ReceivePayment::default();
+        let mut form = ReceivePayment::with_clock(|| panic!("unresolved Save sampled clock"));
         if prior_pick {
             form.input("Twin Market", &customers);
             form.arrow_down();
             form.pick(1);
-            let prior = form.save(money(725), ReceiptMode::Online).unwrap();
-            assert_eq!(prior.customer_id.value(), "twin-west");
+            assert_eq!(form.selected().unwrap().id.value(), "twin-west");
         }
-        // When input is edited, Enter is pressed without a highlight, then Save is clicked.
         form.input(text, &customers);
         let suggestions: Vec<_> = form
             .suggestions
@@ -107,19 +104,25 @@ fn l14_03_unresolved_save_never_calls_receipt_writer() {
         assert_eq!(suggestions, ids);
         assert_eq!(form.highlighted, None);
         form.enter();
-        let mut writes = 0;
-        let attempt = form.save(money(725), ReceiptMode::Online).map(|input| {
-            writes += 1;
-            fixture.record_customer_receipt(OWNER, input)
-        });
-
-        // Then Save warns before reaching the writer; all account rows and totals stay put.
+        let attempt = form.save(
+            OWNER,
+            &mut fixture,
+            receipt_date(),
+            money(725),
+            ReceiptMode::Online,
+        );
         let toast = attempt.unwrap_err().toast();
-        assert_eq!(toast, "Pick a customer");
-        assert_eq!(writes, 0);
+        assert_eq!(toast, Some("Pick a customer"));
         assert_eq!(readback(&fixture, &customers), before);
+        assert!(
+            fixture
+                .cashbook_day_close(OWNER, receipt_date())
+                .unwrap()
+                .entries
+                .is_empty()
+        );
         println!(
-            "L14-03 {case}: suggestions={suggestions:?} Enter=unresolved Save={toast:?} writes={writes}"
+            "L14-03 {case}: suggestions={suggestions:?} Enter=unresolved Save={toast:?} ledger unchanged"
         );
     }
 }
@@ -133,13 +136,10 @@ enum Pick {
 #[test]
 fn l14_03_picked_duplicate_id_routes_save_to_only_that_ledger() {
     for pick in [Pick::Keyboard, Pick::Pointer] {
-        // Given independent copies of the same seeded accounts and the same visible name.
         let (mut fixture, customers) = seeded();
         let before = readback(&fixture, &customers);
-        let mut form = ReceivePayment::default();
+        let mut form = ReceivePayment::with_clock(|| Ok(CreationKey::new(1_700_000_000_000)));
         form.input("Twin Market", &customers);
-
-        // When the highlighted row or the pointer row is picked, Save supplies the typed ID.
         let (id, mode, amount, invoice, [paid, opening, closing]) = match pick {
             Pick::Keyboard => {
                 form.arrow_down();
@@ -153,12 +153,10 @@ fn l14_03_picked_duplicate_id_routes_save_to_only_that_ledger() {
             }
         };
         assert_eq!(form.text, "Twin Market");
-        let input = form.save(money(amount), mode).unwrap();
-        assert_eq!(input.customer_id.value(), id);
-        let observed_id = input.customer_id.value().to_owned();
-        fixture.record_customer_receipt(OWNER, input).unwrap();
-
-        // Then only the picked account gains a receipt, leaving the original bill paid intact.
+        let observed_id = form.selected().unwrap().id.value().to_owned();
+        assert_eq!(observed_id, id);
+        form.save(OWNER, &mut fixture, receipt_date(), money(amount), mode)
+            .unwrap();
         let after = readback(&fixture, &customers);
         assert_eq!(after.bill_totals, (money(6_000), money(1_110), 3));
         let amounts = |row: &CustomerLedgerEntry| (row.debit, row.credit, row.balance);
@@ -177,7 +175,7 @@ fn l14_03_picked_duplicate_id_routes_save_to_only_that_ledger() {
                     bill.kind,
                     CustomerLedgerKind::Bill {
                         draft_id: DraftId::new(invoice),
-                        invoice,
+                        invoice
                     }
                 );
                 assert_eq!(amounts(bill), (money(2_000), money(paid), money(opening)));
@@ -203,23 +201,33 @@ fn l14_03_picked_duplicate_id_routes_save_to_only_that_ledger() {
 
 #[test]
 fn l14_03_manager_cannot_post_valid_trimmed_exact_selection() {
-    // Given a unique exact name after trimming, with no explicit suggestion pick.
     let (mut fixture, customers) = seeded();
     let before = readback(&fixture, &customers);
-    let mut form = ReceivePayment::default();
+    let mut form = ReceivePayment::with_clock(|| panic!("Manager Save sampled clock"));
     form.input("  Solo Market \t", &customers);
     assert_eq!(form.highlighted, None);
-    let input = form.save(money(310), ReceiptMode::Cash).unwrap();
-    assert_eq!(input.customer_id.value(), "solo");
-    let id = input.customer_id.value().to_owned();
-    let amount = input.amount.minor_units();
-
-    // When a Manager attempts the otherwise valid receipt.
-    let result = fixture.record_customer_receipt(Role::Manager, input);
-
-    // Then the authority denies it without altering any account or bill totals.
-    assert_eq!(result, Err(ConfirmationError::AccessDenied));
+    let id = form.selected().unwrap().id.value().to_owned();
+    assert_eq!(id, "solo");
+    let amount = 310;
+    let result = form.save(
+        Role::Manager,
+        &mut fixture,
+        receipt_date(),
+        money(amount),
+        ReceiptMode::Cash,
+    );
+    assert_eq!(
+        result,
+        Err(SaveError::Confirmation(ConfirmationError::AccessDenied))
+    );
     assert_eq!(readback(&fixture, &customers), before);
+    assert!(
+        fixture
+            .cashbook_day_close(OWNER, receipt_date())
+            .unwrap()
+            .entries
+            .is_empty()
+    );
     println!(
         "L14-03 trimmed exact: chosen={id} amount_minor={amount} Manager={result:?} ledger unchanged"
     );

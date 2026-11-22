@@ -9,6 +9,7 @@ pub mod draft_entry;
 mod drafts;
 pub mod preferences;
 pub mod provisional_preview;
+pub mod receive_payment;
 mod sqlite;
 pub mod synthetic_read_model;
 
