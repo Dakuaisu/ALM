@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use alm_phase2_local::{DraftCustomer, Money, ProductId, provisional_preview};
+use alm_phase2_local::{DraftCustomer, Money, ProductId, SaleUnit, provisional_preview};
 
 use super::CurrentDraft;
 
@@ -42,6 +42,20 @@ pub(super) fn render(output: &mut impl Write, current: &CurrentDraft) -> io::Res
                     "Unrecognized item"
                 };
                 writeln!(output, "Item: {item} | Quantity: {}", line.quantity())?;
+            }
+            if let Some(row) = current.draft.crate_row() {
+                writeln!(output, "Crate quantity: {}", row.quantity())?;
+                for component in row.components() {
+                    let unit = match component.unit {
+                        SaleUnit::Piece => "Piece",
+                        SaleUnit::Case => "Case",
+                    };
+                    writeln!(
+                        output,
+                        "Crate component: Product ID {} | Quantity per crate: {} | Unit: {unit}",
+                        component.product, component.quantity
+                    )?;
+                }
             }
             return writeln!(output, "Bill preview unavailable: {error:?}");
         }

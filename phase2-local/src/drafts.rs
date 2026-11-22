@@ -63,6 +63,12 @@ impl ProductId {
     }
 }
 
+impl std::fmt::Display for ProductId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, formatter)
+    }
+}
+
 /// A requested quantity, not a stock reservation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DraftLine {

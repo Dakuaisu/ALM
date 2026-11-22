@@ -10,6 +10,8 @@ use alm_phase2_local::{LocalSales, Role};
 
 #[path = "account_switch_restart/authority.rs"]
 mod authority;
+#[path = "account_switch_restart/crate_review.rs"]
+mod crate_review;
 #[path = "account_switch_restart/fixtures.rs"]
 mod fixtures;
 #[path = "account_switch_restart/sqlite_evidence.rs"]
