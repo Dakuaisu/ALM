@@ -2021,3 +2021,31 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-COUNTER-API-8b76011-offline](../phase2-local/target/L02-COUNTER-API-8b76011-offline.log): 427 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser navigation and hosted authorization remain unverified.
+
+#### Counter creation keys after Owner bill edit
+
+**L02-01 / L04-02: PASS (local Rust development)** at `f971b9977167776ea19ae7b1619be90021c4bfd5`. The [edit replay](../phase2-local/src/confirmation/tests/edit/creation_key.rs) used the existing Owner bill-edit transaction with a supplied creation key as the controlled equivalent of `Date.now()` in the [frozen Save rule](../ALM_Business_Manager.html#L4116). It read the stored key and called the Counter API after each case. At reporting date 2024-02-29, the initial Recent bills order was `[4, 3, 5, 2, 1]` by invoice number. All expected keys and orders below matched the readbacks.
+
+| Case | Invoice | Key before → after | Recent invoice order |
+| --- | ---: | --- | --- |
+| Opened and abandoned | 1 | Missing → missing | `[4, 3, 5, 2, 1]` |
+| Manager save denied | 1 | Missing → missing | `[4, 3, 5, 2, 1]` |
+| Owner save at controlled key 20 | 1 | Missing → 20 | `[4, 1, 3, 5, 2]` |
+| Stale edit save at key 99 | 1 | 20 → 20 | `[4, 1, 3, 5, 2]` |
+| Owner save at controlled key 20 | 2 | 0 → 20 | `[4, 2, 1, 3, 5]` |
+| Owner save at controlled key 99 | 3 | 10 → 10 | `[4, 2, 1, 3, 5]` |
+| Untouched control | 5 | Missing → missing | `[4, 2, 1, 3, 5]` |
+
+In every row above, **Billed today** stayed `[1, 3, 4, 5]` (4 bills); invoice 2 stayed dated 2024-02-28, the others stayed dated 2024-02-29, and no invoice identity changed. Abandonment and Manager denial left the entire fixture unchanged. On fresh fixtures, a stock-shortage save left invoice 1 keyless with the initial order and no mutation, as did the no-time save for the key and order only. A deliberately missing first-post slot returned `InvalidDraft` without mutation. The separate acknowledged confirmation retry returned the original acknowledgment despite a different supplied key; after its cancellation/undo control, the recent draft order remained `[3, 8, 7, 2]`. That retry did not exercise bill edit.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib confirmation::tests::edit -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib counter_keeps_first_post_key_on_retry -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-EDIT-KEY-f971b99-focused](../phase2-local/target/L02-EDIT-KEY-f971b99-focused.log): 10 passed, 0 failed, 0 ignored, 281 filtered out.
+- [L02-EDIT-KEY-f971b99-retry](../phase2-local/target/L02-EDIT-KEY-f971b99-retry.log): 1 passed, 0 failed, 0 ignored, 290 filtered out.
+- [L02-EDIT-KEY-f971b99-offline](../phase2-local/target/L02-EDIT-KEY-f971b99-offline.log): 431 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
+
+This is in-memory Rust evidence, not durable timestamp or browser parity evidence. The frozen HTML remained unserved under OPEN-008.
