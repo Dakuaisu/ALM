@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "customer_receipts.rs"]
+mod customer_receipts;
+
 #[test]
 fn registered_empty_accounts_preserve_exact_opening_and_ageing_readbacks() {
     let mut f = ConfirmationFixture::new(ProductId::new(1), 5, money(125)).unwrap();
@@ -103,7 +106,7 @@ fn registered_empty_accounts_preserve_exact_opening_and_ageing_readbacks() {
 }
 
 #[test]
-fn registered_accounts_reject_invalid_access_and_preserve_receipt_eligibility() {
+fn registered_accounts_reject_invalid_access() {
     let mut f = ConfirmationFixture::new(ProductId::new(1), 5, money(125)).unwrap();
     let id = customer("registered");
     let unknown = customer("unknown");
@@ -156,7 +159,7 @@ fn registered_accounts_reject_invalid_access_and_preserve_receipt_eligibility() 
         f.record_customer_receipt(
             Role::Owner,
             CustomerReceiptInput {
-                customer_id: id,
+                customer_id: unknown,
                 date: date("2024-03-31"),
                 amount: money(1),
                 mode: ReceiptMode::Cash,

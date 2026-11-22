@@ -51,25 +51,32 @@ impl ConfirmationFixture {
         if input.amount.minor_units() == 0 {
             return Err(ConfirmationError::InvalidAmount);
         }
-        if !self.current_sales.values().any(|(review, _, _)| matches!(review.draft.customer(), DraftCustomer::Selected { id, .. } if id == &input.customer_id) && matches!(review.payment, ProposedPayment::Named(_)) && review.checkout.is_none() && review.draft.crate_row().is_none()) {
+        let key = input.customer_id.value();
+        if !self.registered_customers.contains(key)
+            && !self.current_sales.values().any(|(review, _, _)| {
+                matches!(review.draft.customer(), DraftCustomer::Selected { id, .. } if id == &input.customer_id)
+                    && matches!(review.payment, ProposedPayment::Named(_))
+                    && review.checkout.is_none()
+                    && review.draft.crate_row().is_none()
+            })
+        {
             return Err(ConfirmationError::InvalidDraft);
         }
-        let key = input.customer_id.value().to_owned();
         let balance = self
             .customer_balances
-            .get(&key)
+            .get(key)
             .copied()
             .unwrap_or_default()
             .checked_sub(input.amount.minor_units())
             .ok_or(ConfirmationError::Overflow)?;
         self.preview_payments.push(PreviewPayment {
-            customer_id: key.clone(),
+            customer_id: key.to_owned(),
             amount: input.amount,
             date: input.date,
             after_invoice: self.next_invoice - 1,
             mode: Some(input.mode),
         });
-        self.customer_balances.insert(key, balance);
+        self.customer_balances.insert(key.to_owned(), balance);
         Ok(())
     }
 
