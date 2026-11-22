@@ -1,4 +1,5 @@
 use super::model::{Collection, Db, DeleteTick, Envelope, Origin, Record, Row, Stamp, Tombstone};
+use super::price_columns::PriceSupplierEntry;
 
 const LOCAL_CAP: usize = 4_000;
 const LOCAL_KEEP: usize = 3_000;
@@ -146,6 +147,25 @@ impl Db {
             Record::Suppliers(row) => {
                 !self.is_deleted(Collection::Suppliers, id) && upsert(&mut self.suppliers, id, row)
             }
+            Record::PriceSuppliers(row) => {
+                if self.is_deleted(Collection::PriceSuppliers, id) {
+                    return false;
+                }
+                if let Some(PriceSupplierEntry::Object(current)) = self
+                    .price_suppliers
+                    .iter_mut()
+                    .find(|entry| entry.has_id(id))
+                {
+                    if row.version() <= current.version() {
+                        return false;
+                    }
+                    current.clone_from(row);
+                } else {
+                    self.price_suppliers
+                        .insert(0, PriceSupplierEntry::Object(row.clone()));
+                }
+                true
+            }
         }
     }
 
@@ -161,6 +181,11 @@ impl Db {
             Collection::GstBills => remove_row(&mut self.gst_bills, id),
             Collection::Products => remove_row(&mut self.products, id),
             Collection::Suppliers => remove_row(&mut self.suppliers, id),
+            Collection::PriceSuppliers => {
+                let before = self.price_suppliers.len();
+                self.price_suppliers.retain(|entry| !entry.has_id(id));
+                self.price_suppliers.len() != before
+            }
         }
     }
 }

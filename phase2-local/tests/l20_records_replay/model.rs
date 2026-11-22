@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
+use serde::{Deserialize, Serialize};
+
+use super::price_columns::{PriceSupplierEntry, PriceSupplierObject, load_price_suppliers};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub(super) struct Stamp {
@@ -106,6 +108,7 @@ pub(super) enum Collection {
     GstBills,
     Products,
     Suppliers,
+    PriceSuppliers,
 }
 
 impl Collection {
@@ -114,6 +117,7 @@ impl Collection {
             Self::GstBills => "gstBills",
             Self::Products => "products",
             Self::Suppliers => "suppliers",
+            Self::PriceSuppliers => "priceSuppliers",
         }
     }
 }
@@ -131,6 +135,7 @@ pub(super) enum Record {
     GstBills(Row<GstBill>),
     Products(Row<Product>),
     Suppliers(Row<Supplier>),
+    PriceSuppliers(PriceSupplierObject),
     Deleted(Row<Tombstone>),
     Stock(Marked<Stock>),
     Meta(Marked<Meta>),
@@ -156,20 +161,7 @@ pub(super) struct Db {
     pub stock: BTreeMap<String, Marked<Stock>>,
     pub meta: Marked<Meta>,
     #[serde(default, deserialize_with = "load_price_suppliers")]
-    pub price_suppliers: Vec<String>,
-}
-
-fn load_price_suppliers<'de, D: Deserializer<'de>>(input: D) -> Result<Vec<String>, D::Error> {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum PriceSuppliers {
-        Names(Vec<String>),
-        NotANameList(IgnoredAny),
-    }
-    Ok(match PriceSuppliers::deserialize(input)? {
-        PriceSuppliers::Names(names) => names,
-        PriceSuppliers::NotANameList(_) => Vec::new(),
-    })
+    pub price_suppliers: Vec<PriceSupplierEntry>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

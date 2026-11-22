@@ -9,6 +9,8 @@ mod guards;
 mod merge;
 #[path = "l20_records_replay/model.rs"]
 mod model;
+#[path = "l20_records_replay/price_columns.rs"]
+mod price_columns;
 #[path = "l20_records_replay/pricing.rs"]
 mod pricing;
 #[path = "l20_records_replay/replay.rs"]

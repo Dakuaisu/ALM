@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::model::{
     Collection, Cursor, Db, DeleteTick, Envelope, Origin, Row, Stamp, Supplier, Tick,
 };
+use super::price_columns::PriceSupplierEntry;
 
 #[derive(Clone)]
 pub(super) struct Replica {
@@ -82,10 +83,17 @@ impl<'a> SheetPush<'a> {
 
 impl Db {
     pub fn columns(&self) -> Vec<String> {
+        self.supplier_columns()
+            .iter()
+            .map(PriceSupplierEntry::header)
+            .collect()
+    }
+
+    fn supplier_columns(&self) -> Vec<PriceSupplierEntry> {
         let mut columns = self.price_suppliers.clone();
         for row in &self.suppliers {
             let name = row.value.data.name.trim();
-            if !name.is_empty() && !columns.iter().any(|column| column == name) {
+            if !name.is_empty() && !columns.iter().any(|column| column.is_name(name)) {
                 columns.push(name.into());
             }
         }
@@ -94,7 +102,12 @@ impl Db {
 
     pub fn add_pricing_supplier(&mut self, id: &str, input: &str, tick: Tick<'_>) -> bool {
         let name = input.trim();
-        if name.is_empty() || self.columns().iter().any(|column| column == name) {
+        if name.is_empty()
+            || self
+                .supplier_columns()
+                .iter()
+                .any(|column| column.is_name(name))
+        {
             return false;
         }
         let mut stamp = Stamp::default();
@@ -122,9 +135,12 @@ impl Db {
                 .supplier_prices
                 .get(&name)
                 .is_some_and(Option::is_some)
-        }) && !self.price_suppliers.contains(&name)
+        }) && !self
+            .price_suppliers
+            .iter()
+            .any(|column| column.is_name(&name))
         {
-            self.price_suppliers.push(name);
+            self.price_suppliers.push(PriceSupplierEntry::Name(name));
         }
     }
 

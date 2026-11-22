@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::model::{Cursor, Db, DeleteTick, Envelope, Product, Record, Row, Stamp, Supplier, Tick};
+use super::price_columns::PriceSupplierEntry;
 use super::replay::{Page, Replica, SheetCopy, SheetPush};
 use super::saved::Saved;
 
@@ -165,7 +166,7 @@ fn l20_07_full_copies_keep_raw_columns_and_quotes_and_replace_receiver_state() {
         &sheets.db,
     ] {
         assert_eq!(readback, &sender);
-        assert_eq!(readback.price_suppliers, raw);
+        assert_eq!(readback.price_suppliers, raw.map(PriceSupplierEntry::from));
         assert_eq!(readback.columns(), display);
         assert_eq!(readback.products[0].value.data.supplier_prices, quotes);
     }
@@ -189,7 +190,10 @@ fn l20_07_full_copies_keep_raw_columns_and_quotes_and_replace_receiver_state() {
             pushed_m: 700
         }
     );
-    assert_eq!(rebuilt.db.price_suppliers, raw);
+    assert_eq!(
+        rebuilt.db.price_suppliers,
+        raw.map(PriceSupplierEntry::from)
+    );
     assert_eq!(
         rebuilt.db.columns().last().map(String::as_str),
         Some("Contact Only")
