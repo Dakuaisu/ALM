@@ -2212,3 +2212,28 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L04-RECEIPT-META-e9c852f-offline](../phase2-local/target/L04-RECEIPT-META-e9c852f-offline.log): 458 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 This is local in-memory development evidence. The frozen HTML remained unserved under OPEN-008.
+
+#### Normal Receive Payment Save
+
+**L14-03 / L04-04: PASS (local Rust development)** at `673e0bb357104c3230f63d330597d9f62de8fae2`. The [replay](../phase2-local/tests/l14_receive_payment_replay/receipt.rs) used modeled keyboard and pointer events, then called the library's normal [`ReceivePayment::save`](../phase2-local/src/receive_payment.rs). The replay supplied a per-instance clock, not receipt metadata. Save took the ID and name from the same selected record and captured the creation key at Save. Both registered accounts had no bill in the receipt-only replay.
+
+| Receipt date | Fixture slot | Selection | Customer ID | Creation key | Mode | Paise |
+| --- | ---: | --- | --- | ---: | --- | ---: |
+| 2025-03-17 | 1 | Historical control | `twin-east` | Absent | Cash | 90 |
+| 2025-03-17 | 2 | Keyboard | `twin-east` | 1700000000020 | Cash | 375 |
+| 2025-03-17 | 3 | Pointer | `twin-west` | 1700000000010 | Online | 800 |
+| 2025-03-17 | 4 | Pointer | `twin-west` | 1700000000030 | Cash | 125 |
+
+Each Save credited only the chosen ID. The `tWiN` party search found the three new `Twin Market` receipts without a prior bill and returned detail order `[4, 2, 3]`, not append order. No Sales rows appeared. Searched collections were 1,300 paise; the unfiltered total was 1,390, matching Cash Book (590 Cash and 800 Online). Closing balances were −465 paise for `twin-east` and −925 for `twin-west`. Slot 1's ledger entry remained unchanged and the receipt appeared only in the unfiltered read; it was not backfilled. Slot IDs are fixture append positions, not durable identifiers.
+
+The selection replay also verified unresolved wrong-case, ambiguous duplicate, and cleared stale picks, plus a valid Manager attempt. None sampled the clock or added a receipt. Zero amount was rejected before clock sampling; a clock error left the ledger and Sales readback unchanged. A separate smoke check bounded the default Save's Unix-millisecond key by clock readings around Save. Picker events and suggestion ordering are modeled Rust behavior, not observed browser events or collation. Equal-key Sales ordering was not changed or verified against the browser in this slice.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_receive_payment_replay --test receipt_metadata -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-SAVE-673e0bb-focused](../phase2-local/target/L14-SAVE-673e0bb-focused.log): 7 passed, 0 failed, 0 ignored (6 normal-workflow replay tests and 1 direct metadata regression).
+- [L14-SAVE-673e0bb-offline](../phase2-local/target/L14-SAVE-673e0bb-offline.log): 461 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+This is local in-memory development evidence. The frozen HTML remained unserved under OPEN-008.
