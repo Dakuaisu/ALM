@@ -77,6 +77,25 @@ impl ConfirmationFixture {
     }
 
     pub fn save_edit(&mut self, role: Role, edit: &SaleEdit) -> Result<Receipt, ConfirmationError> {
+        self.save_edit_inner(role, edit, None)
+    }
+
+    /// Saves an edit, using the controlled edit time only when the original key is missing or zero.
+    pub fn save_edit_with_creation_key(
+        &mut self,
+        role: Role,
+        edit: &SaleEdit,
+        edit_time: super::CreationKey,
+    ) -> Result<Receipt, ConfirmationError> {
+        self.save_edit_inner(role, edit, Some(edit_time))
+    }
+
+    fn save_edit_inner(
+        &mut self,
+        role: Role,
+        edit: &SaleEdit,
+        edit_time: Option<super::CreationKey>,
+    ) -> Result<Receipt, ConfirmationError> {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
@@ -149,6 +168,15 @@ impl ConfirmationFixture {
             due: Some(Money::from_minor_units(due)),
             customer_balance: Some(Money::from_minor_units(balance)),
         };
+        let first_post = edit_time
+            .map(|time| {
+                self.first_posts
+                    .iter()
+                    .position(|(draft, _)| *draft == id)
+                    .map(|index| (index, time))
+                    .ok_or(ConfirmationError::InvalidDraft)
+            })
+            .transpose()?;
         self.posted_sale_items
             .get_mut(&id)
             .ok_or(ConfirmationError::StaleReview)?
@@ -156,6 +184,12 @@ impl ConfirmationFixture {
                 &catalog,
                 edit.changes.appended_line.product_id(),
             ));
+        if let Some((index, time)) = first_post {
+            let key = &mut self.first_posts[index].1;
+            if key.is_none_or(|value| value == super::CreationKey::new(0)) {
+                *key = Some(time);
+            }
+        }
         self.catalog = catalog;
         self.movement_epoch = movement;
         self.lifecycle.insert(id, (false, movement));

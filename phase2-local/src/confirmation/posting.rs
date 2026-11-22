@@ -96,8 +96,8 @@ impl ConfirmationFixture {
     }
 
     /// Confirms and records optional Counter metadata on the first successful post only.
-    /// Exact retries return the original receipt and ignore the supplied key. Edits and
-    /// cancellation leave both the stored key and first-post order unchanged.
+    /// Exact retries return the original receipt and ignore the supplied key. Cancellation
+    /// preserves it; a controlled-time edit fills a missing or zero key without moving the post.
     ///
     /// # Errors
     /// Denies Managers and rejects stale or invalid reviews, request conflicts, already
