@@ -212,3 +212,24 @@ Changed since the last approval: bridge.toml.
 - docs/PRD.md: sha256 c282440c309b210614d485bfb9ee238ab4e77b9b92dff988083b7c3a7581178b
 - CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
 - bridge.toml: sha256 41d6a4d1c5c5142172ca08ad8d17468331523f89a73846b0e87a714f1cbb16e8
+
+## DEC-025 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: planner: opencode openai/gpt-6.2-sol -> opencode openai/gpt-6.2-astra; builder: opencode openai/gpt-6.2-sol -> opencode openai/gpt-6.2-astra.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 c282440c309b210614d485bfb9ee238ab4e77b9b92dff988083b7c3a7581178b
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 e2a53f33d79e120f6676d6db11e8df95d6fb7d24407149bc4070d47850625b4b
+
+## DEC-026 PC-003 Deliver remaining local work in three connected workflow batches
+- Decided by: planner (the owner's decisions in docs/OWNER_BATCH_WORKFLOWS.md)
+- Status: OWNER DECISION (docs/OWNER_BATCH_WORKFLOWS.md)
+- Change: PC-003 (.bridge/plan/changes/PC-003.diff)
+
+Reason: The local delivery table in docs/PRD.md still starts by assigning the draft preview and separates billing from its accounting effects. The repository is past that checkpoint: the draft demo, Owner simulation, purchasing replay, account replay, and structured recovery replay already exist. docs/RESULTS.md also records archive-backed estimate rounding at 250e083: the restored estimate was regenerated from typed records and checked against independent expected values. The next useful deliverable is to make related workflows runnable against the same records, not to rebuild those controls or review another isolated rounding case.
+
+Context: The former A–D milestones produced reusable code and scoped development evidence, including archive-backed rounding. Options: continue case-by-case handoffs, restart the earlier milestones, or batch the remaining work by shared transaction, inventory, and recovered records. D1 — OWNER DECISION: use the three dependency-based batches in the PRD, with focused regressions and coherent commits inside each batch and one consolidated evidence handoff and Supervisor review at its boundary. Preserve completed results and use them as controls. D2 — OWNER DECISION: change cadence only. Keep permissions, local synthetic authorization, case traceability, phase exits, and all owner gates. No changes to models, effort, or Bridge configuration.
