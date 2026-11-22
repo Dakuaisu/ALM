@@ -4,10 +4,12 @@ use alm_phase2_local::confirmation::{
     PurchaseProductDisplay,
 };
 
-use super::{A, B, ITEM_A, ITEM_B, MANAGER, OWNER, feb, fifo, fifo_value, money, qty, stock};
+use super::{A, B, ITEM_B, OWNER, money};
 
-#[path = "../milestone_b_replay/purchasing.rs"]
-mod purchasing;
+#[path = "partial_po/plan.rs"]
+mod plan;
+#[path = "partial_po/receipts.rs"]
+mod receipts;
 
 pub struct PartialPurchaseOrderSetup {
     pub fixture: ConfirmationFixture,
@@ -20,13 +22,13 @@ pub struct PartialPurchaseOrderSetup {
 pub fn partial_purchase_order_setup() -> PartialPurchaseOrderSetup {
     let mut fixture = ConfirmationFixture::new(A, 0, money(500)).unwrap();
     fixture.add_product(B, 0, money(500)).unwrap();
-    let selection = purchasing::save_planned_order(&mut fixture);
+    let selection = plan::save_planned_order(&mut fixture);
     let mut note = fixture
         .open_purchase_order_note(OWNER, selection.id)
         .unwrap();
     note.note = "Synthetic note & handling".into();
     fixture.save_purchase_order_note(OWNER, &note).unwrap();
-    purchasing::receive_partials(&mut fixture, selection);
+    receipts::post_partials(&mut fixture, selection);
     PartialPurchaseOrderSetup {
         fixture,
         selection,

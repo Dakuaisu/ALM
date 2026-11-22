@@ -9,9 +9,9 @@ use alm_phase2_local::confirmation::{
     ConfirmationFixture, PurchaseOrderStatus, PurchaseProductDisplay,
 };
 
+use super::purchasing::post_partials;
 use super::{
-    A, B, ITEM_A, ITEM_B, MANAGER, OWNER, SELL, fifo, lot, money, receive_partials,
-    save_planned_order, stock,
+    A, B, ITEM_A, ITEM_B, MANAGER, OWNER, SELL, fifo, lot, money, save_planned_order, stock,
 };
 use alm_phase2_local::ProductId;
 use capture::capture_outputs;
@@ -57,7 +57,7 @@ fn l07_03_supplier_outputs_preserve_milestone_b_progress_and_inventory() {
     assert_eq!(stock(&fixture), [0, 0]);
 
     // When: the planned order is partially received, then all outputs are captured.
-    receive_partials(&mut fixture, selection);
+    post_partials(&mut fixture, selection);
     fixture
         .add_comparison_supplier(OWNER, "Synthetic Third Supplier")
         .unwrap();
