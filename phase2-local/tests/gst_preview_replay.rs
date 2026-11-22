@@ -4,6 +4,8 @@ mod artifacts;
 mod fixture;
 #[path = "gst_preview_replay/markup.rs"]
 mod markup;
+#[path = "gst_preview_replay/rounding.rs"]
+mod rounding;
 #[path = "gst_preview_replay/sink.rs"]
 mod sink;
 

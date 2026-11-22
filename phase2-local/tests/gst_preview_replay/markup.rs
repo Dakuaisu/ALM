@@ -1,4 +1,4 @@
-use alm_phase2_local::confirmation::GstBillInvoice;
+use alm_phase2_local::confirmation::{GstBillInvoice, GstJurisdiction};
 
 const BORDER: &str = "border:1px solid #c2c8d2";
 const CELL: &str = "padding:3px 7px;border-bottom:1px solid #eaedf1";
@@ -40,17 +40,17 @@ pub fn title(invoice: &GstBillInvoice) -> String {
 }
 
 fn row(index: usize, line: &alm_phase2_local::confirmation::GstBillLine) -> String {
-    assert_eq!(line.quantity.get(), 1);
-    assert_eq!(line.inclusive_rate.minor_units(), 11_800);
-    assert_eq!(line.amount.minor_units(), 11_800);
-    assert_eq!(line.gst_basis_points, 1_800);
+    let quantity = line.quantity.get();
+    let inclusive = inr(line.inclusive_rate.minor_units());
+    let taxable_rate = inr(line.taxable_rate().unwrap().minor_units());
+    let taxable_amount = inr(line.taxable_amount().unwrap().minor_units());
     let bg = if index % 2 == 1 {
         "background:#f7f9fc"
     } else {
         ""
     };
     format!(
-        "<tr style=\"{bg}\"><td style=\"{CELL};text-align:center\">{}</td><td style=\"{CELL}\">{}</td><td style=\"{CELL};text-align:center\">22029090</td><td style=\"{CELL};text-align:right;white-space:nowrap\">1 CASE <span style=\"font-size:9px;color:#666\">(1 PCS)</span></td><td style=\"{CELL};text-align:right\">118.00</td><td style=\"{CELL};text-align:right\">100.00</td><td style=\"{CELL};text-align:center\">CASE</td><td style=\"{CELL};text-align:right\">100.00</td></tr>",
+        "<tr style=\"{bg}\"><td style=\"{CELL};text-align:center\">{}</td><td style=\"{CELL}\">{}</td><td style=\"{CELL};text-align:center\">22029090</td><td style=\"{CELL};text-align:right;white-space:nowrap\">{quantity} CASE <span style=\"font-size:9px;color:#666\">({quantity} PCS)</span></td><td style=\"{CELL};text-align:right\">{inclusive}</td><td style=\"{CELL};text-align:right\">{taxable_rate}</td><td style=\"{CELL};text-align:center\">CASE</td><td style=\"{CELL};text-align:right\">{taxable_amount}</td></tr>",
         index + 1,
         escape(&line.item)
     )
@@ -58,12 +58,29 @@ fn row(index: usize, line: &alm_phase2_local::confirmation::GstBillLine) -> Stri
 
 fn summary(invoice: &GstBillInvoice) -> String {
     let totals = invoice.totals;
-    let cgst = inr(totals.cgst.minor_units());
-    let sgst = inr(totals.sgst.minor_units());
+    let tax_row = |label, value: alm_phase2_local::Money| {
+        format!(
+            "<tr><td style=\"{CELL};text-align:right\" colspan=\"7\">{label}</td><td style=\"{CELL};text-align:right\">{}</td></tr>",
+            inr(value.minor_units())
+        )
+    };
+    let tax_rows = match invoice.record.jurisdiction {
+        GstJurisdiction::Intra => format!(
+            "{}\n       {}",
+            tax_row("CGST", totals.cgst),
+            tax_row("SGST", totals.sgst)
+        ),
+        GstJurisdiction::Inter => tax_row("IGST", totals.igst),
+    };
     let grand = inr(totals.total.minor_units());
-    let quantity = invoice.record.lines.len();
+    let quantity: u64 = invoice
+        .record
+        .lines
+        .iter()
+        .map(|line| u64::from(line.quantity.get()))
+        .sum();
     format!(
-        "<tr><td style=\"{CELL};text-align:right\" colspan=\"7\">CGST</td><td style=\"{CELL};text-align:right\">{cgst}</td></tr>\n       <tr><td style=\"{CELL};text-align:right\" colspan=\"7\">SGST</td><td style=\"{CELL};text-align:right\">{sgst}</td></tr>\n       <tr style=\"font-weight:800;background:#eef1f6\"><td style=\"padding:6px 7px;text-align:right;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\" colspan=\"3\">Grand Total</td><td style=\"padding:6px 7px;text-align:right;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\">{quantity} CASE</td><td style=\"border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\" colspan=\"3\"></td><td style=\"padding:6px 7px;text-align:right;font-size:12px;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\">&#8377; {grand}</td></tr>"
+        "{tax_rows}\n       <tr style=\"font-weight:800;background:#eef1f6\"><td style=\"padding:6px 7px;text-align:right;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\" colspan=\"3\">Grand Total</td><td style=\"padding:6px 7px;text-align:right;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\">{quantity} CASE</td><td style=\"border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\" colspan=\"3\"></td><td style=\"padding:6px 7px;text-align:right;font-size:12px;border-top:1.5px solid #c2c8d2;border-bottom:1.5px solid #c2c8d2\">&#8377; {grand}</td></tr>"
     )
 }
 
@@ -103,6 +120,9 @@ pub fn render(invoice: &GstBillInvoice) -> String {
         }
         html.push_str("</tbody></table>");
         if last {
+            let taxable = inr(invoice.totals.taxable.minor_units());
+            let tax = inr(invoice.totals.tax.minor_units());
+            html.push_str(&format!("<table><thead><tr><th>Taxable Value</th><th>Total Tax Amount</th></tr></thead><tbody><tr><td>{taxable}</td><td>{tax}</td></tr></tbody></table>"));
             html.push_str("<div style=\"padding:6px;border-bottom:1px solid #c2c8d2\">Amount Chargeable (in words)<span style=\"float:right;font-style:italic;font-size:9px\">E. &amp; O.E</span><br><b><!-- Amount in words omitted. --></b></div><!-- HSN breakdown and tax-in-words omitted. --><div style=\"display:flex;justify-content:space-between;padding:8px 6px\"><div style=\"font-size:9px;max-width:55%;color:#444\">Declaration:<br>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div><div style=\"text-align:right;font-size:11px\">for <b>Synthetic Business</b><br><br><br><span style=\"font-size:10px\">Authorised Signatory</span></div></div><div style=\"text-align:center;font-size:9px;border-top:1px solid #c2c8d2;padding:3px;color:#555\">This is a Computer Generated Invoice</div>");
         }
         html.push_str("</div>");

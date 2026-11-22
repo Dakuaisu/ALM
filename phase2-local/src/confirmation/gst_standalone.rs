@@ -43,6 +43,7 @@ pub struct GstBillLine {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GstBillTotals {
     pub taxable: Money,
+    pub tax: Money,
     pub cgst: Money,
     pub sgst: Money,
     pub igst: Money,
