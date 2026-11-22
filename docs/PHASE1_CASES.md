@@ -1146,3 +1146,16 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **Existing coverage:** [Settings](#bounded-settings-source-walk-not-run), the preference-storage-failure case and the [shell audit](#bounded-document-head-and-shell-source-walk-not-run) cover local preferences, reload and CSS. Privacy is presentation, not authorization. **OPEN-008: frozen runtime NOT RUN.**
 
 **Next bounded span:** modal at **L1512**; next unread line **L1513**.
+
+## Bounded modal stack and overlay lifecycle (NOT RUN)
+
+**Inspected, inclusive:** [L1512–1602](../ALM_Business_Manager.html#L1512-L1602). L1603–1604 identifies the next boundary.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L18-03 / L04-01 / L10-01 | Open the guarded crate builder from Edit Bill, dirty the builder body, and dismiss it to reach the discard question. | Opening the builder hides the bill form without removing it; opening the question likewise hides the builder. The overlay remains shown. **Keep editing** removes only the question and restores the builder with its dirty flag intact. **Discard changes** removes the question and builder, leaving the original bill form on the stack and restoring its display. The builder's draft replacement callback is not invoked by dismissal (L1553–1594; caller L3765–3768; builder L10341–10356). |
+| L18-03 | **Helper-only:** close the last modal, then press Escape with no modal open. | Opening an outermost modal clears the mount before appending; closing a nested modal removes only the popped node. The last pop removes the overlay's `show` class and clears the mount. Escape with an empty stack still reaches `closeModal()` and repeats that cleanup. The Escape listener does not call `preventDefault()` or `stopPropagation()`, and the stack helper does not explicitly restore focus (L1553–1577, L1596–1601). |
+
+**Existing coverage, not duplicated:** [Shared modal dismissal](#shared-modal-dismissal-not-run) covers header × and footer Cancel as direct closes, Escape and overlay-target mousedown as guarded dismissal, and guarded-body `input`, `change` and button clicks as dirty triggers. It also covers Keep/Discard on a single form and regular confirmation callbacks. **OPEN-008: frozen runtime NOT RUN.**
+
+**Next bounded span:** autocomplete, heading at **L1603** and helper at L1604; next unread line **L1605**.
