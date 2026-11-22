@@ -61,8 +61,14 @@ pub(super) fn render(output: &mut impl Write, current: &CurrentDraft) -> io::Res
             return writeln!(output, "Bill preview unavailable: {error:?}");
         }
     };
-    for line in preview.lines {
-        writeln!(output, "Item: {} | Quantity: {}", line.name, line.quantity)?;
+    for (index, line) in preview.lines.into_iter().enumerate() {
+        writeln!(
+            output,
+            "Line {}: Item: {} | Quantity: {}",
+            index + 1,
+            line.name,
+            line.quantity
+        )?;
         writeln!(
             output,
             "Unit price (inclusive): {} | Line total (inclusive): {}",

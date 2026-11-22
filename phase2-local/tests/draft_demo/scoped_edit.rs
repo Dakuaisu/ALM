@@ -10,7 +10,6 @@ use super::{DEMO, DRAFT_ID, PROVISIONAL, REOPEN_DRAFT, ScratchDir, assert_transc
 const A: &str = "synthetic-edit-a";
 const B: &str = "synthetic-edit-b";
 const ID: DraftId = DraftId::new(1);
-const EDIT: &str = "open\n1\nedit\n2\n7\nreview\n";
 
 fn draft(account: &str, quantities: [u32; 2]) -> ProvisionalDraft {
     let lines = quantities
@@ -49,7 +48,31 @@ fn scoped_quantity_edit_survives_only_explicit_save_across_processes() {
         )
     };
 
-    let (status, stdout, stderr) = launch(A, EDIT, "A edit then EOF");
+    let (status, stdout, stderr) = launch(A, REOPEN_DRAFT, "A review before edit");
+    assert!(status.success() && stderr.is_empty(), "{status}: {stderr}");
+    let initial_review = [
+        "Opened draft 1: SAVED.",
+        PROVISIONAL,
+        DRAFT_ID,
+        "State: SAVED",
+        "Customer: Synthetic buyer synthetic-edit-a",
+        "Line 1: Item: Synthetic Lime | Quantity: 2",
+        "Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹236.00",
+        "Line 2: Item: Synthetic Lime | Quantity: 3",
+        "Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹354.00",
+        "Taxable: ₹500.00",
+        "CGST: ₹45.00",
+        "SGST: ₹45.00",
+        "Inclusive total: ₹590.00",
+    ];
+    assert_transcript("A review before edit", &stdout, &initial_review);
+    let line_number = stdout
+        .lines()
+        .filter_map(|line| line.strip_prefix("Line "))
+        .find_map(|line| line.strip_suffix(": Item: Synthetic Lime | Quantity: 3"))
+        .expect("review identifies the second line's edit number");
+    let edit_script = format!("open\n1\nedit\n{line_number}\n7\nreview\n");
+    let (status, stdout, stderr) = launch(A, &edit_script, "A edit then EOF");
     assert!(!status.success(), "unsaved EOF must fail");
     assert!(
         stderr.contains("Input ended; draft 1 was NOT SAVED."),
@@ -65,30 +88,24 @@ fn scoped_quantity_edit_survives_only_explicit_save_across_processes() {
         DRAFT_ID,
         "State: UNSAVED",
         "Customer: Synthetic buyer synthetic-edit-a",
-        "Item: Synthetic Lime | Quantity: 2",
-        "Item: Synthetic Lime | Quantity: 7",
+        "Line 1: Item: Synthetic Lime | Quantity: 2",
+        "Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹236.00",
+        "Line 2: Item: Synthetic Lime | Quantity: 7",
+        "Unit price (inclusive): ₹118.00 | Line total (inclusive): ₹826.00",
+        "Taxable: ₹900.00",
+        "CGST: ₹81.00",
+        "SGST: ₹81.00",
+        "Inclusive total: ₹1062.00",
     ];
     assert_transcript("A edit then EOF", &stdout, &edited_review);
 
     let (status, stdout, stderr) = launch(A, REOPEN_DRAFT, "A fresh reopen after EOF");
     assert!(status.success() && stderr.is_empty(), "{status}: {stderr}");
-    assert_transcript(
-        "A fresh reopen after EOF",
-        &stdout,
-        &[
-            "Opened draft 1: SAVED.",
-            PROVISIONAL,
-            DRAFT_ID,
-            "State: SAVED",
-            "Customer: Synthetic buyer synthetic-edit-a",
-            "Item: Synthetic Lime | Quantity: 2",
-            "Item: Synthetic Lime | Quantity: 3",
-        ],
-    );
+    assert_transcript("A fresh reopen after EOF", &stdout, &initial_review);
     assert_eq!(read_draft(&scratch.0, A), initial_a);
     assert_eq!(read_draft(&scratch.0, B), initial_b);
 
-    let save_script = format!("{EDIT}save\nquit\n");
+    let save_script = format!("{edit_script}save\nquit\n");
     let (status, stdout, stderr) = launch(A, &save_script, "A edit and Save");
     assert!(status.success() && stderr.is_empty(), "{status}: {stderr}");
     assert_transcript(
@@ -107,8 +124,8 @@ fn scoped_quantity_edit_survives_only_explicit_save_across_processes() {
             draft(A, [2, 7]),
             "Customer: Synthetic buyer synthetic-edit-a",
             [
-                "Item: Synthetic Lime | Quantity: 2",
-                "Item: Synthetic Lime | Quantity: 7",
+                "Line 1: Item: Synthetic Lime | Quantity: 2",
+                "Line 2: Item: Synthetic Lime | Quantity: 7",
             ],
         ),
         (
@@ -116,8 +133,8 @@ fn scoped_quantity_edit_survives_only_explicit_save_across_processes() {
             initial_b,
             "Customer: Synthetic buyer synthetic-edit-b",
             [
-                "Item: Synthetic Lime | Quantity: 4",
-                "Item: Synthetic Lime | Quantity: 5",
+                "Line 1: Item: Synthetic Lime | Quantity: 4",
+                "Line 2: Item: Synthetic Lime | Quantity: 5",
             ],
         ),
     ] {
