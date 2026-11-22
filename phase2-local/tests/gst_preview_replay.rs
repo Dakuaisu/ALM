@@ -1,3 +1,5 @@
+#[path = "gst_preview_replay/archive_restore.rs"]
+mod archive_restore;
 #[path = "gst_preview_replay/artifacts.rs"]
 mod artifacts;
 #[path = "gst_preview_replay/fixture.rs"]
