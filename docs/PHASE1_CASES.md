@@ -1159,3 +1159,16 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **Existing coverage, not duplicated:** [Shared modal dismissal](#shared-modal-dismissal-not-run) covers header × and footer Cancel as direct closes, Escape and overlay-target mousedown as guarded dismissal, and guarded-body `input`, `change` and button clicks as dirty triggers. It also covers Keep/Discard on a single form and regular confirmation callbacks. **OPEN-008: frozen runtime NOT RUN.**
 
 **Next bounded span:** autocomplete, heading at **L1603** and helper at L1604; next unread line **L1605**.
+
+## Bounded autocomplete render and event lifecycle (NOT RUN)
+
+**Inspected, inclusive:** [L1603–1667](../ALM_Business_Manager.html#L1603-L1667). Targeted caller: Receive Payment at L5875–5895. L1668–1669 was read for the chart boundary only.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L14-03 / L18-03 | Focus an empty field, then type a query with padded mixed-case text. **Helper-only control:** return more than 40 results in a distinctive order or dispatch input while unfocused. | Focus and input both render, including for an empty normalized query. The provider receives trimmed lowercase text; the helper takes its first 40 results without reordering. Receive Payment sorts by name before that cap. The provider runs and the old list contents are cleared before the focus/empty-result guard; neither an unfocused render nor an empty result shows rows. Rows render `label` and a truthy `sub`; those are distinct from the value written on selection and the full suggestion passed to the callback (L1604–1646, L5875–5895). |
+| L14-03 / L18-03 | Highlight a row, blur and refocus within 150 ms; compare with fresh input. **Helper-only control:** shrink the provider result on refocus so the retained index is out of range. | Blur schedules a hide for that input's list without clearing results or resetting the index; refocus rerenders without cancelling the timer, so the pending callback can hide the reopened list. Input resets the index. While shown, arrows clamp with the current list length, rerender via the provider, and prevent default. Enter with a retained nonnegative but out-of-range index still prevents default even though `pick()` returns without selecting. With the list hidden, the key handler returns without preventing default. The 150 ms is a source timer argument, not measured behavior (L1612–1618, L1635–1664). |
+
+**Existing coverage, not duplicated:** [Shared autocomplete and caller identity](#shared-autocomplete-and-caller-identity-not-run) covers mousedown selection and default prevention, Enter without a highlight, nullish value fallback to label, and delivery of the whole suggestion without a synthetic `input` event. In Receive Payment, selecting can resolve a duplicate label by ID; typing the same ambiguous name clears the chosen record (L5883–5895). **OPEN-008: frozen runtime NOT RUN.**
+
+**Next bounded span:** canvas chart helpers, heading at **L1668**, `lineChart()` at L1669; next unread line **L1670**.
