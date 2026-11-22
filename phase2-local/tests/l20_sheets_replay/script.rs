@@ -33,7 +33,7 @@ pub(super) enum Request {
         src: String,
         callback: String,
     },
-    Cloud {
+    CloudPull {
         trigger: CloudTrigger,
         at: u64,
     },
@@ -72,6 +72,10 @@ pub(super) struct Script {
 }
 
 impl Script {
+    pub fn sync_pull(&mut self, trigger: CloudTrigger, at: u64) {
+        self.requests.push(Request::CloudPull { trigger, at });
+    }
+
     pub fn post(&mut self, db: Db, silent: bool) {
         self.posts.insert(self.requests.len(), silent);
         self.requests.push(Request::Post {

@@ -3,20 +3,12 @@ use super::script::{CloudTrigger, Read, Request};
 use super::state::{Db, WriteIntent};
 use super::{Notice, Replay, Status, URL};
 
-const COMPLETE: Cloud = Cloud {
+pub(super) const COMPLETE: Cloud = Cloud {
     on: true,
     url: "https://cloud.invalid/",
     key: "synthetic-key",
     token: "synthetic-token",
 };
-
-#[derive(Clone, Copy, Debug)]
-enum CallbackEntry {
-    Ready,
-    Disabled,
-    Busy,
-    MissingDb,
-}
 
 #[test]
 fn l20_01_guarded_save_commits_with_both_integrations_off() {
@@ -49,82 +41,6 @@ fn l20_01_guarded_save_commits_with_both_integrations_off() {
 }
 
 #[test]
-fn l20_09_cloud_kick_requires_every_field_and_rechecks_at_fire_time() {
-    for cloud in [
-        Cloud {
-            on: false,
-            ..COMPLETE
-        },
-        Cloud {
-            url: "",
-            ..COMPLETE
-        },
-        Cloud {
-            key: "",
-            ..COMPLETE
-        },
-        Cloud {
-            token: "",
-            ..COMPLETE
-        },
-    ] {
-        let mut app = Replay::new("");
-        app.cloud = cloud;
-        app.save_product("local only");
-        app.advance(START + 3_000);
-        assert_eq!(app.timers.cloud, None);
-        assert!(app.script.requests.is_empty());
-    }
-
-    for guard in [
-        CallbackEntry::Ready,
-        CallbackEntry::Disabled,
-        CallbackEntry::Busy,
-        CallbackEntry::MissingDb,
-    ] {
-        let mut app = Replay::new("");
-        app.cloud = COMPLETE;
-        app.save_product("first");
-        app.advance(START + 500);
-        app.save_product("second");
-        assert_eq!(app.timers.cloud, Some(START + 3_500));
-        app.advance(START + 3_000);
-        match guard {
-            CallbackEntry::Ready => (),
-            CallbackEntry::Disabled => {
-                app.cloud.on = false;
-                app.kick();
-            }
-            CallbackEntry::Busy => app.cloud_busy = true,
-            CallbackEntry::MissingDb => app.db = None,
-        }
-        assert_eq!(app.timers.cloud, Some(START + 3_500));
-        app.advance(START + 3_499);
-        assert!(app.script.requests.is_empty());
-        app.advance(START + 3_500);
-        app.cloud = COMPLETE;
-        app.cloud_busy = false;
-        app.advance(START + 8_000);
-        if matches!(guard, CallbackEntry::Ready) {
-            assert_eq!(
-                app.script.requests,
-                [Request::Cloud {
-                    trigger: CloudTrigger::Kick,
-                    at: START + 3_500
-                }]
-            );
-        } else {
-            assert!(app.script.requests.is_empty(), "guard/retry {guard:?}");
-        }
-        assert_eq!(app.timers.cloud, None);
-        assert_eq!(
-            app.disk.reload_selection().products,
-            ["original product", "first", "second"]
-        );
-    }
-}
-
-#[test]
 fn l20_09_l20_10_both_configured_save_fires_sheet_before_cloud() {
     let mut app = Replay::new(URL);
     app.cloud = COMPLETE;
@@ -150,7 +66,7 @@ fn l20_09_l20_10_both_configured_save_fires_sheet_before_cloud() {
     app.advance(START + 3_000);
     assert_eq!(
         app.script.requests[1],
-        Request::Cloud {
+        Request::CloudPull {
             trigger: CloudTrigger::Kick,
             at: START + 3_000
         }
@@ -158,49 +74,6 @@ fn l20_09_l20_10_both_configured_save_fires_sheet_before_cloud() {
     assert_eq!(app.script.requests.len(), 2);
     app.assert_copies(&saved);
     assert_eq!(app.disk.intents, [WriteIntent::Save(saved)]);
-}
-
-#[test]
-fn l20_09_interval_and_visibility_are_independent_of_save_and_sheet_timers() {
-    let mut app = Replay::new("");
-    app.cloud = COMPLETE;
-    app.cloud_last = START + 5_000;
-    app.advance(START + 60_000);
-    assert!(
-        app.script.requests.is_empty(),
-        "55 seconds exactly is not due"
-    );
-    app.visibility(true);
-    app.advance(START + 75_000);
-    assert!(
-        app.script.requests.is_empty(),
-        "hidden interval does not dispatch"
-    );
-    app.visibility(false);
-    assert_eq!(
-        (app.timers.cloud, app.timers.sheets),
-        (Some(START + 78_000), None)
-    );
-    app.advance(START + 78_000);
-    app.cloud_busy = false;
-    app.advance(START + 90_000);
-    assert_eq!(
-        app.script.requests,
-        [
-            Request::Cloud {
-                trigger: CloudTrigger::Kick,
-                at: START + 78_000
-            },
-            Request::Cloud {
-                trigger: CloudTrigger::Interval,
-                at: START + 90_000
-            },
-        ]
-    );
-    assert!(app.disk.intents.is_empty());
-    println!(
-        "L20-09: debounced cloud kick, hidden/visible interval and visibility kick captured independently"
-    );
 }
 
 #[test]

@@ -1,7 +1,4 @@
-use super::{
-    Notice, Replay,
-    script::{CloudTrigger, Request},
-};
+use super::{Notice, Replay, script::CloudTrigger};
 
 pub(super) const START: u64 = 1_000_000;
 
@@ -27,11 +24,22 @@ enum Timer {
     Interval,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CloudStep {
+    Kick,
+    Armed { due: u64, previous: Option<u64> },
+    Timeout,
+    Interval,
+    Visibility(bool),
+    SyncEntry(CloudTrigger),
+}
+
 pub(super) struct Timers {
     pub now: u64,
     pub sheets: Option<u64>,
     pub cloud: Option<u64>,
     pub confirm: Option<u64>,
+    pub cloud_trace: Vec<(u64, CloudStep)>,
     interval: u64,
 }
 
@@ -42,8 +50,15 @@ impl Default for Timers {
             sheets: None,
             cloud: None,
             confirm: None,
+            cloud_trace: Vec::new(),
             interval: START + 15_000,
         }
+    }
+}
+
+impl Timers {
+    fn trace(&mut self, step: CloudStep) {
+        self.cloud_trace.push((self.now, step));
     }
 }
 
@@ -78,12 +93,16 @@ impl Replay {
     }
 
     pub fn kick(&mut self) {
+        self.timers.trace(CloudStep::Kick);
         if self.cloud.enabled() {
-            self.timers.cloud = Some(self.timers.now + 3_000);
+            let due = self.timers.now + 3_000;
+            let previous = self.timers.cloud.replace(due);
+            self.timers.trace(CloudStep::Armed { due, previous });
         }
     }
 
     pub fn visibility(&mut self, hidden: bool) {
+        self.timers.trace(CloudStep::Visibility(hidden));
         self.hidden = hidden;
         if !hidden {
             self.kick();
@@ -91,12 +110,10 @@ impl Replay {
     }
 
     pub fn cloud_sync(&mut self, trigger: CloudTrigger) {
+        self.timers.trace(CloudStep::SyncEntry(trigger));
         if self.cloud.enabled() && !self.cloud_busy && self.db.is_some() {
             self.cloud_busy = true;
-            self.script.requests.push(Request::Cloud {
-                trigger,
-                at: self.timers.now,
-            });
+            self.script.sync_pull(trigger, self.timers.now);
         }
     }
 
@@ -123,12 +140,14 @@ impl Replay {
                 }
                 Timer::Cloud => {
                     self.timers.cloud = None;
+                    self.timers.trace(CloudStep::Timeout);
                     self.cloud_sync(CloudTrigger::Kick);
                 }
                 Timer::Confirm => self.confirm_push(true),
                 Timer::Interval => {
                     self.timers.interval += 15_000;
-                    if !self.hidden && at - self.cloud_last > 55_000 {
+                    self.timers.trace(CloudStep::Interval);
+                    if self.cloud.enabled() && !self.hidden && at - self.cloud_last > 55_000 {
                         self.cloud_sync(CloudTrigger::Interval);
                     }
                 }

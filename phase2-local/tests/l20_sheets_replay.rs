@@ -6,6 +6,8 @@
 
 #[path = "l20_sheets_replay/browser_cases.rs"]
 mod browser_cases;
+#[path = "l20_sheets_replay/cloud_schedule_cases.rs"]
+mod cloud_schedule_cases;
 #[path = "l20_sheets_replay/conflict_cases.rs"]
 mod conflict_cases;
 #[path = "l20_sheets_replay/push_cases.rs"]
