@@ -3,6 +3,9 @@ use super::rpc::{Op, Page, Rejection, Reply, Request};
 use super::storage::Completed;
 use super::{BASE, Client, Db, Device, Event, Key, NOW, Notice, Progress, Table, baseline, row};
 
+#[path = "pull_cap_tests.rs"]
+mod pull_cap_tests;
+
 const FRESH: Key = Key(Table::Products, 222);
 
 #[test]
