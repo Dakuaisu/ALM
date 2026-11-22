@@ -2862,3 +2862,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/L06-STANDALONE-RECOVERY-complete.log): **543 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch, and SQLite restart workers). An earlier invocation hit the shell timeout and was not counted. Formatting passed; editor diagnostics timed out.
 
 This covers typed standalone bill recovery and inert markup only. No browser, actual printing, PDF creation, installed-device parity, or formal phase exit was verified. The folder-backup check remains closed.
+
+### L06-DUPLICATE-ID: Reject duplicate standalone GST IDs on restore
+
+**Development, PASS (L06-02 archive guard, synthetic local Mac).** Both the focused and locked-offline runs tested the modified worktree based on `f77fd4e`, not the base commit alone. The tested [regression](../phase2-local/tests/gst_preview_replay/archive_restore.rs) and its registration were subsequently committed unchanged as `cc9862f`. A valid backup with internal IDs 91 and 92 and displayed invoice numbers 47 and 48 restored successfully to seed the occupied store. Changing only internal ID 92 to 91 made the archive invalid; the displayed invoice numbers remained distinct. This test establishes no rule about displayed invoice numbers.
+
+Restore returned `InvalidArchive` at both destinations. No file was created at the fresh path, and the occupied store was byte-for-byte unchanged. Reopening the occupied store and emitting by the original internal IDs yielded both original standalone records and totals.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test gst_preview_replay duplicate_standalone -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/L06-DUPLICATE-ID-focused.log): **1 passed, 0 failed, 0 ignored** (5 filtered out).
+- [Locked offline](../phase2-local/target/L06-DUPLICATE-ID-offline.log): **544 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch, and SQLite restart workers). Formatting passed; editor diagnostics timed out.
+
+No production code, invoicing, or rounding rule changed. The successful recovery check remains closed; this result does not establish browser or installed-device parity or a formal phase exit.
