@@ -1,10 +1,13 @@
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{self, Command, Stdio};
+use std::process::{self, Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
 use alm_phase2_local::{DraftCustomer, DraftId, LocalSales, ProductId};
+
+#[path = "draft_demo/scoped_edit.rs"]
+mod scoped_edit;
 
 const DEMO: &str = env!("CARGO_BIN_EXE_alm-draft-demo");
 const CREATE_DRAFT: &str = "new\nSynthetic Customer\n1\n3\nreview\nsave\nquit\n";
@@ -72,10 +75,19 @@ impl Drop for ScratchDir {
 }
 
 fn run_demo(scratch: &ScratchDir, script: &str, launch: &str) -> (u32, String) {
-    let mut child = scratch
-        .command(DEMO)
-        .arg("--db")
-        .arg(scratch.database())
+    let mut command = scratch.command(DEMO);
+    command.arg("--db").arg(scratch.database());
+    let (pid, output) = run_script(command, script, launch);
+    assert!(output.status.success(), "{launch}: {output:?}");
+    assert!(output.stderr.is_empty(), "{launch}: unexpected stderr");
+    (
+        pid,
+        String::from_utf8(output.stdout).expect("draft demo stdout is UTF-8"),
+    )
+}
+
+fn run_script(mut command: Command, script: &str, launch: &str) -> (u32, Output) {
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -88,13 +100,8 @@ fn run_demo(scratch: &ScratchDir, script: &str, launch: &str) -> (u32, String) {
         .expect("piped draft demo stdin")
         .write_all(script.as_bytes());
     let output = child.wait_with_output().expect("wait for draft demo");
-    assert!(output.status.success(), "{launch}: {}", output.status);
     script_written.expect("send synthetic draft script");
-    assert!(output.stderr.is_empty(), "{launch}: unexpected stderr");
-    (
-        pid,
-        String::from_utf8(output.stdout).expect("draft demo stdout is UTF-8"),
-    )
+    (pid, output)
 }
 
 fn assert_no_pending_confirmations(scratch: &ScratchDir) {
@@ -265,7 +272,7 @@ fn post_is_rejected_when_a_synthetic_draft_is_active() {
         "Posting probe",
         &stdout,
         &[
-            "Unknown command. Use new, save, open, review, or quit.",
+            "Unknown command. Use new, save, open, edit, review, or quit.",
             PROVISIONAL,
             "State: UNSAVED",
             "Saved draft 1: PROVISIONAL — NOT POSTED.",

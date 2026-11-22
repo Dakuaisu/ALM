@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 use crate::{BillDate, Money};
 
@@ -14,6 +14,36 @@ impl DraftId {
 
     pub(crate) const fn value(self) -> u64 {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod quantity_tests {
+    use super::*;
+
+    #[test]
+    fn replaces_only_the_selected_ordinary_line_quantity() {
+        // Given an ordinary draft with two lines and independent customer, date, and crate data.
+        let one = NonZeroU32::MIN;
+        let two = NonZeroU32::new(2).unwrap();
+        let first = DraftLine::new(ProductId::new(1), two);
+        let second = DraftLine::new(ProductId::new(2), one);
+        let mut draft = ProvisionalDraft::new(DraftId::new(7), vec![first, second])
+            .with_bill_date(Some(BillDate::new(2025, 2, 12).unwrap()))
+            .with_customer(DraftCustomer::Selected {
+                id: DraftCustomerId::new("customer-1".into()),
+                name: "Synthetic Customer".into(),
+            });
+        draft.add_crate_row(CrateRow::new(one, vec![])).unwrap();
+        let mut expected = draft.clone();
+        expected.lines[1] = DraftLine::new(ProductId::new(2), two);
+
+        // When the second ordinary line is edited.
+        let previous = draft.replace_line_quantity(NonZeroUsize::new(2).unwrap(), two);
+
+        // Then only its quantity changes.
+        assert_eq!(previous, Some(one));
+        assert_eq!(draft, expected);
     }
 }
 
@@ -225,5 +255,16 @@ impl ProvisionalDraft {
     /// Returns draft lines without owner-only data.
     pub fn lines(&self) -> &[DraftLine] {
         &self.lines
+    }
+
+    /// Replaces the quantity of an ordinary line by its one-based position.
+    /// Returns the previous quantity, or `None` if the line does not exist.
+    pub fn replace_line_quantity(
+        &mut self,
+        line_number: NonZeroUsize,
+        quantity: NonZeroU32,
+    ) -> Option<NonZeroU32> {
+        let line = self.lines.get_mut(line_number.get() - 1)?;
+        Some(std::mem::replace(&mut line.quantity, quantity))
     }
 }

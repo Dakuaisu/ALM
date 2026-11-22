@@ -1,6 +1,6 @@
 use std::env;
 use std::io::{self, BufRead, Write};
-use std::num::{NonZeroU32, NonZeroU64};
+use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 use std::process::ExitCode;
 use std::str::FromStr;
 
@@ -113,7 +113,7 @@ fn run_menu(
     let mut console = Console { input, output };
     let mut current: Option<CurrentDraft> = None;
     loop {
-        let Some(command) = console.read("Command (new/save/open/review/quit):")? else {
+        let Some(command) = console.read("Command (new/save/open/edit/review/quit):")? else {
             return match current {
                 Some(draft) if !draft.saved => Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
@@ -177,6 +177,38 @@ fn run_menu(
                     Err(error) => writeln!(console.output, "Could not open draft: {error}")?,
                 }
             }
+            "edit" => {
+                let Some(draft) = current.as_mut() else {
+                    writeln!(console.output, "No draft is open.")?;
+                    continue;
+                };
+                let line_count = draft.draft.lines().len();
+                if line_count == 0 {
+                    writeln!(console.output, "No ordinary lines to edit.")?;
+                    continue;
+                }
+                let Some(line) = console.positive::<NonZeroUsize>("Line number (one-based):")?
+                else {
+                    continue;
+                };
+                if line.get() > line_count {
+                    writeln!(console.output, "Line {line} was not found.")?;
+                    continue;
+                }
+                let Some(quantity) =
+                    console.positive::<NonZeroU32>("Quantity (positive whole number):")?
+                else {
+                    continue;
+                };
+                if draft
+                    .draft
+                    .replace_line_quantity(line, quantity)
+                    .is_some_and(|previous| previous != quantity)
+                {
+                    draft.saved = false;
+                    writeln!(console.output, "Edited draft {}: UNSAVED.", draft.id)?;
+                }
+            }
             "review" => match &current {
                 Some(draft) => review::render(console.output, draft)?,
                 None => writeln!(console.output, "No draft is open.")?,
@@ -184,7 +216,7 @@ fn run_menu(
             "quit" => return Ok(()),
             _ => writeln!(
                 console.output,
-                "Unknown command. Use new, save, open, review, or quit."
+                "Unknown command. Use new, save, open, edit, review, or quit."
             )?,
         }
     }
