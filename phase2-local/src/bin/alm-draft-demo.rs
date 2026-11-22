@@ -1,15 +1,15 @@
 use std::env;
 use std::io::{self, BufRead, Write};
 use std::num::{NonZeroU32, NonZeroU64};
-use std::path::Path;
 use std::process::ExitCode;
 use std::str::FromStr;
 
 use alm_phase2_local::{
-    DraftCustomer, DraftId, DraftLine, LocalSales, Money, ProductId, ProvisionalDraft, Role,
-    SalesSession,
+    DraftCustomer, DraftId, DraftLine, ManagerDraftStore, ProductId, ProvisionalDraft,
 };
 
+#[path = "alm-draft-demo/launch.rs"]
+mod launch;
 #[path = "alm-draft-demo/review.rs"]
 mod review;
 
@@ -61,7 +61,7 @@ impl<R: BufRead, W: Write> Console<'_, R, W> {
     }
 }
 
-fn next_id(session: &SalesSession<'_>) -> io::Result<NonZeroU64> {
+fn next_id(session: &ManagerDraftStore) -> io::Result<NonZeroU64> {
     let mut id = NonZeroU64::MIN;
     loop {
         if session
@@ -81,7 +81,7 @@ fn next_id(session: &SalesSession<'_>) -> io::Result<NonZeroU64> {
 
 fn new_draft<R: BufRead, W: Write>(
     console: &mut Console<'_, R, W>,
-    session: &SalesSession<'_>,
+    session: &ManagerDraftStore,
 ) -> io::Result<Option<CurrentDraft>> {
     let id = next_id(session)?;
     if !console.choice("Customer (Synthetic Customer):", "Synthetic Customer")?
@@ -108,7 +108,7 @@ fn new_draft<R: BufRead, W: Write>(
 fn run_menu(
     input: &mut impl BufRead,
     output: &mut impl Write,
-    session: &mut SalesSession<'_>,
+    session: &ManagerDraftStore,
 ) -> io::Result<()> {
     let mut console = Console { input, output };
     let mut current: Option<CurrentDraft> = None;
@@ -192,20 +192,7 @@ fn run_menu(
 
 fn run() -> io::Result<()> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    let usage = || {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Usage: alm-draft-demo --db /absolute/path/to/synthetic.sqlite",
-        )
-    };
-    let [flag, path] = args.as_slice() else {
-        return Err(usage());
-    };
-    if flag != "--db" || !Path::new(path).is_absolute() {
-        return Err(usage());
-    }
-    let mut sales = LocalSales::open_sqlite(Path::new(path), Money::from_minor_units(0))
-        .map_err(io::Error::other)?;
+    let (drafts, mode) = launch::open(&args)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut output = stdout.lock();
@@ -213,11 +200,8 @@ fn run() -> io::Result<()> {
         output,
         "ALM synthetic Manager demo — local drafts only; not authenticated."
     )?;
-    run_menu(
-        &mut stdin.lock(),
-        &mut output,
-        &mut sales.session(Role::Manager),
-    )
+    writeln!(output, "{mode}")?;
+    run_menu(&mut stdin.lock(), &mut output, &drafts)
 }
 
 fn main() -> ExitCode {
@@ -227,38 +211,5 @@ fn main() -> ExitCode {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use alm_phase2_local::{DraftCustomer, DraftId, LocalSales, Money, ProductId, Role};
-
-    #[test]
-    fn saves_a_synthetic_draft_when_explicitly_requested() {
-        let mut input = Cursor::new(b"new\nSynthetic Customer\n1\n3\nsave\nreview\nquit\n");
-        let mut output = Vec::new();
-        let mut sales = LocalSales::new(Money::from_minor_units(0));
-
-        super::run_menu(&mut input, &mut output, &mut sales.session(Role::Manager)).unwrap();
-
-        let draft = sales
-            .session(Role::Manager)
-            .reopen_draft(DraftId::new(1))
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            draft.customer(),
-            &DraftCustomer::Typed("Synthetic Customer".into())
-        );
-        assert_eq!(draft.lines()[0].product_id(), ProductId::new(1));
-        assert_eq!(draft.lines()[0].quantity().get(), 3);
-        assert!(
-            String::from_utf8(output)
-                .unwrap()
-                .contains("PROVISIONAL — NOT POSTED")
-        );
     }
 }

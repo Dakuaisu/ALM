@@ -11,6 +11,7 @@ mod customer;
 mod draft_rows;
 mod pending;
 mod schema;
+mod scoped;
 
 /// Failure to open, save, or reopen a local SQLite draft.
 #[derive(Debug)]
@@ -18,6 +19,10 @@ mod schema;
 pub enum DraftStorageError {
     /// The database path must be absolute and contain no NUL bytes.
     InvalidPath,
+    /// A synthetic account ID is empty, too long, or contains disallowed characters.
+    InvalidAccountScope,
+    /// An existing scoped file is not bound to the selected synthetic account.
+    AccountStoreMismatch,
     /// An I/O error occurred while running or communicating with SQLite.
     Io(io::Error),
     /// SQLite exited unsuccessfully.
@@ -36,8 +41,12 @@ pub enum DraftStorageError {
 impl fmt::Display for DraftStorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidPath => {
-                f.write_str("expected an absolute SQLite file path without NUL bytes")
+            Self::InvalidPath => f.write_str("expected a safe absolute SQLite path or device root"),
+            Self::InvalidAccountScope => f.write_str(
+                "expected a synthetic account ID using ASCII letters, digits, '-' or '_'",
+            ),
+            Self::AccountStoreMismatch => {
+                f.write_str("database is not bound to the selected account")
             }
             Self::Io(err) => write!(f, "SQLite CLI I/O failed: {err}"),
             Self::SqliteFailed { status, stderr } => {
@@ -54,6 +63,8 @@ impl std::error::Error for DraftStorageError {
         match self {
             Self::Io(err) => Some(err),
             Self::InvalidPath
+            | Self::InvalidAccountScope
+            | Self::AccountStoreMismatch
             | Self::SqliteFailed { .. }
             | Self::InvalidOutput
             | Self::TooManyLines => None,
@@ -77,7 +88,12 @@ impl SqliteDraftStore {
             return Err(DraftStorageError::InvalidPath);
         }
         let store = Self { path: path.into() };
-        store.run(schema::SCHEMA.as_bytes(), false)?;
+        let sql = format!(
+            "BEGIN IMMEDIATE;\n{}\n{}\nCOMMIT;",
+            schema::DRAFT_TABLES,
+            schema::OWNER_PENDING_TABLE
+        );
+        store.run(sql.as_bytes(), false)?;
         Ok(store)
     }
 

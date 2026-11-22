@@ -1,6 +1,5 @@
 // IDs use canonical decimal text because SQLite integers are signed 64-bit.
-pub(super) const SCHEMA: &str = "
-BEGIN IMMEDIATE;
+pub(super) const DRAFT_TABLES: &str = "
 CREATE TABLE IF NOT EXISTS provisional_drafts (
     id TEXT PRIMARY KEY NOT NULL CHECK (
         length(id) BETWEEN 1 AND 20 AND instr(id, char(0)) = 0
@@ -27,10 +26,6 @@ CREATE TABLE IF NOT EXISTS provisional_draft_customers (
     name TEXT NOT NULL,
     CHECK ((kind = 1 AND customer_id IS NULL) OR (kind = 2 AND customer_id IS NOT NULL))
 ) STRICT;
-CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
-    request_id TEXT PRIMARY KEY NOT NULL,
-    snapshot TEXT NOT NULL
-) STRICT;
 CREATE TABLE IF NOT EXISTS provisional_draft_crates (
     draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
     definition TEXT NOT NULL CHECK (
@@ -45,5 +40,11 @@ CREATE TABLE IF NOT EXISTS provisional_draft_dates (
         AND bill_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
     )
 ) STRICT;
-COMMIT;
+";
+
+pub(super) const OWNER_PENDING_TABLE: &str = "
+CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
+    request_id TEXT PRIMARY KEY NOT NULL,
+    snapshot TEXT NOT NULL
+) STRICT;
 ";

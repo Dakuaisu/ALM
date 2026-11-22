@@ -7,6 +7,9 @@ pub mod confirmation;
 mod crate_row_codec;
 pub mod draft_entry;
 mod drafts;
+#[cfg(test)]
+mod manager_account_tests;
+mod manager_drafts;
 pub mod preferences;
 pub mod provisional_preview;
 pub mod receive_payment;
@@ -21,6 +24,7 @@ pub use drafts::{
     CrateComponent, CrateRow, CrateRowAlreadyPresent, DraftCustomer, DraftCustomerId, DraftId,
     DraftLine, ProductId, ProvisionalDraft, SaleUnit,
 };
+pub use manager_drafts::ManagerDraftStore;
 pub use sqlite::DraftStorageError;
 use sqlite::SqliteDraftStore;
 
@@ -73,7 +77,7 @@ impl LocalSales {
         }
     }
 
-    /// Opens a local SQLite file dedicated to synthetic provisional drafts.
+    /// Opens an explicit legacy, single-account SQLite file for the trusted fixture.
     ///
     /// # Errors
     /// Returns a storage error if SQLite cannot initialize the file.

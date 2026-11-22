@@ -4,10 +4,13 @@ use std::process::{self, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
+use alm_phase2_local::{DraftCustomer, DraftId, LocalSales, ProductId};
+
 const DEMO: &str = env!("CARGO_BIN_EXE_alm-draft-demo");
 const CREATE_DRAFT: &str = "new\nSynthetic Customer\n1\n3\nreview\nsave\nquit\n";
 const REOPEN_DRAFT: &str = "open\n1\nreview\nquit\n";
 const MANAGER: &str = "ALM synthetic Manager demo — local drafts only; not authenticated.";
+const LEGACY: &str = "Storage: legacy single-account database (--db).";
 const PROVISIONAL: &str = "PROVISIONAL — NOT POSTED";
 const DRAFT_ID: &str = "Draft ID: 1";
 const CUSTOMER: &str = "Customer: Synthetic Customer";
@@ -190,6 +193,7 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
         &before,
         &[
             MANAGER,
+            LEGACY,
             PROVISIONAL,
             DRAFT_ID,
             "State: UNSAVED",
@@ -208,6 +212,7 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
         &after,
         &[
             MANAGER,
+            LEGACY,
             "Opened draft 1: SAVED.",
             PROVISIONAL,
             DRAFT_ID,
@@ -236,6 +241,14 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
     println!("Process check: distinct CLI launches");
     println!("SQLite check: no committed writes or logical changes during reopen/review");
     assert_no_pending_confirmations(&scratch);
+    let store = LocalSales::open_legacy_manager_sqlite(&scratch.database()).unwrap();
+    let saved = store.reopen_draft(DraftId::new(1)).unwrap().unwrap();
+    assert_eq!(
+        saved.customer(),
+        &DraftCustomer::Typed("Synthetic Customer".into())
+    );
+    assert_eq!(saved.lines()[0].product_id(), ProductId::new(1));
+    assert_eq!(saved.lines()[0].quantity().get(), 3);
 }
 
 #[test]
