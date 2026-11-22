@@ -2024,7 +2024,7 @@ The frozen HTML remained unserved under OPEN-008. Browser navigation and hosted 
 
 #### Counter creation keys after Owner bill edit
 
-**L02-01 / L04-02: PASS (local Rust development)** at `f971b9977167776ea19ae7b1619be90021c4bfd5`. The [edit replay](../phase2-local/src/confirmation/tests/edit/creation_key.rs) used the existing Owner bill-edit transaction with a supplied creation key as the controlled equivalent of `Date.now()` in the [frozen Save rule](../ALM_Business_Manager.html#L4116). It read the stored key and called the Counter API after each case. At reporting date 2024-02-29, the initial Recent bills order was `[4, 3, 5, 2, 1]` by invoice number. All expected keys and orders below matched the readbacks.
+**L02-01 / L04-01: PASS (local Rust development)** at `f971b9977167776ea19ae7b1619be90021c4bfd5`. The [edit replay](../phase2-local/src/confirmation/tests/edit/creation_key.rs) called the controlled fixture entry point `save_edit_with_creation_key` directly; it did not exercise normal `BillEntryState::save_edit`. The supplied key stood in for `Date.now()` in the [frozen Save rule](../ALM_Business_Manager.html#L4116). It read the stored key and called the Counter API after each case. At reporting date 2024-02-29, the initial Recent bills order was `[4, 3, 5, 2, 1]` by invoice number. All expected keys and orders below matched the readbacks.
 
 | Case | Invoice | Key before → after | Recent invoice order |
 | --- | ---: | --- | --- |
@@ -2049,3 +2049,27 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-EDIT-KEY-f971b99-offline](../phase2-local/target/L02-EDIT-KEY-f971b99-offline.log): 431 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
 
 This is in-memory Rust evidence, not durable timestamp or browser parity evidence. The frozen HTML remained unserved under OPEN-008.
+
+#### Creation keys on normal Owner bill Save
+
+**L02-01 / L04-01: PASS (local Rust development)** at `cbc6cdb91f41a57d84e3d88189fea5ba5a3bd180`. The [normal-path replay](../phase2-local/src/confirmation/tests/edit/normal_creation_key.rs) called `BillEntryState::open_edit` then `BillEntryState::save_edit`, overriding only the clock. Default Save supplies Unix epoch milliseconds to the same transaction. The fixture consults the clock only for a missing or zero stored key, after validation and before mutation.
+
+| Normal Save at controlled key 20 | Stored key before → after | Returned / refreshed preview invoice | Recent invoice order |
+| --- | --- | --- | --- |
+| Invoice 1 | Missing → 20 | 1 / 1 | `[4, 1, 3, 5, 2]` |
+| Invoice 2 | 0 → 20 | 2 / 2 | `[4, 2, 1, 3, 5]` |
+| Invoice 3 | 10 → 10 | 3 / 3 | `[4, 2, 1, 3, 5]` |
+
+Expected and observed results matched. On the fixed reporting date 2024-02-29, Billed today stayed `[1, 3, 4, 5]` (4 bills). In the rejection replay, Manager denial, abandonment, stock shortage, and a failing clock each left the fixture unchanged and Recents at `[4, 3, 5, 2, 1]`; no preview was published. A nonzero key bypassed the failing clock and Save succeeded. The separate acknowledged confirmation retry control passed without exercising edit Save.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib confirmation::tests::edit -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib counter_keeps_first_post_key_on_retry -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L04-EDIT-SAVE-cbc6cdb-focused](../phase2-local/target/L04-EDIT-SAVE-cbc6cdb-focused.log): 13 passed, 0 failed, 0 ignored, 281 filtered out.
+- [L04-EDIT-SAVE-cbc6cdb-retry](../phase2-local/target/L04-EDIT-SAVE-cbc6cdb-retry.log): 1 passed, 0 failed, 0 ignored, 293 filtered out.
+- [L04-EDIT-SAVE-cbc6cdb-offline](../phase2-local/target/L04-EDIT-SAVE-cbc6cdb-offline.log): 434 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The evidence covers local in-memory Rust behavior, not durable timestamps or browser parity. The frozen HTML remained unserved under OPEN-008.
