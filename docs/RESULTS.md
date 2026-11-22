@@ -1969,3 +1969,29 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-DASH-API-2c4510d-offline](../phase2-local/target/L02-DASH-API-2c4510d-offline.log): 424 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Display rounding, browser parity, hosted authorization, and accounting acceptance were not established.
+
+#### Counter recent bills and debtor shortcut
+
+**L02-01: PASS (local Rust development)** at `6fd9187b0d118091517503f3f4efa0be363ae353`. The [offline replay](../phase2-local/src/confirmation/tests/l02_counter_replay.rs) froze the reporting date at 2025-03-14 and posted eight synthetic bills through the Owner API, then cancelled one. Rust sale and preview readbacks supplied draft and invoice IDs, document dates, and cancellation state. Counter filtering, creation times, and navigation were modeled in the replay from the [frozen Counter source](../ALM_Business_Manager.html#L2319); no browser behavior was observed.
+
+| Check | Expected and observed | Evidence type |
+| --- | --- | --- |
+| Billed today | 4 active bills by document date: `(51,1)`, `(84,3)`, `(63,5)`, `(72,7)` | Test-only count over Rust sale facts |
+| Recent bills | 6 of 7 active bills, in descending modeled creation order: `(14,2)`, `(63,5)`, `(72,7)`, `(84,3)`, `(38,6)`, `(27,4)` | Test-only list over Rust sale facts |
+| Recents controls | Today-dated `(51,1)` had no modeled creation time and was trimmed. Cancelled `(95,8)` had the newest modeled creation key (80) and was excluded. Backdated `(14,2)` had the newest active key (75) and led the list without counting as billed today. | Modeled creation order, not invoice order or wall-clock observations |
+| Open first recent row | Modeled selection of draft `14` called the existing Owner `bill_preview`, which returned invoice `2`, dated 2025-03-12, not cancelled. Fixture unchanged; no Print, Save PDF, or WhatsApp action invoked in the local replay. | Modeled navigation; actual Rust preview readback |
+| Debtor shortcut | The modeled `customers/__due` route showed 1 ID: `counter-due`. Rust ledger balances in paise: `counter-due` +1,251, `counter-zero` 0, `counter-credit` −850, `counter-sub-rupee` +49. Source-derived rounding before the positive filter produced 13, 0, −8, and 0 rupees, respectively. | Actual exact ledger readbacks; modeled rounding, route, and filter |
+
+Bill pairs are `(draft ID, invoice number)`. Manager requests for posted invoice preview and confirmation of draft `96` both returned `AccessDenied` without mutation. The existing Manager CLI control saved and reopened provisional draft `1` in separate launches, rejected the posting command, observed no committed writes during reopen/review, and found 0 pending Owner confirmations. No access was broadened.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l02_counter_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test draft_demo -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-COUNTER-6fd9187-focused](../phase2-local/target/L02-COUNTER-6fd9187-focused.log): 1 passed, 0 failed, 0 ignored, 284 filtered out.
+- [L02-COUNTER-6fd9187-manager](../phase2-local/target/L02-COUNTER-6fd9187-manager.log): 2 passed, 0 failed, 0 ignored.
+- [L02-COUNTER-6fd9187-offline](../phase2-local/target/L02-COUNTER-6fd9187-offline.log): 425 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser behavior, including output dispatch from an actual Counter click, and hosted authorization remain unverified.
