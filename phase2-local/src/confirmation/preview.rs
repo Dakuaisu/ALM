@@ -119,7 +119,10 @@ impl ConfirmationFixture {
             })
             .collect::<Result<Vec<_>, ConfirmationError>>()?;
         let (previous, previous_date) = if let Some(customer_id) = customer_id {
-            self.preview_balance(customer_id, Some(receipt.invoice))?
+            self.preview_balance(
+                customer_id,
+                Some((id, receipt.invoice, self.bill_creation_key(id))),
+            )?
         } else {
             (0, None)
         };
@@ -165,7 +168,7 @@ impl ConfirmationFixture {
     fn preview_balance(
         &self,
         customer: &str,
-        before: Option<u64>,
+        before: Option<(DraftId, u64, Option<super::CreationKey>)>,
     ) -> Result<(i64, Option<BillDate>), ConfirmationError> {
         let opening = self.customer_openings.get(customer);
         let mut balance = opening
@@ -178,7 +181,14 @@ impl ConfirmationFixture {
                 continue;
             };
             if other.value() != customer
-                || before.is_some_and(|invoice| receipt.invoice >= invoice)
+                || before.is_some_and(|(target, invoice, key)| {
+                    *id == target
+                        || !before_cutoff(
+                            key,
+                            self.bill_creation_key(*id),
+                            receipt.invoice < invoice,
+                        )
+                })
                 || self
                     .lifecycle
                     .get(id)
@@ -209,7 +219,16 @@ impl ConfirmationFixture {
         }
         for payment in &self.preview_payments {
             if payment.customer_id != customer
-                || before.is_some_and(|invoice| payment.after_invoice >= invoice)
+                || before.is_some_and(|(_, invoice, key)| {
+                    !before_cutoff(
+                        key,
+                        payment
+                            .metadata
+                            .as_ref()
+                            .map(|metadata| metadata.creation_key),
+                        payment.after_invoice < invoice,
+                    )
+                })
             {
                 continue;
             }
@@ -221,5 +240,18 @@ impl ConfirmationFixture {
             }
         }
         Ok((balance, date))
+    }
+}
+
+// Keyed targets compare a missing peer as zero without persisting a timestamp.
+// Only an unkeyed target uses the legacy invoice-anchor cutoff.
+fn before_cutoff(
+    target: Option<super::CreationKey>,
+    peer: Option<super::CreationKey>,
+    anchor_before: bool,
+) -> bool {
+    match target {
+        Some(target) => peer.unwrap_or(super::CreationKey::new(0)) < target,
+        None => anchor_before,
     }
 }

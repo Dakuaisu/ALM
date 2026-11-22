@@ -47,6 +47,13 @@ pub struct CustomerLedger {
 }
 
 impl ConfirmationFixture {
+    pub(super) fn bill_creation_key(&self, id: DraftId) -> Option<super::CreationKey> {
+        self.first_posts
+            .iter()
+            .find(|(draft, _)| *draft == id)
+            .and_then(|(_, key)| *key)
+    }
+
     pub fn record_customer_receipt(
         &mut self,
         role: Role,
@@ -177,7 +184,13 @@ impl ConfirmationFixture {
                 .ok_or(ConfirmationError::InvalidDraft)?;
             let paid = receipt.received.ok_or(ConfirmationError::InvalidDraft)?;
             rows.push((
-                (Some(date.parts()), 1u8, receipt.invoice, 0usize),
+                (
+                    Some(date.parts()),
+                    1u8,
+                    self.bill_creation_key(*id),
+                    receipt.invoice,
+                    0usize,
+                ),
                 OpeningLedgerEntry {
                     date: Some(date),
                     kind: OpeningLedgerKind::Transaction(CustomerLedgerKind::Bill {
@@ -202,6 +215,10 @@ impl ConfirmationFixture {
                 (
                     Some(payment.date.parts()),
                     1u8,
+                    payment
+                        .metadata
+                        .as_ref()
+                        .map(|metadata| metadata.creation_key),
                     payment.after_invoice,
                     index + 1,
                 ),
@@ -216,7 +233,7 @@ impl ConfirmationFixture {
         }
         if let Some(opening) = self.customer_openings.get(customer_id.value()) {
             rows.push((
-                (opening.date.map(|date| date.parts()), 0, 0, 0),
+                (opening.date.map(|date| date.parts()), 0, None, 0, 0),
                 OpeningLedgerEntry {
                     date: opening.date,
                     kind: OpeningLedgerKind::Opening,
@@ -226,7 +243,26 @@ impl ConfirmationFixture {
                 },
             ));
         }
-        rows.sort_by_key(|(key, _)| *key);
+        let keyed = rows.iter().any(|((_, _, key, _, _), _)| key.is_some());
+        if keyed {
+            // The source's stable tie order is opening, then newest bills,
+            // then newest receipts. Missing and zero keys sort as one only here.
+            rows.sort_by_key(|((date, kind, key, anchor, index), _)| {
+                let effective = key
+                    .filter(|key| *key != super::CreationKey::new(0))
+                    .unwrap_or(super::CreationKey::new(1));
+                (
+                    *date,
+                    *kind,
+                    effective,
+                    u8::from(*index != 0),
+                    std::cmp::Reverse(if *index == 0 { *anchor } else { 0 }),
+                    std::cmp::Reverse(*index),
+                )
+            });
+        } else {
+            rows.sort_by_key(|((date, kind, _, anchor, index), _)| (*date, *kind, *anchor, *index));
+        }
         let mut balance = 0i64;
         let mut entries = Vec::with_capacity(rows.len());
         for (_, mut entry) in rows {
