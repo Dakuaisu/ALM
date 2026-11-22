@@ -1,5 +1,5 @@
 //! Synthetic, Owner-scoped read model; it cannot post sales or authorize transactions.
-mod date;
+pub(crate) mod date;
 mod estimate;
 mod export;
 mod gst;
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::confirmation::estimate::{EstimateDocument, EstimateRow};
 pub use gst::{GstArchiveError, HistoricalGst, HistoricalGstLine};
+pub(crate) use purchase_order::money;
 pub use purchase_order::{
     ArchivedPurchaseBusiness, ArchivedPurchaseLine, ArchivedPurchaseOrder, ArchivedPurchaseReceipt,
     ArchivedPurchaseStatus, PurchaseCapture, PurchaseDisplay, ScopedArchiveInput,

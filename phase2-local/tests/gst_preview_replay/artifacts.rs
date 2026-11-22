@@ -25,6 +25,10 @@ impl Sandbox {
         }
     }
 
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn readback(&self, count: usize, action: Action, html: &str) -> String {
         let name = match action {
             Action::Print => "print",

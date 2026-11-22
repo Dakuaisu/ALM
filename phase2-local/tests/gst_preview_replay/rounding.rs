@@ -1,7 +1,10 @@
+use std::fs;
+
 use alm_phase2_local::confirmation::{
     ConfirmationError, ConfirmationFixture, GstBillDraft, GstBillError, GstBillId,
     GstBillLineInput, GstBillNumber, GstBillTotals, GstJurisdiction,
 };
+use alm_phase2_local::synthetic_read_model::{Records, Store};
 use alm_phase2_local::{BillDate, DraftId, Money, ProductId, Role};
 
 use super::artifacts::Sandbox;
@@ -187,6 +190,63 @@ fn l06_02_105_inclusive_standalone_save_readback_and_reprint() {
         assert_eq!(
             fixture.current_sale(OWNER, DraftId::new(BILL.0)),
             Err(ConfirmationError::DraftNotFound)
+        );
+
+        let source_path = sandbox.path().join(format!("source-{count}.json"));
+        let backup_path = sandbox.path().join(format!("backup-{count}.json"));
+        let restored_path = sandbox.path().join(format!("restored-{count}.json"));
+        let source = Store::create_with_standalone_gst(
+            &source_path,
+            OWNER,
+            Records {
+                reorder_default: 0,
+                products: vec![],
+                customers: vec![],
+                sales: vec![],
+                receipts: vec![],
+            },
+            vec![saved.record.clone()],
+        )
+        .unwrap();
+        fs::write(&backup_path, source.backup(OWNER).unwrap()).unwrap();
+        drop(source);
+        drop(fixture);
+
+        drop(Store::restore(&restored_path, OWNER, &fs::read(&backup_path).unwrap()).unwrap());
+        let reopened = Store::open(&restored_path, OWNER).unwrap();
+        for (role, id, error) in [
+            (Role::Manager, BILL, GstBillError::AccessDenied),
+            (OWNER, GstBillId(92), GstBillError::NotFound),
+        ] {
+            assert_eq!(
+                reopened.emit_standalone_gst(role, id, &mut |_| panic!("unexpected invoice")),
+                Err(error)
+            );
+        }
+        for (action, original) in [Action::Print, Action::SavePdf]
+            .into_iter()
+            .zip(&sink.documents)
+        {
+            let mut regenerated = Sink::default();
+            reopened
+                .emit_standalone_gst(OWNER, BILL, &mut |invoice| {
+                    let record = &invoice.record;
+                    assert_eq!(
+                        (record.id, record.number, record.date, record.cancelled),
+                        (BILL, GstBillNumber(47), date, false)
+                    );
+                    assert_eq!(amounts(invoice.totals), expected);
+                    assert_eq!(invoice, saved);
+                    regenerated.invoke(action, invoice, true);
+                })
+                .unwrap();
+            let [document] = regenerated.documents.as_slice() else {
+                panic!("one regenerated {action:?} document expected")
+            };
+            assert_eq!(document.html.as_bytes(), original.html.as_bytes());
+        }
+        println!(
+            "L06-02 fresh archive recovery: bill {BILL:?}, rows={count}, invoice and inert markup match original"
         );
         println!(
             "L06-02 standalone 105 at 18%, rows={count}: per-line raw taxable ₹5250/59, raw tax ₹945/59, raw half ₹945/118; [taxable, tax, CGST, SGST, IGST, total] source={expected:?}, saved/reopened={:?}; print/PDF equal, no ordinary posting",

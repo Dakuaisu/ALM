@@ -1,14 +1,19 @@
 //! Standalone synthetic GST bills; independent of ordinary sales and numbering.
+mod record;
+
 use std::num::NonZeroU32;
+
+use serde::{Deserialize, Serialize};
 
 use super::gst_standalone_totals::totals;
 use super::{ConfirmationFixture, GstJurisdiction};
+use crate::synthetic_read_model::{date, money};
 use crate::{BillDate, Money, Role};
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct GstBillId(pub u64);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GstBillNumber(pub u64);
 
 #[derive(Clone, Copy, Debug)]
@@ -31,12 +36,15 @@ pub struct GstBillDraft<'a> {
     pub lines: &'a [GstBillLineInput<'a>],
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct GstBillLine {
     pub item: String,
     pub quantity: NonZeroU32,
+    #[serde(with = "money")]
     pub inclusive_rate: Money,
     pub gst_basis_points: u32,
+    #[serde(with = "money")]
     pub amount: Money,
 }
 
@@ -50,11 +58,13 @@ pub struct GstBillTotals {
     pub total: Money,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct GstBill {
     pub id: GstBillId,
     pub number: GstBillNumber,
     pub customer: String,
+    #[serde(with = "date")]
     pub date: BillDate,
     pub gstin: Option<String>,
     pub eway_number: Option<String>,
@@ -127,28 +137,25 @@ fn owner(role: Role) -> Result<(), GstBillError> {
     }
 }
 
-fn amount(input: &GstBillLineInput<'_>) -> Result<i64, GstBillError> {
-    if input.inclusive_rate.minor_units() < 0 {
+fn amount(rate: Money, quantity: u32) -> Result<i64, GstBillError> {
+    let rate = rate.minor_units();
+    if rate < 0 {
         return Err(GstBillError::InvalidAmount);
     }
-    input
-        .inclusive_rate
-        .minor_units()
-        .checked_mul(i64::from(input.quantity))
+    rate.checked_mul(i64::from(quantity))
         .ok_or(GstBillError::Overflow)
 }
 
-fn invoice(bill: &GstBill) -> Result<GstBillInvoice, GstBillError> {
-    let totals = totals(
-        bill.lines
-            .iter()
-            .map(|line| Ok((line.amount.minor_units(), line.gst_basis_points))),
-        bill.jurisdiction,
-    )?;
-    Ok(GstBillInvoice {
-        record: bill.clone(),
-        totals,
-    })
+fn validate_references(gstin: Option<&str>, eway_number: Option<&str>) -> Result<(), GstBillError> {
+    if gstin.is_some_and(|value| !value.is_empty() && value.trim().encode_utf16().count() != 15) {
+        return Err(GstBillError::InvalidGstin);
+    }
+    if eway_number.is_some_and(|value| {
+        !value.is_empty() && value.bytes().filter(u8::is_ascii_digit).count() != 12
+    }) {
+        return Err(GstBillError::InvalidEway);
+    }
+    Ok(())
 }
 
 impl ConfirmationFixture {
@@ -160,10 +167,10 @@ impl ConfirmationFixture {
     ) -> Result<GstBillTotals, GstBillError> {
         owner(role)?;
         totals(
-            draft
-                .lines
-                .iter()
-                .map(|line| amount(line).map(|value| (value, line.gst_basis_points))),
+            draft.lines.iter().map(|line| {
+                amount(line.inclusive_rate, line.quantity)
+                    .map(|value| (value, line.gst_basis_points))
+            }),
             GstJurisdiction::Intra,
         )
     }
@@ -187,17 +194,7 @@ impl ConfirmationFixture {
             return Err(GstBillError::MissingCustomer);
         }
         let date = draft.date.ok_or(GstBillError::MissingDate)?;
-        if draft
-            .gstin
-            .is_some_and(|value| !value.is_empty() && value.trim().encode_utf16().count() != 15)
-        {
-            return Err(GstBillError::InvalidGstin);
-        }
-        if draft.eway_number.is_some_and(|value| {
-            !value.is_empty() && value.bytes().filter(u8::is_ascii_digit).count() != 12
-        }) {
-            return Err(GstBillError::InvalidEway);
-        }
+        validate_references(draft.gstin, draft.eway_number)?;
         if self
             .gst_bills
             .get(&draft.id)
@@ -213,7 +210,8 @@ impl ConfirmationFixture {
                 if line.item.is_empty() {
                     return None;
                 }
-                Some(amount(line).map(|value| GstBillLine {
+                let value = amount(line.inclusive_rate, quantity.get());
+                Some(value.map(|value| GstBillLine {
                     item: line.item.to_owned(),
                     quantity,
                     inclusive_rate: line.inclusive_rate,
@@ -233,7 +231,7 @@ impl ConfirmationFixture {
             cancelled: false,
             lines,
         };
-        let projection = invoice(&bill)?;
+        let projection = bill.invoice()?;
         self.gst_bills.insert(draft.id, bill);
         sink(&projection);
         Ok(())
@@ -247,8 +245,8 @@ impl ConfirmationFixture {
         sink: &mut impl FnMut(&GstBillInvoice),
     ) -> Result<(), GstBillError> {
         owner(role)?;
-        let projection = invoice(self.gst_bills.get(&id).ok_or(GstBillError::NotFound)?)?;
-        sink(&projection);
+        let bill = self.gst_bills.get(&id).ok_or(GstBillError::NotFound)?;
+        sink(&bill.invoice()?);
         Ok(())
     }
 

@@ -1,6 +1,6 @@
 //! Typed synthetic snapshots only; none of these APIs posts or changes a PO.
 mod capture;
-mod money;
+pub(crate) mod money;
 
 use std::collections::HashSet;
 use std::num::NonZeroU32;

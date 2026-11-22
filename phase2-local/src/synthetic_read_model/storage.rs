@@ -4,10 +4,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+mod standalone_gst;
+
 use super::{AccountScope, BusinessProfile, HistoricalGst, Records};
 use super::{ArchivedPurchaseOrder, ScopedArchiveInput};
 use crate::Role;
-use crate::confirmation::{ConfirmationFixture, ProductEntryError};
+use crate::confirmation::{ConfirmationFixture, GstBill, ProductEntryError};
 
 #[derive(Debug)]
 pub enum Error {
@@ -43,6 +45,39 @@ struct Archive {
     gst: Option<Vec<HistoricalGst>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    standalone_gst: Option<Vec<GstBill>>,
+}
+
+impl Archive {
+    fn new(records: Records) -> Self {
+        Self {
+            version: 1,
+            records,
+            profile: BusinessProfile::default(),
+            scope: None,
+            gst: None,
+            purchase_orders: None,
+            standalone_gst: None,
+        }
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        if self.version != 1 {
+            return Err(Error::InvalidArchive);
+        }
+        if let Some(scope) = &self.scope {
+            scope.validate(&self.records)?;
+        }
+        super::purchase_order::validate_orders(self.purchase_orders.as_deref())?;
+        let mut ids = std::collections::BTreeSet::new();
+        for bill in self.standalone_gst.iter().flatten() {
+            if !ids.insert(bill.id) || bill.validate_saved().is_err() {
+                return Err(Error::InvalidArchive);
+            }
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn owner(role: Role) -> Result<(), Error> {
@@ -59,22 +94,13 @@ pub struct Store {
     pub(super) scope: Option<AccountScope>,
     pub(super) gst: Option<Vec<HistoricalGst>>,
     pub(super) purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
+    standalone_gst: Option<Vec<GstBill>>,
 }
 
 impl Store {
     pub fn create(path: &Path, role: Role, records: Records) -> Result<Self, Error> {
         owner(role)?;
-        Self::create_archive(
-            path,
-            Archive {
-                version: 1,
-                records,
-                profile: BusinessProfile::default(),
-                scope: None,
-                gst: None,
-                purchase_orders: None,
-            },
-        )
+        Self::create_archive(path, Archive::new(records))
     }
 
     pub fn create_scoped(
@@ -87,12 +113,8 @@ impl Store {
         Self::create_archive(
             path,
             Archive {
-                version: 1,
-                records,
-                profile: BusinessProfile::default(),
                 scope: Some(scope),
-                gst: None,
-                purchase_orders: None,
+                ..Archive::new(records)
             },
         )
     }
@@ -108,12 +130,9 @@ impl Store {
         Self::create_archive(
             path,
             Archive {
-                version: 1,
-                records,
-                profile: BusinessProfile::default(),
                 scope: Some(scope),
                 gst: Some(gst),
-                purchase_orders: None,
+                ..Archive::new(records)
             },
         )
     }
@@ -127,62 +146,45 @@ impl Store {
         Self::create_archive(
             path,
             Archive {
-                version: 1,
-                records: input.records,
-                profile: BusinessProfile::default(),
                 scope: Some(input.scope),
                 gst: Some(input.gst),
                 purchase_orders: Some(input.purchase_orders),
+                ..Archive::new(input.records)
             },
         )
     }
 
     fn create_archive(path: &Path, archive: Archive) -> Result<Self, Error> {
-        if let Some(scope) = &archive.scope {
-            scope.validate(&archive.records)?;
-        }
-        super::purchase_order::validate_orders(archive.purchase_orders.as_deref())?;
+        archive.validate()?;
         let data = serde_json::to_vec(&archive)?;
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         file.write_all(&data)?;
         file.sync_all()?;
-        Ok(Self {
+        Ok(Self::from_archive(path, archive))
+    }
+
+    fn from_archive(path: &Path, archive: Archive) -> Self {
+        Self {
             path: path.into(),
             records: archive.records,
             profile: archive.profile,
             scope: archive.scope,
             gst: archive.gst,
             purchase_orders: archive.purchase_orders,
-        })
+            standalone_gst: archive.standalone_gst,
+        }
     }
 
     pub fn open(path: &Path, role: Role) -> Result<Self, Error> {
         owner(role)?;
         let archive: Archive = serde_json::from_slice(&fs::read(path)?)?;
-        if archive.version != 1 {
-            return Err(Error::InvalidArchive);
-        }
-        if let Some(scope) = &archive.scope {
-            scope.validate(&archive.records)?;
-        }
-        super::purchase_order::validate_orders(archive.purchase_orders.as_deref())?;
-        Ok(Self {
-            path: path.into(),
-            records: archive.records,
-            profile: archive.profile,
-            scope: archive.scope,
-            gst: archive.gst,
-            purchase_orders: archive.purchase_orders,
-        })
+        archive.validate()?;
+        Ok(Self::from_archive(path, archive))
     }
 
     pub fn restore(path: &Path, role: Role, bytes: &[u8]) -> Result<Self, Error> {
         owner(role)?;
-        let archive: Archive = serde_json::from_slice(bytes)?;
-        if archive.version != 1 {
-            return Err(Error::InvalidArchive);
-        }
-        Self::create_archive(path, archive)
+        Self::create_archive(path, serde_json::from_slice(bytes)?)
     }
 
     pub fn records(&self, role: Role) -> Result<&Records, Error> {
@@ -192,14 +194,7 @@ impl Store {
 
     pub fn backup(&self, role: Role) -> Result<Vec<u8>, Error> {
         owner(role)?;
-        Ok(serde_json::to_vec(&Archive {
-            version: 1,
-            records: self.records.clone(),
-            profile: self.profile.clone(),
-            scope: self.scope.clone(),
-            gst: self.gst.clone(),
-            purchase_orders: self.purchase_orders.clone(),
-        })?)
+        self.archive_bytes(&self.records, &self.profile)
     }
 
     pub fn apply_product_settings(
@@ -244,15 +239,24 @@ impl Store {
         self.save_archive(self.records.clone(), profile)
     }
 
-    fn save_archive(&mut self, records: Records, profile: BusinessProfile) -> Result<(), Error> {
-        let data = serde_json::to_vec(&Archive {
+    fn archive_bytes(
+        &self,
+        records: &Records,
+        profile: &BusinessProfile,
+    ) -> Result<Vec<u8>, Error> {
+        Ok(serde_json::to_vec(&Archive {
             version: 1,
             records: records.clone(),
             profile: profile.clone(),
             scope: self.scope.clone(),
             gst: self.gst.clone(),
             purchase_orders: self.purchase_orders.clone(),
-        })?;
+            standalone_gst: self.standalone_gst.clone(),
+        })?)
+    }
+
+    fn save_archive(&mut self, records: Records, profile: BusinessProfile) -> Result<(), Error> {
+        let data = self.archive_bytes(&records, &profile)?;
         let staging = self.path.with_extension("setting-stage");
         let mut file = OpenOptions::new()
             .write(true)
