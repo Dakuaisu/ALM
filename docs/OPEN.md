@@ -9,6 +9,7 @@ Use this checklist for one combined owner request when needed. The numbered entr
 - [ ] **Business and permission decisions — OPEN-003, OPEN-004, OPEN-009:** Decide source conflicts and precedence with accounting; approve the production role/data matrix and stale-term authority. Require a written decision before any material departure from the HTML. In particular, do not change `BillDate` or either paste-mismatch threshold to clear an unverified case.
 - [ ] **Device prerequisites and parity sign-off — OPEN-005:** Confirm targets, provide access to actual devices and approved share recipients, and resolve disputed parity results against the original. Keep installed workflows, image handoff, print and PDF subject to their existing checks.
 - [ ] **Migration, accounting, and cutover — OPEN-002, OPEN-003, OPEN-007:** Authorize migration rehearsal with protected copies separately. Obtain owner and accounting sign-off on reconciliation and invoice continuity, agree the write pause and rollback authority, and obtain a distinct production cutover authorization before switching. Approval to rehearse is not approval to switch.
+- [ ] **Repeated-product crate valuation — [OPEN-010](#open-010-repeated-product-crate-valuation-l10-01):** After verified OPEN-008 containment and frozen-runtime evidence, decide the L10-01 release costing and report-rounding rule with the accounting reviewer. Neither candidate is approved.
 
 ## OPEN-001 Deployed baseline and dependencies
 - Status: OWNER-BLOCKED
@@ -43,3 +44,10 @@ Keep the candidate unserved until the full gate passes. If the VM is unavailable
 ## OPEN-009 PO paste calendar date discrepancy (L07-04)
 - Status: OWNER-BLOCKED
 The [frozen parser](../ALM_Business_Manager.html#L6405) can produce a calendar-invalid date string. The Rust fixture instead retains the prior valid draft date when the paste has no valid date ([L07-04 development result](RESULTS.md#purchase-order-paste-formats-and-mismatch-boundaries)). Legacy runtime behavior is NOT RUN and remains unverified. Any permanent departure requires written owner approval. Keep `BillDate` validation and both mismatch thresholds unchanged.
+
+## OPEN-010 Repeated-product crate valuation (L10-01)
+- Status: OWNER-BLOCKED
+
+The [development result recorded in `d6ac8d9`](RESULTS.md#pc-003-batch-2-addendum-crate-fifo-and-dead-stock-valuation) records a parity MISS. For component demands `[3,2]` and `[3,1]`, respectively, the source-derived saved report costs are 626 and 500 paise (displayed ₹6 and ₹5); Rust reports the depleted-lot costs of 925 and 650 paise. Neither the source-derived saved cost nor the cost of depleted lots is approved for release. The action-created Rust Dead Stock checks, private seeded history, and source-derived name-only helper are separate evidence; none settles crate costing.
+
+Under [DEC-027](DECISIONS.md#dec-027-defer-repeated-product-crate-valuation-l10-01), first pass the [OPEN-008 frozen-browser prerequisite](#open-008-contained-browser-for-phase-1-walkthrough), run L01 first, then capture the frozen L10-01 allocation, saved cost and report display. The owner must resolve the costing and rounding rule in writing with the accounting reviewer after reviewing that evidence. Independent GST and backup write-failure work can continue.
