@@ -25,13 +25,11 @@ pub(super) type Detail = (Source, ReceiptMode, i64);
 
 pub(super) struct Event {
     pub(super) date: BillDate,
-    pub(super) created: usize, // deterministic replay stand-in for legacy `created`
     pub(super) detail: Detail,
 }
 
 pub(super) struct Sale {
     pub(super) payment: Event,
-    pub(super) total: i64,
     pub(super) cancelled: bool,
 }
 
@@ -155,7 +153,7 @@ impl Replay {
 
         let mut sales = Vec::new();
         let mut receipts = Vec::new();
-        for (created, (date, posting, mode, amount)) in POSTINGS.into_iter().enumerate().rev() {
+        for (date, posting, mode, amount) in POSTINGS.into_iter().rev() {
             let date = date.parse::<BillDate>().unwrap();
             match posting {
                 Posting::Bill(draft, _) => {
@@ -194,10 +192,8 @@ impl Replay {
                     sales.push(Sale {
                         payment: Event {
                             date: preview.date,
-                            created,
                             detail: (source, review.payment_mode(), paid),
                         },
-                        total,
                         cancelled: preview.cancelled,
                     });
                 }
@@ -215,7 +211,6 @@ impl Replay {
                     assert_eq!(row.debit, money(0));
                     receipts.push(Event {
                         date: row.date.unwrap(),
-                        created,
                         detail: (Source::Receipt(id), mode, row.credit.minor_units()),
                     });
                 }

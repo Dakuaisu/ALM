@@ -1,77 +1,29 @@
 mod readback;
-mod window;
-
-use std::cmp::Reverse;
 use std::fmt::{Arguments, Debug};
 
 use crate::BillDate;
 use crate::confirmation::ReceiptMode::{Cash, Online};
 
+use super::super::{DashboardPeriod as Period, DashboardSource, DashboardSummary};
 use readback::Source::{Bill, Receipt};
-use readback::{Detail, Event, Readback, Replay, Sale, Source};
-use window::{Period, Window, dashboard_windows};
-
-// Legacy dashStats (2498–2514), limited to sales and collection inputs.
-struct Stats<'a> {
-    bills: Vec<&'a Sale>,
-    pays: Vec<&'a Event>,
-}
+use readback::{Detail, Replay, Source};
 
 type Totals = (usize, i64, i64, i64, i64);
-
-impl<'a> Stats<'a> {
-    fn project(readback: &'a Readback, window: Window) -> Self {
-        let bills = readback
-            .sales
-            .iter()
-            .filter(|sale| !sale.cancelled && window.contains(sale.payment.date))
-            .collect();
-        let pays = readback
-            .receipts
-            .iter()
-            .filter(|pay| window.contains(pay.date))
-            .collect();
-        Self { bills, pays }
+fn source(source: DashboardSource) -> Source {
+    match source {
+        DashboardSource::Bill { draft_id, invoice } => Bill(draft_id.value(), invoice),
+        DashboardSource::Receipt(id) => Receipt(["r-jan25", "r-jan30", "r-feb01"][id.0]),
     }
+}
 
-    fn totals(&self) -> Totals {
-        let sales = self.bills.iter().map(|sale| sale.total).sum();
-        let paid: i64 = self.bills.iter().map(|sale| sale.payment.detail.2).sum();
-        let receipts: i64 = self.pays.iter().map(|pay| pay.detail.2).sum();
-        (self.bills.len(), sales, paid, receipts, paid + receipts)
-    }
-
-    fn inputs(&self) -> [Vec<Source>; 2] {
-        [
-            self.bills
-                .iter()
-                .map(|sale| sale.payment.detail.0)
-                .collect(),
-            self.pays.iter().map(|pay| pay.detail.0).collect(),
-        ]
-    }
-
-    // At 2793–2797 only current inputs go to collectedBreakdown (3151–3245).
-    fn collected_detail(&self) -> (Vec<Detail>, [i64; 2]) {
-        let mut rows: Vec<_> = self
-            .bills
-            .iter()
-            .filter(|sale| sale.payment.detail.2 > 0)
-            .map(|sale| &sale.payment)
-            .chain(self.pays.iter().copied())
-            .collect();
-        rows.sort_by_key(|row| Reverse((row.date.parts(), row.created)));
-        let details: Vec<_> = rows.into_iter().map(|row| row.detail).collect();
-        let mut modes = [0; 2];
-        for &(_, mode, paid) in &details {
-            let bucket = match mode {
-                Cash => &mut modes[0],
-                Online => &mut modes[1],
-            };
-            *bucket += paid;
-        }
-        (details, modes)
-    }
+fn totals(s: &DashboardSummary) -> Totals {
+    (
+        s.bill_count,
+        s.sales.minor_units(),
+        s.bill_paid.minor_units(),
+        s.receipts.minor_units(),
+        s.collected.minor_units(),
+    )
 }
 
 struct Expectation {
@@ -148,6 +100,13 @@ fn l02_02_l02_03_dashboard_replay() {
     let today = "2024-02-01".parse::<BillDate>().unwrap();
     let replay = Replay::seed();
     let before = replay.fixture.clone();
+    compare(
+        format_args!("Manager Dashboard result (no payload)"),
+        Err(super::super::DashboardError::AccessDenied),
+        replay
+            .fixture
+            .dashboard(crate::Role::Manager, today, Period::Today),
+    );
     let readback = replay.read();
     let cashbook = [
         ("2023-12-31", [111, 0]),
@@ -178,16 +137,35 @@ fn l02_02_l02_03_dashboard_replay() {
     );
     for expected in EXPECTED {
         let period = expected.period;
-        let windows = dashboard_windows(period, today);
+        let dashboard = replay
+            .fixture
+            .dashboard(crate::Role::Owner, today, period)
+            .unwrap();
+        let windows = [dashboard.current.window, dashboard.prior.window];
         compare(
             format_args!("{period:?} inclusive windows (current, prior)"),
             expected.windows,
-            windows.map(Window::iso),
+            windows.map(|w| [w.start.to_string(), w.end.to_string()]),
         );
-        let [current, prior] = windows.map(|window| Stats::project(&readback, window));
-        let totals = [current.totals(), prior.totals()];
-        let (details, modes) = current.collected_detail();
-        let prior_inputs = prior.inputs();
+        let totals = [totals(&dashboard.current), totals(&dashboard.prior)];
+        let details: Vec<_> = dashboard
+            .collected_detail
+            .iter()
+            .map(|row| (source(row.source), row.mode, row.amount.minor_units()))
+            .collect();
+        let modes = [
+            dashboard.current.cash.minor_units(),
+            dashboard.current.online.minor_units(),
+        ];
+        let prior_modes = [
+            dashboard.prior.cash.minor_units(),
+            dashboard.prior.online.minor_units(),
+        ];
+        let prior_inputs = [
+            &dashboard.prior.bill_inputs,
+            &dashboard.prior.receipt_inputs,
+        ]
+        .map(|items| items.iter().copied().map(source).collect::<Vec<_>>());
         let book_modes = windows.map(|window| {
             cashbook
                 .iter()
@@ -206,12 +184,38 @@ fn l02_02_l02_03_dashboard_replay() {
         compare(
             format_args!("{period:?} current Sales bill inputs"),
             expected.current_bills,
-            current.inputs()[0].as_slice(),
+            dashboard
+                .sales_ids
+                .iter()
+                .copied()
+                .map(source)
+                .collect::<Vec<_>>()
+                .as_slice(),
         );
         compare(
             format_args!("{period:?} current drilldown (source, mode, paise)"),
             expected.current_details,
             details.as_slice(),
+        );
+        compare(
+            format_args!("{period:?} current drilldown document dates"),
+            match period {
+                Period::Today | Period::Month => &["2024-02-01"; 3][..],
+                Period::Week => &[
+                    "2024-02-01",
+                    "2024-02-01",
+                    "2024-02-01",
+                    "2024-01-31",
+                    "2024-01-30",
+                    "2024-01-26",
+                ],
+            },
+            dashboard
+                .collected_detail
+                .iter()
+                .map(|row| row.date.to_string())
+                .collect::<Vec<_>>()
+                .as_slice(),
         );
         compare(
             format_args!("{period:?} prior inputs (bills, receipts)"),
@@ -228,25 +232,38 @@ fn l02_02_l02_03_dashboard_replay() {
             expected.cash_online[0],
             modes,
         );
+        compare(
+            format_args!("{period:?} comparison Cash/Online paise"),
+            expected.cash_online[1],
+            prior_modes,
+        );
         for ([cash, online], total) in book_modes.into_iter().zip(totals) {
             assert_eq!(cash + online, total.4);
         }
     }
 
     let jan30 = "2024-01-30".parse().unwrap();
-    let receipt_only = Stats::project(&readback, Window(jan30, jan30));
+    let receipt_only = replay
+        .fixture
+        .dashboard(crate::Role::Owner, jan30, Period::Today)
+        .unwrap();
     compare(
         format_args!("Jan 30 receipt-only totals"),
         (0, 0, 0, 151, 151),
-        receipt_only.totals(),
+        totals(&receipt_only.current),
     );
     compare(
         format_args!("Jan 30 receipt-only inputs"),
         [vec![], vec![Receipt("r-jan30")]],
-        receipt_only.inputs(),
+        [
+            &receipt_only.current.bill_inputs,
+            &receipt_only.current.receipt_inputs,
+        ]
+        .map(|items| items.iter().copied().map(source).collect::<Vec<_>>()),
     );
-    assert_eq!(
-        replay.fixture, before,
-        "Dashboard reads must leave the fixture unchanged"
+    compare(
+        format_args!("Dashboard reads left the fixture unchanged"),
+        true,
+        replay.fixture == before,
     );
 }
