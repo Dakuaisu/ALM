@@ -2,14 +2,16 @@ use std::num::{NonZeroI64, NonZeroU32};
 
 use alm_phase2_local::confirmation::{
     ConfirmationError, ConfirmationFixture, CrateTemplate, CrateTemplateError, DailyMovementError,
-    DailyMovementRow, ManualGodownError, ManualGodownInput, ProductTerms, RequestId, StockLotRow,
-    StockLots, StockLotsError,
+    DailyMovementRow, ManualGodownError, ManualGodownInput, ProductTerms, PurchaseOrderStatus,
+    RequestId, StockLotRow, StockLots, StockLotsError,
 };
 use alm_phase2_local::{
     BillDate, CrateComponent, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role, SaleUnit,
 };
 
+#[path = "milestone_b_replay/count_adjustment.rs"]
+mod count_adjustment;
 #[path = "milestone_b_replay/l07_03.rs"]
 mod l07_03;
 #[path = "milestone_b_replay/purchasing.rs"]
@@ -42,7 +44,9 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
     let mut fixture = ConfirmationFixture::new(A, 0, SELL).unwrap();
     fixture.add_product(B, 0, SELL).unwrap();
     let selection = save_planned_order(&mut fixture);
-    let po_after_receipts = receive_partials(&mut fixture, selection);
+    let closed = receive_partials(&mut fixture, selection);
+    assert_eq!(closed.status, PurchaseOrderStatus::Completed);
+    count_adjustment::assert_reorder(&fixture, &[]);
     let before_sale = fifo(&fixture);
     assert_eq!(before_sale[0].rows, [lot(11, 3, 110), lot(12, 5, 130)]);
     assert_eq!(before_sale[1].rows, [lot(11, 1, 190), lot(12, 4, 210)]);
@@ -99,10 +103,7 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
         fixture.current_sale(MANAGER, sale),
         Err(ConfirmationError::AccessDenied)
     );
-    assert_eq!(
-        fixture.view_purchase_order(selection, &[]).unwrap(),
-        po_after_receipts
-    );
+    assert_eq!(fixture.view_purchase_order(selection, &[]).unwrap(), closed);
 
     let after_sale = fifo(&fixture);
     assert_eq!(stock(&fixture), [4, 3]);
@@ -158,10 +159,7 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
         assert_eq!(fixture.posted_count(), 1);
         assert_eq!(stock(&fixture), [4, 3]);
         assert_eq!(fifo(&fixture), after_sale);
-        assert_eq!(
-            fixture.view_purchase_order(selection, &[]).unwrap(),
-            po_after_receipts
-        );
+        assert_eq!(fixture.view_purchase_order(selection, &[]).unwrap(), closed);
         let _ = checked_register(&fixture);
         println!(
             "Godown reopened: {} cases for {}; billing, FIFO, register and PO unchanged",
@@ -169,6 +167,30 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
             row.item
         );
     }
+
+    let closed_orders = fixture.purchase_orders(OWNER).unwrap().to_vec();
+    let godown: Vec<_> = fixture
+        .open_manual_godown(OWNER)
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect();
+    count_adjustment::replay(&mut fixture, sale, &closed.supplier);
+
+    assert_eq!(fixture.view_purchase_order(selection, &[]).unwrap(), closed);
+    assert_eq!(fixture.purchase_orders(OWNER).unwrap(), closed_orders);
+    let godown_after = fixture.open_manual_godown(OWNER).unwrap();
+    assert!(godown_after.into_iter().eq(&godown));
+    assert_eq!(fixture.current_sale(OWNER, sale), Ok((&review, &receipt)));
+    assert_eq!(
+        (fixture.ledger(), fixture.received_ledger()),
+        posted_ledgers
+    );
+    assert_eq!(fixture.posted_count(), 1);
+    println!(
+        "After count: closed PO {} and manual godown (47 cases) unchanged",
+        closed.number
+    );
 }
 
 fn stock(fixture: &ConfirmationFixture) -> [u32; 2] {
