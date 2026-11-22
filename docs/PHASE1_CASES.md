@@ -1104,3 +1104,17 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **Existing coverage, not duplicated:** L11-01/03–05 and [Stock Lots dialog assertions](#stock-lots-dialog-assertions-not-run) cover equal-date order, packet conversion, receipt date/rate fallbacks, partial logs versus cumulative quantities, effective adjustments and display rounding (L1185–1238, L1308–1396). L08-04/06 cover receipt history and value differences; the [within-bill FIFO cases](#fifo-across-bill-rows-and-repeated-crate-components-not-run) cover frozen cost and reuse across repeated components. OPEN-010 / DEC-027 remain unchanged. **OPEN-008: frozen runtime NOT RUN.**
 
 **Next bounded span:** date range helpers, heading at L1397 and `inRange()` at L1398. Next unread line: **L1401**.
+
+## Bounded date range and toast helpers (NOT RUN)
+
+**Inspected, inclusive:** [L1397–1419](../ALM_Business_Manager.html#L1397-L1419). L1420 was read for the next heading only.
+
+**Date range coverage, not duplicated:** The [date-filter cases](#date-filters-and-collection-ranges-not-run) already cover inclusive comparisons, independently omitted bounds, and the lack of date validation or bound normalization (L1398–1404). `rangeSales()` adds a cancellation filter but has no caller in the frozen source; it remains helper-only. Dashboard filters cancelled bills before its direct `inRange()` check (L2499–2500), whereas the Sales history date filter admits matching cancelled rows (L6079, L6090) before active-only calculations.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L19-01 / L19-03 | **Helper-only timing control:** call `toast()` twice with distinct messages, using default and explicit durations. Compare with feedback after a download request. | Each call immediately appends its own `role="status"` node under `#toasts`, using `msg` as a child through `el()`, not as `innerHTML`. The first timer uses `ms` (default 2,600 ms); its callback sets opacity to zero and sets a `.3s` transition, then schedules that node's removal 300 ms later. Calls do not replace one another, and removal does not wait for a transition event. These are timer arguments, not measured visibility or accessibility announcements. A download toast follows a click request, not verified file delivery (L1407–1418; child handling L372–385; backup/export callers L10016–10019, L10065–10072). |
+
+**OPEN-008: frozen runtime NOT RUN.** OPEN-010 / DEC-027 are unchanged.
+
+**Next bounded span:** theme, heading at **L1420**; next unread line **L1421**.
