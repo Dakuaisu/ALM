@@ -13,6 +13,9 @@ use alm_phase2_local::{
     ProvisionalDraft, Role,
 };
 
+#[path = "owner_simulation/quantity_reconnect.rs"]
+mod quantity_reconnect;
+
 const DRAFT: DraftId = DraftId::new(1);
 const PRODUCT: ProductId = ProductId::new(1);
 const CUSTOMER: &str = "Synthetic Customer";
