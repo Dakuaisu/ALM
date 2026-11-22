@@ -2266,3 +2266,30 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-CHRONOLOGY-0dab1eb-offline](../phase2-local/target/L14-CHRONOLOGY-0dab1eb-offline.log): 464 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. This is local in-memory evidence, not browser parity or accounting acceptance.
+
+#### Estimate prior-balance rounding correction
+
+**L05-01 / L14-01: PASS (local Rust development)** at `edb0b0bbefafff650c3f34438eaf9763eaf71a7d`. The separate source-derived expectation is that [`custBalanceBefore`](../ALM_Business_Manager.html#L4322) rounds the qualifying prior balance to whole rupees, then [`invBalanceMode`](../ALM_Business_Manager.html#L4226) adds the selected bill total and subtracts its payment. The [keyed replay](../phase2-local/tests/l14_opening_balance_replay/ledger_keyed.rs) preserves the chronology fixture and corrects only the historical estimate projection. Amounts below are exact paise.
+
+| Invoice 1 check | Original `0dab1eb` observation | Corrected expected and observed |
+| --- | ---: | ---: |
+| Exact qualifying prior before rounding | 18,555 | 18,555 |
+| Prior used in the estimate | 18,555 | 18,600 |
+| Selected bill remainder | 9,000 | 9,000 |
+| Bill-date estimate | 27,555 | 27,600 |
+| Running ledger at the selected bill row | 19,555 | 19,555 |
+| Latest and closing ledger | 27,000 | 27,000 |
+
+The strict creation-key cutoff still excludes the equal-key 222-paise receipt from the bill-date estimate and includes it in Latest. The same-name account still closes separately at −777 paise. Manager denials and unchanged readbacks remain covered. The inert estimate capture shows `₹186.00` prior and `₹276.00` due; no browser rendered it.
+
+The [fractional-bill control](../phase2-local/tests/l14_opening_balance_replay/ledger_rounding.rs) initially failed because the prior remained 155 rather than 200 paise. The corrected run rounded 155 to 200 and added the exact 125-paise remainder, giving **325 paise**, not the 300 paise produced by rounding the final exact sum. Latest and ledger closing remained 280 paise. Signed half-rupee ties and checked overflow were also exercised.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_ledger_ordering_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L05-ROUND-edb0b0b-focused](../phase2-local/target/L05-ROUND-edb0b0b-focused.log): 14 passed, 0 failed, 0 ignored.
+- [L05-ROUND-edb0b0b-offline](../phase2-local/target/L05-ROUND-edb0b0b-offline.log): 467 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. This verifies the Rust projection against a source-derived expectation, not observed browser parity or accounting acceptance.
