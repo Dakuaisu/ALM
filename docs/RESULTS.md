@@ -1905,3 +1905,40 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-STANDALONE-fa8572b-offline](../phase2-local/target/L14-STANDALONE-fa8572b-offline.log): 420 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
 
 This evidence covers only the local in-memory application API. The frozen HTML was unchanged and remained unserved under OPEN-008. Hosted authorization (OPEN-004/006), browser parity, and accounting acceptance remain open.
+
+#### Dashboard month-end Sales and Collected replay
+
+**L02-02 / L02-03: PASS (local Rust development)** at `c7db74d75e0e898efd050ac7a8e3465f18963675`. The [replay](../phase2-local/src/confirmation/tests/l02_dashboard_replay.rs) froze the reporting date at 2024-02-01 and used the legacy [range and aggregate source](../ALM_Business_Manager.html#L2466) and [Collected detail source](../ALM_Business_Manager.html#L3151) as static expectations. Dashboard range selection, totals and drilldown rows are **test-only projections**, not application Dashboard output. The [Rust readbacks](../phase2-local/src/confirmation/tests/l02_dashboard_replay/readback.rs) used current sale, bill preview, customer ledger, and Cash Book day-close APIs. Dates below are inclusive document dates; amounts are exact paise. Expected and observed results matched in each row. Display rounding was not compared.
+
+| Selection / side | Inclusive window | Sales (bill count) | Bill paid | Standalone receipts | Collected | Cash / Online |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Today / current | 2024-02-01 to 2024-02-01 | 3,603 (2) | 450 | 249 | 699 | 448 / 251 |
+| Today / comparison | 2024-01-31 to 2024-01-31 | 2,402 (1) | 449 | 0 | 449 | 0 / 449 |
+| 7 days / current | 2024-01-26 to 2024-02-01 | 7,206 (4) | 1,248 | 400 | 1,648 | 797 / 851 |
+| 7 days / comparison | 2024-01-19 to 2024-01-25 | 3,603 (2) | 478 | 51 | 529 | 278 / 251 |
+| This month / current | 2024-02-01 to 2024-02-01 | 3,603 (2) | 450 | 249 | 699 | 448 / 251 |
+| This month / comparison | 2024-01-01 to 2024-01-31 | 9,608 (6) | 1,584 | 202 | 1,786 | 786 / 1,000 |
+
+`B(draft, invoice)` identifies an actual local bill. The `r-*` IDs are replay labels bound to unique dated, mode-and-amount-matched ledger credits; neither ledger nor Cash Book provides a standalone receipt ID. All active bills in these windows are part-paid, so each Sales bill contributes exactly one bill-paid row to Collected. The comparison columns below list aggregate inputs, not a comparison modal. Expected and observed IDs matched.
+
+| Selection / side | Sales bill inputs | Collected rows (current detail order), or comparison inputs |
+| --- | --- | --- |
+| Today and This month / current | `B(5,8)`, `B(81,7)` | `B(5,8)` Online 251; `r-feb01` Cash 249; `B(81,7)` Cash 199 |
+| Today / comparison | `B(42,10)` | `B(42,10)` Online 449; no receipts |
+| 7 days / current | `B(42,10)`, `B(5,8)`, `B(81,7)`, `B(26,6)` | `B(5,8)` Online 251; `r-feb01` Cash 249; `B(81,7)` Cash 199; `B(42,10)` Online 449; `r-jan30` Online 151; `B(26,6)` Cash 349 |
+| 7 days / comparison | `B(25,5)`, `B(19,4)` | `B(25,5)` Online 251; `B(19,4)` Cash 227; `r-jan25` Cash 51 |
+| This month / comparison | `B(42,10)`, `B(26,6)`, `B(25,5)`, `B(19,4)`, `B(83,3)`, `B(31,2)` | Bill-paid rows above plus `B(83,3)` Cash 159 and `B(31,2)` Online 149; receipts `r-jan30` Online 151 and `r-jan25` Cash 51 |
+
+Boundary controls: Cash Book read back Cash 111 on 2023-12-31 outside the prior month and Online 149 on 2024-01-01 inside it. Cash 159 on Jan 18 was outside the prior week; Cash 227 on Jan 19 and Cash 51 / Online 251 on Jan 25 were inside. Cash 349 on Jan 26 started the current week. The Jan 31 bill was posted after the Feb 1 activity, but its Online 449 stayed on Jan 31; the Feb 2 Cash 811 was outside all six windows, even though it was in February. The Feb 1 detail order uses reverse document date, then reverse fixture posting order as a stand-in for the legacy `created` timestamp. No browser timestamps were exercised.
+
+The reused `receipt-target` identity had no bill and closed at 549 paise from its 1,000-paise opening debit. Jan 30 alone showed 0 Sales and 151 Collected from `r-jan30`, all Online. The app preview exposed cancelled `B(92,9)` on Feb 1 with 1,201 total and 701 paid; neither amount leaked into active Sales or Collected. Cash Book rows matched the ledger and bill facts one for one, and reporting left the fixture unchanged.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l02_02_l02_03_dashboard_replay -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-DASH-c7db74d-focused](../phase2-local/target/L02-DASH-c7db74d-focused.log): 1 passed, 0 failed, 0 ignored, 280 filtered out.
+- [L02-DASH-c7db74d-offline](../phase2-local/target/L02-DASH-c7db74d-offline.log): 421 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML was read as text only and remained unserved under OPEN-008. Browser parity, hosted authorization, and accounting acceptance remain open.
