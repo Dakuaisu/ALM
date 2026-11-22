@@ -2237,3 +2237,32 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L14-SAVE-673e0bb-offline](../phase2-local/target/L14-SAVE-673e0bb-offline.log): 461 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 This is local in-memory development evidence. The frozen HTML remained unserved under OPEN-008.
+
+#### Saved creation keys in the ledger and estimate
+
+**L14-01 / L05-01: PASS (local Rust development)** at `0dab1ebe62a1604ff0aadf6f5debe6fe7709f449`. The [keyed replay](../phase2-local/tests/l14_opening_balance_replay/ledger_keyed.rs) posted drafts `10`, `20`, `30` in that order, then saved receipts with keys `40`, `30`, and `20` for `keyed-a`, a separate receipt for same-name `keyed-b`, and the metadata-free receipt for `keyed-a`. It asserts the ledger and the estimates independently against the [frozen ledger](../ALM_Business_Manager.html#L7367) and [estimate cutoff](../ALM_Business_Manager.html#L4322) rules. Observed ledger rows for `keyed-a` matched the following expected order. Amounts are exact paise.
+
+| Document date | Ledger row | Saved key | Debit | Credit | Running balance |
+| --- | --- | --- | ---: | ---: | ---: |
+| 2025-02-09 | Online receipt | 20 | 0 | 1,001 | −1,001 |
+| 2025-02-10 | Opening | Not applicable | 2,000 | 0 | 999 |
+| 2025-02-10 | Draft 30, invoice 3 | Absent | 10,000 | 0 | 10,999 |
+| 2025-02-10 | Cash receipt | Absent | 0 | 444 | 10,555 |
+| 2025-02-10 | Draft 10, invoice 1 (selected) | 30 | 10,000 | 1,000 | 19,555 |
+| 2025-02-10 | Cash receipt | 30 | 0 | 222 | 19,333 |
+| 2025-02-10 | Online receipt | 40 | 0 | 333 | 19,000 |
+| 2025-02-11 | Draft 20, invoice 2 | 10 | 10,000 | 2,000 | 27,000 |
+
+Invoice 1's bill-date estimate included invoice 2 despite its later document date and posting position, and included the key-20 receipt saved after invoice 1. It excluded both the equal-key 222-paise receipt and the later-key 333-paise receipt. Prior balance was 18,555 paise (display date 2025-02-11); adding invoice 1's own 9,000-paise due gave **27,555 paise**. **Latest was 27,000 paise**, matching ledger closing and including both excluded receipts. The same-name account `keyed-b` closed separately at −777 paise. The estimate output was captured in memory only. Manager ledger, preview and receipt Save were denied, with the application readbacks unchanged afterward.
+
+Missing metadata is not backfilled. For a keyed ledger the source comparison treats missing or zero transaction keys as one and preserves source tie order; for a keyed estimate missing peer keys compare as zero. A wholly metadata-free ledger and an unkeyed estimate target retain their prior posting-anchor fallback. The earlier source-model checks remain separate from this application replay.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_ledger_ordering_replay --test l14_receive_payment_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-CHRONOLOGY-0dab1eb-focused](../phase2-local/target/L14-CHRONOLOGY-0dab1eb-focused.log): 17 passed (11 ledger/estimate target, 6 Receive Payment target), 0 failed, 0 ignored.
+- [L14-CHRONOLOGY-0dab1eb-offline](../phase2-local/target/L14-CHRONOLOGY-0dab1eb-offline.log): 464 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. This is local in-memory evidence, not browser parity or accounting acceptance.
