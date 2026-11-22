@@ -1,0 +1,29 @@
+{
+  "meta": {"schema": 3, "rev": 1, "name": "Synthetic Fixture Business", "tagline": "", "owner": "", "mobile": "", "address": "", "gst": "", "fssai": "", "msme": "SYNTHETIC", "gstRate": 0, "gstHsn": "SYNTHETIC", "syncUrl": "", "lastSync": 0, "loadingCharge": 0.5, "defaultReorder": 3},
+  "products": [
+    {"id": "p-a", "item": "Synthetic Soda", "company": "Synthetic Alpha", "packSize": "250", "uom": "ml", "packetQty": 4, "mrp": 6, "openingCost": 10, "avgCost": 14, "buyRate": 14, "sellRate": 20.25, "margin": 6.25, "gstRate": 18, "cess": 2, "hsn": "22011010", "supplierPrices": {"Synthetic Supplier": 14}},
+    {"id": "p-b", "item": "Synthetic Water", "company": "Synthetic Beta", "packSize": "500", "uom": "ml", "packetQty": 6, "mrp": 2, "openingCost": 4, "avgCost": 4, "buyRate": 4, "sellRate": 8.25, "margin": 4.25, "gstRate": null, "cess": null, "hsn": "", "supplierPrices": {}}
+  ],
+  "customers": [{"id": "c-a", "name": "Synthetic Buyer", "mobile": "", "addr1": "", "addr2": "", "openingBalance": 12.5, "created": 1700000000000}],
+  "suppliers": [{"id": "s-a", "name": "Synthetic Supplier", "mobile": "", "note": ""}],
+  "priceSuppliers": ["Synthetic Supplier"],
+  "stock": {"p-a": {"opening": 4, "fridge": 1}, "p-b": {"opening": 3, "fridge": 0}},
+  "purchases": [],
+  "purchaseOrders": [
+    {"id": "po-a", "no": 1, "date": "2025-02-26", "created": 1740556800000, "supplier": "Synthetic Supplier", "supId": "s-a", "note": "", "cancelled": false, "items": [{"item": "Synthetic Soda", "pid": "p-a", "ordered": 6, "received": 5, "cancelled": 0, "rate": 14, "receipts": [{"date": "2025-02-28", "qty": 3, "rate": 14}, {"date": "2025-02-27", "qty": 2, "rate": 12}]}]},
+    {"id": "po-b", "no": 2, "date": "2025-03-01", "created": 1740816000000, "supplier": "Synthetic Unmatched", "supId": null, "note": "", "cancelled": false, "items": [{"item": "Synthetic Water", "pid": "p-b", "ordered": 1, "received": 0, "cancelled": 0, "rate": 6}]}
+  ],
+  "sales": [
+    {"id": "bill-cancelled", "no": 1003, "date": "2025-03-01", "created": 1740830400000, "customerId": "c-a", "customerName": "Synthetic Buyer", "paymentMode": "Cash", "cancelled": true, "cancelReason": "Synthetic control", "items": [{"pid": "p-b", "item": "Synthetic Water", "unit": "Packet", "packetQty": 6, "rate": 8.25, "qty": 1, "amount": 8.25, "costAtSale": 4}], "subtotal": 8.25, "loading": 0, "loadingRate": 0, "total": 8.25, "paid": 0, "note": ""},
+    {"id": "bill-walkin", "no": 1002, "date": "2025-03-01", "created": 1740826800000, "customerId": "", "customerName": "Local - Neighbor", "paymentMode": "Online", "items": [{"pid": "p-b", "item": "Synthetic Water", "unit": "Packet", "packetQty": 6, "rate": 8.25, "qty": 1, "amount": 8.25, "costAtSale": 4}], "subtotal": 8.25, "loading": 0, "loadingRate": 0, "total": 8.25, "paid": 8.25, "note": ""},
+    {"id": "bill-a", "no": 1001, "date": "2025-02-28", "created": 1740744000000, "customerId": "c-a", "customerName": "Synthetic Buyer", "paymentMode": "Credit", "items": [{"pid": "p-a", "item": "Synthetic Soda", "unit": "Packet", "packetQty": 4, "rate": 20.25, "qty": 1, "amount": 20.25, "costAtSale": 10}, {"pid": "p-a", "item": "Synthetic Soda", "unit": "Piece", "packetQty": 4, "rate": 5.25, "qty": 2, "amount": 10.5, "costAtSale": 2.5}], "subtotal": 30.75, "loading": 0.75, "loadingRate": 0.5, "total": 31.5, "paid": 10.25, "note": ""}
+  ],
+  "payments": [{"id": "pay-a", "customerId": "c-a", "customerName": "Synthetic Buyer", "date": "2025-03-01", "created": 1740834000000, "amount": 5.25, "mode": "Online", "note": "Synthetic standalone receipt"}],
+  "stockLog": [{"id": "adj-a", "key": "p-a", "pid": "p-a", "item": "Synthetic Soda", "date": "2025-03-01", "from": 7.5, "to": 8.5, "delta": 1, "reason": "Count correction", "note": "Synthetic count", "eff": true}],
+  "godown": [{"id": "gd-a", "item": "Synthetic Soda", "qty": 31, "note": "Synthetic rack", "upd": 1740826800000}],
+  "crates": [{"id": "cr-a", "name": "Synthetic Mix", "price": 25, "components": [{"pid": "p-a", "item": "Synthetic Soda", "unit": "Piece", "qty": 2}, {"pid": "p-b", "item": "Synthetic Water", "unit": "Packet", "qty": 1}]}],
+  "expenses": [],
+  "gstBills": [],
+  "log": [],
+  "deleted": []
+}
