@@ -1,4 +1,5 @@
 use super::{Error, LineKind, SaleId, Store};
+use crate::bill_math::round_balance;
 use crate::confirmation::BalanceMode;
 use crate::confirmation::estimate::{EstimateDocument, EstimateRow, render_estimate};
 use crate::{BillDate, Money, Role};
@@ -68,9 +69,7 @@ impl Store {
                 .checked_sub(row.amount_minor)
                 .ok_or(Error::InvalidArchive)?;
         }
-        if balance % 100 != 0 {
-            return Err(Error::InvalidArchive);
-        }
+        let balance = round_balance(balance).ok_or(Error::InvalidArchive)?;
         Ok(render_estimate(
             &EstimateDocument {
                 invoice: sale.number,

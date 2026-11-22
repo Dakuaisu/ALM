@@ -7,6 +7,10 @@ pub(crate) fn checked_line_amount(unit_price: Money, quantity: u32) -> Option<Mo
         .map(Money::from_minor_units)
 }
 
+pub(crate) fn round_balance(paise: i64) -> Option<i64> {
+    (paise.div_euclid(100) + i64::from(paise.rem_euclid(100) >= 50)).checked_mul(100)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExactGstError {
     UnsupportedRounding,

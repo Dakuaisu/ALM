@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, ProposedPayment, Role};
-use crate::bill_math::checked_line_amount;
+use crate::bill_math::{checked_line_amount, round_balance};
 use crate::{BillDate, DraftCustomer, ProductId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -135,13 +135,14 @@ impl ConfirmationFixture {
         let previous = if use_latest {
             previous
         } else {
-            round_balance(previous)?
+            round_balance(previous).ok_or(ConfirmationError::Overflow)?
         };
         let balance = if use_latest {
             round_balance(
                 self.preview_balance(customer_id.ok_or(ConfirmationError::InvalidDraft)?, None)?
                     .0,
-            )?
+            )
+            .ok_or(ConfirmationError::Overflow)?
         } else {
             previous
                 .checked_add(own_due)
@@ -248,12 +249,6 @@ impl ConfirmationFixture {
         }
         Ok((balance, date))
     }
-}
-
-fn round_balance(paise: i64) -> Result<i64, ConfirmationError> {
-    (paise.div_euclid(100) + i64::from(paise.rem_euclid(100) >= 50))
-        .checked_mul(100)
-        .ok_or(ConfirmationError::Overflow)
 }
 
 // Keyed targets compare a missing peer as zero without persisting a timestamp.

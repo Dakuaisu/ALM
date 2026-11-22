@@ -3,6 +3,9 @@ use alm_phase2_local::synthetic_read_model::{
 };
 use alm_phase2_local::{BillDate, Role};
 
+#[path = "signed_recovery.rs"]
+mod signed_recovery;
+
 pub fn scope() -> AccountScope {
     let account = AccountId::new(super::fixture::BUYER_ID.into());
     AccountScope {
@@ -135,16 +138,7 @@ pub fn controls(store: &Store, dir: &std::path::Path) {
         Store::create_scoped(&dir.join("overflow.json"), Role::Owner, overflow, scope()).unwrap();
     assert!(overflow.estimate_html(Role::Owner, &id, date).is_err());
 
-    let mut fractional = records.clone();
-    fractional.receipts[0].amount_minor += 1;
-    let fractional = Store::create_scoped(
-        &dir.join("fractional.json"),
-        Role::Owner,
-        fractional,
-        scope(),
-    )
-    .unwrap();
-    assert!(fractional.estimate_html(Role::Owner, &id, date).is_err());
+    signed_recovery::run(&records, dir);
 
     let mut no_opening = scope();
     no_opening.zero_openings.clear();
