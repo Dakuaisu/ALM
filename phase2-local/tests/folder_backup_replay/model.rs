@@ -76,6 +76,22 @@ pub struct TokenStore {
     pub accepts: bool,
 }
 
+#[derive(Default)]
+pub struct CurrentWrite {
+    pub reject: bool,
+    pub attempts: Vec<Vec<u8>>,
+}
+
+impl CurrentWrite {
+    fn write(&mut self, staged: &mut File, bytes: &[u8]) -> io::Result<()> {
+        self.attempts.push(bytes.to_vec());
+        if self.reject {
+            return Err(io::Error::other("synthetic current write rejection"));
+        }
+        staged.write_all(bytes)
+    }
+}
+
 pub struct Replay<'a> {
     pub sandbox: &'a Sandbox,
     pub db: Database,
@@ -88,6 +104,7 @@ pub struct Replay<'a> {
     pub day: &'static str,
     pub daily: Option<&'static str>,
     pub deadline: Option<u64>,
+    pub current_write: CurrentWrite,
     pub fail_dated: bool,
     pub feedback: Vec<&'static str>,
     pub trace: Vec<&'static str>,
@@ -106,6 +123,7 @@ impl<'a> Replay<'a> {
             day: "2024-05-01",
             daily: None,
             deadline: None,
+            current_write: CurrentWrite::default(),
             fail_dated: false,
             feedback: vec![],
             trace: vec![],
@@ -182,9 +200,17 @@ impl<'a> Replay<'a> {
         true
     }
     fn write_files(&mut self, folder: &str, bytes: &[u8]) -> io::Result<()> {
-        let mut current = File::create(self.sandbox.file(folder, "ALM_data.json"))?;
-        current.write_all(bytes)?;
+        let destination = self.sandbox.file(folder, "ALM_data.json");
+        let staged = destination.with_extension("json.stage");
+        let mut current = File::create(&staged)?;
+        let result = self.current_write.write(&mut current, bytes);
         drop(current);
+        if let Err(error) = result {
+            self.trace.push("current-write-failed");
+            fs::remove_file(staged)?;
+            return Err(error);
+        }
+        fs::rename(staged, destination)?;
         self.trace.push("current-closed");
         if self.daily != Some(self.day) {
             let destination = self

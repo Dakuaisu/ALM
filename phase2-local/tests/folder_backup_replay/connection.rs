@@ -1,7 +1,24 @@
+use std::{fs, path::PathBuf};
+
 use super::model::{Database, Permission, Picker, Replay, Sandbox, TokenStore};
 
 const CURRENT: &str = "ALM_data.json";
 const DAILY: &str = "ALM_backup_2024-05-01.json";
+
+const OLD_CURRENT: &[u8] =
+    br#"{"records":["old current"],"meta":{"backup_folder":"new","last_file_backup":41}}"#;
+const OLD_DATED: &[u8] =
+    br#"{"records":["old dated"],"meta":{"backup_folder":"new","last_file_backup":37}}"#;
+const NEW_PAYLOAD: &[u8] =
+    br#"{"records":["initial connect"],"meta":{"backup_folder":"new","last_file_backup":7}}"#;
+
+fn seed_occupied_backups(sandbox: &Sandbox) -> [PathBuf; 2] {
+    let destinations = [sandbox.file("new", CURRENT), sandbox.file("new", DAILY)];
+    for (path, bytes) in destinations.iter().zip([OLD_CURRENT, OLD_DATED]) {
+        fs::write(path, bytes).unwrap();
+    }
+    destinations
+}
 
 #[test]
 fn picker_rejection_preserves_each_independent_selection_and_files() {
@@ -60,6 +77,69 @@ fn denied_connect_reopens_token_without_files() {
     assert_eq!(fresh.requested, 0);
     assert!(fresh.needs_grant);
     println!("connect denied: normalized success feedback, no files, denied token reopened");
+}
+
+#[test]
+fn initial_current_write_rejection_leaves_both_existing_backups_unchanged() {
+    let sandbox = Sandbox::new();
+    let destinations = seed_occupied_backups(&sandbox);
+    let mut store = TokenStore {
+        token: Some("old"),
+        accepts: true,
+    };
+    let mut r = Replay::new(&sandbox, "initial connect");
+    r.current_write.reject = true;
+
+    r.connect(Picker::Select("new"), &mut store);
+
+    assert_eq!(r.current_write.attempts, [NEW_PAYLOAD]);
+    assert_eq!(r.trace, ["query", "current-write-failed"]);
+    assert_eq!(
+        destinations.map(|path| fs::read(path).unwrap()),
+        [OLD_CURRENT, OLD_DATED]
+    );
+    assert_eq!((r.db.meta.last_file_backup, r.daily), (7, None));
+    assert_eq!(r.feedback, ["Backup folder set"]);
+    assert_eq!(r.requested, 0);
+    assert!(!r.needs_grant);
+    let mut reopened = Replay::new(&sandbox, "fresh session");
+    reopened.restore(&store);
+    assert_eq!(reopened.selected, Some("new"));
+    println!(
+        "L19-08 current write rejected with new payload: both existing files retain their distinct old bytes; no current close or dated attempt"
+    );
+}
+
+#[test]
+fn initial_current_write_success_publishes_new_bytes_to_both_existing_backups() {
+    let sandbox = Sandbox::new();
+    let destinations = seed_occupied_backups(&sandbox);
+    let mut store = TokenStore {
+        token: Some("old"),
+        accepts: true,
+    };
+    let mut r = Replay::new(&sandbox, "initial connect");
+
+    r.connect(Picker::Select("new"), &mut store);
+
+    assert_eq!(r.current_write.attempts, [NEW_PAYLOAD]);
+    assert_eq!(
+        r.trace,
+        ["query", "current-closed", "dated-staged", "dated-closed"]
+    );
+    assert_eq!(
+        destinations.map(|path| fs::read(path).unwrap()),
+        [NEW_PAYLOAD, NEW_PAYLOAD]
+    );
+    assert_eq!(
+        (r.db.meta.last_file_backup, r.daily),
+        (100, Some("2024-05-01"))
+    );
+    assert_eq!(r.feedback, ["Backup folder set"]);
+    assert_eq!(store.token, Some("new"));
+    println!(
+        "L19-08 success control: current closes before dated publication; both existing files contain the new payload"
+    );
 }
 
 #[test]
