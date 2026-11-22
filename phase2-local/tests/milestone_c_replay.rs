@@ -18,10 +18,13 @@ mod documents;
 mod inventory;
 #[path = "milestone_c_replay/start.rs"]
 mod start;
+#[path = "milestone_c_replay/undo.rs"]
+mod undo;
 
 use accounts::{AccountCheckpoint, AccountReadback, assert_accounts, march_receipt_date};
 use documents::{BillVersion, EstimateCheckpoint, assert_estimate, assert_gst};
 use inventory::{StockCheckpoint, assert_stock, receive_dated_stock};
+use undo::{Stage, UndoReadback};
 
 const OWNER: Role = Role::Owner;
 const MANAGER: Role = Role::Manager;
@@ -158,6 +161,8 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
         march_estimate("₹260.00", false),
     );
     let saved_close = books::SavedCashBookClose::save(&fixture);
+    let edited_readback = UndoReadback::read(&fixture, &buyer);
+    edited_readback.assert_reporting(Stage::Edited);
 
     // Then: reversal restores the lots but leaves the saved document in history (L04-02).
     assert_eq!(fixture.cancel_sale(MANAGER, SALE), Err(DENIED));
@@ -183,13 +188,36 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
         cancelled_gst,
         GstInvoice {
             cancelled: true,
-            ..edited_gst
+            ..edited_gst.clone()
         }
     );
     assert_estimate(
         &fixture,
         BillVersion::Edited,
         march_estimate("₹-50.00", true),
+    );
+
+    // When: Manager is denied undo and Owner undoes cancellation on the same edited sale.
+    let cancelled_readback = UndoReadback::read(&fixture, &buyer);
+    cancelled_readback.assert_reporting(Stage::Cancelled);
+    let denied = fixture.undo_cancel_sale(MANAGER, SALE);
+    assert_eq!(denied, Err(DENIED));
+    assert_eq!(UndoReadback::read(&fixture, &buyer), cancelled_readback);
+    println!("Manager undo={denied:?}; cancelled readbacks unchanged");
+
+    fixture.undo_cancel_sale(OWNER, SALE).unwrap();
+    saved_close.assert_after_undo(&fixture);
+    let restored = UndoReadback::read(&fixture, &buyer);
+    assert_eq!(restored, edited_readback);
+    restored.assert_reporting(Stage::Undone);
+    assert_accounts(&fixture, &buyer, AccountCheckpoint::Edited);
+    books::assert_books(&fixture, &buyer, AccountCheckpoint::Edited);
+    assert_stock(&fixture, StockCheckpoint::Edited);
+    assert_eq!(assert_gst(&fixture, BillVersion::Edited, false), edited_gst);
+    assert_estimate(
+        &fixture,
+        BillVersion::Edited,
+        march_estimate("₹260.00", false),
     );
 }
 

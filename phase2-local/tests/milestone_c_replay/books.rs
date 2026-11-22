@@ -216,4 +216,26 @@ impl SavedCashBookClose {
             assert_eq!(compare.online_difference_rupees, 0);
         }
     }
+
+    pub(super) fn assert_after_undo(&self, fixture: &ConfirmationFixture) {
+        let expected = [
+            (feb(21), [10_000, 0], [100, 0]),
+            (march_receipt_date(), [0, 5_000], [0, 50]),
+        ];
+        for (baseline, (date, paise, rupees)) in self.rows.into_iter().zip(expected) {
+            assert_eq!(self.book.row(MANAGER, baseline.id), Err(MANUAL_DENIED));
+            let saved = self.book.row(OWNER, baseline.id).unwrap().unwrap();
+            assert_eq!(saved.date, date);
+            assert_eq!(saved, baseline, "undo must not rewrite the {date} close");
+
+            let draft = saved.draft();
+            assert_eq!(draft.compare(fixture, MANAGER), Err(MANUAL_DENIED));
+            let compare = draft.compare(fixture, OWNER).unwrap();
+            let live = compare.system;
+            assert_eq!([live.cash, live.online], paise.map(money), "{date}");
+            assert_eq!([live.cash_rupees, live.online_rupees], rupees, "{date}");
+            assert_eq!(compare.cash_difference_rupees, 0, "{date}");
+            assert_eq!(compare.online_difference_rupees, 0, "{date}");
+        }
+    }
 }
