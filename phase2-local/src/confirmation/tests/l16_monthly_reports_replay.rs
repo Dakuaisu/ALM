@@ -3,9 +3,11 @@ use super::l04_sales_history_replay::seed::history_fixture;
 use super::l15_cashbook_numeric_replay::saved_l15_row;
 use super::*;
 use crate::DraftCustomerId;
+#[path = "l16_reports_edge.rs"]
+mod edge;
 #[path = "l16_reports_projection.rs"]
 mod projection;
-use projection::{report, round};
+use projection::round;
 
 fn date(iso: &str) -> BillDate {
     iso.parse().unwrap()
@@ -95,7 +97,11 @@ fn l16_01_monthly_reports_synthetic_replay() {
     );
     let before = fixture.clone();
     let before_rows = rows.map(|row| book.row(Role::Owner, row.id).unwrap());
-    let result = report(&fixture, (&rows, date("2025-04-15")), Role::Owner).unwrap();
+    let actual = fixture
+        .monthly_profit_report(Role::Owner, &book, date("2025-04-15"))
+        .unwrap();
+    let ranking = fixture.customer_ranking(Role::Owner).unwrap();
+    let result = projection::format_report(&fixture, actual, ranking);
     #[rustfmt::skip]
     let expected = [
         ((2024, 11), vec![], vec![], vec![], [0, 0, 0, 0, 0, 0]),
@@ -229,7 +235,11 @@ fn l16_01_monthly_reports_synthetic_replay() {
         );
     }
     assert_eq!(
-        report(&fixture, (&rows, date("2025-04-15")), Role::Manager),
+        fixture.monthly_profit_report(Role::Manager, &book, date("2025-04-15")),
+        Err(ReportsError::Confirmation(ConfirmationError::AccessDenied))
+    );
+    assert_eq!(
+        fixture.customer_ranking(Role::Manager),
         Err(ConfirmationError::AccessDenied)
     );
     println!("L16 Manager denied before projection; no payload");

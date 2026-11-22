@@ -1,6 +1,9 @@
 use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, Role};
 use crate::DraftCustomer;
 
+mod monthly;
+pub use monthly::{CustomerRank, MonthlyProfit, ReportsError};
+
 impl ConfirmationFixture {
     /// Gross profit excludes expenses and tax; active unknown cost is `None`, cancelled is zero.
     pub fn gross_profit(

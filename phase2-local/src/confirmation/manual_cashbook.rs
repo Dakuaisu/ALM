@@ -137,6 +137,10 @@ pub struct ManualCashBook {
 }
 
 impl ManualCashBook {
+    pub(super) fn saved_rows(&self) -> impl Iterator<Item = &ManualCashBookRow> {
+        self.rows.values()
+    }
+
     pub fn row(
         &self,
         role: Role,
