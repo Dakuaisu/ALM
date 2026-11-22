@@ -1,11 +1,29 @@
 use crate::confirmation::ConfirmationError;
 use crate::{DraftCustomerId, Role};
 
+mod controls;
+mod oracle_controls;
 mod projection;
 pub(super) mod seed;
 
 use projection::{Period, Source, money_r, round_rupees, sales_history};
 use seed::{GROVE_ID, OWNER, date, history_fixture};
+
+#[test]
+fn l04_owner_history_denies_manager_without_mutation() {
+    let fixture = history_fixture();
+    let before = fixture.clone();
+    assert_eq!(
+        fixture.sales_history(
+            Role::Manager,
+            date("2025-03-15"),
+            super::super::SalesPeriod::All,
+            ""
+        ),
+        Err(ConfirmationError::AccessDenied)
+    );
+    assert_eq!(fixture, before);
+}
 
 type Case = (
     &'static str,

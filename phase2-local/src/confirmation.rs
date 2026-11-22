@@ -30,6 +30,7 @@ mod posting;
 mod preview;
 pub(crate) mod purchase_orders;
 mod reporting;
+mod sales_history;
 mod sales_output;
 pub use crate::SaleUnit;
 pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
@@ -87,6 +88,10 @@ pub use purchase_orders::{
     SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
 };
 pub use reporting::{CustomerRank, DeadStockRow, MonthlyProfit, ReportsError};
+pub use sales_history::{
+    SalesCollected, SalesDetail, SalesHistory, SalesPeriod, SalesProfit, SalesProfitError,
+    SalesReceiptId, SalesRow, SalesSource,
+};
 pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -103,6 +108,7 @@ pub enum ConfirmationError {
     AccessDenied,
     InvalidAmount,
     InvalidDraft,
+    UnsupportedSalesRecord(DraftId),
     DraftNotFound,
     MissingBillableItems,
     MissingCustomerName,
