@@ -2096,3 +2096,37 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-ATTENTION-200f582-offline](../phase2-local/target/L02-ATTENTION-200f582-offline.log): 435 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 This is local API evidence, not evidence of flag rendering, the “nothing needs attention” text, or browser navigation. The frozen HTML remained unserved under OPEN-008.
+
+#### Owner Reports API: six-month P&L and all-time customers
+
+**L16-01: PASS (local Rust development)** at `4a283d63950054355bf950c9c22979f1098ad9f8`. The [replay](../phase2-local/src/confirmation/tests/l16_monthly_reports_replay.rs) calls the read-only [Reports API](../phase2-local/src/confirmation/reporting/monthly.rs) with reporting date 2025-04-15 and the saved manual Cash Book, not filtered sales or computed totals. Expected and observed matched the literal `8f8f109` test-only expectations. The API supplies exact figures and contributing sales and Cash Book IDs; fixture receipt IDs and rupee formatting are replay-only evidence. Bill IDs below are draft IDs; receipt IDs are one-based fixture append positions.
+
+| Month | Active bills | Saved Cash Book IDs | Receipts excluded | Sales / frozen cost / Gross Profit / Goods / Misc / Salary / Net (paise) |
+| --- | --- | --- | --- | --- |
+| 2024-11 | None | None | None | 0 / 0 / 0 / 0 / 0 / 0 / 0 |
+| 2024-12 | None | None | None | 0 / 0 / 0 / 0 / 0 / 0 / 0 |
+| 2025-01 | None | None | 8 | 0 / 0 / 0 / 0 / 0 / 0 / 0 |
+| 2025-02 | 12 | 0 | 3 | 1,049 / 600 / 449 / 1,201 / 2,302 / 3,403 / −5,256 |
+| 2025-03 | 36, 41, 58, 73 | None | 1, 2, 4, 5, 6, 7 | 6,145 / 3,700 / 2,445 / 0 / 0 / 0 / 2,445 |
+| 2025-04 | 80 | 1 | None | 15,025 / 5,000 / 10,025 / 999 / 25 / 25 / 9,975 |
+
+Receipt-only January stayed at zero, backdated bill 12 went to its February document month, and cancelled bill 24 did not contribute. April includes bill 80 from later in the reporting month. Net was **9,975 paise** before display rounding: `10,025 − 25 − 25`. Goods of 999 paise is separate, not deducted again. The replay formatter displays Net as ₹100; no browser formatting was observed.
+
+| All-time customer group | Contributing draft IDs (account) | Exact total (paise) |
+| --- | --- | ---: |
+| Synthetic Grove | 36, 41, 73 (`grove`); 80 (`same-name`) | 19,671 |
+| Synthetic Ancestor | 81 (`ancestor`, October control outside the table) | 15,025 |
+| Synthetic Guest | 58 (unlinked) | 1,499 |
+| Synthetic Orchard | 12 (`orchard`) | 1,049 |
+
+The same-name group did not merge accounts: `grove` and `same-name` retained ledger/due balances of 3,849 and 14,925 paise respectively. Manager received `AccessDenied` without a payload from either read, and the sales fixture and saved Cash Book rows were unchanged. The local P&L rejects an unknown frozen cost explicitly rather than inferring one from live prices; customer ranking remains independently available.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l16_01 -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L16-REPORTS-API-4a283d6-focused](../phase2-local/target/L16-REPORTS-API-4a283d6-focused.log): 5 passed, 0 failed, 0 ignored, 294 filtered out.
+- [L16-REPORTS-API-4a283d6-offline](../phase2-local/target/L16-REPORTS-API-4a283d6-offline.log): 439 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
