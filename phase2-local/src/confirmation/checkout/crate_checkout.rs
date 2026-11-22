@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::num::NonZeroU32;
 
 use crate::{DraftLine, ProductId, SaleUnit};
@@ -24,14 +23,10 @@ impl Review {
         {
             return Err(ConfirmationError::InvalidDraft);
         }
-        let mut seen = BTreeSet::new();
         row.components()
             .iter()
             .zip(packs)
             .map(|(component, pack)| {
-                if !seen.insert(component.product.value()) {
-                    return Err(ConfirmationError::InvalidDraft);
-                }
                 let quantity =
                     u64::from(component.quantity.get()) * u64::from(row.quantity().get());
                 let divisor = match component.unit {

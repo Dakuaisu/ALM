@@ -222,7 +222,7 @@ fn last_crate_component_shortage_rolls_back_all_effects() {
 }
 
 #[test]
-fn repeated_crate_products_round_trip_but_cannot_be_reviewed() {
+fn repeated_crate_products_round_trip_and_consume_the_same_lot_once_per_packet() {
     let scratch = Scratch::new();
     let database = scratch.0.join(DATABASE);
     let draft = order(
@@ -246,9 +246,17 @@ fn repeated_crate_products_round_trip_but_cannot_be_reviewed() {
         .unwrap();
     assert_eq!(reopened, draft);
     let mut authority = authority(false, reopened);
-    assert_eq!(
-        authority.review_checkout(Role::Owner, ID, &[], money(0)),
-        Err(ConfirmationError::InvalidDraft)
-    );
+    let review = authority
+        .review_checkout(Role::Owner, ID, &[], money(0))
+        .unwrap();
     assert_eq!(effects(&authority), (0, 0, 0, 1, 0, 0));
+    assert_eq!(
+        review.crate_packet_demands().unwrap().unwrap(),
+        [DraftLine::new(PIECE, qty(1)); 2]
+    );
+    let receipt = authority.confirm(Role::Owner, REQUEST, &review).unwrap();
+    assert_eq!((receipt.quantity, receipt.total), (2, money(476)));
+    assert_eq!(authority.catalog.lot_snapshot(PIECE), vec![0, 4]);
+    assert_eq!(authority.catalog.allocated_cost(ID), Some(Some(160)));
+    assert_eq!(effects(&authority), (476, 0, 476, 2, 1, 1));
 }

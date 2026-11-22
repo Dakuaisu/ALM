@@ -61,7 +61,13 @@ fn crate_requires_exact_current_authority_approval() {
         configured.confirm(Role::Owner, REQUEST, &altered),
         Err(ConfirmationError::StaleReview)
     );
-    for (original, malformed) in [("6,1|", "6,0|"), (";1,2,1", ";2,2,1"), (";2,9,0", ";2,8,0")] {
+    let altered_product = pending::decode(&encoded.replace(";1,2,1", ";2,2,1")).unwrap();
+    assert_ne!(altered_product, approved);
+    assert_eq!(
+        configured.confirm(Role::Owner, REQUEST, &altered_product),
+        Err(ConfirmationError::StaleReview)
+    );
+    for (original, malformed) in [("6,1|", "6,0|"), (";2,9,0", ";2,8,0")] {
         assert!(pending::decode(&encoded.replace(original, malformed)).is_err());
     }
     configured.set_crate_rate(money(451)).unwrap();
