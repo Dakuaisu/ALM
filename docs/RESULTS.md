@@ -2928,3 +2928,19 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [Locked offline](../phase2-local/target/B1-SAME-RECORD-offline.log): **545 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch and SQLite restart workers). Formatting and focused Clippy with warnings denied passed; editor diagnostics timed out.
 
 The Manager CLI is provisional-only; posting and reply loss were exercised only in a separate in-memory Owner simulation. No hosted authorization, frozen-browser execution, actual print or PDF output, installed-device acceptance, or formal phase exit is established.
+
+### B2-MANAGER-SQLITE: Scoped draft readback from the Batch 2 inventory replay
+
+**Development, PASS (synthetic local Mac).** Both the focused and locked-offline runs tested the modified worktree based on `756019c`, not the base commit alone. The tested changes were subsequently committed unchanged as `d19f5b9`. The [Batch 2 count checkpoint](../phase2-local/tests/milestone_b_replay/count_adjustment.rs) saved only the provisional draft in a disposable account-scoped SQLite store and reopened it through a fresh handle. The original Batch 2 handoff describes the earlier debug-only check; the account-switch replay's disk evidence was from a different fixture.
+
+The reopened draft matched draft ID `2`, date `2025-02-16`, and ordered lines product `1` ×1 and product `2` ×2, with no customer or crate. The [shared read-only SQLite inspector](../phase2-local/tests/common/manager_sqlite.rs) found exactly one scoped database with the expected account binding, the exact draft-only schema allowlist, and only the expected draft header, date, and line rows. Its logical dump contained none of the checked purchase cost, FIFO, margin, profit, or Owner fixture markers.
+
+The populated Owner fixture remained separate and supplied the existing purchase-cost, FIFO, and monthly profit comparisons; no Owner inventory or financial records were copied to the Manager store. The original valuation assertions were not changed. This inspects the local draft store's logical contents, not hosted authorization, installed-device isolation, or release costing. OPEN-010 and formal phase exits are unchanged.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_b_replay --test account_switch_restart -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml
+```
+
+- [Focused](../phase2-local/target/B2-MANAGER-SQLITE-focused.log): **6 passed, 0 failed, 1 ignored** at top level; the account-switch test dispatched the ignored worker in three child invocations, which passed separately.
+- [Locked offline](../phase2-local/target/B2-MANAGER-SQLITE-offline.log): **545 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch, and SQLite restart workers). Formatting and focused Clippy with warnings denied passed; editor diagnostics timed out.
