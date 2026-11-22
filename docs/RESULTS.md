@@ -1884,3 +1884,24 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-NOSALE-a03f4da-offline](../phase2-local/target/L02-NOSALE-a03f4da-offline.log): 418 passed, 0 failed, 2 ignored. Formatting, all-target Clippy and locked offline build passed; Rust editor diagnostics timed out.
 
 This is an in-memory, ID-only application replay, not a customer editor, durable store or hosted authorization check. The frozen HTML remained unchanged and unserved under OPEN-008; browser parity and accounting acceptance remain open.
+
+#### Standalone Owner receipts without sales
+
+**L02-04 / L14-01 / L15-01: PASS (local Rust development, milestone C)** at `fa8572bc72c3bcb6510aeaba896ca955d6658b1d`. The [application API replay](../phase2-local/src/confirmation/tests/customer_receipts.rs) started with two registered synthetic customers and no bills or receipts. `receipt-target` owed an undated opening debit of 1,000 paise; `receipt-control` had an empty ledger and zero balance. Before the fix the first Owner receipt reproduced `InvalidDraft`. The new guard recognizes registered IDs independently of the existing qualifying-sale path; the `a03f4da` entry above describes the prior limitation, not this build.
+
+| Owner receipt and document date | Expected and observed ledger closing and current due (paise) | Expected and observed ageing on 2024-04-01 | Expected and observed Cash Book for receipt date (paise) |
+| --- | ---: | --- | --- |
+| Cash 375 on 2024-03-30 | 625 due | One undated `Old` row, age 999, due 625, no draft or invoice ID; other buckets zero | One `Receipt`; Cash 375, Online 0 |
+| Online 800 on 2024-03-31 | -175 (175 credit) | No rows; all bucket totals zero | One `Receipt`; Cash 0, Online 800 |
+
+The opening-aware ledger retained the 1,000-paise debit and showed dated credits of 375 and 800 paise in order; the transaction-only ledger showed only those receipts, with no bill entries. Cash Book counts were read after both receipts; 2024-04-01 still had zero entries and zero in both buckets. The control retained its empty ledger and zero due. Stock and FIFO catalog state were unchanged (5 packets on hand), the next invoice stayed at 1, and no sale or invoice was created. In the separate rejection replay, an unknown ID with 375 paise returned `InvalidDraft`, zero paise on a registered ID returned `InvalidAmount`, and a Manager attempt for 375 paise on a registered ID returned `AccessDenied`; the entire fixture was unchanged after each attempt.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib standalone_receipts -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L14-STANDALONE-fa8572b-focused](../phase2-local/target/L14-STANDALONE-fa8572b-focused.log): 2 passed, 0 failed, 0 ignored, 278 filtered out.
+- [L14-STANDALONE-fa8572b-offline](../phase2-local/target/L14-STANDALONE-fa8572b-offline.log): 420 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and the locked offline build passed; Rust editor diagnostics timed out.
+
+This evidence covers only the local in-memory application API. The frozen HTML was unchanged and remained unserved under OPEN-008. Hosted authorization (OPEN-004/006), browser parity, and accounting acceptance remain open.
