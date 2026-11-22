@@ -2798,3 +2798,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [R56-CRATE-REVIEW-offline](../phase2-local/target/R56-CRATE-REVIEW-offline.log): **541 passed, 0 failed, 3 ignored** at top level; the ignored entries are the existing confirmation restart, account-switch, and SQLite restart workers. Formatting, all-target Clippy with warnings denied, and the locked-offline build passed. Editor diagnostics timed out.
 
 This checks local review under a trusted synthetic selector only. The frozen HTML stayed unserved; no hosted authorization, installed-device isolation, or formal phase exit is established.
+
+### R56-LINE-REVIEW: Edit numbers in the unavailable Manager preview
+
+**Development, PASS (R-5/R-6, local CLI only).** Both the focused and locked-offline runs tested the line-review changes in the worktree based on `bb12e56`, not the base commit alone. The tested renderer and regression were subsequently committed unchanged as `55a13b4`. Before the renderer change, both scoped assertions failed because the ordinary rows displayed `Unrecognized item` instead of their edit numbers and stored product IDs ([red run](../phase2-local/target/R56-LINE-REVIEW-red.log)).
+
+On the existing scoped synthetic `B_SAVED` draft, the fresh-process review displayed `Line 1: Product ID 7 | Quantity: 5` and `Line 2: Product ID 9 | Quantity: 2` in saved order. The full transcript had no invented ordinary product names or monetary values, and the read-only SQLite snapshot and reopened draft were unchanged after review alone. The edit regression took the displayed number for product 9, entered it in `edit`, and explicitly saved quantity 8. Reopening matched the full expected draft with only product 9's quantity changed; product 7 stayed at 5.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --bin alm-draft-demo --test account_switch_restart --test draft_demo -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/R56-LINE-REVIEW-focused.log): **8 passed, 0 failed, 1 ignored** at top level. The account-switch test dispatched its ignored worker separately; all three child invocations passed.
+- [Locked offline](../phase2-local/target/R56-LINE-REVIEW-offline.log): **542 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart workers). Formatting and locked-offline all-target Clippy with warnings denied passed; editor diagnostics timed out.
+
+The closed crate check remains closed. Pricing, valuation, OPEN-010, and formal phase exits are unchanged. No frozen browser, hosted service, or installed-device acceptance check ran.
