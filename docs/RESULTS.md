@@ -2293,3 +2293,25 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L05-ROUND-edb0b0b-offline](../phase2-local/target/L05-ROUND-edb0b0b-offline.log): 467 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. This verifies the Rust projection against a source-derived expectation, not observed browser parity or accounting acceptance.
+
+#### Latest estimate aggregate rounding correction
+
+**L05-01 / L14-01: PASS (local Rust development)** at `4b5d3e51ccd408969357df5c968ebd43974cea1b`. The source-derived expectation is that [`invBalanceMode`](../ALM_Business_Manager.html#L4226) uses [`custBalance`](../ALM_Business_Manager.html#L1158) for linked Latest and rounds the completed customer balance to whole rupees. The [Rust replay](../phase2-local/tests/l14_opening_balance_replay/ledger_rounding.rs) verifies the corrected projection independently of the ledger. The `edb0b0b` observation above remains unchanged.
+
+| Fractional fixture | Original observed (paise) | Corrected expected and observed (paise) |
+| --- | ---: | ---: |
+| Bill-date estimate (rounded prior plus exact remainder) | 325 | 325 |
+| Latest estimate | 280 | 300 |
+| Exact ledger closing | 280 | 280 |
+
+The signed controls used a 125-paise bill and a 50-paise standalone receipt. Exact ledger balances of +150 and −150 paise rounded in Latest preview to +200 and −100 paise respectively, matching the inert print and Save PDF captures (`₹2.00` and `₹-1.00`). The receipt credit stayed 50 paise. The existing chronology and walk-in fallback regressions passed; this change does not round transactions or change the historical cutoff.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test l14_ledger_ordering_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L05-LATEST-4b5d3e5-focused](../phase2-local/target/L05-LATEST-4b5d3e5-focused.log): 15 passed, 0 failed, 0 ignored.
+- [L05-LATEST-4b5d3e5-offline](../phase2-local/target/L05-LATEST-4b5d3e5-offline.log): 468 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. This is a source-derived expectation checked against local Rust output, not observed browser parity.
