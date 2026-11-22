@@ -1,13 +1,16 @@
 //! Synthetic source-derived Reports replay, not a production report or legacy execution.
-use super::l04_sales_history_replay::seed::history_fixture;
-use super::l15_cashbook_numeric_replay::saved_l15_row;
 use super::*;
 use crate::DraftCustomerId;
+#[path = "l16_reports_chart_replay.rs"]
+mod chart;
 #[path = "l16_reports_edge.rs"]
 mod edge;
 #[path = "l16_reports_projection.rs"]
 mod projection;
+#[path = "l16_reports_seed.rs"]
+mod seed;
 use projection::round;
+use seed::{MonthlyReportSeed, monthly_reports_fixture};
 
 fn date(iso: &str) -> BillDate {
     iso.parse().unwrap()
@@ -15,69 +18,12 @@ fn date(iso: &str) -> BillDate {
 
 #[test]
 fn l16_01_monthly_reports_synthetic_replay() {
-    let mut fixture = history_fixture();
-    let product = ProductId::new(16);
-    fixture
-        .add_product(product, 0, Money::from_minor_units(15_025))
-        .unwrap();
-    fixture
-        .catalog
-        .seed_lots(product, &[(2, Money::from_minor_units(5_000))])
-        .unwrap();
-    for (id, day, customer_id, name) in [
-        (80, "2025-04-25", "same-name", "Synthetic Grove"),
-        (81, "2024-10-20", "ancestor", "Synthetic Ancestor"),
-    ] {
-        let draft_id = DraftId::new(id);
-        fixture
-            .register_draft(
-                ProvisionalDraft::new(
-                    draft_id,
-                    vec![DraftLine::new(product, NonZeroU32::new(1).unwrap())],
-                )
-                .with_customer(DraftCustomer::Selected {
-                    id: DraftCustomerId::new(customer_id.into()),
-                    name: name.into(),
-                })
-                .with_bill_date(Some(date(day))),
-            )
-            .unwrap();
-        let review = fixture
-            .review_named(Role::Owner, draft_id, Money::from_minor_units(0))
-            .unwrap();
-        fixture
-            .confirm(Role::Owner, RequestId::new(id), &review)
-            .unwrap();
-    }
-    fixture
-        .record_customer_receipt(
-            Role::Owner,
-            CustomerReceiptInput {
-                customer_id: DraftCustomerId::new("same-name".into()),
-                date: date("2025-01-10"),
-                amount: Money::from_minor_units(100),
-                mode: ReceiptMode::Cash,
-            },
-        )
-        .unwrap();
-
-    let (mut book, original) = saved_l15_row();
-    // Rebase the original L15 saved row; preserve its counted cash and online amounts.
-    let mut feb = original.draft();
-    feb.date = Some(date("2025-02-28"));
-    feb.amounts.goods = Money::from_minor_units(1_201);
-    feb.amounts.misc = Money::from_minor_units(2_302);
-    feb.amounts.salary = Money::from_minor_units(3_403);
-    feb.amounts.debt = Money::from_minor_units(4_504);
-    let feb = book.save(Role::Owner, &feb).unwrap();
-    let mut april = crate::confirmation::manual_cashbook::ManualCashBookDraft::new(
-        Some(date("2025-04-10")),
-        feb.amounts,
-    );
-    april.amounts.goods = Money::from_minor_units(999);
-    april.amounts.misc = Money::from_minor_units(25);
-    april.amounts.salary = Money::from_minor_units(25);
-    let april = book.save(Role::Owner, &april).unwrap();
+    let MonthlyReportSeed {
+        fixture,
+        book,
+        original,
+        saved: [feb, april],
+    } = monthly_reports_fixture(date("2024-10-20"), Money::from_minor_units(0));
     let rows = [feb, april].map(|row| book.row(Role::Owner, row.id).unwrap().unwrap());
     assert_eq!(
         (
