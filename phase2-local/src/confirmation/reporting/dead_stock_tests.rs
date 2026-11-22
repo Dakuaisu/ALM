@@ -5,6 +5,7 @@ use crate::{
 };
 use std::num::NonZeroU32;
 
+mod history;
 mod identity;
 mod pricing;
 
