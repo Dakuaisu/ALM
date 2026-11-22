@@ -18,6 +18,13 @@ pub struct CustomerReceiptInput {
     pub mode: ReceiptMode,
 }
 
+/// Saved selected label and caller-supplied creation order for a receipt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CustomerReceiptMetadata {
+    pub selected_name: String,
+    pub creation_key: super::CreationKey,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CustomerLedgerKind {
     Bill { draft_id: DraftId, invoice: u64 },
@@ -45,8 +52,33 @@ impl ConfirmationFixture {
         role: Role,
         input: CustomerReceiptInput,
     ) -> Result<(), ConfirmationError> {
+        self.save_customer_receipt(role, input, None)
+    }
+
+    /// Saves a receipt with its selected customer label and creation key.
+    pub fn record_customer_receipt_with_metadata(
+        &mut self,
+        role: Role,
+        input: CustomerReceiptInput,
+        metadata: CustomerReceiptMetadata,
+    ) -> Result<(), ConfirmationError> {
+        self.save_customer_receipt(role, input, Some(metadata))
+    }
+
+    fn save_customer_receipt(
+        &mut self,
+        role: Role,
+        input: CustomerReceiptInput,
+        metadata: Option<CustomerReceiptMetadata>,
+    ) -> Result<(), ConfirmationError> {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
+        }
+        if metadata
+            .as_ref()
+            .is_some_and(|value| value.selected_name.trim().is_empty())
+        {
+            return Err(ConfirmationError::MissingCustomerName);
         }
         if input.amount.minor_units() == 0 {
             return Err(ConfirmationError::InvalidAmount);
@@ -75,6 +107,7 @@ impl ConfirmationFixture {
             date: input.date,
             after_invoice: self.next_invoice - 1,
             mode: Some(input.mode),
+            metadata,
         });
         self.customer_balances.insert(key.to_owned(), balance);
         Ok(())

@@ -142,6 +142,7 @@ fn l15_01_signed_numeric_replay_rounds_each_bucket_and_saves_exact_manual_inputs
         date: date(),
         after_invoice: 3,
         mode: Some(ReceiptMode::Online),
+        metadata: None,
     });
     let zero_submission = signed.record_customer_receipt(
         OWNER,

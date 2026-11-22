@@ -46,7 +46,8 @@ pub use counter::{Counter, CounterAttention, CounterBill, CreationKey};
 use crate_templates::CrateTemplateBook;
 pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{
-    CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, CustomerReceiptInput, ReceiptMode,
+    CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, CustomerReceiptInput,
+    CustomerReceiptMetadata, ReceiptMode,
 };
 pub use customer_ageing::{AgeingBucket, AgeingReport, AgeingRow};
 pub use customer_opening::{OpeningBalance, OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};

@@ -33,6 +33,7 @@ fn fixture() -> ConfirmationFixture {
         date: BillDate::new(2024, 3, 2).unwrap(),
         after_invoice: 2,
         mode: None,
+        metadata: None,
     });
     fixture
 }

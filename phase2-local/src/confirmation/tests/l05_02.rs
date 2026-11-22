@@ -39,6 +39,7 @@ pub(super) fn estimate_fixture_with_costs(lots: &[(u32, Money)]) -> Confirmation
         date: BillDate::new(2024, 3, 1).unwrap(),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     f
 }
@@ -256,6 +257,7 @@ fn l05_02_overflow_does_not_emit_or_mutate() {
         date: BillDate::new(2024, 3, 2).unwrap(),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     let before = f.clone();
     let mut captured = Vec::new();

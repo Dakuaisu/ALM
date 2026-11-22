@@ -180,7 +180,7 @@ impl ConfirmationFixture {
                 customer.map_or(remainder, |id| self.customer_due(id.value()))
             };
             ordered.push((
-                key.unwrap_or(CreationKey::new(0)),
+                *key,
                 SalesRow {
                     bill: bill.clone(),
                     date,
@@ -191,9 +191,9 @@ impl ConfirmationFixture {
                 review.payment_mode,
             ));
         }
-        ordered.sort_by_key(|(key, _, _)| Reverse(*key));
+        ordered.sort_by_key(|(key, _, _)| Reverse(key.unwrap_or(CreationKey::new(0))));
         let mut details = Vec::new();
-        for (_, row, mode) in ordered {
+        for (creation_key, row, mode) in ordered {
             if !row.cancelled {
                 let id = row.bill.draft_id;
                 let paid = row.bill.received.unwrap_or(zero);
@@ -206,7 +206,7 @@ impl ConfirmationFixture {
                 result.collected.bill_ids.push(id);
                 if paid.minor_units() > 0 {
                     details.push((
-                        (row.date.parts(), row.bill.invoice, 0),
+                        (row.date.parts(), creation_key, row.bill.invoice, 0),
                         SalesDetail {
                             source: SalesSource::Bill(id),
                             amount: paid,
@@ -218,15 +218,19 @@ impl ConfirmationFixture {
             result.rows.push(row);
         }
         for (slot, payment) in self.preview_payments.iter().enumerate() {
-            let party_matches =
-                self.current_sales
-                    .values()
-                    .any(|(review, _, _)| match review.draft.customer() {
-                        DraftCustomer::Selected { id, name } => {
-                            id.value() == payment.customer_id && matches(name)
+            let party_matches = payment.metadata.as_ref().map_or_else(
+                || {
+                    self.current_sales.values().any(|(review, _, _)| {
+                        match review.draft.customer() {
+                            DraftCustomer::Selected { id, name } => {
+                                id.value() == payment.customer_id && matches(name)
+                            }
+                            DraftCustomer::Typed(_) | DraftCustomer::Unassigned => false,
                         }
-                        DraftCustomer::Typed(_) | DraftCustomer::Unassigned => false,
-                    });
+                    })
+                },
+                |metadata| matches(&metadata.selected_name),
+            );
             if !in_range(payment.date) || !(query.is_empty() || party_matches) {
                 continue;
             }
@@ -234,7 +238,12 @@ impl ConfirmationFixture {
             result.collected.receipt_ids.push(id);
             result.receipt_paid = add(result.receipt_paid, payment.amount)?;
             details.push((
-                (payment.date.parts(), payment.after_invoice, id.0),
+                (
+                    payment.date.parts(),
+                    payment.metadata.as_ref().map(|m| m.creation_key),
+                    payment.after_invoice,
+                    id.0,
+                ),
                 SalesDetail {
                     source: SalesSource::Receipt(id),
                     amount: payment.amount,
@@ -242,7 +251,18 @@ impl ConfirmationFixture {
                 },
             ));
         }
-        details.sort_by_key(|(key, _)| Reverse(*key));
+        // Stable sort retains input order on known-key ties. Zero/missing keys
+        // share the fixture's old anchor/slot ordering without a stored timestamp.
+        let zero_key = CreationKey::new(0);
+        details.sort_by_key(|&((date, key, invoice, slot), _)| {
+            let key = key.unwrap_or(zero_key);
+            let fallback = if key == zero_key {
+                (invoice, slot)
+            } else {
+                (0, 0)
+            };
+            Reverse((date, key, fallback))
+        });
         for (_, detail) in details {
             let bucket = match detail.mode {
                 ReceiptMode::Cash => &mut result.collected.cash,

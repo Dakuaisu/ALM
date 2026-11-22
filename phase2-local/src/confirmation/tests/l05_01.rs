@@ -60,6 +60,7 @@ fn l05_01_named_receipt_cancellation_and_restore_are_read_only() {
         date: BillDate::new(2024, 3, 1).unwrap(),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     let before = f.clone();
     let receipt_before = f.preview_payments.clone();
@@ -153,6 +154,7 @@ fn l05_01_order_and_identity_are_not_document_date_or_name() {
         date: BillDate::new(2024, 5, 1).unwrap(),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     named(&mut f, 3, "a", BillDate::new(2024, 2, 1).unwrap());
     let snap = f
@@ -221,6 +223,7 @@ fn l05_01_overflow_is_an_error_without_mutation() {
         date: BillDate::new(2024, 3, 1).unwrap(),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     let before = f.clone();
     assert_eq!(

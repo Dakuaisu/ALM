@@ -1,6 +1,92 @@
 use super::seed::{OWNER, date, history_fixture};
-use crate::confirmation::{ConfirmationError, CreationKey, DashboardPeriod, SalesPeriod};
-use crate::{DraftId, Money};
+use crate::confirmation::{
+    ConfirmationError, CreationKey, CustomerReceiptInput, CustomerReceiptMetadata, DashboardPeriod,
+    ReceiptMode, SalesPeriod, SalesReceiptId, SalesSource,
+};
+use crate::{DraftCustomerId, DraftId, Money, Role};
+
+#[test]
+fn sales_details_mix_known_keys_and_legacy_anchors_without_mutation() {
+    let mut fixture = history_fixture();
+    for (id, key) in &mut fixture.first_posts {
+        if *id == DraftId::new(36) {
+            *key = Some(CreationKey::new(20));
+        }
+    }
+    let input = CustomerReceiptInput {
+        customer_id: DraftCustomerId::new("grove".into()),
+        date: date("2025-03-15"),
+        amount: Money::from_minor_units(200),
+        mode: ReceiptMode::Cash,
+    };
+    let metadata = CustomerReceiptMetadata {
+        selected_name: "Different label".into(),
+        creation_key: CreationKey::new(20),
+    };
+    let before = fixture.clone();
+    assert_eq!(
+        fixture.record_customer_receipt_with_metadata(
+            Role::Manager,
+            input.clone(),
+            metadata.clone()
+        ),
+        Err(ConfirmationError::AccessDenied)
+    );
+    assert_eq!(fixture, before);
+    fixture
+        .record_customer_receipt_with_metadata(OWNER, input, metadata)
+        .unwrap();
+    assert!(
+        fixture.preview_payments[..7]
+            .iter()
+            .all(|payment| payment.metadata.is_none())
+    );
+    assert_eq!(
+        fixture.preview_payments[7]
+            .metadata
+            .as_ref()
+            .unwrap()
+            .selected_name,
+        "Different label"
+    );
+    let before = fixture.clone();
+    let history = fixture
+        .sales_history(OWNER, date("2025-03-15"), SalesPeriod::Today, "")
+        .unwrap();
+    assert_eq!(
+        history
+            .collected
+            .details
+            .iter()
+            .map(|d| d.source)
+            .collect::<Vec<_>>(),
+        [
+            SalesSource::Bill(DraftId::new(36)),
+            SalesSource::Receipt(SalesReceiptId(8)),
+            SalesSource::Receipt(SalesReceiptId(4)),
+        ]
+    );
+    let selected = fixture
+        .sales_history(OWNER, date("2025-03-15"), SalesPeriod::Today, "different")
+        .unwrap();
+    assert_eq!(selected.collected.receipt_ids, [SalesReceiptId(8)]);
+    let old_name = fixture
+        .sales_history(OWNER, date("2025-03-15"), SalesPeriod::Today, "grove")
+        .unwrap();
+    assert!(old_name.collected.receipt_ids.is_empty());
+    let legacy = fixture
+        .sales_history(OWNER, date("2025-03-10"), SalesPeriod::Today, "grove")
+        .unwrap();
+    assert_eq!(
+        legacy.collected.receipt_ids,
+        [SalesReceiptId(1), SalesReceiptId(6)]
+    );
+    assert_eq!(
+        fixture.sales_history(Role::Manager, date("2025-03-15"), SalesPeriod::Today, ""),
+        Err(ConfirmationError::AccessDenied)
+    );
+    assert_eq!(fixture, before);
+}
 
 #[test]
 fn l04_month_includes_future_records_and_custom_end_is_inclusive() {

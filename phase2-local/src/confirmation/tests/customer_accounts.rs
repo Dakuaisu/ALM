@@ -263,6 +263,7 @@ fn customer_accounts_cashbook_rejects_unknown_receipt_mode() {
         amount: Money::from_minor_units(25),
         after_invoice: 1,
         mode: None,
+        metadata: None,
     });
     assert_eq!(
         f.cashbook_day_close(Role::Owner, date),

@@ -51,6 +51,7 @@ pub(super) struct PreviewPayment {
     pub(super) date: BillDate,
     pub(super) after_invoice: u64,
     pub(super) mode: Option<super::ReceiptMode>,
+    pub(super) metadata: Option<super::CustomerReceiptMetadata>,
 }
 
 impl ConfirmationFixture {
