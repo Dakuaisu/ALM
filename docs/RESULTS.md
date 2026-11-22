@@ -2782,3 +2782,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 ```
 
 No separate CLI replay was run. Both results are development evidence only: SQLite stores drafts, and the posting effects are synthetic in-memory effects, not hosted authorization or a formal phase exit. The frozen HTML stayed unserved.
+
+### R56-CRATE-REVIEW: Read-only Manager CLI crate contents
+
+**Development, PASS (R-5/R-6; L10-01 structural readback only).** Both runs tested the crate-review changes in the worktree based on `79f2fa9`, not the base commit alone. The reviewed implementation and regression were subsequently committed unchanged as `9947cfc`. The [fresh-process regression](../phase2-local/tests/account_switch_restart/crate_review.rs) saved the existing synthetic `B_SAVED` fixture through the scoped SQLite interface, then launched the actual Manager CLI with that selector and ran `open`, `21`, `review`, `quit`.
+
+The review matched the stored draft: `PROVISIONAL — NOT POSTED`, `State: SAVED`, ordinary line quantities 5 then 2, crate quantity 3, and components in stored order: product ID 9, quantity per crate 6, `Piece`; then product ID 7, quantity per crate 2, `Case`. The complete review contained no price, tax, partial total, or cost output and ended with `Bill preview unavailable: UnsupportedCrateRow`. The read-only SQLite snapshot and the full draft reopened after CLI exit both matched their pre-review values. Pricing and the OPEN-010 / DEC-027 valuation deferral were not changed.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --bin alm-draft-demo --test account_switch_restart --test draft_demo -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [R56-CRATE-REVIEW-focused](../phase2-local/target/R56-CRATE-REVIEW-focused.log): **10 passed, 0 failed, 1 ignored** at top level; the ignored entry is the dispatched account-switch worker.
+- [R56-CRATE-REVIEW-offline](../phase2-local/target/R56-CRATE-REVIEW-offline.log): **541 passed, 0 failed, 3 ignored** at top level; the ignored entries are the existing confirmation restart, account-switch, and SQLite restart workers. Formatting, all-target Clippy with warnings denied, and the locked-offline build passed. Editor diagnostics timed out.
+
+This checks local review under a trusted synthetic selector only. The frozen HTML stayed unserved; no hosted authorization, installed-device isolation, or formal phase exit is established.
