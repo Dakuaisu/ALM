@@ -2814,3 +2814,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/R56-LINE-REVIEW-offline.log): **542 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart workers). Formatting and locked-offline all-target Clippy with warnings denied passed; editor diagnostics timed out.
 
 The closed crate check remains closed. Pricing, valuation, OPEN-010, and formal phase exits are unchanged. No frozen browser, hosted service, or installed-device acceptance check ran.
+
+### R56-PRICED-LINES: Edit numbers in the priced Manager preview
+
+**Development, PASS (R-5/R-6, local CLI only).** Both the focused and locked-offline runs tested the modified worktree based on `8924cbb`, not the base commit alone. The tested renderer and regression were subsequently committed unchanged as `194324c`. The existing [scoped CLI regression](../phase2-local/tests/draft_demo/scoped_edit.rs) first failed on the missing priced line number ([red run](../phase2-local/target/R56-PRICED-LINES-red.log)).
+
+The two ordinary lines for Synthetic Lime displayed edit numbers 1 and 2 with initial quantities 2 and 3. The test fed the displayed second-line number back to `edit`: only line 2 changed to 7, and review showed `UNSAVED` and `PROVISIONAL — NOT POSTED`. Reopening after EOF without Save restored quantities 2 and 3; reopening after an explicit Save showed 2 and 7, still provisional. The independent scoped account stayed at quantities 4 and 5. Fixed amount assertions confirmed a unit price of ₹118.00 and an initial line total of ₹236.00 then ₹354.00, with taxable ₹500.00, CGST and SGST ₹45.00 each, and inclusive total ₹590.00. After the quantity edit, the line totals were ₹236.00 and ₹826.00, with taxable ₹900.00, CGST and SGST ₹81.00 each, and inclusive total ₹1062.00. Only the line label changed in production code.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --bin alm-draft-demo --test draft_demo -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/R56-PRICED-LINES-focused.log): **5 passed, 0 failed, 0 ignored**.
+- [Locked offline](../phase2-local/target/R56-PRICED-LINES-offline.log): **542 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart workers). Formatting, all-target Clippy with warnings denied, and the locked-offline CLI build passed; editor diagnostics timed out.
+
+The unavailable-preview and crate checks remain closed. No pricing, tax, valuation, OPEN-010, or formal phase exit changed.
