@@ -226,6 +226,13 @@ impl ConfirmationFixture {
 }
 
 impl PurchaseBook {
+    pub(super) fn receivable_count(&self) -> usize {
+        self.orders
+            .iter()
+            .filter(|order| order.status().can_receive())
+            .count()
+    }
+
     pub(super) fn receipt_lines(&self) -> impl Iterator<Item = &SavedPurchaseLine> {
         self.orders
             .iter()

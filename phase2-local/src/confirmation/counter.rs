@@ -3,6 +3,10 @@ use std::cmp::Reverse;
 use super::{ConfirmationError, ConfirmationFixture};
 use crate::{BillDate, DraftCustomerId, DraftId, Role};
 
+#[cfg(test)]
+#[path = "counter/attention_tests.rs"]
+mod attention_tests;
+
 /// Caller-supplied creation order for the in-memory fixture, independent of document date and invoice.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CreationKey(u64);
@@ -19,12 +23,21 @@ pub struct CounterBill {
     pub invoice: u64,
 }
 
+/// Count-only Owner attention indicators.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CounterAttention {
+    pub low_stock: usize,
+    pub open_purchase_orders: usize,
+    pub debtors: usize,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Counter {
     pub billed_today: Vec<CounterBill>,
     pub billed_today_count: usize,
     pub recents: Vec<CounterBill>,
     pub debtor_ids: Vec<DraftCustomerId>,
+    pub attention: CounterAttention,
 }
 
 impl ConfirmationFixture {
@@ -68,7 +81,7 @@ impl ConfirmationFixture {
         billed_today.reverse();
         recents.sort_by_key(|(key, _)| Reverse(*key));
         recents.truncate(6);
-        let debtor_ids = self
+        let debtor_ids: Vec<_> = self
             .registered_customers
             .iter()
             .filter_map(|id| {
@@ -77,11 +90,21 @@ impl ConfirmationFixture {
                 (rounded > 0).then(|| DraftCustomerId::new(id.clone()))
             })
             .collect();
+        let attention = CounterAttention {
+            low_stock: self
+                .catalog
+                .order_planner_stock(self.product_reorder_default)
+                .filter(|(_, stock, reorder)| stock <= reorder)
+                .count(),
+            open_purchase_orders: self.purchases.receivable_count(),
+            debtors: debtor_ids.len(),
+        };
         Ok(Counter {
             billed_today_count: billed_today.len(),
             billed_today,
             recents: recents.into_iter().map(|(_, row)| row).collect(),
             debtor_ids,
+            attention,
         })
     }
 }
