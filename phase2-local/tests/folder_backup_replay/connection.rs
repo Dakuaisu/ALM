@@ -181,6 +181,70 @@ fn dated_publication_failure_preserves_current_before_retry() {
 }
 
 #[test]
+fn manual_dated_failure_leaves_current_recoverable_without_overwriting() {
+    use std::io::ErrorKind;
+
+    use alm_phase2_local::{
+        Role,
+        synthetic_read_model::{Error, Records, Store},
+    };
+
+    let sandbox = Sandbox::new();
+    let destinations = seed_occupied_backups(&sandbox);
+    let records = Records {
+        reorder_default: 23,
+        products: vec![],
+        customers: vec![],
+        sales: vec![],
+        receipts: vec![],
+    };
+    let source = sandbox.file("old", "fixture.json");
+    let archive = Store::create(&source, Role::Owner, records.clone())
+        .unwrap()
+        .backup(Role::Owner)
+        .unwrap();
+    // The replay envelope carries a typed archive only for this recovery test.
+    let mut r = Replay::new(&sandbox, std::str::from_utf8(&archive).unwrap());
+    r.selected = Some("new");
+    r.db.meta.backup_folder = Some("new".into());
+    r.fail_dated = true;
+
+    r.manual(false);
+
+    assert_eq!(r.feedback, ["Could not write"]);
+    assert_eq!(
+        r.trace,
+        ["query", "current-closed", "dated-staged", "dated-failed"]
+    );
+    assert_eq!((r.db.meta.last_file_backup, r.daily), (7, None));
+    let current_bytes = fs::read(&destinations[0]).unwrap();
+    let published = serde_json::from_slice::<Database>(&current_bytes).unwrap();
+    let [payload] = published.records.as_slice() else {
+        panic!("expected one archive in the published replay envelope");
+    };
+    assert_eq!(payload.as_bytes(), archive);
+    assert_eq!(fs::read(&destinations[1]).unwrap(), OLD_DATED);
+    let staged_dated = destinations[1].with_extension("json.stage");
+    assert!(!staged_dated.try_exists().unwrap());
+    let restore_path = &destinations[1];
+    assert!(matches!(
+        Store::restore(restore_path, Role::Owner, payload.as_bytes()),
+        Err(Error::Io(error))
+            if error.kind() == ErrorKind::AlreadyExists
+    ));
+
+    let fresh_path = sandbox.file("old", "restored.json");
+    Store::restore(&fresh_path, Role::Owner, payload.as_bytes()).unwrap();
+    let reopened = Store::open(&fresh_path, Role::Owner).unwrap();
+    assert_eq!(reopened.records(Role::Owner).unwrap(), &records);
+    assert_eq!(fs::read(&destinations[0]).unwrap(), current_bytes);
+    assert_eq!(fs::read(restore_path).unwrap(), OLD_DATED);
+    println!(
+        "L19-02/08: injected dated publication failure reported Could not write; current payload restored and reopened at a fresh path; occupied dated file rejected with AlreadyExists and unchanged"
+    );
+}
+
+#[test]
 fn day_rollover_creates_new_dated_copy() {
     let sandbox = Sandbox::new();
     let mut r = Replay::new(&sandbox, "first day");
