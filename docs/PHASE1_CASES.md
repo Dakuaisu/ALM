@@ -1047,3 +1047,17 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **Existing coverage, not duplicated:** [historical references after deletion](#historical-references-after-deletion) covers retained history and lookup after catalog removal; L20-11–13 cover repeated refresh, retention, replay and sync ordering. An in-memory row or marker change is not proof of durability or convergence. **OPEN-008: frozen runtime NOT RUN.**
 
 **Next bounded span:** weighted cost and receipt helpers, introduced at L999; `avgCostOf()` starts at **L1000** and was not audited here.
+
+## Bounded receipt cost and supplier quote helpers (NOT RUN)
+
+**Inspected, inclusive:** [L999–1031](../ALM_Business_Manager.html#L999-L1031), through `updateSupplierPrice()`. Targeted caller: Receive Goods at L7024–7058. L1032–1033 was read for the boundary only.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L08-06 / L08-08 | Receive a positive quantity with zero or negative rate on separate copies. Compare positive stored average with explicit zero or negative average. | `avgCostOf()` uses the stored average only when its coerced value is positive, otherwise numeric buy or zero. Zero rate blends using that fallback-resolved prior cost and still rewrites `avgCost` rounded to two decimals. A negative rate is truthy and enters the blend as entered. Neither rate replaces buy or margin or writes a supplier quote; sell is never assigned by these helpers. Unlike normal Receive, a helper-only zero/negative quantity exits before blending, and the quote helper has no quantity argument (L999–1031, L7027–7039). |
+| L08-01 / L08-08 | Receive two lines for the same product and supplier in one form with different positive rates. | Each line updates its rate, then cost and quote, then stamps the resolved product before incrementing received quantity and appending the receipt. The second blend sees the first line's received stock and rounded average, not the original pre-form state. The later positive rate sets last buy and overwrites the same quote key; margin is rounded sell minus that rate, while sell stays put. The separate receipt events retain their own rates. PO stamp, activity and `persist()` follow the loop, not each line (L1005–1031, L7024–7053). |
+| L01-09 / L08-01 | **Seeded duplicate-name control:** receive a line whose PID identifies the second of two exact-name products. | The caller resolves the line by PID first, but sends the resolved name to both helpers, which look up the first exact-name product. Thus the first product can receive cost and quote mutations while the caller stamps the second; the receipt stays on its original PO line. With unmatched text and no resolved product, neither helper mutates a catalog entry, but a positive received quantity still updates the PO line and appends the event (L950–959, L1005–1031, L7027–7044). |
+
+**Existing coverage, not duplicated:** [positive receipt cost and quote rules](#positive-receipt-cost-and-quote-rules-not-run) cover clamped pre-receipt quantity, weighted rounding and case-insensitive quote-key precedence (existing quote, derived column, then trimmed supplier text). L08-06 and the PO purchase-value/FIFO cases cover nonpositive receipt-rate fallback in those separate projections. No persistence or valuation-policy conclusion follows from this comparison. **OPEN-008: frozen runtime NOT RUN.**
+
+**Next bounded span starts at L1032**, customer name lookup followed by packet-quantity helpers; next unread line **L1034**.
