@@ -1118,3 +1118,17 @@ Expect `mirror_write` with a synthetic `p_token` and `p_tabs: { tabs, updated }`
 **OPEN-008: frozen runtime NOT RUN.** OPEN-010 / DEC-027 are unchanged.
 
 **Next bounded span:** theme, heading at **L1420**; next unread line **L1421**.
+
+## Bounded theme helpers (NOT RUN)
+
+**Inspected, inclusive:** [L1420–1470](../ALM_Business_Manager.html#L1420-L1470). L1471 was read for the privacy boundary only.
+
+| Existing case | Trigger | Additional source expectation |
+| --- | --- | --- |
+| L18-01 | Compare absent/empty storage, a throwing read, a nonempty unrecognized value, and `system` with matching, unavailable or throwing media lookup. | Absent/empty storage and read failure leave the preference at `light`. An unrecognized nonempty value is retained as the preference but resolves to effective light; it matches none of the Settings choices. Only exact `system` consults the media result, with a missing API or thrown lookup falling back to light (L1423–1438; choice state L8997–9005). |
+| L18-01 / L01-14 | Compare initial application with a theme change and a media change, including a missing theme-color element or unavailable media listener. | `applyTheme()` sets the root attribute and updates theme-color metadata only if present. The top-level call precedes Boot (L11658); this is source order, not first-paint evidence. `setTheme()` assigns the page preference before attempting storage and still applies/redraws after a caught write failure. Media changes apply only in System mode and redraw only for a string `CURRENT` with a registered view; the callback does not save the preference. Listener registration failures are swallowed (L1448–1469). |
+| L16-06 / L18-01 | **Helper-only:** compare a nonblank chart token, a whitespace-only token and a computed-style read that throws. | `themeVar()` reads root computed style at call time, trims the token, and uses the caller's fallback for empty or failed reads. The bar chart uses this for grid and label colors (L1440–1446, L1774–1775); it is not a measurement of rendered colors. |
+
+**Existing coverage:** the preference-storage-failure case covers reload after a failed write; [Settings](#bounded-settings-source-walk-not-run) and the [document head and shell](#bounded-document-head-and-shell-source-walk-not-run) cover form redraw and palette declarations. **OPEN-008: frozen runtime NOT RUN.**
+
+**Next bounded span:** privacy at **L1471**; next unread line **L1472**.
