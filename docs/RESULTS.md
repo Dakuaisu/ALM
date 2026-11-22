@@ -2901,3 +2901,28 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/L06-PROFILE-RESTORE-offline.log): **545 passed, 0 failed, 3 ignored**. Formatting passed; Rust editor diagnostics timed out.
 
 No production code, numbering, or rounding rule changed. The duplicate-ID check remains closed. This is local development evidence only, not installed-device parity or a formal phase exit.
+
+### B1-SAME-RECORD: CLI-saved named draft through simulated Owner posting and books
+
+**Development, PASS (synthetic local Mac).** Both the focused and locked-offline runs tested the modified worktree based on `4e0966f`, not the base commit alone. The tested replay was subsequently committed unchanged as `72ebd44`. The [Milestone C replay](../phase2-local/tests/milestone_c_replay.rs) now takes its posting input from the [scoped Manager CLI and SQLite handoff](../phase2-local/tests/milestone_c_replay/start.rs). The historical Batch 1 handoff describes its earlier runs at their original scope. No production code changed.
+
+| Checkpoint | Fixed expectations matched by the joined run |
+| --- | --- |
+| Manager draft and fresh reopen | Seeded a provisional draft for `milestone-c-buyer` (`Synthetic Buyer`), `DraftId(21)`, dated 2025-02-21, product 1 ×1. The real scoped CLI changed the quantity to 2, displayed `UNSAVED` and `PROVISIONAL — NOT POSTED`, and explicitly saved. A fresh CLI process reopened it as `SAVED` and still provisional. The typed SQLite readback matched the expected ID, buyer, date, ordered line and no crate; only that readback went to the Owner simulation. |
+| Changed terms and explicit confirmation | Simulated unit price changed from 9,440 to 11,800 paise (review total 18,880 → 23,600). Old approval returned `StaleReview` and Manager review/confirmation were denied with no posting effects. Explicit Owner confirmation applied before the reply was discarded. Identical retry returned the same invoice #1 without another effect; reusing the request with paid changed to 10,001 returned `RequestConflict` without changing readbacks. |
+| Feb 21 invoice #1 | Exact total/paid/due: 23,600/10,000/13,600 paise. Feb 21 Cash Book showed 10,000 Cash, FIFO remaining value was 19,000, and ordinary GST taxable/tax was 20,000/3,600 with CGST and SGST 1,800 each and zero IGST. Estimate AsOnBillDate and Latest both displayed ₹136.00 due. |
+| Mar 1 independent receipt | Owner's separate Online receipt of 5,000 paise reduced the ledger balance to 8,600 and appeared on Mar 1 only. Manager receipt was denied. Invoice #1 and its original 10,000 paid and 13,600 bill due were unchanged; estimate AsOnBillDate remained ₹136.00, while Latest showed ₹86.00. |
+| Edit invoice #1 | Same invoice, buyer and bill date; total/paid/bill-date due/current balance became 41,000/10,000/31,000/26,000 paise. Estimate AsOnBillDate/Latest displayed ₹310.00/₹260.00. GST taxable/tax was 35,000/6,000, with CGST and SGST 3,000 each and zero IGST. FIFO remaining value was 16,500. Sales History, CSV, ledger and both Cash Book dates were checked against the edited bill and the separate receipt. |
+| Cancel invoice #1 | Historical edited total, paid and bill-date due stayed 41,000/10,000/31,000 paise; CSV and GST were marked cancelled. Feb 21 live bill Cash fell to zero; the saved manual close kept its ₹100 Cash. Mar 1 still held the 5,000-paise receipt, leaving the ledger at −5,000 paise and estimate Latest at ₹-50.00 versus historical due ₹310.00. FIFO returned to 32,000. The existing undo control restored the edited figures after a Manager undo denial; final SQLite readback still matched the CLI-saved provisional draft. |
+
+The focused run also reused the independent live ledger and [recovered `Latest` rounding controls](../phase2-local/tests/milestone_d_structured/signed_recovery.rs). From reopened typed records, +150 and −150 paise displayed ₹2.00 and ₹-1.00; the sum-before-rounding control `849 − 799` paise displayed ₹1.00. These are separate rounding fixtures, not extra transactions on invoice #1. No rounding rule or fixed expectation changed.
+
+```sh
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test milestone_c_replay --test l14_opening_balance_replay --test milestone_d_structured -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml
+```
+
+- [Focused](../phase2-local/target/B1-SAME-RECORD-focused.log): **7 passed, 0 failed, 0 ignored** (joined C 1, L14 4, structured D 2 including its companion PO setup).
+- [Locked offline](../phase2-local/target/B1-SAME-RECORD-offline.log): **545 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch and SQLite restart workers). Formatting and focused Clippy with warnings denied passed; editor diagnostics timed out.
+
+The Manager CLI is provisional-only; posting and reply loss were exercised only in a separate in-memory Owner simulation. No hosted authorization, frozen-browser execution, actual print or PDF output, installed-device acceptance, or formal phase exit is established.
