@@ -2073,3 +2073,26 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L04-EDIT-SAVE-cbc6cdb-offline](../phase2-local/target/L04-EDIT-SAVE-cbc6cdb-offline.log): 434 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The evidence covers local in-memory Rust behavior, not durable timestamps or browser parity. The frozen HTML remained unserved under OPEN-008.
+
+#### Owner Counter attention counts
+
+**L02-01: PASS (local Rust development)** at `200f5821afe73658959f7e0ff96d34c6c427062f`. The [purchasing replay](../phase2-local/src/confirmation/counter/attention_tests.rs) called the existing read-only Owner Counter on 2025-03-14. Its attention summary contains counts only. It uses the catalog's effective reorder levels, the purchasing status classifier, and the existing positive rounded-balance rule. Contributing IDs below were checked separately through stock, PO, and ledger readbacks.
+
+| Checkpoint | Expected counts (low stock, open POs, debtors) | Observed counts | Contributing IDs and readbacks |
+| --- | --- | --- | --- |
+| Before receipt | `(1, 1, 2)` | `(1, 1, 2)` | Product `41`: 5 on hand at reorder level 5. `PO-001`: Pending, 0 received / 3 remaining. Debtors: `due-a`, `due-b`. |
+| After partial receipt | `(0, 1, 2)` | `(0, 1, 2)` | Product `41`: 6 on hand, above level 5. `PO-001`: Partially Received, 1 received / 2 remaining; still open. Debtors: `due-a`, `due-b`. |
+| After completion | `(0, 0, 2)` | `(0, 0, 2)` | Product `41`: 8 on hand, above level 5. `PO-001`: Completed, 3 received / 0 remaining; no longer open. Debtors: `due-a`, `due-b`. |
+| All-zero control | `(0, 0, 0)` | `(0, 0, 0)` | Product `41`: 6 on hand at level 5; no contributing product, PO, or debtor IDs. |
+
+The ledger controls were `due-a` at 50 paise and `due-b` at 151 paise (both qualify after rounding), and `under-half` at 49 paise (excluded). Manager received `AccessDenied` with no payload on the populated fixture. The fixture was unchanged after each read.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib attention_purchasing_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-ATTENTION-200f582-focused](../phase2-local/target/L02-ATTENTION-200f582-focused.log): 1 passed, 0 failed, 0 ignored, 294 filtered out.
+- [L02-ATTENTION-200f582-offline](../phase2-local/target/L02-ATTENTION-200f582-offline.log): 435 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+This is local API evidence, not evidence of flag rendering, the “nothing needs attention” text, or browser navigation. The frozen HTML remained unserved under OPEN-008.
