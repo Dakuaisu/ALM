@@ -1,7 +1,7 @@
 use super::model::RateListRow;
 
 pub struct Product {
-    pub row: RateListRow,
+    pub row: RateListRow<'static>,
     pub restricted: &'static str,
 }
 
@@ -62,6 +62,6 @@ pub fn fixture() -> Vec<Product> {
     ]
 }
 
-pub fn public_rows(products: &[Product]) -> Vec<RateListRow> {
+pub fn public_rows(products: &[Product]) -> Vec<RateListRow<'static>> {
     products.iter().map(|product| product.row.clone()).collect()
 }

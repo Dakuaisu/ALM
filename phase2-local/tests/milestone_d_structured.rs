@@ -1,15 +1,15 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use alm_phase2_local::confirmation::{CustomerLedgerKind, ReceiptMode};
-use alm_phase2_local::synthetic_read_model::{
-    Component, Customer, Error, Line, LineKind, Product, Receipt, Records, Sale,
-    ScopedArchiveInput, Store,
-};
-use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, Role};
+use alm_phase2_local::Role;
+use alm_phase2_local::synthetic_read_model::{Error, ScopedArchiveInput, Store};
 
 #[path = "milestone_d_structured/assertions.rs"]
 mod assertions;
+#[path = "milestone_d_structured/bill.rs"]
+mod bill;
+#[path = "milestone_d_structured/device_recovery.rs"]
+mod device_recovery;
 #[path = "milestone_d_structured/estimate.rs"]
 mod estimate;
 #[path = "milestone_d_replay/fixture.rs"]
@@ -20,6 +20,10 @@ mod gst;
 mod ordinary_gst_fixture;
 #[path = "milestone_d_structured/purchase.rs"]
 mod purchase;
+#[path = "milestone_d_structured/rate_list.rs"]
+mod rate_list;
+#[path = "milestone_d_structured/records.rs"]
+mod records;
 
 #[test]
 fn structured_exports_survive_fresh_recovery() {
@@ -33,120 +37,8 @@ fn structured_exports_survive_fresh_recovery() {
     let source = dir.join("source.json");
     let restored = dir.join("restored.json");
     let fixture = fixture::cancelled_fixture();
-    let (review, receipt) = fixture.current_sale(Role::Owner, DraftId::new(21)).unwrap();
-    let lines = review
-        .draft()
-        .lines()
-        .iter()
-        .zip(review.unit_prices())
-        .enumerate()
-        .map(|(i, (line, price))| Line {
-            item: if i == 0 { "Synthetic A" } else { "Synthetic B" }.into(),
-            pack: "12".into(),
-            uom: "pkt".into(),
-            packet_quantity: 12,
-            kind: LineKind::Item,
-            rate_minor: price.minor_units(),
-            quantity: line.quantity().get(),
-            amount_minor: price.minor_units() * i64::from(line.quantity().get()),
-        })
-        .collect();
-    let cancelled = Sale {
-        id: "sale-cancelled-id".into(),
-        date: review.draft().bill_date().unwrap(),
-        number: receipt.invoice,
-        customer: "Synthetic Buyer".into(),
-        mode: "Cash".into(),
-        lines,
-        total_minor: receipt.total.minor_units(),
-        paid_minor: receipt.received.unwrap().minor_units(),
-        cancelled: true,
-    };
-    let active = Sale {
-        id: "sale-active-id".into(),
-        date: BillDate::new(2025, 1, 1).unwrap(),
-        number: 99,
-        customer: "Control".into(),
-        mode: "Online".into(),
-        lines: vec![
-            Line {
-                item: "Control item".into(),
-                pack: "12".into(),
-                uom: "pc".into(),
-                packet_quantity: 12,
-                kind: LineKind::Item,
-                rate_minor: 100,
-                quantity: 6,
-                amount_minor: 600,
-            },
-            Line {
-                item: "Control bundle".into(),
-                pack: "".into(),
-                uom: "".into(),
-                packet_quantity: 1,
-                kind: LineKind::Crate {
-                    components: vec![Component {
-                        item: "hidden-component-id".into(),
-                        quantity: 3,
-                    }],
-                },
-                rate_minor: 250,
-                quantity: 2,
-                amount_minor: 500,
-            },
-        ],
-        total_minor: 1100,
-        paid_minor: 300,
-        cancelled: false,
-    };
-    let ledger = fixture
-        .customer_ledger(
-            Role::Owner,
-            &DraftCustomerId::new("milestone-c-buyer".into()),
-        )
-        .unwrap();
-    let [receipt_entry] = ledger.entries.as_slice() else {
-        panic!("expected C receipt")
-    };
-    let CustomerLedgerKind::Receipt { mode } = receipt_entry.kind else {
-        panic!("expected receipt")
-    };
-    let mode = match mode {
-        ReceiptMode::Cash => "Cash",
-        ReceiptMode::Online => "Online",
-    };
-    let records = Records {
-        reorder_default: 5,
-        products: vec![Product {
-            item: "Synthetic A".into(),
-            company: "Synthetic".into(),
-            pack: "12".into(),
-            uom: "pkt".into(),
-            packet_quantity: 12,
-            mrp_minor: 20000,
-            buy_minor: 10000,
-            sell_minor: 17700,
-            purchased: 5,
-            sold: 0,
-            on_hand: 5,
-            reorder: 5,
-        }],
-        customers: vec![Customer {
-            name: "Synthetic Buyer".into(),
-            mobile: "".into(),
-            address: "".into(),
-            balance_minor: 0,
-        }],
-        sales: vec![cancelled, active],
-        receipts: vec![Receipt {
-            id: "receipt-standalone-id".into(),
-            date: receipt_entry.date,
-            mode: mode.into(),
-            customer: "Synthetic Buyer".into(),
-            amount_minor: receipt_entry.credit.minor_units(),
-        }],
-    };
-    let tax = gst::snapshot(&records.sales[0], review.draft().lines());
+    let live_bill = bill::source(&fixture);
+    let (records, tax) = records::capture(&fixture);
     drop(fixture);
     let mut expected = records.clone();
     expected.reorder_default = 13;
@@ -176,6 +68,11 @@ fn structured_exports_survive_fresh_recovery() {
     assert!(store.workbook(Role::Manager).is_err());
     let original_html = estimate::document(&store, &source);
     fs::write(dir.join("estimate.html"), &original_html).unwrap();
+    let original_bill = bill::document(&store);
+    assert_eq!(live_bill, original_bill);
+    fs::write(dir.join("bill.svg"), &original_bill).unwrap();
+    let original_rates = rate_list::document(&store, &source);
+    original_rates.retain(&dir, "");
     let json = store.backup(Role::Owner).unwrap();
     let raw: serde_json::Value = serde_json::from_slice(&json).unwrap();
     assertions::json(&raw);
@@ -213,6 +110,12 @@ fn structured_exports_survive_fresh_recovery() {
     let regenerated_po = purchase::document(&reopened, &restored, "regenerated-purchase-order");
     assert_eq!(original_po, regenerated_po);
     let regenerated_html = estimate::document(&reopened, &restored);
+    let regenerated_bill = bill::document(&reopened);
+    assert_eq!(original_bill, regenerated_bill);
+    fs::write(dir.join("regenerated-bill.svg"), &regenerated_bill).unwrap();
+    let regenerated_rates = rate_list::document(&reopened, &restored);
+    assert_eq!(original_rates, regenerated_rates);
+    regenerated_rates.retain(&dir, "regenerated-");
     let regenerated_gst = gst::document(&reopened, &restored);
     assert_eq!(original_gst, regenerated_gst);
     fs::write(
@@ -250,6 +153,7 @@ fn structured_exports_survive_fresh_recovery() {
     fs::write(dir.join("regenerated-workbook.xls"), &xml).unwrap();
     assertions::product_setting(&reopened);
     assertions::projections(&csv, &xml);
+    device_recovery::run(&Store::open(&source, Role::Owner).unwrap(), &reopened, &dir);
     if std::env::var_os("ALM_STRUCTURED_RETAIN").is_some() {
         println!("Structured replay evidence: {}", dir.display());
     } else {

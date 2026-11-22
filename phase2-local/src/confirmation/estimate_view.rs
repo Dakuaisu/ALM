@@ -1,14 +1,14 @@
 use super::{BalanceMode, PreviousBalance};
 use crate::{BillDate, Money};
 
-pub(crate) struct EstimateRow<'a> {
+pub struct EstimateRow<'a> {
     pub label: &'a str,
     pub quantity: u32,
     pub price: Money,
     pub amount: Money,
 }
 
-pub(crate) struct EstimateDocument<'a> {
+pub struct EstimateDocument<'a> {
     pub invoice: u64,
     pub date: BillDate,
     pub customer: &'a str,

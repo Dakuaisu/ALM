@@ -1,13 +1,25 @@
-use super::{Error, LineKind, SaleId, Store};
+use super::{Error, EstimateDocument, EstimateRow, LineKind, SaleId, Store};
 use crate::bill_math::round_balance;
 use crate::confirmation::BalanceMode;
-use crate::confirmation::estimate::{EstimateDocument, EstimateRow, render_estimate};
+use crate::confirmation::estimate::render_estimate;
 use crate::{BillDate, Money, Role};
 
 impl Store {
     pub fn estimate_html(&self, role: Role, id: &SaleId, today: BillDate) -> Result<String, Error> {
+        let document = self.estimate_document(role, id, today)?;
+        Ok(render_estimate(
+            &document,
+            Some(self.business_profile(role)?),
+        ))
+    }
+
+    pub fn estimate_document(
+        &self,
+        role: Role,
+        id: &SaleId,
+        today: BillDate,
+    ) -> Result<EstimateDocument<'_>, Error> {
         let records = self.records(role)?;
-        let profile = self.business_profile(role)?;
         let scope = self.scope.as_ref().ok_or(Error::InvalidArchive)?;
         let links = scope.validate(records)?;
         let account = links.sales.get(id.value()).ok_or(Error::InvalidArchive)?;
@@ -70,24 +82,21 @@ impl Store {
                 .ok_or(Error::InvalidArchive)?;
         }
         let balance = round_balance(balance).ok_or(Error::InvalidArchive)?;
-        Ok(render_estimate(
-            &EstimateDocument {
-                invoice: sale.number,
-                date: sale.date,
-                customer: &sale.customer,
-                lines: rows,
-                items_quantity: quantity,
-                items_total: Money::from_minor_units(total),
-                loading: Money::from_minor_units(0),
-                total: Money::from_minor_units(sale.total_minor),
-                paid: Money::from_minor_units(sale.paid_minor),
-                cancelled: true,
-                balance_mode: BalanceMode::Latest,
-                balance: Money::from_minor_units(balance),
-                previous_balance: None,
-                today,
-            },
-            Some(profile),
-        ))
+        Ok(EstimateDocument {
+            invoice: sale.number,
+            date: sale.date,
+            customer: &sale.customer,
+            lines: rows,
+            items_quantity: quantity,
+            items_total: Money::from_minor_units(total),
+            loading: Money::from_minor_units(0),
+            total: Money::from_minor_units(sale.total_minor),
+            paid: Money::from_minor_units(sale.paid_minor),
+            cancelled: true,
+            balance_mode: BalanceMode::Latest,
+            balance: Money::from_minor_units(balance),
+            previous_balance: None,
+            today,
+        })
     }
 }

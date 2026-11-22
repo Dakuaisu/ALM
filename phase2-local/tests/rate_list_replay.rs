@@ -9,10 +9,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn ids(rows: &[RateListRow]) -> Vec<u8> {
+fn ids(rows: &[RateListRow<'_>]) -> Vec<u8> {
     rows.iter().map(|p| p.id).collect()
 }
-fn selected(replay: &Replay) -> Vec<u8> {
+fn selected(replay: &Replay<'_>) -> Vec<u8> {
     replay.selected.iter().copied().collect()
 }
 

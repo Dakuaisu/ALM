@@ -167,7 +167,7 @@ pub(super) fn estimate_html(
     )
 }
 
-pub(crate) use super::estimate_view::{EstimateDocument, EstimateRow};
+pub use super::estimate_view::{EstimateDocument, EstimateRow};
 
 pub(crate) fn render_estimate(
     preview: &EstimateDocument<'_>,

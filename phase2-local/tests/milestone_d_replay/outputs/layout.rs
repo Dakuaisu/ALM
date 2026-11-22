@@ -1,6 +1,7 @@
 use std::fmt::Write;
 
 use alm_phase2_local::confirmation::{BillPreview, EstimateLineDisplay};
+use alm_phase2_local::synthetic_read_model::{EstimateDocument, EstimateRow};
 use alm_phase2_local::{BillDate, Money};
 
 pub(super) fn render(
@@ -8,6 +9,40 @@ pub(super) fn render(
     labels: &[EstimateLineDisplay<'_>],
     today: BillDate,
 ) -> String {
+    assert_eq!(preview.lines.len(), labels.len());
+    render_document(&EstimateDocument {
+        invoice: preview.invoice,
+        date: preview.date,
+        customer: &preview.customer,
+        lines: preview
+            .lines
+            .iter()
+            .zip(labels)
+            .map(|(line, label)| {
+                assert_eq!(line.product, label.product);
+                EstimateRow {
+                    label: label.label,
+                    quantity: line.quantity.get(),
+                    price: line.price,
+                    amount: line.amount,
+                }
+            })
+            .collect(),
+        items_quantity: preview.items_quantity,
+        items_total: preview.items_total,
+        loading: preview.loading,
+        total: preview.total,
+        paid: preview.paid,
+        cancelled: preview.cancelled,
+        balance_mode: preview.balance_mode,
+        balance: preview.balance,
+        previous_balance: preview.previous_balance,
+        today,
+    })
+}
+
+pub(super) fn render_document(preview: &EstimateDocument<'_>) -> String {
+    assert!(preview.cancelled);
     let mut svg = format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="720" height="470" role="img" aria-labelledby="title">
 <title id="title">Synthetic source-inspired vector, not a legacy PNG</title>
@@ -27,15 +62,15 @@ pub(super) fn render(
 "##,
         preview.invoice,
         display_date(preview.date),
-        escape(&preview.customer),
+        escape(preview.customer),
     );
-    for (index, (line, label)) in preview.lines.iter().zip(labels).enumerate() {
+    for (index, line) in preview.lines.iter().enumerate() {
         let number = index + 1;
         let y = 223 + i32::try_from(index).unwrap() * 27;
         writeln!(
             svg,
             "<g id=\"line-{number}\"><text x=\"36\" y=\"{y}\">{number}</text><text x=\"60\" y=\"{y}\">{}</text><text x=\"477\" y=\"{y}\" text-anchor=\"end\">{}</text><text x=\"550\" y=\"{y}\" text-anchor=\"end\">{}</text><text x=\"680\" y=\"{y}\" text-anchor=\"end\">{}</text></g>",
-            escape(label.label),
+            escape(line.label),
             money(line.price),
             line.quantity,
             money(line.amount),
@@ -57,7 +92,7 @@ pub(super) fn render(
         money(preview.loading),
         money(preview.total),
         money(preview.paid),
-        display_date(today),
+        display_date(preview.today),
         money(preview.balance),
     )
     .unwrap();

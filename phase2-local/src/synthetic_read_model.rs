@@ -11,6 +11,7 @@ mod storage;
 
 use serde::{Deserialize, Serialize};
 
+pub use crate::confirmation::estimate::{EstimateDocument, EstimateRow};
 pub use gst::{GstArchiveError, HistoricalGst, HistoricalGstLine};
 pub use purchase_order::{
     ArchivedPurchaseBusiness, ArchivedPurchaseLine, ArchivedPurchaseOrder, ArchivedPurchaseReceipt,

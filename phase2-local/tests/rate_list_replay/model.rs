@@ -1,27 +1,27 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone)]
-pub struct RateListRow {
+pub struct RateListRow<'a> {
     pub id: u8,
-    pub company: &'static str,
-    pub item: &'static str,
-    pub pack: &'static str,
-    pub unit: &'static str,
-    pub quantity: &'static str,
+    pub company: &'a str,
+    pub item: &'a str,
+    pub pack: &'a str,
+    pub unit: &'a str,
+    pub quantity: &'a str,
     pub mrp_mills: u32,
     pub rate_mills: u32,
 }
 
-pub struct Replay {
-    pub products: Vec<RateListRow>,
+pub struct Replay<'a> {
+    pub products: Vec<RateListRow<'a>>,
     pub selected: BTreeSet<u8>,
     known: BTreeSet<u8>,
-    pub brands: BTreeSet<&'static str>,
+    pub brands: BTreeSet<&'a str>,
     pub query: String,
 }
 
-impl Replay {
-    pub fn new(products: Vec<RateListRow>) -> Self {
+impl<'a> Replay<'a> {
+    pub fn new(products: Vec<RateListRow<'a>>) -> Self {
         Self {
             products,
             selected: BTreeSet::new(),
@@ -78,7 +78,7 @@ impl Replay {
             }
         }
     }
-    pub fn chosen(&mut self) -> Vec<RateListRow> {
+    pub fn chosen(&mut self) -> Vec<RateListRow<'a>> {
         self.visit();
         self.products
             .iter()
@@ -92,7 +92,7 @@ impl Replay {
     }
 }
 
-fn brand(p: &RateListRow) -> &str {
+fn brand<'a>(p: &RateListRow<'a>) -> &'a str {
     if p.company.is_empty() {
         "Other"
     } else {
@@ -122,17 +122,19 @@ fn number(mills: u32) -> String {
     }
     grouped
 }
-pub fn picker_rate(row: &RateListRow) -> String {
+pub fn picker_rate(row: &RateListRow<'_>) -> String {
     format!("₹{}", number(((row.rate_mills + 500) / 1000) * 1000))
 }
-fn groups(list: &[RateListRow]) -> BTreeMap<&str, Vec<&RateListRow>> {
-    let mut result: BTreeMap<&str, Vec<&RateListRow>> = BTreeMap::new();
+fn groups<'a, 'data>(
+    list: &'a [RateListRow<'data>],
+) -> BTreeMap<&'data str, Vec<&'a RateListRow<'data>>> {
+    let mut result: BTreeMap<_, Vec<_>> = BTreeMap::new();
     for p in list {
         result.entry(brand(p)).or_default().push(p);
     }
     result
 }
-fn subtitle(list: &[RateListRow], all: &[RateListRow]) -> String {
+fn subtitle(list: &[RateListRow<'_>], all: &[RateListRow<'_>]) -> String {
     let selected = groups(list);
     let total = groups(all).len();
     if !selected.is_empty() && selected.len() <= 3 && selected.len() < total {
@@ -142,7 +144,7 @@ fn subtitle(list: &[RateListRow], all: &[RateListRow]) -> String {
     }
 }
 
-pub fn html(list: &[RateListRow], all: &[RateListRow]) -> String {
+pub fn html(list: &[RateListRow<'_>], all: &[RateListRow<'_>]) -> String {
     let sub = subtitle(list, all);
     let sub = if sub.is_empty() {
         String::new()
@@ -168,7 +170,7 @@ pub fn html(list: &[RateListRow], all: &[RateListRow]) -> String {
     h
 }
 
-pub fn text(list: &[RateListRow], all: &[RateListRow]) -> String {
+pub fn text(list: &[RateListRow<'_>], all: &[RateListRow<'_>]) -> String {
     let sub = subtitle(list, all);
     let sub = if sub.is_empty() {
         String::new()
@@ -206,7 +208,7 @@ pub struct Sinks {
     pub hint_durations: Vec<u32>,
 }
 impl Sinks {
-    pub fn print(&mut self, replay: &mut Replay, popup: bool) {
+    pub fn print(&mut self, replay: &mut Replay<'_>, popup: bool) {
         let list = replay.chosen();
         if list.is_empty() {
             self.notices.push("Tick at least one item first");
@@ -220,12 +222,12 @@ impl Sinks {
             }
         }
     }
-    pub fn pdf(&mut self, replay: &mut Replay, popup: bool) {
+    pub fn pdf(&mut self, replay: &mut Replay<'_>, popup: bool) {
         self.print(replay, popup);
         self.notices.push("In the dialog, choose 'Save as PDF'");
         self.hint_durations.push(3800);
     }
-    pub fn whatsapp(&mut self, replay: &mut Replay) {
+    pub fn whatsapp(&mut self, replay: &mut Replay<'_>) {
         let list = replay.chosen();
         if list.is_empty() {
             self.notices.push("Tick at least one item first");
