@@ -11,6 +11,7 @@ mod edit;
 mod fifo;
 mod gst_action_replay;
 mod gst_form_replay;
+mod l02_dashboard_replay;
 mod l04_sales_history_replay;
 mod l05_01;
 mod l05_02;
