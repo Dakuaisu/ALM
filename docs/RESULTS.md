@@ -2532,3 +2532,28 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 | L20-18 | Captured modeled script/callback registration and cleanup for success, load error and no callback; no DOM or script execution. | No actual script load, browser failure/timing integration or remote endpoint behavior. |
 
 **Prerequisites still open.** The source-only gaps in the table are not local test failures. Actual frozen-browser and OS-level egress evidence was **not run**: OPEN-008 requires the positive control and OS deny evidence before serving the frozen baseline, with L01 first. Installed-device checks remain unrun (OPEN-005). Hosted schema/permissions, real data, cross-device persistence and remote acceptance remain **blocked** pending separate authorization (OPEN-002/006); source authority/reconciliation remains OPEN-003. No credentials or external services were used, no artifacts were rebuilt, and no parity, acceptance or phase exit is claimed.
+
+## PC-003 Batch 1 addendum: Named-customer undo of an edited invoice
+
+**Local synthetic development at `5aa66d2`.** [L04-02](PHASE1_CASES.md#counter-checkout-edit-and-outputs) and linked estimate, ledger, Cash Book and stock checks. The [joined replay](../phase2-local/tests/milestone_c_replay.rs#L200-L221) uses [undo readback](../phase2-local/tests/milestone_c_replay/undo.rs) and [dated books and saved-close checks](../phase2-local/tests/milestone_c_replay/books.rs).
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test milestone_c_replay -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [B1-UNDO-5aa66d2-focused](../phase2-local/target/B1-UNDO-5aa66d2-focused.log): **1 passed, 0 failed, 0 ignored**. Undo and books are assertions within that one test.
+- [B1-UNDO-5aa66d2-offline](../phase2-local/target/B1-UNDO-5aa66d2-offline.log): **516 passed, 0 failed, 2 ignored** across 45 summaries, including doctests. The ignored entries are subprocess workers `confirmation::tests::restart::client_worker` and `sqlite_restart_worker`. Formatting, Clippy and build passed; LSP diagnostics timed out.
+
+Amounts are paise. The fixed identity was `DraftId(21)`, invoice #1, dated 2025-02-21, for `milestone-c-buyer` (Synthetic Buyer). The fixed undo control was equality to the **edited** readback, not the pre-edit sale. Observations matched:
+
+| Checkpoint | Fixed control and observed readback |
+| --- | --- |
+| Before edit, after independent receipt | Original bill A 2 × 11,800, total 23,600, Cash 10,000; bill-date due 13,600 and Latest 8,600 after the separate 2025-03-01 Online receipt of 5,000. FIFO remaining value 19,000. |
+| Edited | A 2 × 17,700 plus B 1 × 5,600 = 41,000. Same Cash payment, bill-date due 31,000, Latest and ledger closing 26,000. FIFO remaining A/B 2/1 worth 16,500; February sales/cost/profit 41,000/15,500/25,500. CSV totals/paid only on the first line. |
+| Cancelled | Edited record and 31,000 bill-date due retained; both CSV rows marked `CANCELLED`. Active February sales/cost/profit and live bill Cash were zero; FIFO returned to 4/2 worth 32,000. The sole ledger collection was the March Online receipt; Latest and ledger closing were −5,000. Manager undo returned `AccessDenied` with the cancelled readback unchanged. |
+| Owner undo | Same edited review/receipt, posted count, lots, previews, CSV and report readback as before cancellation; no new invoice or duplicate payment. Both CSV flags cleared and ordinary GST matched the edited active projection. Bill-date/Latest estimates returned to ₹310.00/₹260.00. Exactly one Feb 21 bill ledger debit 41,000 and Cash credit 10,000, plus one Mar 1 Online credit 5,000; combined collections 15,000 and ledger closing 26,000. Sales drilldown identified the separate receipt as fixture-local `SalesReceiptId(1)`, not a durable receipt ID. |
+
+**Read-only close comparison.** The same in-memory `ManualCashBook` BTreeMap supplied both saved rows by their original, distinct row IDs, with no resave. Cancellation left the saved Feb 21 ₹100 Cash intact against live ₹0; undo restored live ₹100 and zero difference. Mar 1 remained ₹50 Online with zero difference throughout. Manager ledger, history, live close, copy, save, row read and comparison were denied in the linked controls.
+
+**Storage boundary.** [SQLite setup](../phase2-local/tests/milestone_c_replay/start.rs#L22-L42) persisted only the original Manager provisional draft in `synthetic-drafts.sqlite3`: draft 21, selected buyer, Feb 21 date and A ×2. A fresh handle reopened it without reseeding and supplied it to the Owner fixture; it reopened unchanged again after the initial post/retry checks. `RequestId(1)` lost-reply/exact-retry and changed-payment conflict were simulated in that in-memory fixture, not a restarted posting authority. The posted and edited invoice, payment/ledger effects, cancellation/undo, FIFO and reports, and saved manual closes were not persisted or reopened from SQLite. No undo or saved-close durability is established. Formal phase gates are unchanged; no acceptance or phase exit claimed.
