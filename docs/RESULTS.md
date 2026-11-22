@@ -2954,3 +2954,39 @@ Run `local-clean-eed9f6e.yifcL3`, started `2026-11-22T20:18:24Z`, Cargo and rust
 **Consolidated disposition.** The local handoffs stand at their recorded scope. Under [D1](PRD.md#local-delivery-alongside-discovery), the builder can continue [the static record crosswalk](PHASE1_DISCOVERY.md#per-record-source-crosswalk) without assigning source precedence, and can extend the existing monthly Reports fixture for [L16-06 chart inputs](PHASE1_CASES.md#canvas-chart-inputs-and-drawing-not-run): compare the synthetic Sales and Gross Profit series with the P&L inputs at month rollover and after cancellation. Such a check would be local and source-derived, not chart rendering or browser parity. Neither task requires reopening the handoffs or changing a business rule.
 
 The [existing owner checklist](OPEN.md#consolidated-owner-checklist) governs the remaining gates: Phase 1 deployed dependency capture and protected metadata need OPEN-001/002; frozen runtime waits for verified OPEN-008 containment. Hosted roles, sync, and posting need OPEN-004/006; actual device and output parity needs OPEN-005 and the prerequisite discovery and shared-data evidence. Migration rehearsal needs authorized protected copies and reconciled source rules (OPEN-002/003); production cutover follows rehearsal and parity sign-off and needs separate OPEN-007 authorization. OPEN-009 remains a separate unresolved paste-date decision. [OPEN-010](OPEN.md#open-010-repeated-product-crate-valuation-l10-01) remains owner-blocked under DEC-027 pending containment, frozen L10-01 evidence, and a written costing and rounding decision. Neither costing rule is approved. No checklist or phase status changed.
+
+### L16-06-CHART: Reports chart inputs across rollover and cancellation
+
+**Synthetic local development: focused PASS; locked-offline suite FAILED, incomplete.** Both runs tested the modified worktree based on `e7caa31` with the Reports replay subsequently committed as `abaed07`, before the GST sandbox fix. Before execution, the [test-only replay](../phase2-local/src/confirmation/tests/l16_reports_chart_replay.rs) pinned expected values from the frozen [P&L calculation](../ALM_Business_Manager.html#L8756), [chart callback and month keys](../ALM_Business_Manager.html#L8947), and [gross-profit calculation](../ALM_Business_Manager.html#L3029). The callback retains the render-time month keys but rereads active sales when invoked. Its Rust model reads sale records independently of the monthly P&L API; the existing Reports fixture supplies both.
+
+| Checkpoint | Fixed expectation and observed result, raw paise (Sales, Gross Profit) |
+| --- | --- |
+| Apr 30, 2025, before cancellation | November–April chart inputs and P&L inputs agreed. Nonzero pairs: November (15,025, 10,025), February (1,049, 449), March (6,145, 2,445), April (15,025, 10,025). |
+| Apr 30 callback released after the modeled May 1 rollover and cancellation of bill 80 | The callback still used November–April. Only April differed from the already-emitted P&L: the chart input became (0, 0), a delta of (−15,025, −10,025). The table was not recomputed at this checkpoint. |
+| Fresh May 1 render after cancellation | Both inputs used December–May and agreed. November dropped out, April stayed (0, 0), and May entered at (0, 0). February and March were unchanged. |
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l16_ -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml
+```
+
+- [Focused](../phase2-local/target/L16-06-CHART-focused.log): **10 passed, 0 failed, 0 ignored** (317 filtered out), including L16-06. Formatting passed; Rust editor diagnostics timed out.
+- [Locked offline](../phase2-local/target/L16-06-CHART-offline.log): **358 passed, 1 failed, 2 ignored** across the summaries emitted before Cargo stopped. `archive_restore::owner_profile_rewrite_preserves_standalone_gst_bills_through_backup_and_restore` failed during scratch setup at `tests/gst_preview_replay/artifacts.rs:21` with `AlreadyExists`, before its restore assertions. The ignored entries were the confirmation restart and account-switch workers; targets after the failure were not run. No retry or scratch-helper change was made.
+
+Frozen HTML remained unserved. Browser rendering and actual canvas/timer behavior are **NOT RUN**. No production Reports logic, OPEN-010, or formal phase exit changed.
+
+### GST-SANDBOX-RETRY: Exclusive allocation under normal parallelism
+
+**Development, PASS (local macOS, synthetic fixtures).** The earlier L16-06 locked-offline attempt remains a failure with **358 passed, 1 failed, 2 ignored**; later targets did not run. Its log establishes that directory creation returned `AlreadyExists` before the GST restore assertions, not which process or test created the occupied path.
+
+Both new runs tested the modified worktree based on `e7caa31`. The successful full suite included both the L16-06 replay and the [GST test sandbox fix](../phase2-local/tests/gst_preview_replay/artifacts.rs), subsequently committed as `abaed07` and `4af3888`, respectively. Allocation now uses the process ID and an atomic sequence, claims each candidate with exclusive `create_dir`, and retries only `AlreadyExists` with a different candidate. The regression verified that the occupied candidate's sentinel survived, cleanup removed only the newly claimed directory, and two live sandboxes had distinct paths. The exact `ALM_GST_PREVIEW_ARTIFACTS=1` opt-in and retention branch remain intact. No existing GST or Reports assertions were weakened.
+
+```sh
+cd /Users/apple/ALM && env -u RUST_TEST_THREADS -u ALM_GST_PREVIEW_ARTIFACTS TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test gst_preview_replay
+cd /Users/apple/ALM && env -u RUST_TEST_THREADS -u ALM_GST_PREVIEW_ARTIFACTS TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml
+```
+
+- [GST-SANDBOX-RETRY-focused](../phase2-local/target/GST-SANDBOX-RETRY-focused.log): **10 passed, 0 failed, 0 ignored**.
+- [GST-SANDBOX-RETRY-offline](../phase2-local/target/GST-SANDBOX-RETRY-offline.log): **549 passed, 0 failed, 3 ignored** across 48 top-level summaries. The ignored entries were the existing confirmation restart, account-switch, and SQLite restart subprocess workers. Formatting passed; editor diagnostics timed out.
+
+Frozen HTML stayed unserved; browser rendering remains **NOT RUN**. OPEN-010 and formal phase exits are unchanged.
