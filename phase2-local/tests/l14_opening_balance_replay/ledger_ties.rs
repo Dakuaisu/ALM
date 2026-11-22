@@ -97,8 +97,8 @@ fn missing_zero_and_one_ledger_keys_tie_in_source_order_but_preview_uses_zero() 
     let one = fixture
         .bill_preview(Role::Owner, DraftId::new(3), BalanceMode::AsOnBillDate)
         .unwrap();
-    assert_eq!(one.previous_balance.unwrap().amount, money(-3));
-    assert_eq!(one.balance, money(97));
+    assert_eq!(one.previous_balance, None);
+    assert_eq!(one.balance, money(100));
     println!("tie ledger rows (kind, debit, credit, running paise): {rows:?}");
     println!("tie previews zero={zero:?} one={one:?}");
 }

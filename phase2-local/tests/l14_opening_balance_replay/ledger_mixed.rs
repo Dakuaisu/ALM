@@ -49,11 +49,11 @@ fn keyed_target_uses_zero_for_missing_peers_and_unkeyed_target_uses_anchor() {
     let keyed = fixture
         .bill_preview(Role::Owner, DraftId::new(2), BalanceMode::AsOnBillDate)
         .unwrap();
-    assert_eq!(keyed.previous_balance.unwrap().amount, money(17_076));
-    assert_eq!(keyed.balance, money(26_076));
+    assert_eq!(keyed.previous_balance.unwrap().amount, money(17_100));
+    assert_eq!(keyed.balance, money(26_100));
     let unkeyed = fixture
         .bill_preview(Role::Owner, DraftId::new(3), BalanceMode::AsOnBillDate)
         .unwrap();
-    assert_eq!(unkeyed.previous_balance.unwrap().amount, money(17_877));
-    assert_eq!(unkeyed.balance, money(26_877));
+    assert_eq!(unkeyed.previous_balance.unwrap().amount, money(17_900));
+    assert_eq!(unkeyed.balance, money(26_900));
 }

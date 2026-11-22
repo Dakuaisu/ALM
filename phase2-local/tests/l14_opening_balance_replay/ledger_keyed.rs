@@ -124,9 +124,9 @@ fn keyed_ledger_and_estimate_replay_conflicting_orders() {
     let latest = fixture
         .bill_preview(Role::Owner, target, BalanceMode::Latest)
         .unwrap();
-    assert_eq!(as_on.previous_balance.unwrap().amount, money(18_555));
+    assert_eq!(as_on.previous_balance.unwrap().amount, money(18_600));
     assert_eq!(as_on.previous_balance.unwrap().date, Some(day11));
-    assert_eq!(as_on.balance, money(27_555));
+    assert_eq!(as_on.balance, money(27_600));
     assert_eq!(latest.balance, money(27_000));
     assert_eq!(latest.previous_balance, None);
     let display_lines = [EstimateLineDisplay {
@@ -149,9 +149,9 @@ fn keyed_ledger_and_estimate_replay_conflicting_orders() {
     assert!(
         documents[0]
             .html
-            .contains("Prev Balance (as on 11-Feb-2025)</th><td>₹185.55")
+            .contains("Prev Balance (as on 11-Feb-2025)</th><td>₹186.00")
     );
-    assert!(documents[0].html.contains("Balance Due</th><td>₹275.55"));
+    assert!(documents[0].html.contains("Balance Due</th><td>₹276.00"));
     println!("keyed ledger rows (date, kind, debit, credit, running paise): {rows:?}");
     println!(
         "keyed preview previous={:?} as_on={:?} latest={:?}",

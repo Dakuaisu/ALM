@@ -18,6 +18,8 @@ mod keyed;
 mod mixed;
 #[path = "l14_opening_balance_replay/opening_actual.rs"]
 mod opening_actual;
+#[path = "l14_opening_balance_replay/ledger_rounding.rs"]
+mod rounding;
 #[path = "l14_opening_balance_replay/ledger_source.rs"]
 mod source;
 #[path = "l14_opening_balance_replay/ledger_ties.rs"]

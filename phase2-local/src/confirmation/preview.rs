@@ -56,7 +56,7 @@ pub(super) struct PreviewPayment {
 
 impl ConfirmationFixture {
     /// Projects the current saved regular bill without mutating fixture state.
-    /// Amounts are exact minor units; legacy rounding parity is not established.
+    /// Historical prior balances are rounded to whole rupees; other amounts remain exact.
     ///
     /// # Errors
     /// Denies managers and rejects missing, unsupported, or overflowing data.
@@ -132,6 +132,13 @@ impl ConfirmationFixture {
             .checked_sub(paid.minor_units())
             .ok_or(ConfirmationError::Overflow)?;
         let use_latest = customer_id.is_some() && mode == BalanceMode::Latest;
+        let previous = if use_latest {
+            previous
+        } else {
+            (previous.div_euclid(100) + i64::from(previous.rem_euclid(100) >= 50))
+                .checked_mul(100)
+                .ok_or(ConfirmationError::Overflow)?
+        };
         let balance = if use_latest {
             self.preview_balance(customer_id.ok_or(ConfirmationError::InvalidDraft)?, None)?
                 .0
