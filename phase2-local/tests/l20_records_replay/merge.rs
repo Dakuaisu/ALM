@@ -34,6 +34,12 @@ impl Db {
             device,
         ));
         out.extend(changed_rows(
+            &self.purchase_orders,
+            Record::PurchaseOrders,
+            pushed_m,
+            device,
+        ));
+        out.extend(changed_rows(
             &self.products,
             Record::Products,
             pushed_m,
@@ -45,6 +51,7 @@ impl Db {
             pushed_m,
             device,
         ));
+        out.extend(changed_rows(&self.log, Record::Log, pushed_m, device));
         out.extend(changed_rows(
             &self.deleted,
             Record::Deleted,
@@ -144,8 +151,15 @@ impl Db {
             Record::Products(row) => {
                 !self.is_deleted(Collection::Products, id) && upsert(&mut self.products, id, row)
             }
+            Record::PurchaseOrders(row) => {
+                !self.is_deleted(Collection::PurchaseOrders, id)
+                    && upsert(&mut self.purchase_orders, id, row)
+            }
             Record::Suppliers(row) => {
                 !self.is_deleted(Collection::Suppliers, id) && upsert(&mut self.suppliers, id, row)
+            }
+            Record::Log(row) => {
+                !self.is_deleted(Collection::Log, id) && upsert(&mut self.log, id, row)
             }
             Record::PriceSuppliers(row) => {
                 if self.is_deleted(Collection::PriceSuppliers, id) {
@@ -180,7 +194,9 @@ impl Db {
         match collection {
             Collection::GstBills => remove_row(&mut self.gst_bills, id),
             Collection::Products => remove_row(&mut self.products, id),
+            Collection::PurchaseOrders => remove_row(&mut self.purchase_orders, id),
             Collection::Suppliers => remove_row(&mut self.suppliers, id),
+            Collection::Log => remove_row(&mut self.log, id),
             Collection::PriceSuppliers => {
                 let before = self.price_suppliers.len();
                 self.price_suppliers.retain(|entry| !entry.has_id(id));

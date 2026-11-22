@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::price_columns::{PriceSupplierEntry, PriceSupplierObject, load_price_suppliers};
+use super::receipt_rows::{GoodsLog, ProductCosts, PurchaseOrder, Rupees};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub(super) struct Stamp {
@@ -80,7 +81,9 @@ pub(super) struct Supplier {
 #[serde(rename_all = "camelCase")]
 pub(super) struct Product {
     pub item: String,
-    pub supplier_prices: BTreeMap<String, Option<i64>>,
+    pub supplier_prices: BTreeMap<String, Option<Rupees>>,
+    #[serde(flatten)]
+    pub costs: Option<ProductCosts>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -107,8 +110,10 @@ pub(super) struct Stock {
 pub(super) enum Collection {
     GstBills,
     Products,
+    PurchaseOrders,
     Suppliers,
     PriceSuppliers,
+    Log,
 }
 
 impl Collection {
@@ -116,8 +121,10 @@ impl Collection {
         match self {
             Self::GstBills => "gstBills",
             Self::Products => "products",
+            Self::PurchaseOrders => "purchaseOrders",
             Self::Suppliers => "suppliers",
             Self::PriceSuppliers => "priceSuppliers",
+            Self::Log => "log",
         }
     }
 }
@@ -134,11 +141,13 @@ pub(super) struct Tombstone {
 pub(super) enum Record {
     GstBills(Row<GstBill>),
     Products(Row<Product>),
+    PurchaseOrders(Row<PurchaseOrder>),
     Suppliers(Row<Supplier>),
     PriceSuppliers(PriceSupplierObject),
     Deleted(Row<Tombstone>),
     Stock(Marked<Stock>),
     Meta(Marked<Meta>),
+    Log(Row<GoodsLog>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -156,10 +165,12 @@ pub(super) struct Envelope {
 pub(super) struct Db {
     pub gst_bills: Vec<Row<GstBill>>,
     pub products: Vec<Row<Product>>,
+    pub purchase_orders: Vec<Row<PurchaseOrder>>,
     pub suppliers: Vec<Row<Supplier>>,
     pub deleted: Vec<Row<Tombstone>>,
     pub stock: BTreeMap<String, Marked<Stock>>,
     pub meta: Marked<Meta>,
+    pub log: Vec<Row<GoodsLog>>,
     #[serde(default, deserialize_with = "load_price_suppliers")]
     pub price_suppliers: Vec<PriceSupplierEntry>,
 }

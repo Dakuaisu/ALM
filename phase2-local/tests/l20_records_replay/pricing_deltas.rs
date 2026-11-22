@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 use super::super::model::{Cursor, Db, DeleteTick, Envelope, Origin, Record};
 use super::super::price_columns::PriceSupplierEntry;
+use super::super::receipt_rows::Rupees;
 use super::super::replay::{Page, Replica};
 use super::super::saved::Saved;
 use super::{PRODUCT, RECEIVER, RETIRED, RETIRED_ID, SENDER, product, supplier, tick};
@@ -80,7 +81,10 @@ fn l20_08_deltas_carry_quotes_and_contacts_but_not_raw_columns_or_retention_effe
     assert!(!receiver.apply(delete, RECEIVER, Origin::Pull));
 
     // Then: branch-specific raw and displayed columns differ while the product quote maps agree.
-    let quotes = BTreeMap::from([(RETIRED.into(), Some(630)), (QUOTE_ONLY.into(), Some(740))]);
+    let quotes = BTreeMap::from([
+        (RETIRED.into(), Some(Rupees::whole(630))),
+        (QUOTE_ONLY.into(), Some(Rupees::whole(740))),
+    ]);
     for (file, db, raw, display) in [
         (
             "sender.json",

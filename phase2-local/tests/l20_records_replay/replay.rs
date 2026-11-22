@@ -4,6 +4,7 @@ use super::model::{
     Collection, Cursor, Db, DeleteTick, Envelope, Origin, Row, Stamp, Supplier, Tick,
 };
 use super::price_columns::PriceSupplierEntry;
+use super::receipt_rows::Rupees;
 
 #[derive(Clone)]
 pub(super) struct Replica {
@@ -152,7 +153,7 @@ impl Db {
             .expect("synthetic priced product");
         let prices = &mut row.value.data.supplier_prices;
         if let Some(quote) = quote.filter(|&quote| quote != 0) {
-            prices.insert(supplier.into(), Some(quote));
+            prices.insert(supplier.into(), Some(Rupees::whole(quote)));
         } else {
             prices.remove(supplier);
         }

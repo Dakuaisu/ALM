@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::model::{Cursor, Db, DeleteTick, Envelope, Product, Record, Row, Stamp, Supplier, Tick};
 use super::price_columns::PriceSupplierEntry;
+use super::receipt_rows::Rupees;
 use super::replay::{Page, Replica, SheetCopy, SheetPush};
 use super::saved::Saved;
 
@@ -29,8 +30,9 @@ fn product(quotes: &[(&str, Option<i64>)]) -> Row<Product> {
             item: "Synthetic Bottle".into(),
             supplier_prices: quotes
                 .iter()
-                .map(|&(name, quote)| (name.into(), quote))
+                .map(|&(name, quote)| (name.into(), quote.map(Rupees::whole)))
                 .collect(),
+            costs: None,
         },
         Stamp::new(3, 10, RECEIVER),
     )
@@ -93,7 +95,10 @@ fn l20_07_full_copies_keep_raw_columns_and_quotes_and_replace_receiver_state() {
         RETIRED,
         "Contact Only",
     ];
-    let quotes = BTreeMap::from([(RETIRED.into(), Some(0)), ("Null Quote".into(), None)]);
+    let quotes = BTreeMap::from([
+        (RETIRED.into(), Some(Rupees::whole(0))),
+        ("Null Quote".into(), None),
+    ]);
     let saved = Saved::new();
     saved.write("full.json", &sender);
     saved.write("sheet-push.json", &SheetPush::new(&sender));
@@ -221,7 +226,7 @@ fn l20_07_migrates_missing_and_nonarray_raw_lists_without_moving_quotes() {
         assert_eq!(db.columns(), ["Fallback"]);
         assert_eq!(
             db.products[0].value.data.supplier_prices,
-            BTreeMap::from([("Off-column".into(), Some(400))])
+            BTreeMap::from([("Off-column".into(), Some(Rupees::whole(400)))])
         );
         assert_eq!(saved.read::<Db>("migrated.json"), db);
     }

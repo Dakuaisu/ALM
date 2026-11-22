@@ -13,6 +13,12 @@ mod model;
 mod price_columns;
 #[path = "l20_records_replay/pricing.rs"]
 mod pricing;
+#[path = "l20_records_replay/receipt_cases.rs"]
+mod receipt_cases;
+#[path = "l20_records_replay/receipt_model.rs"]
+mod receipt_model;
+#[path = "l20_records_replay/receipt_rows.rs"]
+mod receipt_rows;
 #[path = "l20_records_replay/replay.rs"]
 mod replay;
 #[path = "l20_records_replay/saved.rs"]
