@@ -92,6 +92,16 @@ Log the environment change, browser build and process or sandbox identity, effec
 
 ### Per-record source crosswalk
 
+**Interrupted product pull — local development evidence only.** The [L20-02 result](RESULTS.md#pc-003-batch-3-addendum-l20-sync-replay-reconciliation) (`B3-L20-289a1f5-focused`) and its [paired interrupted/completed controls](../phase2-local/tests/l20_cloud_replay/interruption_tests.rs#L170-L231) distinguish delivery, progress and durable records:
+
+| Evidence | Later page rejected | Later page completed (control) |
+| --- | --- | --- |
+| What the scripted peer supplied | The pull from `seq=70` returned `products:202` version 1, `max_seq=80`, with more pages. The client applied it in memory; the next pull from 80 was rejected. | Same first page and in-memory row; the next pull from 80 returned an empty terminal page. |
+| What progress persisted | Saved pull `seq=80`; the next sync after reload requested changes since 80. | Same saved cursor and same restart position. |
+| What survived reopening | Both local database copies stayed at revision 40. Only `products:1` version 2 survived; `products:202` version 1 was absent. | Both copies reached revision 41. Reopening returned **both** `products:1` version 2 and `products:202` version 1. |
+
+**Protected comparison (proposed, not run).** Under OPEN-002, establish a common as-of cutoff and time zone for the authorized remote record history, each independently reopened local copy, and any in-scope Sheets or JSON snapshot. If capture times differ, use attributable change history to reconstruct state at that cutoff; if that is impossible, mark the sources non-comparable rather than calling a record missing. Within the proven scope, join the union of `(collection, record ID)` keys from both sides. For each key compare presence, version, payload and deletion marker; retain source locators and flag missing versions or conflicting payloads for review. Record the page bounds, saved cursor and status notice separately: none proves that the delivered rows survived a save. Frozen-browser L20-02 remains **NOT RUN** under OPEN-008; the model does not establish deployed data loss or resolve source precedence under OPEN-003.
+
 **Static only.** References are to the supplied candidate, not the deployed laptop or protected captures. The client paths below can contain overlapping records because they serialize the same local `DB`; this does not establish actual overlap, completeness, retention, deployed schema or source precedence.
 
 | Client path | Identity, revision and deletion semantics visible in code |
