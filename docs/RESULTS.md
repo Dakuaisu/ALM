@@ -2158,3 +2158,31 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L16-DEAD-API-d48980e-offline](../phase2-local/target/L16-DEAD-API-d48980e-offline.log): 448 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
+
+#### Owner Sales history and drilldown API
+
+**L04-03 / L04-04: PASS (local Rust development)** at `4ee9a1731f524c121a4b4b2d47d493a17102a2e6`. The [replay](../phase2-local/src/confirmation/tests/l04_sales_history_replay.rs) passes the reporting date `2025-03-15`, period, and search text to the [read-only Owner API](../phase2-local/src/confirmation/sales_history.rs). The literal expectations at `1c1cf9a` are unchanged and remain separate test-only evidence. Bill IDs below are draft IDs; receipt IDs are one-based fixture append positions. All exact amounts are paise.
+
+| Filter | Ordered Sales rows | Active Profit and Collected bills | Matched receipts | Expected and observed Sales / bill paid / receipt paid / Collected / Est. Profit |
+| --- | --- | --- | --- | --- |
+| Today | 58, 24, 36 | 58, 36 | 4 | 2,548 / 149 / 151 / 300 / 998 |
+| This Month | 58, 24, 36, 73, 41 | 58, 36, 73, 41 | 1, 2, 4, 5, 6, 7 | 6,145 / 447 / 499 / 946 / 2,445 |
+| Custom March 1–15 | 58, 24, 36, 73 | 58, 36, 73 | 1, 2, 4, 6, 7 | 4,047 / 298 / 450 / 748 / 1,547 |
+| Custom March 1–15, item `LiMe` | 58, 24, 73 | 58, 73 | None | 2,998 / 149 / 0 / 149 / 1,098 |
+| March 10 only | None | None | 1, 2, 6 | 0 / 0 / 249 / 249 / 0 |
+
+Unlike Dashboard's month-to-date window, Sales history's This Month has no upper bound: it included bill `41` dated March 25, while the inclusive March 1–15 range excluded it. Matched cancelled bill `24` stayed visible but did not enter active totals or drilldowns. A separate stored-key control produced order `[36, 41, 73, 58, 24, 12]`, independent of invoice or document-date order, with equal keys in newest-post-first order and missing keys treated as zero.
+
+For March 1–15, the API returned Collected detail in this order: receipt `4` (151), bill `36` (149), receipts `6` (51), `2` (49), `1` (149), `7` (50), then bill `73` (149). Exact Cash / Online / Collected were `397 / 351 / 748`. Est. Profit reconciled `4,047` line revenue less `2,500` frozen cost to `1,547`. The replay's whole-rupee formatting is test-only. Manager received `AccessDenied` with no payload, and reads left the fixture unchanged.
+
+The local projection handles dated ordinary bills; in-range checkout or crate records return `UnsupportedSalesRecord`. Unknown frozen cost makes only Est. Profit unavailable. Standalone receipts have no stored name snapshot or creation timestamp in the fixture: search resolves names from bills linked by customer ID, and detail ties use the local posting anchor and receipt slot, not browser timestamps.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l04_sales_history_replay -- --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L04-HISTORY-API-4ee9a17-focused](../phase2-local/target/L04-HISTORY-API-4ee9a17-focused.log): 9 passed, 0 failed, 0 ignored, 307 filtered out.
+- [L04-HISTORY-API-4ee9a17-offline](../phase2-local/target/L04-HISTORY-API-4ee9a17-offline.log): 456 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
