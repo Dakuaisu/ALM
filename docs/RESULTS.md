@@ -2677,3 +2677,9 @@ Development evidence only. OPEN-002/003/008 are unchanged; no protected-source c
 **Development — offline assertions passed.** Fixture commit `8252d93`; artifact [phase1-workflow-seed.json](phase1-workflow-seed.json); SHA-256 `03c9c8ef6021ec352dbee0e972ba325856dcf44ae339b61a479f60c59252959a`, matching the [fixture manifest](PHASE1_DISCOVERY.md#l02l19-shared-workflow-fixture-manifest-not-run).
 
 The prior Python check parsed the JSON with decimal arithmetic, checked the byte hash against the manifest, confirmed the blank sync URL and product ID links in stock, sales and POs, and asserted line arithmetic, subtotal plus loading, buyer balance arithmetic, date-sorted receipt quantities/rates, the two FIFO value calculations, GST taxable arithmetic and the duplicate-name receipt blend. These were offline checks of fixture data and calculations; the manifest clock, balances and readbacks are expected controls, not runtime observations. No replay was run. **OPEN-008 remains NOT RUN:** use a supported disposable guest and pass the full inert gate before serving the candidate, then run synthetic L01 first.
+
+## DISC-L01-UPGRADE-INPUT: Offline L01-12/13 recipe check
+
+**Development — offline input check passed.** Recipe commit `ceca28b`: [L01-12/13 differential upgrade recipes](PHASE1_DISCOVERY.md#l01-12--l01-13-differential-upgrade-recipes-not-run). The prior Python check constructed the synthetic schema variants and supplier-order controls from `baseDB` and verified JSON serialization round-trip. Migration was not executed: safety-copy contents, generated IDs and links, and post-save reload were not observed.
+
+**OPEN-008 remains NOT RUN.** Keep the HTML unserved until the full inert gate passes in a supported disposable guest, then run synthetic L01 first.
