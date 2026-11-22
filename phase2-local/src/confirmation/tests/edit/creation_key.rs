@@ -1,6 +1,6 @@
 use super::*;
 
-fn seeded() -> (ConfirmationFixture, BillDate, EditChanges) {
+pub(super) fn seeded() -> (ConfirmationFixture, BillDate, EditChanges) {
     let today = BillDate::new(2024, 2, 29).unwrap();
     let yesterday = BillDate::new(2024, 2, 28).unwrap();
     let mut f =

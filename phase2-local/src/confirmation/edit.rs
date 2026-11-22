@@ -77,7 +77,11 @@ impl ConfirmationFixture {
     }
 
     pub fn save_edit(&mut self, role: Role, edit: &SaleEdit) -> Result<Receipt, ConfirmationError> {
-        self.save_edit_inner(role, edit, None)
+        self.save_edit_inner(
+            role,
+            edit,
+            None::<fn() -> Result<super::CreationKey, ConfirmationError>>,
+        )
     }
 
     /// Saves an edit, using the controlled edit time only when the original key is missing or zero.
@@ -87,15 +91,27 @@ impl ConfirmationFixture {
         edit: &SaleEdit,
         edit_time: super::CreationKey,
     ) -> Result<Receipt, ConfirmationError> {
-        self.save_edit_inner(role, edit, Some(edit_time))
+        self.save_edit_inner(role, edit, Some(|| Ok(edit_time)))
     }
 
-    fn save_edit_inner(
+    pub(crate) fn save_edit_with_clock(
         &mut self,
         role: Role,
         edit: &SaleEdit,
-        edit_time: Option<super::CreationKey>,
+        clock: impl FnOnce() -> Result<super::CreationKey, ConfirmationError>,
     ) -> Result<Receipt, ConfirmationError> {
+        self.save_edit_inner(role, edit, Some(clock))
+    }
+
+    fn save_edit_inner<F>(
+        &mut self,
+        role: Role,
+        edit: &SaleEdit,
+        clock: Option<F>,
+    ) -> Result<Receipt, ConfirmationError>
+    where
+        F: FnOnce() -> Result<super::CreationKey, ConfirmationError>,
+    {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
@@ -168,27 +184,35 @@ impl ConfirmationFixture {
             due: Some(Money::from_minor_units(due)),
             customer_balance: Some(Money::from_minor_units(balance)),
         };
-        let first_post = edit_time
-            .map(|time| {
+        let first_post = clock
+            .map(|clock| {
                 self.first_posts
                     .iter()
                     .position(|(draft, _)| *draft == id)
-                    .map(|index| (index, time))
+                    .map(|index| (index, clock))
                     .ok_or(ConfirmationError::InvalidDraft)
             })
             .transpose()?;
-        self.posted_sale_items
+        let posted_items = self
+            .posted_sale_items
             .get_mut(&id)
-            .ok_or(ConfirmationError::StaleReview)?
-            .push(PostedLineItem::capture(
-                &catalog,
-                edit.changes.appended_line.product_id(),
-            ));
-        if let Some((index, time)) = first_post {
-            let key = &mut self.first_posts[index].1;
-            if key.is_none_or(|value| value == super::CreationKey::new(0)) {
-                *key = Some(time);
+            .ok_or(ConfirmationError::StaleReview)?;
+        let first_post = match first_post {
+            Some((index, clock))
+                if self.first_posts[index]
+                    .1
+                    .is_none_or(|value| value == super::CreationKey::new(0)) =>
+            {
+                Some((index, clock()?))
             }
+            Some(_) | None => None,
+        };
+        posted_items.push(PostedLineItem::capture(
+            &catalog,
+            edit.changes.appended_line.product_id(),
+        ));
+        if let Some((index, time)) = first_post {
+            self.first_posts[index].1 = Some(time);
         }
         self.catalog = catalog;
         self.movement_epoch = movement;

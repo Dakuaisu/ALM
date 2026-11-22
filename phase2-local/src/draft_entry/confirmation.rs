@@ -13,6 +13,8 @@ pub struct BillEntryState {
     active: Option<ProvisionalDraft>,
     preview: Option<Receipt>,
     edit: Option<crate::confirmation::SaleEdit>,
+    #[cfg(test)]
+    edit_clock: Option<fn() -> Result<crate::confirmation::CreationKey, ConfirmationError>>,
 }
 
 pub enum ConfirmationAttempt<'a> {
