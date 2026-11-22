@@ -2742,3 +2742,21 @@ cd /Users/apple/ALM && demo demo-b <<< $'open\n1\nreview\nquit'
 All launches printed `Storage: account-scoped local drafts.` Both saves printed `Saved draft 1: PROVISIONAL — NOT POSTED.` Between the saves, B printed `Draft 1 was not found.` Both final reviews printed `PROVISIONAL — NOT POSTED`, `Draft ID: 1`, and `State: SAVED`. A showed `Item: Synthetic Lime | Quantity: 3` and `Inclusive total: ₹354.00`; B showed `Item: Synthetic Lime | Quantity: 5` and `Inclusive total: ₹590.00`. Neither review contained the other's quantity or total. An earlier setup attempt on a separate scratch root used an unsupported customer label and ended without saving; the measured run used the CLI's supported `Synthetic Customer` and distinguished the drafts by quantity.
 
 This checks CLI routing and displayed provisional contents under trusted local selectors. The accepted SQLite evidence above was reused, not rerun. Authentication, hosted authorization, revocation, installed-device isolation, and formal phase exits remain open.
+
+### R56-CLI-EDIT: Explicit save after a scoped quantity edit
+
+**Development, PASS.** The runs tested the quantity-edit changes in the worktree based on `c20d7b4`; the base commit alone does not contain the edit. The reviewed implementation and tests were subsequently committed unchanged as `b21bc6a`. This extends the R-6 reopen/edit control using the R-5 account-scoped selector. `edit` takes a one-based ordinary line number and a positive whole quantity. A changed quantity marks the draft unsaved without writing it; `save` uses the existing provisional store and draft ID. Crate rows are outside the command's scope.
+
+The [fresh-process regression](../phase2-local/tests/draft_demo/scoped_edit.rs) seeded draft ID `1` for each selector on one device root. A started with quantities `(2, 3)` and B with `(4, 5)`. A's edit to `(2, 7)` printed `Edited draft 1: UNSAVED.` and reviewed as `State: UNSAVED` and `PROVISIONAL — NOT POSTED`. Ending input without Save reported that the draft was not saved; a new launch reopened `(2, 3)`. Repeating the edit and issuing `save` made `(2, 7)` survive a new launch with the same ID and `State: SAVED`. B still reopened `(4, 5)`. Whole-draft readbacks matched the expected customer ID/name, bill date, and ordered lines; only the selected quantity changed. The focused run also verified that `post` remains unsupported.
+
+A separate direct CLI smoke used one fresh root and the same draft ID for both selectors: after A edited and saved, fresh launches showed A at quantity 7 (₹826.00 preview total) and B unchanged at quantity 5 (₹590.00). A's review before Save showed `UNSAVED`; both final reviews showed `PROVISIONAL — NOT POSTED`.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --bin alm-draft-demo --test draft_demo --test account_switch_restart -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [R56-CLI-EDIT-focused](../phase2-local/target/R56-CLI-EDIT-focused.log): **6 passed, 0 failed, 1 ignored** at top level. The ignored entry is the dispatched account-switch worker.
+- [R56-CLI-EDIT-offline](../phase2-local/target/R56-CLI-EDIT-offline.log): **539 passed, 0 failed, 3 ignored** at top level. The ignored entries are the existing confirmation restart, SQLite restart, and account-switch workers. Formatting, all-target Clippy with warnings denied, and the locked-offline build passed. Editor diagnostics timed out.
+
+This is local provisional storage evidence under trusted synthetic selectors, not authentication, hosted authorization, or installed-device isolation. The frozen HTML stayed unserved, and formal gates are unchanged.
