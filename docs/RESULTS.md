@@ -2830,3 +2830,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/R56-PRICED-LINES-offline.log): **542 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart workers). Formatting, all-target Clippy with warnings denied, and the locked-offline CLI build passed; editor diagnostics timed out.
 
 The unavailable-preview and crate checks remain closed. No pricing, tax, valuation, OPEN-010, or formal phase exit changed.
+
+### L19-LATE-RESTORE: Recover the current copy after a partial folder backup
+
+**Development, PASS (L19-02/L19-08, synthetic, local Mac).** Both the focused and locked-offline runs tested the modified worktree based on `47078ec`, not the base commit alone. The tested regression was subsequently committed unchanged as `5d04242`. The earlier [D-FOLDER-d1ea4e5 run](#folder-backup-scheduling-and-reconnect) covers Connect reporting “Backup folder set” despite a late dated-publication failure, followed by successful retry. The [new regression](../phase2-local/tests/folder_backup_replay/connection.rs) adds the missing manual Save-to-restore check before retry; no production code changed.
+
+Manual Save reported “Could not write.” The trace showed current close before dated staging and injected publication failure. `ALM_data.json` on disk contained the new synthetic archive payload; `ALM_backup_2024-05-01.json` retained its distinct old bytes, and no dated stage remained. The modeled last backup timestamp stayed at 7 and the daily marker remained unset. Using the payload extracted from the actual current file, typed restore to a fresh path succeeded and reopened with the expected records (`reorder_default: 23`). Restore to the occupied dated path instead received an actual local `AlreadyExists` error; both backup files stayed byte-for-byte unchanged by the recovery attempts.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test folder_backup_replay --test clear_restore_replay -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/L19-LATE-RESTORE-focused.log): **16 passed, 0 failed, 0 ignored** (14 folder backup and 2 clear/restore).
+- [Locked offline](../phase2-local/target/L19-LATE-RESTORE-offline.log): **543 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart subprocess workers). Formatting passed; Rust editor diagnostics timed out.
+
+The dated-publication error was injected, not an observed filesystem write failure. `AlreadyExists` was observed during restore to an intentionally occupied local path. The folder replay envelope carries the typed archive only for this test; direct legacy-format import, crash durability, browser behavior, and installed-device parity were not verified. The priced-line check remains closed, and OPEN-010 and formal phase exits are unchanged.
