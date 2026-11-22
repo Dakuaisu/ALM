@@ -1,7 +1,11 @@
 use super::{ConfirmationError, ConfirmationFixture, DraftId, Money, Role};
 use crate::DraftCustomer;
 
+mod dead_stock;
 mod monthly;
+pub use dead_stock::DeadStockRow;
+#[cfg(test)]
+mod dead_stock_tests;
 pub use monthly::{CustomerRank, MonthlyProfit, ReportsError};
 
 impl ConfirmationFixture {

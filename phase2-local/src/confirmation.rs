@@ -86,7 +86,7 @@ pub use purchase_orders::{
     ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier, SupplierPrice,
     SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
 };
-pub use reporting::{CustomerRank, MonthlyProfit, ReportsError};
+pub use reporting::{CustomerRank, DeadStockRow, MonthlyProfit, ReportsError};
 pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

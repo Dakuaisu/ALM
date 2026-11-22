@@ -92,6 +92,20 @@ pub(super) struct Catalog {
 }
 
 impl Catalog {
+    pub(super) fn dead_stock_catalog(
+        &self,
+    ) -> impl Iterator<Item = (ProductId, u32, Option<&str>, Money)> + '_ {
+        self.product_order.iter().filter_map(|&id| {
+            let product = self.products.get(&id.value())?;
+            Some((
+                id,
+                product.stock,
+                product.item_name(),
+                product.pricing.buy(),
+            ))
+        })
+    }
+
     pub(super) fn new(id: ProductId, stock: u32, price: Money) -> Self {
         Self {
             products: BTreeMap::from([(
