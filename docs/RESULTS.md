@@ -2557,3 +2557,34 @@ Amounts are paise. The fixed identity was `DraftId(21)`, invoice #1, dated 2025-
 **Read-only close comparison.** The same in-memory `ManualCashBook` BTreeMap supplied both saved rows by their original, distinct row IDs, with no resave. Cancellation left the saved Feb 21 ₹100 Cash intact against live ₹0; undo restored live ₹100 and zero difference. Mar 1 remained ₹50 Online with zero difference throughout. Manager ledger, history, live close, copy, save, row read and comparison were denied in the linked controls.
 
 **Storage boundary.** [SQLite setup](../phase2-local/tests/milestone_c_replay/start.rs#L22-L42) persisted only the original Manager provisional draft in `synthetic-drafts.sqlite3`: draft 21, selected buyer, Feb 21 date and A ×2. A fresh handle reopened it without reseeding and supplied it to the Owner fixture; it reopened unchanged again after the initial post/retry checks. `RequestId(1)` lost-reply/exact-retry and changed-payment conflict were simulated in that in-memory fixture, not a restarted posting authority. The posted and edited invoice, payment/ledger effects, cancellation/undo, FIFO and reports, and saved manual closes were not persisted or reopened from SQLite. No undo or saved-close durability is established. Formal phase gates are unchanged; no acceptance or phase exit claimed.
+
+## PC-003 Batch 2 addendum: Crate FIFO and Dead Stock valuation
+
+**Local synthetic development at `137407e` (crate `46f0d0f`).** Follow-up to the crate and Dead Stock scope limits at [line 490](#L490) and [line 2148](#L2148); prior results and criteria stand.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test l10_crate_fifo_replay --test l16_dead_stock_replay -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --lib dead_stock -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [B2-STOCK-137407e-focused](../phase2-local/target/B2-STOCK-137407e-focused.log): **18 passed, 0 failed, 0 ignored** (crate 2, Dead Stock model 4, filtered library 12; library filter excluded 308).
+- [B2-STOCK-137407e-offline](../phase2-local/target/B2-STOCK-137407e-offline.log): **522 passed, 0 failed, 2 ignored** across 46 summaries, including the zero-test doctest target. Ignored: `confirmation::tests::restart::client_worker` and `sqlite_restart_worker`, dispatched subprocess entry points. Formatting, all-target Clippy with warnings denied, and locked offline build passed; LSP diagnostics timed out.
+
+**L10-01 — FIFO matched; report parity MISS.** The [crate replay](../phase2-local/tests/l10_crate_fifo_replay.rs) received Feb 12 first (5 × 275 paise), then backdated Feb 11 (3 × 125), for 8 packets worth 1,750. Two crates of the same product dispatched on Feb 13, at revenue 1,000. Review did not dispatch, and Manager review/confirm were denied. The fixed values below matched Rust lots/register/monthly report and, separately, the [source-derived calculation](../phase2-local/tests/l10_crate_fifo_replay/source.rs), not a frozen-runtime execution. Costs are paise unless marked ₹.
+
+| Component packet demands | Rust dispatch → remaining Feb 12 layer | Rust FIFO/report cost; gross | Source-derived report cost; display | Sequential per-crate rounding / separate component rounding controls |
+| --- | --- | --- | --- | --- |
+| `[3,2]` | 5 → 3 × 275 = 825 | 925; 75 | 626 (₹3.13 per crate); ₹6 | 926 / 926 |
+| `[3,1]` | 4 → 4 × 275 = 1,100 | 650; 350 | 500 (₹2.50 per crate); ₹5 | 650 / 652 |
+
+The source calculation reuses the oldest cost for the second component before advancing its offset, then rounds per crate before extending and rounding the display. The controls separate allocation from rounding; passing the differential assertions does not make either case a parity pass. Rust accepted 6 pieces per crate at pack size 4 because two crates yield a whole 3-packet component demand. Two separate half-packet demands (62.5 paise each in the source model) were rejected as `InvalidAmount` even though together they make one packet; a ₹1.125 receipt rate is not representable as integer `Money`. Repeated demands exceeding stock returned `InsufficientStock`. Rejections left stock, movements, posted count and ledger unchanged.
+
+**L16-02–05 — Dead Stock scopes remain separate.** The [library tests](../phase2-local/src/confirmation/reporting/dead_stock_tests.rs) exercise the Rust report; the [integration model](../phase2-local/tests/l16_dead_stock_replay.rs) is source-derived only.
+
+- **Action-created Rust sale:** ID 1 sold Oct 4, 2024; Oct 4 cutoff excluded equality, and Oct 5/6/7 retained Oct 4 as last sale with 4 packets, despite a separately seeded stale ID 91 sale on Oct 6 with the same label. Direct and crate sale rename controls followed the retained ID. Cancellation/undo moved actual stock and changed report membership; positive current stock, stable ties/cap, overflow and Manager denial were checked separately.
+- **Private seeded Rust history:** an undated sale still depleted stock but did not supply a last-sale date. Undated-only left 4 packets/last `None`; with an older dated sale, 3 packets remained/last Oct 3. Public posting rejected missing date (`MissingBillDate`) and unknown product (`InvalidDraft`); seeded history is not an alternate public posting route.
+- **Name-only helper, not Rust posting:** exact current label resolved the unkeyed line; case mismatch fell back to a separate name key, stale explicit ID stayed stale, and retained ID survived a label change. Oct 4 equality was excluded and Oct 3 qualified. The source model also allowed fractional stock/value: 2.5 packets gave raw ₹10.625, displayed ₹11, versus modeled FIFO ₹65; raw-value order was independent of equal rounded display. No Rust ingestion of name-only history, fractional stock, or sub-paise money was shown.
+- **Buy-rate estimate is not FIFO:** ID 1's 4 × 325 = 1,300 versus 500 FIFO; the mixed undated/dated seed gave 975 versus 420. Catalog buy won 950 over a registered 720; a buy edit gave 1,690 versus unchanged FIFO 200, and receipt-updated buy gave 3,705 versus FIFO 1,435. Cutoffs filter last sale against current stock, not stock as of the cutoff.
+
+No frozen runtime, hosted or production evidence. The parity miss records a difference, not an approved change to valuation or an accounting rule. Formal gates remain unchanged; no acceptance or phase exit claimed.
