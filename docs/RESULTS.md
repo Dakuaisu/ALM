@@ -2846,3 +2846,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/L19-LATE-RESTORE-offline.log): **543 passed, 0 failed, 3 ignored** at top level (the existing confirmation restart, account-switch, and SQLite restart subprocess workers). Formatting passed; Rust editor diagnostics timed out.
 
 The dated-publication error was injected, not an observed filesystem write failure. `AlreadyExists` was observed during restore to an intentionally occupied local path. The folder replay envelope carries the typed archive only for this test; direct legacy-format import, crash durability, browser behavior, and installed-device parity were not verified. The priced-line check remains closed, and OPEN-010 and formal phase exits are unchanged.
+
+### L06-STANDALONE-RECOVERY: Regenerate the same standalone GST bill after restore
+
+**Development, PASS (L06-02, synthetic local Mac).** Both completed runs tested the modified worktree based on `ea39a90`, not the base commit alone. The tested implementation and regression were subsequently committed unchanged as `61bb825`. The earlier standalone rounding replay re-emitted from the live fixture; the structured GST replay used an ordinary sale. The [extended rounding replay](../phase2-local/tests/gst_preview_replay/rounding.rs) now archives the typed record from the existing standalone Save & View action, writes the backup to disk, drops both the source store and live fixture, restores to a fresh path, drops the restore handle, then reopens and emits by the original bill ID. Neither cached markup nor an ordinary sale supplies the regenerated output.
+
+Both isolated cases recovered bill ID 91, invoice 47 dated 2025-01-02, not cancelled, for the original buyer. Full invoice equality checked the saved record and totals; regenerated inert markup matched the original byte for byte. In paise, ordered taxable, tax, CGST, SGST, IGST, total, the fixed and observed arrays both matched `[8898, 1602, 801, 801, 0, 10500]` for one line and `[17797, 3203, 1602, 1602, 0, 21000]` for two lines. The existing standalone projector supplies the rounding. Manager and unknown-ID requests emitted nothing and returned `AccessDenied` and `NotFound`, respectively.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test gst_preview_replay --test milestone_d_structured -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/L06-STANDALONE-RECOVERY-focused.log): **7 passed, 0 failed, 0 ignored**.
+- [Locked offline](../phase2-local/target/L06-STANDALONE-RECOVERY-complete.log): **543 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch, and SQLite restart workers). An earlier invocation hit the shell timeout and was not counted. Formatting passed; editor diagnostics timed out.
+
+This covers typed standalone bill recovery and inert markup only. No browser, actual printing, PDF creation, installed-device parity, or formal phase exit was verified. The folder-backup check remains closed.
