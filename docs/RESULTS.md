@@ -1942,3 +1942,30 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L02-DASH-c7db74d-offline](../phase2-local/target/L02-DASH-c7db74d-offline.log): 421 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML was read as text only and remained unserved under OPEN-008. Browser parity, hosted authorization, and accounting acceptance remain open.
+
+#### Owner-gated local Dashboard API
+
+**L02-02 / L02-03: PASS (local Rust development)** at `2c4510de39ca3b1c4afdb1838813eacb6bbb9af8`. The [Dashboard API](../phase2-local/src/confirmation/dashboard.rs) takes a reporting date and period and reads local sale, cancellation and receipt records directly. The [February 1 replay](../phase2-local/src/confirmation/tests/l02_dashboard_replay.rs) now calls this API and retains the independent window, amount and source-ID expectations documented above. The earlier `c7db74d` run remains test-only evidence.
+
+| Period / side | Inclusive window | Sales / Collected (paise) | Cash / Online (paise) |
+| --- | --- | ---: | ---: |
+| Today / current | 2024-02-01 | 3,603 / 699 | 448 / 251 |
+| Today / comparison | 2024-01-31 | 2,402 / 449 | 0 / 449 |
+| 7 days / current | 2024-01-26 to 2024-02-01 | 7,206 / 1,648 | 797 / 851 |
+| 7 days / comparison | 2024-01-19 to 2024-01-25 | 3,603 / 529 | 278 / 251 |
+| This month / current | 2024-02-01 | 3,603 / 699 | 448 / 251 |
+| This month / comparison | 2024-01-01 to 2024-01-31 | 9,608 / 1,786 | 786 / 1,000 |
+
+Expected and observed values matched in all rows. Sales IDs, comparison audit inputs, and ordered current Collected rows matched the preceding replay's ID table, with current row dates also asserted. The API exposes only current drilldown rows, not comparison drilldowns. Receipt IDs are fixture-local append slots: `0` maps to `r-jan25`, `1` to `r-jan30`, and `2` to `r-feb01` in this replay. They are not persistent identifiers. The current windows exclude Feb 2, the cancelled bill contributes neither Sales nor Collected, and the Jan 30 receipt alone contributes 151 paise Online with zero Sales. Exact Cash and Online totals for both periods reconciled with independent Cash Book day-close readbacks. Manager returned `AccessDenied` with no report, and the fixture matched its snapshot after all reads.
+
+Focused checks also covered a full leap February comparison, a checked lower date bound after the role gate, distinct identical signed receipts, and an active zero-paid bill omitted from Collected detail. This local scope returns `UnsupportedRecord` for unsupported legacy approvals, checkout or crate sales, or missing reporting facts rather than inferring amounts or modes.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib dashboard -- --test-threads=1 --nocapture
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L02-DASH-API-2c4510d-focused](../phase2-local/target/L02-DASH-API-2c4510d-focused.log): 4 passed, 0 failed, 0 ignored, 280 filtered out.
+- [L02-DASH-API-2c4510d-offline](../phase2-local/target/L02-DASH-API-2c4510d-offline.log): 424 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+The frozen HTML remained unserved under OPEN-008. Display rounding, browser parity, hosted authorization, and accounting acceptance were not established.
