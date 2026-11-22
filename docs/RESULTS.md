@@ -2640,3 +2640,34 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 **L20-16 — mixed cap and continuation.** The [cap fixture](../phase2-local/tests/l20_cloud_replay/pull_cap_tests.rs) asserted all 200 pulls (`since` 70 through 269, limit 500), all pages `more=true`, and a separate successful checkpoint per page. It applied Products/1 v3, Customers/7 v1 then v2, and Stock/20 v1 on the capped tail. It skipped local echo Products/9 v9, equal and older Products/1 v3/v2, and tombstoned Products/8 v99. Durable seq reached 270; mirror had rev 41 before the pending primary settled. After settlement both independently reopened copies matched **rev 41**: Stock/20 v1, Customers/7 v2, Products/1 v3, Deleted/8 v4. The next invocation used `since=270` then `275` (limit 500); it added Products/21 v1 and upgraded Stock/20 to v2, skipping equal Customers/7 v2 and echo Products/9 v10. At durable seq 280 both reopened copies matched **rev 42**: Products/21 v1, Stock/20 v2, Customers/7 v2, Products/1 v3, Deleted/8 v4. File readback after modeled settlement is not browser or service durability.
 
 No network, production, parity acceptance or phase exit claim. [DEC-027](DECISIONS.md#dec-027-defer-repeated-product-crate-valuation-l10-01) and [OPEN-010](OPEN.md#open-010-repeated-product-crate-valuation-l10-01) remain unchanged.
+
+## Development reconciliation: PO receipt identity and delta selection
+
+**Tested `cef20dc`.** Follow-up to the [receipt identity case](PHASE1_CASES.md#bounded-receipt-cost-and-supplier-quote-helpers-not-run) and [SRC-STK / SRC-PRODUCT crosswalk](PHASE1_DISCOVERY.md#per-record-source-crosswalk). The legacy-shaped records replay and the public Rust receiving replay are independent synthetic fixtures; matching IDs or document numbers do not link them.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test l08_public_receiving_replay --test l20_records_replay -- --nocapture --test-threads=1
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [PO-IDENTITY-cef20dc-focused](../phase2-local/target/PO-IDENTITY-cef20dc-focused.log): **13 passed, 0 failed, 0 ignored** (public receiving 2, records 11).
+- [PO-IDENTITY-cef20dc-offline](../phase2-local/target/PO-IDENTITY-cef20dc-offline.log): **532 passed, 0 failed, 2 ignored** across 47 summaries. Ignored subprocess workers: `confirmation::tests::restart::client_worker` and `sqlite_restart_worker`. Formatting, build and Clippy passed; LSP timed out.
+
+**Legacy-shaped records model (L08-01 / L20-02).** In both [receipt controls](../phase2-local/tests/l20_records_replay/receipt_cases.rs), fixed expectations matched before, after and on reopen. Catalog order is ID `1` then `2`. Parent `po-receipt` (`PO-001`, dated 2025-02-11, `created=90`, supplier `Synthetic Supplier` / `s-receipt`, note `Synthetic receipt fixture`, not cancelled) retains those fields. Line index 0 retains PID `2`, item `Synthetic B` in the unique case or `Synthetic A` in the seeded exact-duplicate case, ordered 2 and cancelled 0. It changes from received 0, rate ₹2, no receipt array, to received 2, rate ₹3, and receipt ordinal 1 (index 0): 2025-02-12, 2 packets at ₹3. Parent stamp changes from `(1,99,synthetic-before)` to `(2,110,synthetic-receiver)`.
+
+Money below is **rupees in legacy JSON**; value tuples are `(avgCost, buyRate, margin, sellRate, quote)`, with quote key `Synthetic Supplier` throughout. Stamp tuples are `(_v,_m,_d)`; `_m` is a synthetic clock tick, not the receipt document date. Both products start at stamp `(1,100,synthetic-before)`.
+
+| Control / product | Exact name | Before → after values | After stamp |
+| --- | --- | --- | --- |
+| Unique / `1` | Synthetic A | `(1,1,4,5,1)` unchanged | `(1,100,synthetic-before)` |
+| Unique / `2` | Synthetic B | `(2,2,3,5,2)` → `(2.5,3,2,5,3)` | `(2,110,synthetic-receiver)` |
+| Duplicate / `1` | Synthetic A | `(1,1,4,5,1)` → `(2,3,2,5,3)` | `(1,100,synthetic-before)` |
+| Duplicate / `2` | Synthetic A | `(2,2,3,5,2)` unchanged | `(2,110,synthetic-receiver)` |
+
+The duplicate model mutates the first exact-name product but stamps the PID-resolved second product. ID-based on-hand moves from `[2,2]` to `[2,4]` in both cases; name-based reads show `[2,2]` after receipt in the duplicate case versus `[2,4]` in the unique case. Opening slots stay unchanged. The model revision goes 4 → 5 and adds `grn` activity `lg-receipt` at stamp `(1,110,synthetic-receiver)`.
+
+**Selection versus full-copy readback.** At the same synthetic clock boundary, strict `_m > pushedM` selects nothing before receipt at `pushedM=100`. After receipt, watermarks 100 and 109 both select, in order, `purchaseOrders/po-receipt`, `products/2`, and `log/lg-receipt`, with their exact post-state payloads; 110 selects nothing. The duplicate's mutated `products/1` is excluded at equality with 100, not because its content is unchanged. The test wrote `receipt-full.json`, dropped the model and reopened it, verifying both products, the nested receipt, ID-based stock and the asserted selection at 100 and 110. Selection is not sending, acknowledgment or receiver persistence; the reopened scratch JSON is not a hosted or browser write. An absent delta proves neither prior upload nor data loss nor source authority.
+
+**Public Rust receiving and catalog guard (L08-01 / L09-01).** The [public replay](../phase2-local/tests/l08_public_receiving_replay.rs) independently exercised unique registered purchase names and trusted registration of the same purchase name for both IDs. Public catalog creation/edit rejected an exact duplicate and the padded case-variant edit; the two catalog rows remained `Synthetic A` / `Synthetic B`. In both receiving controls, the same PO ID, supplier and note survived: `PO-001` dated 2025-02-10 went Pending → Completed. Its sole line retained PID 2 and ordered 2, with received 0 → 2, remaining 2 → 0, rate 200 → 300 **paise**, and receipt ordinal 1 dated 2025-02-12 for 2 at 300 paise. Line text followed the registered metadata. In paise, PID 1 stayed `(100,100,400,500,100)` at stock 2; PID 2 changed `(200,200,300,500,200)` → `(250,300,200,500,300)` and stock 2 → 4, with quote keyed to `Synthetic Supplier`. Trusted duplicate purchase metadata is not a bypass demonstrated through public catalog Save. This fixture exposes neither legacy stamps nor `pushedM`, and does not establish restart durability.
+
+Development evidence only. OPEN-002/003/008 are unchanged; no protected-source comparison, frozen-runtime pass or phase exit.
