@@ -2990,3 +2990,9 @@ cd /Users/apple/ALM && env -u RUST_TEST_THREADS -u ALM_GST_PREVIEW_ARTIFACTS TMP
 - [GST-SANDBOX-RETRY-offline](../phase2-local/target/GST-SANDBOX-RETRY-offline.log): **549 passed, 0 failed, 3 ignored** across 48 top-level summaries. The ignored entries were the existing confirmation restart, account-switch, and SQLite restart subprocess workers. Formatting passed; editor diagnostics timed out.
 
 Frozen HTML stayed unserved; browser rendering remains **NOT RUN**. OPEN-010 and formal phase exits are unchanged.
+
+## Final consolidated regression at 6240541
+
+| Result ID | Kind | Environment / fixture | Expected | Observed | Disposition | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FINAL-6240541-offline | development | `cargo test --locked --offline` on `phase2-local`, synthetic fixtures, HEAD `6240541` | All tests pass | **549 passed, 0 failed, 3 ignored** (sum of per-target summaries; the ignored entries are the existing subprocess workers). `cargo fmt --check` exit 0; `cargo clippy --all-targets --locked --offline -- -D warnings` finished with no warnings | Pass; development evidence only, not owner acceptance | [log](../phase2-local/target/FINAL-6240541-offline.log), run id `FINAL-6240541-offline`, commit `6240541` |
