@@ -2,9 +2,92 @@ use std::fs;
 
 use alm_phase2_local::Role;
 use alm_phase2_local::confirmation::{GstBillId, GstBillInvoice, GstBillNumber};
-use alm_phase2_local::synthetic_read_model::{Error, Records, Store};
+use alm_phase2_local::synthetic_read_model::{BusinessProfile, Error, Records, Store};
 
 use super::{artifacts::Sandbox, fixture};
+
+#[test]
+fn owner_profile_rewrite_preserves_standalone_gst_bills_through_backup_and_restore() {
+    // Given: standalone GST bills with distinct internal IDs, invoice numbers, and line counts.
+    let sandbox = Sandbox::new();
+    let source_path = sandbox.path().join("source.json");
+    let first = fixture::reopened(1);
+    let mut second = fixture::reopened(2);
+    second.record.id = GstBillId(92);
+    second.record.number = GstBillNumber(48);
+    let records = Records {
+        reorder_default: 0,
+        products: Vec::new(),
+        customers: Vec::new(),
+        sales: Vec::new(),
+        receipts: Vec::new(),
+    };
+    let mut source = Store::create_with_standalone_gst(
+        &source_path,
+        Role::Owner,
+        records,
+        vec![first.record.clone(), second.record.clone()],
+    )
+    .unwrap();
+    let mut expected_invoices = Vec::new();
+    for id in [GstBillId(91), GstBillId(92)] {
+        source
+            .emit_standalone_gst(Role::Owner, id, &mut |invoice| {
+                expected_invoices.push(invoice.clone());
+            })
+            .unwrap();
+    }
+    assert_eq!(expected_invoices, [first, second]);
+
+    // When: the Owner profile is rewritten, then the source is reopened before backup.
+    let expected_profile = BusinessProfile {
+        fssai: "FSSAI-REWRITE-42".into(),
+        gstin: "27ABCDE1234F1Z5".into(),
+        show_fssai: Some(true),
+        show_gstin: Some(true),
+        ..BusinessProfile::default()
+    };
+    source
+        .save_business_profile(
+            Role::Owner,
+            &expected_profile,
+            1_800_000_123,
+            "rewrite-device",
+        )
+        .unwrap();
+    drop(source);
+    let reopened_source = Store::open(&source_path, Role::Owner).unwrap();
+    let expected_profile = BusinessProfile {
+        version: 1,
+        modified_at: 1_800_000_123,
+        device: "rewrite-device".into(),
+        ..expected_profile
+    };
+    assert_eq!(
+        reopened_source.business_profile(Role::Owner).unwrap(),
+        &expected_profile
+    );
+    let backup = reopened_source.backup(Role::Owner).unwrap();
+    drop(reopened_source);
+
+    // Then: a fresh restore and disk reopen preserve the profile and both full invoices by ID.
+    let restored_path = sandbox.path().join("restored.json");
+    drop(Store::restore(&restored_path, Role::Owner, &backup).unwrap());
+    let restored = Store::open(&restored_path, Role::Owner).unwrap();
+    assert_eq!(
+        restored.business_profile(Role::Owner).unwrap(),
+        &expected_profile
+    );
+    for expected in expected_invoices {
+        let mut emitted: Option<GstBillInvoice> = None;
+        restored
+            .emit_standalone_gst(Role::Owner, expected.record.id, &mut |invoice| {
+                emitted = Some(invoice.clone());
+            })
+            .unwrap();
+        assert_eq!(emitted.unwrap(), expected);
+    }
+}
 
 #[test]
 fn restore_rejects_duplicate_standalone_gst_ids_without_changing_store() {
