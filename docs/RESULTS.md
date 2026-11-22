@@ -2724,3 +2724,21 @@ cd /Users/apple/ALM && cargo run --manifest-path /Users/apple/ALM/phase2-local/C
 ```
 
 Select B by changing only `--account`. The scoped API derives the SQLite pathname and checks its binding; manual DB paths were not used to select accounts. `--db` remains the legacy single-account demo, not a scoped selector. This establishes local draft separation under trusted inputs, not authentication, authorization, revocation, shared posting or OS isolation. OPEN-004/006/008 remain unchanged; no phase exit claimed.
+
+### R56-CLI: Scoped Manager CLI launches
+
+**Development, PASS.** At `fda0b41` (CLI code unchanged from `be3f1c9`), run `R56-CLI.eMnBZF` used one fresh device root and five independent CLI launches. [Full stdout transcript](../phase2-local/target/R56-CLI.eMnBZF/transcript.log). Reproduce with zsh; each `demo` call below starts and exits a new process:
+
+```sh
+cd /Users/apple/ALM && root=$(mktemp -d /Users/apple/ALM/phase2-local/target/R56-CLI.XXXXXX)
+cd /Users/apple/ALM && demo() { cargo run --quiet --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --bin alm-draft-demo -- --device-root "$root" --account "$1"; }
+cd /Users/apple/ALM && demo demo-a <<< $'new\nSynthetic Customer\n1\n3\nsave\nquit'
+cd /Users/apple/ALM && demo demo-b <<< $'open\n1\nquit'
+cd /Users/apple/ALM && demo demo-b <<< $'new\nSynthetic Customer\n1\n5\nsave\nquit'
+cd /Users/apple/ALM && demo demo-a <<< $'open\n1\nreview\nquit'
+cd /Users/apple/ALM && demo demo-b <<< $'open\n1\nreview\nquit'
+```
+
+All launches printed `Storage: account-scoped local drafts.` Both saves printed `Saved draft 1: PROVISIONAL — NOT POSTED.` Between the saves, B printed `Draft 1 was not found.` Both final reviews printed `PROVISIONAL — NOT POSTED`, `Draft ID: 1`, and `State: SAVED`. A showed `Item: Synthetic Lime | Quantity: 3` and `Inclusive total: ₹354.00`; B showed `Item: Synthetic Lime | Quantity: 5` and `Inclusive total: ₹590.00`. Neither review contained the other's quantity or total. An earlier setup attempt on a separate scratch root used an unsupported customer label and ended without saving; the measured run used the CLI's supported `Synthetic Customer` and distinguished the drafts by quantity.
+
+This checks CLI routing and displayed provisional contents under trusted local selectors. The accepted SQLite evidence above was reused, not rerun. Authentication, hosted authorization, revocation, installed-device isolation, and formal phase exits remain open.
