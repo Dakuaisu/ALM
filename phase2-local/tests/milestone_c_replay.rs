@@ -62,7 +62,7 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
 
     // When: an explicit Owner confirmation posts the part-paid named bill (L03-02).
     let buyer = DraftCustomerId::new(BUYER_ID.into());
-    let (review, posted) = start::post_sale(&mut fixture, &buyer);
+    let (review, posted, draft_guard) = start::post_sale(&mut fixture, &buyer);
     assert_eq!(posted, saved_receipt(2, 23_600, (13_600, 13_600)));
     assert_eq!(fixture.current_sale(OWNER, SALE), Ok((&review, &posted)));
     let posted_accounts = assert_accounts(&fixture, &buyer, AccountCheckpoint::Posted);
@@ -219,6 +219,7 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
         BillVersion::Edited,
         march_estimate("₹260.00", false),
     );
+    draft_guard.assert_unchanged();
 }
 
 const fn saved_receipt(quantity: u32, total: i64, (due, customer_balance): (i64, i64)) -> Receipt {

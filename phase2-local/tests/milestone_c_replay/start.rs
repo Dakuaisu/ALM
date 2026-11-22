@@ -1,6 +1,8 @@
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{fs, io, process};
+use std::{env, fs, io, process};
 
 use alm_phase2_local::confirmation::{
     ConfirmationError, ConfirmationFixture, Counter, ProposedPayment, Receipt, RequestId, Review,
@@ -14,28 +16,57 @@ use super::{A, B, BUYER, DENIED, DraftCustomer, MANAGER, OWNER, PAID, SALE, feb,
 
 pub(super) const INITIAL_RATE: Money = money(9_440);
 const POSTING_RATE: Money = money(11_800);
+const ACCOUNT: &str = "milestone-c-manager";
 
 pub(super) fn post_sale(
     fixture: &mut ConfirmationFixture,
     buyer: &DraftCustomerId,
-) -> (Review, Receipt) {
+) -> (Review, Receipt, DraftGuard) {
     let before = PostingEffects::read(fixture, buyer);
     let scratch = DraftDirectory::create();
-    let db = scratch.0.join("synthetic-drafts.sqlite3");
     let bill = ProvisionalDraft::new(SALE, vec![DraftLine::new(A, qty(2))])
         .with_bill_date(Some(feb(21)))
         .with_customer(DraftCustomer::Selected {
             id: buyer.clone(),
             name: BUYER.into(),
         });
-    {
-        let mut writer = LocalSales::open_sqlite(&db, money(0)).expect("open Manager draft store");
-        writer
-            .session(MANAGER)
-            .save_draft(bill.clone())
-            .expect("save the Milestone C draft");
-    }
-    let reopened = reopen_as_manager(&db);
+    let seed = ProvisionalDraft::new(SALE, vec![DraftLine::new(A, qty(1))])
+        .with_bill_date(Some(feb(21)))
+        .with_customer(DraftCustomer::Selected {
+            id: buyer.clone(),
+            name: BUYER.into(),
+        });
+    LocalSales::open_manager_account(&scratch.0, ACCOUNT)
+        .expect("open scoped Manager draft store")
+        .save_draft(seed)
+        .expect("seed the Milestone C draft");
+    let edited = scratch.run_cli("open\n21\nedit\n1\n2\nreview\nsave\nquit\n");
+    assert_transcript(
+        &edited,
+        &[
+            "Opened draft 21: SAVED.",
+            "Edited draft 21: UNSAVED.",
+            "PROVISIONAL — NOT POSTED",
+            "Draft ID: 21",
+            "State: UNSAVED",
+            "Customer: Synthetic Buyer",
+            "Line 1: Item: Synthetic Lime | Quantity: 2",
+            "Saved draft 21: PROVISIONAL — NOT POSTED.",
+        ],
+    );
+    let reopened_cli = scratch.run_cli("open\n21\nreview\nquit\n");
+    assert_transcript(
+        &reopened_cli,
+        &[
+            "Opened draft 21: SAVED.",
+            "PROVISIONAL — NOT POSTED",
+            "Draft ID: 21",
+            "State: SAVED",
+            "Customer: Synthetic Buyer",
+            "Line 1: Item: Synthetic Lime | Quantity: 2",
+        ],
+    );
+    let reopened = reopen_as_manager(&scratch.0);
     assert_eq!(reopened, bill);
     fixture
         .register_draft(reopened)
@@ -105,8 +136,8 @@ pub(super) fn post_sale(
         applied,
         "conflicting reuse"
     );
-    assert_eq!(reopen_as_manager(&db), bill);
-    (fresh, posted)
+    assert_eq!(reopen_as_manager(&scratch.0), bill);
+    (fresh, posted, DraftGuard { scratch, bill })
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -138,18 +169,70 @@ impl PostingEffects {
     }
 }
 
-fn reopen_as_manager(db: &Path) -> ProvisionalDraft {
-    LocalSales::open_sqlite(db, money(0))
+fn reopen_as_manager(root: &Path) -> ProvisionalDraft {
+    LocalSales::open_manager_account(root, ACCOUNT)
         .expect("restart Manager draft store")
-        .session(MANAGER)
         .reopen_draft(SALE)
         .expect("read SQLite draft")
         .expect("Milestone C draft survived restart")
 }
 
+pub(super) struct DraftGuard {
+    scratch: DraftDirectory,
+    bill: ProvisionalDraft,
+}
+
+impl DraftGuard {
+    pub(super) fn assert_unchanged(&self) {
+        assert_eq!(reopen_as_manager(&self.scratch.0), self.bill);
+    }
+}
+
+fn assert_transcript(stdout: &str, expected: &[&str]) {
+    let mut lines = stdout.lines().map(str::trim);
+    for expected_line in expected {
+        assert!(
+            lines.any(|line| line == *expected_line),
+            "missing {expected_line:?} in CLI transcript:\n{stdout}"
+        );
+    }
+}
+
 struct DraftDirectory(PathBuf);
 
 impl DraftDirectory {
+    fn run_cli(&self, script: &str) -> String {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_alm-draft-demo"))
+            .env_clear()
+            .env("PATH", env::var_os("PATH").unwrap_or_default())
+            .env("HOME", &self.0)
+            .env("USERPROFILE", &self.0)
+            .current_dir(&self.0)
+            .arg("--device-root")
+            .arg(&self.0)
+            .arg("--account")
+            .arg(ACCOUNT)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("launch scoped Manager CLI");
+        child
+            .stdin
+            .take()
+            .expect("CLI stdin")
+            .write_all(script.as_bytes())
+            .expect("send CLI script");
+        let output = child.wait_with_output().expect("wait for Manager CLI");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("Manager CLI script:\n{script}Manager CLI transcript:\n{stdout}");
+        assert!(
+            output.status.success() && output.stderr.is_empty(),
+            "CLI failed: {output:?}"
+        );
+        String::from_utf8(output.stdout).expect("CLI output is UTF-8")
+    }
+
     fn create() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR"))
