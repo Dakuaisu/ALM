@@ -2878,3 +2878,19 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [Locked offline](../phase2-local/target/L06-DUPLICATE-ID-offline.log): **544 passed, 0 failed, 3 ignored** (existing confirmation restart, account-switch, and SQLite restart workers). Formatting passed; editor diagnostics timed out.
 
 No production code, invoicing, or rounding rule changed. The successful recovery check remains closed; this result does not establish browser or installed-device parity or a formal phase exit.
+
+### L06-PROFILE-RESTORE: Preserve standalone GST bills after an Owner profile save
+
+**Development, PASS (L06-02 / L18-04, synthetic local Mac).** Both the focused and locked-offline runs tested the modified worktree based on `e926fc5`, not the base commit alone. The tested regression was subsequently committed unchanged as `bbcb748`. The [new regression](../phase2-local/tests/gst_preview_replay/archive_restore.rs) captured the full invoices for internal IDs 91 and 92 before saving a changed Owner business profile. It dropped and reopened the same source file before backing it up, restored to a fresh path, then dropped the restore handle and reopened the destination.
+
+The changed profile, including its version, timestamp, and device, matched on both disk reopens. Both original bills were emitted by internal ID from the restored store; their full records and tax totals matched the pre-save invoices.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test gst_preview_replay owner_profile_rewrite -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [Focused](../phase2-local/target/L06-PROFILE-RESTORE-focused.log): **1 passed, 0 failed, 0 ignored** (6 filtered out).
+- [Locked offline](../phase2-local/target/L06-PROFILE-RESTORE-offline.log): **545 passed, 0 failed, 3 ignored**. Formatting passed; Rust editor diagnostics timed out.
+
+No production code, numbering, or rounding rule changed. The duplicate-ID check remains closed. This is local development evidence only, not installed-device parity or a formal phase exit.
