@@ -243,3 +243,63 @@ Decision: Defer the release valuation and report-rounding rule to [OPEN-010](OPE
 Reason: The [development result recorded in `d6ac8d9`](RESULTS.md#pc-003-batch-2-addendum-crate-fifo-and-dead-stock-valuation) compared `[3,2]` and `[3,1]`: source-derived saved report costs 626/500 paise (display ₹6/₹5), versus Rust depleted-lot/report costs 925/650 paise. That difference involves allocation and rounding; the source calculation is not a frozen-runtime observation. Dead Stock action-created Rust results, private seeded-history checks, and source-derived name-only helper results remain distinct and do not validate either crate cost rule.
 
 Resolution: After [OPEN-008 verified containment](OPEN.md#open-008-contained-browser-for-phase-1-walkthrough), run L01 first and collect frozen L10-01 runtime evidence. The owner, with the accounting reviewer, must then record the release rule for allocation and report rounding in writing, including approval for any material departure. This deferral is not owner acceptance and does not block independent GST or backup write-failure work.
+
+## DEC-028 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: supervisor: effort max -> xhigh; builder: opencode openai/gpt-6.2-astra -> opencode openai/gpt-6.2-sol, effort max -> xhigh.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 eea693e1c694dbbd0e3e93a7a57afaf365ebae990741c42ff4f7efdb9b3ecf40
+
+## DEC-029 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: builder: opencode openai/gpt-6.2-sol -> opencode claude/sonnet-5.5, effort xhigh -> default.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 36e94f19969862cfac0a965926ccc20c1c1c195285534713b543cd5d10a2ee0e
+
+## DEC-030 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: builder: opencode claude/sonnet-5.5 -> opencode Anthropic/sonnet-5.5.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 7a3f87d146a557cab5c3a2fdf5666ae246e11c32ee9bab3dd214fb2695170bdf
+
+## DEC-031 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: builder: opencode Anthropic/sonnet-5.5 -> opencode anthropic/claude-sonnet-5-5.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 4071fc4b2e2ee011e2977b2bdc94b5694dc841f4c5b90e7919d2c1e8cf7d7121
+
+## DEC-032 Engines changed by the owner
+- Decided by: owner
+- Status: OWNER DECISION (agent-bridge engines)
+
+Engines: supervisor: opencode openai/gpt-6.2-astra -> opencode anthropic/claude-opus-5-5, effort xhigh -> default; builder: effort default -> xhigh.
+
+Changed since the last approval: bridge.toml.
+
+- docs/PRD.md: sha256 721457621301cd3994f4409ea03788b3f82a4de889f0442a070268c65547121a
+- CLAUDE.md: sha256 fd8248df5c3fafaf5cb4221c92f7a78709b7d5b811c6bdcc183a7b3cbdf97083
+- bridge.toml: sha256 760fecbf36bfb597e96e9243244bfba0dacd46dda0524e303194501cb1350a2b
