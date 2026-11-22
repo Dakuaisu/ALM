@@ -1,12 +1,10 @@
-//! L02-01: source-derived Counter replay. Navigation and creation timestamps are
-//! test-only; posting, cancellation, ledger readbacks and preview use the Rust fixture.
+//! L02-01: source-derived Counter replay using the synthetic Rust fixture.
 
-use std::cmp::Reverse;
 use std::num::NonZeroU32;
 
 use crate::confirmation::{
-    BalanceMode, ConfirmationError, ConfirmationFixture, CustomerReceiptInput, ReceiptMode,
-    RequestId,
+    BalanceMode, ConfirmationError, ConfirmationFixture, CounterBill, CreationKey,
+    CustomerReceiptInput, ReceiptMode, RequestId,
 };
 use crate::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
@@ -41,18 +39,79 @@ fn register_bill(
         .unwrap();
 }
 
-struct Sale {
-    draft: DraftId,
-    invoice: u64,
-    date: BillDate,
-    cancelled: bool,
-    modeled_created: Option<u64>,
+#[test]
+fn counter_keeps_first_post_key_on_retry_and_cancel_undo_and_stably_orders_missing_keys() {
+    let today = BillDate::new(2025, 3, 14).unwrap();
+    let mut fixture = ConfirmationFixture::new(PRODUCT, 8, PRICE).unwrap();
+    let buyer = DraftCustomerId::new("tie-buyer".into());
+    fixture.register_customer(OWNER, &buyer).unwrap();
+    let [(first_review, first_ack), ..] = [(8, Some(9)), (2, None), (7, Some(0)), (3, Some(9))]
+        .map(|(id, key)| {
+            let draft = DraftId::new(id);
+            register_bill(&mut fixture, (draft, today), &buyer);
+            let review = fixture.review_named(OWNER, draft, PRICE).unwrap();
+            let ack = fixture
+                .confirm_acknowledged_with_creation_key(
+                    OWNER,
+                    RequestId::new(id),
+                    &review,
+                    key.map(CreationKey::new),
+                )
+                .unwrap();
+            (review, ack)
+        });
+    let retry_ack = fixture
+        .confirm_acknowledged_with_creation_key(
+            OWNER,
+            RequestId::new(8),
+            &first_review,
+            Some(CreationKey::new(99)),
+        )
+        .unwrap();
+    assert_eq!(retry_ack, first_ack);
+    fixture.cancel_sale(OWNER, DraftId::new(3)).unwrap();
+    fixture.undo_cancel_sale(OWNER, DraftId::new(3)).unwrap();
+
+    let recent_ids: Vec<_> = fixture
+        .counter(OWNER, today)
+        .unwrap()
+        .recents
+        .iter()
+        .map(|row| row.draft_id.value())
+        .collect();
+    assert_eq!(recent_ids, [3, 8, 7, 2]);
+    println!(
+        "L02-01 Counter API recents after retry and cancel/undo: {recent_ids:?}; key 9 ties: 3, 8; zero/missing ties: 7, 2"
+    );
 }
 
-impl Sale {
-    const fn ids(&self) -> (u64, u64) {
-        (self.draft.value(), self.invoice)
-    }
+#[test]
+fn counter_includes_undated_active_sale_only_in_recents() {
+    // Given: a stored sale without a document date (new posts still require one).
+    let today = BillDate::new(2025, 3, 14).unwrap();
+    let mut fixture = ConfirmationFixture::new(PRODUCT, 1, PRICE).unwrap();
+    let buyer = DraftCustomerId::new("undated-buyer".into());
+    fixture.register_customer(OWNER, &buyer).unwrap();
+    let id = DraftId::new(10);
+    register_bill(&mut fixture, (id, today), &buyer);
+    let review = fixture.review_named(OWNER, id, PRICE).unwrap();
+    fixture.confirm(OWNER, RequestId::new(10), &review).unwrap();
+    fixture.current_sales.get_mut(&id).unwrap().0.draft =
+        review.draft().clone().with_bill_date(None);
+
+    // When: the Owner requests the Counter.
+    let counter = fixture.counter(OWNER, today).unwrap();
+
+    // Then: the sale remains in recents but never counts as billed today.
+    assert_eq!(
+        counter.recents,
+        [CounterBill {
+            draft_id: id,
+            invoice: 1
+        }]
+    );
+    assert_eq!(counter.billed_today_count, 0);
+    assert!(counter.billed_today.is_empty());
 }
 
 #[test]
@@ -80,14 +139,19 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
         (72, today, Some(50), &zero, 4_000),
         (95, today, Some(80), &zero, 1_000),
     ];
-    for (draft, date, _, buyer, paid) in seeds {
+    for (draft, date, created, buyer, paid) in seeds {
         let id = DraftId::new(draft);
         register_bill(&mut fixture, (id, date), buyer);
         let review = fixture
             .review_named(OWNER, id, Money::from_minor_units(paid))
             .unwrap();
         fixture
-            .confirm(OWNER, RequestId::new(draft), &review)
+            .confirm_with_creation_key(
+                OWNER,
+                RequestId::new(draft),
+                &review,
+                created.map(CreationKey::new),
+            )
             .unwrap();
     }
     fixture.cancel_sale(OWNER, CANCELLED).unwrap();
@@ -108,59 +172,30 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
     let pending_review = fixture.review_named(OWNER, pending, PRICE).unwrap();
     let before = fixture.clone();
 
-    // Use existing Owner readbacks for the sale facts; only `created` comes from the model.
-    // The preview readback here supplies cancellation state, not a modeled recent-row click.
-    let sales = seeds.map(|(draft, _, modeled_created, _, _)| {
-        let id = DraftId::new(draft);
-        let (review, receipt) = fixture.current_sale(OWNER, id).unwrap();
-        let saved = fixture
-            .bill_preview(OWNER, id, BalanceMode::AsOnBillDate)
-            .unwrap();
-        Sale {
-            draft: receipt.draft_id,
-            invoice: receipt.invoice,
-            date: review.draft().bill_date().unwrap(),
-            cancelled: saved.cancelled,
-            modeled_created,
-        }
-    });
-
-    // When: project the Counter from the saved facts (legacy lines 2326-2331, 2406-2407).
-    let mut active: Vec<_> = sales.iter().filter(|sale| !sale.cancelled).collect();
-    let today_ids: Vec<_> = active
+    // When: the Owner reads the Counter projection.
+    let counter = fixture.counter(OWNER, today).unwrap();
+    let today_ids: Vec<_> = counter
+        .billed_today
         .iter()
-        .filter(|sale| sale.date == today)
-        .map(|sale| sale.ids())
+        .map(|row| (row.draft_id.value(), row.invoice))
         .collect();
-    assert_eq!(today_ids.len(), 4);
+    assert_eq!(counter.billed_today_count, 4);
     assert_eq!(today_ids, [(51, 1), (84, 3), (63, 5), (72, 7)]);
     println!(
-        "L02-01 test-only Counter {today}: billed today={} (draft, invoice)={today_ids:?}",
-        today_ids.len()
+        "L02-01 Owner Counter API {today}: billed_today_count={} (draft, invoice)={today_ids:?}",
+        counter.billed_today_count
     );
 
-    active.sort_by_key(|sale| Reverse(sale.modeled_created.unwrap_or_default()));
-    let (recent, trimmed) = active.split_at(active.len().min(6));
-    let recent_ids: Vec<_> = recent.iter().map(|sale| sale.ids()).collect();
+    let recent_ids: Vec<_> = counter
+        .recents
+        .iter()
+        .map(|row| (row.draft_id.value(), row.invoice))
+        .collect();
     assert_eq!(
         recent_ids,
         [(14, 2), (63, 5), (72, 7), (84, 3), (38, 6), (27, 4)]
     );
-    let trimmed_ids: Vec<_> = trimmed.iter().map(|sale| sale.ids()).collect();
-    assert_eq!(trimmed_ids, [(51, 1)]);
-    let cancelled: Vec<_> = sales
-        .iter()
-        .filter(|sale| sale.cancelled)
-        .map(|sale| (sale.ids(), sale.date, sale.modeled_created))
-        .collect();
-    assert_eq!(cancelled, [((95, 8), today, Some(80))]);
-    let [(cancelled_ids, cancelled_date, cancelled_created)] = cancelled.as_slice() else {
-        unreachable!("expected exactly one cancelled sale");
-    };
-    assert!(*cancelled_created > recent[0].modeled_created);
-    println!(
-        "L02-01 test-only created order (draft, invoice)={recent_ids:?}; trimmed={trimmed_ids:?}; cancelled={cancelled_ids:?} date={cancelled_date} modeled_created={cancelled_created:?}"
-    );
+    println!("L02-01 Owner Counter API ordered recents (draft, invoice)={recent_ids:?}");
 
     // Legacy rounds the closing balance (Math.round, ties toward +infinity) before
     // counting debtors or filtering Customers (__due): lines 1114-1126, 2376-2395, 7151-7156.
@@ -182,25 +217,19 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
             ("counter-sub-rupee", 49, 0),
         ]
     );
-    let debtor_count = balances.iter().filter(|(_, _, rupees)| *rupees > 0).count();
-    assert_eq!(debtor_count, 1);
-    let (view, query) = (debtor_count > 0)
-        .then_some(("customers", "__due"))
-        .unwrap();
-    let due_rows: Vec<_> = balances
-        .into_iter()
-        .filter(|(_, _, rupees)| query != "__due" || *rupees > 0)
+    let debtor_ids: Vec<_> = counter
+        .debtor_ids
+        .iter()
+        .map(DraftCustomerId::value)
         .collect();
-    assert_eq!((view, query), ("customers", "__due"));
-    assert_eq!(due_rows, [("counter-due", 1251, 13)]);
-    println!(
-        "L02-01 Owner ledger (customer, paise, rounded rupees)={balances:?}; test-only debtor flag={debtor_count} -> {view}/{query} {due_rows:?}"
-    );
+    assert_eq!(debtor_ids, ["counter-due"]);
+    println!("L02-01 Owner Counter API debtor IDs={debtor_ids:?}");
+    println!("L02-01 Owner ledger control (customer, paise, rounded rupees)={balances:?}");
 
     // Test-only recent-row selection models showInvoice(s), not any of its output actions.
-    let selected = recent[0];
+    let selected = counter.recents[0];
     let preview = fixture
-        .bill_preview(OWNER, selected.draft, BalanceMode::AsOnBillDate)
+        .bill_preview(OWNER, selected.draft_id, BalanceMode::AsOnBillDate)
         .unwrap();
     assert_eq!(
         (preview.invoice, preview.date, preview.cancelled),
@@ -209,14 +238,16 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
     assert_eq!(preview.invoice, selected.invoice);
     assert_eq!(fixture, before);
     println!(
-        "L02-01 test-only recent selection draft={} -> Owner bill_preview invoice={} date={}; fixture unchanged; no Print, PDF or WhatsApp calls in replay",
-        selected.draft.value(),
+        "L02-01 modeled recent-row selection draft={} -> Owner bill_preview invoice={} date={}; fixture unchanged; no Print, PDF or WhatsApp calls in replay",
+        selected.draft_id.value(),
         preview.invoice,
         preview.date
     );
 
     let manager_preview =
-        fixture.bill_preview(Role::Manager, selected.draft, BalanceMode::AsOnBillDate);
+        fixture.bill_preview(Role::Manager, selected.draft_id, BalanceMode::AsOnBillDate);
+    let manager_counter = fixture.counter(Role::Manager, today);
+    assert_eq!(manager_counter, Err(ConfirmationError::AccessDenied));
     assert_eq!(manager_preview, Err(ConfirmationError::AccessDenied));
     assert_eq!(fixture, before);
     let manager_post = fixture.confirm(
@@ -227,7 +258,8 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
     assert_eq!(manager_post, Err(ConfirmationError::AccessDenied));
     assert_eq!(fixture, before);
     println!(
-        "L02-01 Manager posted preview={:?}; posting draft {}={:?}; fixture unchanged",
+        "L02-01 Manager Counter API={:?} (no payload); posted preview={:?}; posting draft {}={:?}; fixture unchanged",
+        manager_counter.unwrap_err(),
         manager_preview.unwrap_err(),
         pending.value(),
         manager_post.unwrap_err()

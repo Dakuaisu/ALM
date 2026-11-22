@@ -67,7 +67,17 @@ impl ConfirmationFixture {
         request: RequestId,
         review: &Review,
     ) -> Result<ConfirmationAck, ConfirmationError> {
-        let receipt = self.confirm(role, request, review)?;
+        self.confirm_acknowledged_with_creation_key(role, request, review, None)
+    }
+
+    pub fn confirm_acknowledged_with_creation_key(
+        &mut self,
+        role: Role,
+        request: RequestId,
+        review: &Review,
+        creation_key: Option<super::CreationKey>,
+    ) -> Result<ConfirmationAck, ConfirmationError> {
+        let receipt = self.confirm_with_creation_key(role, request, review, creation_key)?;
         Ok(ConfirmationAck {
             request,
             review: review.clone(),
@@ -75,12 +85,29 @@ impl ConfirmationFixture {
         })
     }
 
-    /// Replays return the original receipt; all fallible calculations precede mutation.
+    /// Confirms without a creation key. Replays return the original receipt.
     pub fn confirm(
         &mut self,
         role: Role,
         request: RequestId,
         review: &Review,
+    ) -> Result<Receipt, ConfirmationError> {
+        self.confirm_with_creation_key(role, request, review, None)
+    }
+
+    /// Confirms and records optional Counter metadata on the first successful post only.
+    /// Exact retries return the original receipt and ignore the supplied key. Edits and
+    /// cancellation leave both the stored key and first-post order unchanged.
+    ///
+    /// # Errors
+    /// Denies Managers and rejects stale or invalid reviews, request conflicts, already
+    /// posted drafts, stock shortages, and overflow before any mutation.
+    pub fn confirm_with_creation_key(
+        &mut self,
+        role: Role,
+        request: RequestId,
+        review: &Review,
+        creation_key: Option<super::CreationKey>,
     ) -> Result<Receipt, ConfirmationError> {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
@@ -165,6 +192,7 @@ impl ConfirmationFixture {
             .insert(request, (review.clone(), receipt.clone()));
         self.current_sales
             .insert(id, (review.clone(), receipt.clone(), 0));
+        self.first_posts.push((id, creation_key));
         self.posted_sale_items.insert(id, items);
         self.posted.insert(id, request);
         Ok(receipt)

@@ -8,6 +8,7 @@ mod cancellation;
 mod cashbook;
 mod catalog;
 mod checkout;
+mod counter;
 mod crate_templates;
 mod customer_accounts;
 mod customer_ageing;
@@ -40,6 +41,7 @@ pub use catalog::{
     StockCountReason, StockLotRow, StockLots, StockLotsError,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
+pub use counter::{Counter, CounterBill, CreationKey};
 use crate_templates::CrateTemplateBook;
 pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{
@@ -174,6 +176,7 @@ pub struct ConfirmationFixture {
     requests: BTreeMap<RequestId, (Review, Receipt)>,
     posted: BTreeMap<DraftId, RequestId>,
     current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
+    first_posts: Vec<(DraftId, Option<CreationKey>)>,
     posted_sale_items: BTreeMap<DraftId, Vec<PostedLineItem>>,
     preview_payments: Vec<PreviewPayment>,
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
@@ -227,6 +230,7 @@ impl ConfirmationFixture {
             requests: BTreeMap::new(),
             posted: BTreeMap::new(),
             current_sales: BTreeMap::new(),
+            first_posts: Vec::new(),
             posted_sale_items: BTreeMap::new(),
             preview_payments: Vec::new(),
             lifecycle: BTreeMap::new(),
