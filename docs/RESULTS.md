@@ -2588,3 +2588,29 @@ The source calculation reuses the oldest cost for the second component before ad
 - **Buy-rate estimate is not FIFO:** ID 1's 4 × 325 = 1,300 versus 500 FIFO; the mixed undated/dated seed gave 975 versus 420. Catalog buy won 950 over a registered 720; a buy edit gave 1,690 versus unchanged FIFO 200, and receipt-updated buy gave 3,705 versus FIFO 1,435. Cutoffs filter last sale against current stock, not stock as of the cutoff.
 
 No frozen runtime, hosted or production evidence. The parity miss records a difference, not an approved change to valuation or an accounting rule. Formal gates remain unchanged; no acceptance or phase exit claimed.
+
+## PC-003 Batch 3 addendum: Standalone GST rounding and initial backup write rejection
+
+**Local synthetic development at `f52d549` (GST `6ee53ed`).** An interim GST test failed and its retry timed out during uncommitted parallel development; no cause was established. The final saved runs below are separate from those attempts.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test gst_preview_replay --test folder_backup_replay -- --nocapture
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline
+```
+
+- [B3-GST-BACKUP-f52d549-focused](../phase2-local/target/B3-GST-BACKUP-f52d549-focused.log): **18 passed, 0 failed, 0 ignored** (GST 5, folder backup 13).
+- [B3-GST-BACKUP-f52d549-offline](../phase2-local/target/B3-GST-BACKUP-f52d549-offline.log): **525 passed, 0 failed, 2 ignored** across 46 summaries, including the zero-test doctest target. The ignored entries are dispatched restart workers `confirmation::tests::restart::client_worker` and `sqlite_restart_worker`.
+- Formatting passed. Lint and build are tracked separately from these test logs; LSP diagnostics timed out.
+
+**L06-02 — ₹105 inclusive at 18%.** The [standalone action replay](../phase2-local/tests/gst_preview_replay/rounding.rs) used Owner form, Save & View, and saved-record readback/reprint for intra-state `GstBillId(91)`, invoice #47 dated 2025-01-02. Per line, the source-derived raw taxable amount was ₹5250/59, tax ₹945/59, and each half ₹945/118. The fixed values and observed saved/readback values are in paise, ordered taxable, tax, CGST, SGST, IGST, total:
+
+| Fixture | Fixed expected | Observed |
+| --- | --- | --- |
+| One ₹105 line | `[8898, 1602, 801, 801, 0, 10500]` | `[8898, 1602, 801, 801, 0, 10500]` |
+| Two ₹105 lines | `[17797, 3203, 1602, 1602, 0, 21000]` | `[17797, 3203, 1602, 1602, 0, 21000]` |
+
+The multiline summary rounds raw aggregates independently: taxable ₹177.97, tax ₹32.03, CGST and SGST ₹16.02 each, grand total ₹210.00; it neither sums the displayed ₹88.98 line values nor forces the rounded halves to equal the rounded tax. No Round Off row. Manager save/reprint denied before sinks; stock, movement, ordinary posting, ledgers and customer due remained unchanged. Print/Save PDF captured equal HTML; companion popup and 12/13/20/32/33-row pagination checks were inert. This is standalone fixture evidence, not disk restart, ordinary-sale GST, rendered PDF, or accounting approval.
+
+**L19-08 — initial current write rejection.** The [connection replay](../phase2-local/tests/folder_backup_replay/connection.rs) seeded two occupied files with distinct raw JSON bytes: `ALM_data.json` (`old current`, `last_file_backup:41`) and `ALM_backup_2024-05-01.json` (`old dated`, `last_file_backup:37`), both with `backup_folder:"new"`. The attempted payload was `{"records":["initial connect"],"meta":{"backup_folder":"new","last_file_backup":7}}`. As fixed, the injected current-write rejection occurred **before accepting bytes**, with trace `query → current-write-failed`: both files read back their own unchanged old bytes, with no current close or dated attempt; modeled last backup stayed 7 and daily unset. “Backup folder set” still appeared and the modeled token reopened as `new`. On a fresh equivalent sandbox, the success control traced `query → current-closed → dated-staged → dated-closed`; both existing destinations read back the exact new payload, with modeled last backup 100 and daily `2024-05-01`. This is distinct from the companion later dated-publication failure after current close. It proves neither crash/OS atomicity nor browser file-handle durability.
+
+The prior [`d6ac8d9` crate parity miss](#pc-003-batch-2-addendum-crate-fifo-and-dead-stock-valuation) and [`OPEN-010`](OPEN.md#open-010-repeated-product-crate-valuation-l10-01) / [`DEC-027`](DECISIONS.md#dec-027-defer-repeated-product-crate-valuation-l10-01) deferral at `c20d0d3` are unchanged: neither source-derived saved cost nor depleted-lot cost is approved for release. Frozen runtime and formal acceptance gates remain unchanged; no phase exit claimed.
