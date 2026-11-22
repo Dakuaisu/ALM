@@ -82,6 +82,41 @@ Every populated object derives from the same base with sole customer `SYNTHETIC-
 
 Record the initial selected marker and route before interpreting writeback. For save rows, matching reopened contents at the proposed revision are expected only for stores whose writes succeed (mirror serialization must pass its size guard and the primary transaction must complete). Check both main slots, the corrupt slot where seeded, and reload independently; a toast or save call proves none of them. Fresh seed identity must not be copied into shared artifacts. This manifest adds no browser observations and does not change the pinned HTML digest or the existing [inert marker](phase1-isolation-marker.txt). **OPEN-008 remains NOT RUN.**
 
+#### L01-12 / L01-13 differential upgrade recipes (NOT RUN)
+
+Use a fresh deep copy of the existing `baseDB` per variant. Apply the JSON patch below as **top-level replacements** except `meta`, whose fields are **merged**. Set `meta.schema` to 1, 2 or 3 and `meta.name` to `L01-UPGRADE-S1`, `L01-UPGRADE-S2` or `L01-UPGRADE-S3`, respectively. The schema-2 and schema-3 inputs intentionally retain the same legacy-shaped fields to expose which upgrade branches are skipped; they are not examples of fully upgraded databases.
+
+```json
+{
+  "meta": {"rev": 7},
+  "expenses": {"marker": "SYNTHETIC-NONARRAY"},
+  "products": [{"item": "Synthetic Soda", "buyRate": 10}, null, {"id": "p-second", "item": "Synthetic Soda", "buyRate": 12, "avgCost": 0, "openingCost": 0, "_v": 7}],
+  "stock": {"Synthetic Soda": {"opening": 4, "fridge": 1, "adjust": 2}, "Synthetic Orphan": {"opening": 1, "fridge": 0, "adjust": 0}},
+  "stockLog": [{"id": "adj-old", "item": "Synthetic Soda", "delta": -2, "ts": 1700000001000}],
+  "suppliers": [{"name": "Synthetic Supplier"}, {"id": "s-second", "name": "Synthetic Supplier", "_v": 4}],
+  "purchaseOrders": [
+    {"id": "po-missing", "no": 1, "date": "2025-02-28", "supplier": "Synthetic Supplier", "created": 1700000002000, "items": [null, {"item": "Synthetic Soda", "ordered": 2, "received": 0, "rate": 10}]},
+    {"id": "po-linked", "no": 2, "date": "2025-02-28", "supplier": "Synthetic Supplier", "supId": "s-second", "items": [{"item": "Synthetic Soda", "pid": "p-second", "ordered": 1, "received": 0, "rate": 12}]},
+    {"id": "po-case", "no": 3, "date": "2025-02-28", "supplier": "synthetic supplier", "items": []},
+    {"id": "po-unmatched", "no": 4, "date": "2025-02-28", "supplier": "Synthetic Unmatched", "items": []}
+  ],
+  "log": [{"ts": 1700000003000, "device": "synthetic-seed", "type": "fixture", "msg": "Unstamped"}, {"ts": 1700000004000, "type": "fixture", "msg": "Partial stamp", "_v": 9}]
+}
+```
+
+**Starting slots:** after the full OPEN-008 gate, on independent disposable profiles, leave `alm_db_v1` and `alm_db_v1_corrupt` absent. Seed the patched object in `alm_store` v1 / `kv` / `db`, and independently seed `kv` / `pre_v2_backup` with `{"marker":"L01-PRE-V2-SENTINEL"}`. Leave `fs` empty and integrations off. Require the seed transaction to complete before load. Use a fixed synthetic clock **2025-03-01 18:00 UTC** in **UTC** (`T = 1740852000000` ms). The eligible primary is selected in RAM by its marker before migration; the base customer `SYNTHETIC-CUSTOMER-001` makes the successful route Counter. The primary path then attempts a main save at rev 8 and schedules recovery feedback; neither proves a completed write.
+
+| Schema | Fixed source-derived checkpoints |
+| --- | --- |
+| All | `expenses` becomes `[]`; null product and PO line are filtered out. First product gets average/opening cost 10; second retains explicit zero costs. |
+| 1 (pre-2) | Before ID assignment or stock conversion, migration attempts a JSON-copy write of the **normalized** schema-1 object at rev 7 to `pre_v2_backup`: filtered arrays and defaulted costs present, first product and supplier IDs still absent, original stock keys and `adjust` retained. After upgrade, first product gets a generated ID; the old Soda stock moves under it (opening 4, fridge 1), and the orphan under `n:Synthetic Orphan` (opening 1). Both slots receive `(1,T,legacy)` in `_v/_m/_d`. `adj-old` links to the first product and becomes ineffective, with `(1,1700000001000,legacy)`; one generated effective row for that same key has delta −2, date 2025-03-01 and `(1,T,legacy)`. `po-missing` line links to the first product and its `supId` to the generated first supplier ID; `po-linked` keeps `p-second` / `s-second`. Case-variant and unmatched supplier links become `null`. `po-missing` gets `(1,1700000002000,legacy)`; preexisting partial stamps on `p-second` and `s-second` remain partial. The duplicate/orphan hygiene entry and upgrade entry are appended; schema advances through 2 to 3. |
+| 2 | No safety-copy attempt, stock conversion, adjustment conversion, product/supplier ID generation, PO linking, legacy record stamping or migration log append. The pre-3 branch alone backfills activity IDs and missing envelopes and advances to schema 3. |
+| 3 | Neither upgrade branch runs. No safety-copy attempt or upgrade-generated IDs, links, stamps or log entries; legacy stock keys, absent links and partial stamps remain after the common normalization. |
+
+In schemas 1 and 2, the two seeded log rows each gain an ID; the first gets `(1,1700000003000,synthetic-seed)`, while the second keeps `_v: 9` with `_m`/`_d` absent. Metadata gets `(1,T,legacy)`. In schema 1 the new upgrade log gets an ID and `(1,T,migrate)`; the hygiene entry already carries its own generated ID and `(1,T,legacy)`. Use generated-ID equality and reuse checks, **not literal generated values**: the same first product ID must key stock, the adjustment and the missing line PID; the same first supplier ID must equal the formerly absent `supId`. For the [L01-13](PHASE1_CASES.md#one-time-schema-upgrade-not-run) order control, on independent schema-1 inputs give the first supplier ID `s-first` and compare original versus reversed supplier order; `po-missing.supId` changes from `s-first` to `s-second`, while prelinked, case-variant and unmatched outcomes stay as above. Keep PO order unchanged.
+
+**Readback and rerun controls:** For [L01-12 pre-v2 backup contents and failure](PHASE1_CASES.md#pre-v2-backup-contents-not-run), capture the attempt separately from reopened `kv/pre_v2_backup`. A completed backup write replaces the sentinel; an isolated backup transaction abort leaves it intact and does not stop the in-memory upgrade or main save attempt. Schema 2/3 never replace it. Verify reopened main copies and schema before reload: with both main writes verified at rev 8, reload selects the tied mirror and must preserve generated IDs, links, stock and log lengths without another upgrade. On a separate **mirror-only** schema-1 input (same patch, no `kv/db`), load migrates in RAM without a main save; with no subsequent app save, reload again selects the original schema-1 text and can repeat the upgrade and backup attempt. Compare each boot to its own input; do not require new generated IDs to equal the previous unsaved run's IDs or count the RAM append as persisted duplication. **NOT RUN**; these recipes do not waive OPEN-008 or establish durability.
+
 ### L02–L19 shared workflow fixture manifest (NOT RUN)
 
 **Asset inventory.** Keep the L01 assets and recipes above unchanged: `phase1-storage-arbitration.json` supplies the arbitration objects, `phase1-corrupt-mirror.txt` the malformed bytes, and `phase1-isolation-marker.txt` only the gate marker. None supplies the populated workflow families. Use the single [phase1-workflow-seed.json](phase1-workflow-seed.json), SHA-256 `03c9c8ef6021ec352dbee0e972ba325856dcf44ae339b61a479f60c59252959a`, for the controls below. It is a synthetic schema-3 legacy DB object with money in rupees and no configured service URL. The legacy field mapping follows the [per-record crosswalk](#per-record-source-crosswalk), [receipt rules](PHASE1_CASES.md#positive-receipt-cost-and-quote-rules-not-run), and [movement-register cases](PHASE1_CASES.md#bounded-godown-source-walk-not-run).
