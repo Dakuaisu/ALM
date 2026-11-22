@@ -2186,3 +2186,29 @@ cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_
 - [L04-HISTORY-API-4ee9a17-offline](../phase2-local/target/L04-HISTORY-API-4ee9a17-offline.log): 456 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
 
 The frozen HTML remained unserved under OPEN-008. Browser parity and accounting acceptance remain open.
+
+#### Saved receipt names and Sales detail order
+
+**L14-01 / L04-04: PASS (local Rust development)** at `e9c852fb601eda1416316f06641d7678ff8693ec`. The [receipt-only replay](../phase2-local/tests/receipt_metadata.rs) used the Owner receipt-save path to store the selected label `Shared Name` and a controlled creation key, while the ledger continued to use customer ID. Both registered accounts had no bills. The fixture receipt IDs below are one-based append positions, not durable identifiers.
+
+| Document date | Receipt slot | Customer ID | Stored creation key | Mode | Exact paise |
+| --- | ---: | --- | ---: | --- | ---: |
+| 2024-03-30 | 1 | `first` | 20 | Cash | 375 |
+| 2024-03-30 | 2 | `second` | 10 | Online | 800 |
+| 2024-03-30 | 3 | `second` | 30 | Cash | 125 |
+
+The party search `shared` matched slots `[1, 2, 3]`; Collected detail returned them in key order `[3, 1, 2]`, not append order. The item-only search `LiMe` matched no receipts and returned zero Collected. Sales and bill-paid amounts stayed at zero. Sales and Cash Book agreed exactly: 500 Cash and 800 Online, for 1,300 paise Collected. Ledger closing balances were −375 paise for `first` and −925 paise for `second`. Manager Save and Sales read both returned `AccessDenied`; the Sales read had no payload, and the fixture equality control verified no mutation.
+
+The [mixed-order regression](../phase2-local/src/confirmation/tests/l04_sales_history_replay/controls.rs) verified saved-name precedence over bill names and stable input order for equal nonzero creation keys. Older records retain absent metadata and their prior bill-name lookup and synthetic anchor/slot order; no names or timestamps were backfilled. The earlier `4ee9a17` limitation remains historical evidence. This change only uses creation keys for Sales detail, not ledger or as-of-preview chronology.
+
+```sh
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --test receipt_metadata -- --nocapture
+cd /Users/apple/ALM && env TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --lib l04_sales_history_replay
+cd /Users/apple/ALM && env -u ALM_REPLAY_QUICKLOOK_PNG -u ALM_L07_03_PNG -u ALM_STRUCTURED_RETAIN TMPDIR=/Users/apple/ALM/phase2-local/target/tmp cargo test --locked --offline --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --quiet
+```
+
+- [L04-RECEIPT-META-e9c852f-focused](../phase2-local/target/L04-RECEIPT-META-e9c852f-focused.log): 1 passed, 0 failed, 0 ignored.
+- [L04-RECEIPT-META-e9c852f-l04](../phase2-local/target/L04-RECEIPT-META-e9c852f-l04.log): 10 passed, 0 failed, 0 ignored, 307 filtered out.
+- [L04-RECEIPT-META-e9c852f-offline](../phase2-local/target/L04-RECEIPT-META-e9c852f-offline.log): 458 passed, 0 failed, 2 ignored. Formatting, all-target Clippy with warnings denied, and locked offline build passed; Rust editor diagnostics timed out.
+
+This is local in-memory development evidence. The frozen HTML remained unserved under OPEN-008.
