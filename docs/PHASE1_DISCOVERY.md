@@ -117,6 +117,41 @@ In schemas 1 and 2, the two seeded log rows each gain an ID; the first gets `(1,
 
 **Readback and rerun controls:** For [L01-12 pre-v2 backup contents and failure](PHASE1_CASES.md#pre-v2-backup-contents-not-run), capture the attempt separately from reopened `kv/pre_v2_backup`. A completed backup write replaces the sentinel; an isolated backup transaction abort leaves it intact and does not stop the in-memory upgrade or main save attempt. Schema 2/3 never replace it. Verify reopened main copies and schema before reload: with both main writes verified at rev 8, reload selects the tied mirror and must preserve generated IDs, links, stock and log lengths without another upgrade. On a separate **mirror-only** schema-1 input (same patch, no `kv/db`), load migrates in RAM without a main save; with no subsequent app save, reload again selects the original schema-1 text and can repeat the upgrade and backup attempt. Compare each boot to its own input; do not require new generated IDs to equal the previous unsaved run's IDs or count the RAM append as persisted duplication. **NOT RUN**; these recipes do not waive OPEN-008 or establish durability.
 
+#### L01-15 mirror cutoff padding recipe (NOT RUN in browser)
+
+Use independent copies of `baseDB` from the digest-pinned [arbitration seed](phase1-storage-arbitration.json). Set `meta.name` to `L01-FIXTURE-CUTOFF` and `meta.rev` to numeric 9. The only padding field in this recipe is top-level `syntheticPad`, a string of ASCII `A` (U+0041). Use the padded `db` at revision 9 as the pre-save input, not `post`. The separate `post` copy measures serialization after the single 9 → 10 increment with no other changes. For the existing reload control, derive the older slots from `localstorage-newer` above (mirror rev 2, primary rev 1) and keep them separate from the rev-9 input.
+
+```sh
+cd /Users/apple/ALM && node <<'NODE'
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { createHash } = require('node:crypto');
+const raw = readFileSync('/Users/apple/ALM/docs/phase1-storage-arbitration.json');
+assert.equal(createHash('sha256').update(raw).digest('hex'), '88abb98959688a8ea702a0146cdeec4c3179b526fbcebe9b665ae98938bdf559');
+const { baseDB } = JSON.parse(raw);
+assert.equal(Object.hasOwn(baseDB, 'syntheticPad'), false);
+for (const target of [4499999, 4500000]) {
+  const db = structuredClone(baseDB);
+  Object.assign(db.meta, { name: 'L01-FIXTURE-CUTOFF', rev: 9 });
+  db.syntheticPad = '';
+  const post = structuredClone(db);
+  post.meta.rev += 1;
+  const unpadded = JSON.stringify(post).length;
+  db.syntheticPad = 'A'.repeat(target - unpadded);
+  post.syntheticPad = db.syntheticPad;
+  const before = JSON.stringify(db).length;
+  const after = JSON.stringify(post).length;
+  assert.equal(db.meta.rev, 9);
+  assert.equal(post.meta.rev, 10);
+  assert.equal(after, target);
+  assert.equal(before, target - 1);
+  console.log({ target, unpadded, pad: db.syntheticPad.length, before, after });
+}
+NODE
+```
+
+[Offline measurements](RESULTS.md#disc-l01-15-padding-offline-cutoff-measurement) confirm pad counts 4,499,355 and 4,499,356. In the [L01-15 case](PHASE1_CASES.md#localstorage-mirror-cutoff-not-run), expect a mirror attempt at 4,499,999 UTF-16 units and no mirror attempt at 4,500,000; expect an IndexedDB attempt in both. No storage operation or outcome was checked here. **OPEN-008 remains NOT RUN**; the candidate stays unserved pending a full inert-gate pass in a supported guest, then synthetic L01 first.
+
 ### L02–L19 shared workflow fixture manifest (NOT RUN)
 
 **Asset inventory.** Keep the L01 assets and recipes above unchanged: `phase1-storage-arbitration.json` supplies the arbitration objects, `phase1-corrupt-mirror.txt` the malformed bytes, and `phase1-isolation-marker.txt` only the gate marker. None supplies the populated workflow families. Use the single [phase1-workflow-seed.json](phase1-workflow-seed.json), SHA-256 `03c9c8ef6021ec352dbee0e972ba325856dcf44ae339b61a479f60c59252959a`, for the controls below. It is a synthetic schema-3 legacy DB object with money in rupees and no configured service URL. The legacy field mapping follows the [per-record crosswalk](#per-record-source-crosswalk), [receipt rules](PHASE1_CASES.md#positive-receipt-cost-and-quote-rules-not-run), and [movement-register cases](PHASE1_CASES.md#bounded-godown-source-walk-not-run).

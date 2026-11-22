@@ -2683,3 +2683,14 @@ The prior Python check parsed the JSON with decimal arithmetic, checked the byte
 **Development — offline input check passed.** Recipe commit `ceca28b`: [L01-12/13 differential upgrade recipes](PHASE1_DISCOVERY.md#l01-12--l01-13-differential-upgrade-recipes-not-run). The prior Python check constructed the synthetic schema variants and supplier-order controls from `baseDB` and verified JSON serialization round-trip. Migration was not executed: safety-copy contents, generated IDs and links, and post-save reload were not observed.
 
 **OPEN-008 remains NOT RUN.** Keep the HTML unserved until the full inert gate passes in a supported disposable guest, then run synthetic L01 first.
+
+## DISC-L01-15-PADDING: Offline cutoff measurement
+
+**Development — in-memory Node assertions passed.** The [reproduction command](PHASE1_DISCOVERY.md#l01-15-mirror-cutoff-padding-recipe-not-run-in-browser) verified the unchanged [seed](phase1-storage-arbitration.json) SHA-256 `88abb98959688a8ea702a0146cdeec4c3179b526fbcebe9b665ae98938bdf559`. Independent copies used numeric revision 9 before padding measurement and 10 in the post-increment copy. Native `JSON.stringify(...).length` measured 644 UTF-16 units at revision 10 with the empty pad field.
+
+| ASCII `A` count in `syntheticPad` | Measured rev 9 length | Measured rev 10 length | Expected legacy write attempts, not observed |
+| ---: | ---: | ---: | --- |
+| 4,499,355 | 4,499,998 | 4,499,999 | Mirror and IndexedDB |
+| 4,499,356 | 4,499,999 | 4,500,000 | IndexedDB only |
+
+No expanded payload was written, and no storage operation, mock, browser or replay ran. **OPEN-008 remains NOT RUN**; a supported guest must pass the full inert gate before serving the candidate and running synthetic L01 first.
