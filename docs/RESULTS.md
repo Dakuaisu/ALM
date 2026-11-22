@@ -2760,3 +2760,25 @@ cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --
 - [R56-CLI-EDIT-offline](../phase2-local/target/R56-CLI-EDIT-offline.log): **539 passed, 0 failed, 3 ignored** at top level. The ignored entries are the existing confirmation restart, SQLite restart, and account-switch workers. Formatting, all-target Clippy with warnings denied, and the locked-offline build passed. Editor diagnostics timed out.
 
 This is local provisional storage evidence under trusted synthetic selectors, not authentication, hosted authorization, or installed-device isolation. The frozen HTML stayed unserved, and formal gates are unchanged.
+
+### B1-QTY-RECONNECT: Persisted quantity change invalidates Owner review
+
+**Development, PASS (R-6/R-7).** The earlier reconnect replay covered a price change, and R56-CLI-EDIT covered explicit save and restart without an Owner review. This [test-only handoff](../phase2-local/tests/owner_simulation/quantity_reconnect.rs), run in the worktree based on `76dd3ae`, connects the missing steps without changing the CLI or posting implementation.
+
+The scoped Manager SQLite store supplied draft ID `1` to the separate in-memory Owner simulation. The retained Owner review was for 3 units at 11,800 paise each (35,400 total). The Manager-side edit explicitly saved 4 units under the same ID, and a fresh SQLite handle reopened the revised draft, preserving customer, bill date, and crate state. Manager reconnect returned `AccessDenied`; Owner reconnect registered the reopened edit without posting. Confirming the retained review returned `StaleReview`. Stock remained at 7 units valued at 47,000 paise; there was no invoice, payment, or ledger entry, and the sales, received and customer-due totals were unchanged at zero. Sales History and Cash Book readbacks were unchanged too.
+
+At the same unit price, the fresh Owner review showed 4 units and 47,200 paise total. Manager confirmation returned `AccessDenied` with no side effects. Explicit Owner confirmation, using the request ID from the rejected attempt, posted invoice #1 for 4 units with 20,000 paise Cash paid on the bill and 27,200 due. FIFO stock fell to 3 units worth 21,000 paise. Invoice, Sales History, Cash Book, and customer ledger readbacks matched; posting did not change the revised SQLite draft.
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/Cargo.toml --locked --offline --test owner_simulation -- --nocapture
+```
+
+[B1-QTY-RECONNECT-focused](../phase2-local/target/B1-QTY-RECONNECT-focused.log): **2 passed, 0 failed, 0 ignored**, including the existing Owner response-loss control. This run tested the worktree based on `76dd3ae`, before the reconnect test and its registration were committed. Editor diagnostics timed out.
+
+[B1-QTY-RECONNECT-b8cfe8f-offline](../phase2-local/target/B1-QTY-RECONNECT-b8cfe8f-offline.log): **Development, PASS.** The full locked-offline suite tested a clean snapshot extracted with `git archive b8cfe8f`, excluding unrelated worktree changes. It recorded **540 passed, 0 failed, 3 ignored** across 48 result summaries, summed at the top level; the reconnect test passed. The ignored entries were the confirmation restart, account-switch, and SQLite restart subprocess workers. Command used for the saved run:
+
+```sh
+cd /Users/apple/ALM && TMPDIR=/Users/apple/ALM/phase2-local/target cargo test --manifest-path /Users/apple/ALM/phase2-local/target/B1-QTY-RECONNECT-b8cfe8f.dizpoS/phase2-local/Cargo.toml --locked --offline
+```
+
+No separate CLI replay was run. Both results are development evidence only: SQLite stores drafts, and the posting effects are synthetic in-memory effects, not hosted authorization or a formal phase exit. The frozen HTML stayed unserved.
