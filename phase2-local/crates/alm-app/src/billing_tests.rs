@@ -159,3 +159,22 @@ fn review_screen_amounts_equal_the_core_projection() {
     });
     assert!(!denied.contains('₹'));
 }
+
+#[test]
+fn counter_lists_counts_and_recent_bills_without_amounts() {
+    let mut fixture = fixture().expect("synthetic fixture");
+    review(&mut fixture)
+        .confirm(&mut fixture, Role::Owner, 1)
+        .expect("post");
+    let core = fixture.counter(Role::Owner, day()).expect("counter");
+    let html = views::counter_screen(&fixture, Role::Owner, day()).expect("counter");
+    assert_eq!(core.billed_today_count, 1);
+    assert_eq!(core.attention.debtors, 1);
+    assert!(html.contains("1 bill billed today · 2025-04-30"));
+    assert!(html.contains("<b>1</b> customer to collect from"));
+    assert!(html.contains(r#"<div class="rnm">Synthetic Customer</div><div class="rsub">#1 · 2025-04-30</div></span><span class="tag credit">Credit</span>"#));
+    assert!(!html.contains('₹'), "Counter carries no amounts");
+    let manager = views::counter_screen(&fixture, Role::Manager, day()).expect("denial");
+    assert!(manager.contains("role=\"alert\""));
+    assert!(!manager.contains("Synthetic Customer"));
+}

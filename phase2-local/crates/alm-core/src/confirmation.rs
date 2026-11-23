@@ -51,7 +51,7 @@ pub use catalog::{
     StockCountReason, StockLotRow, StockLots, StockLotsError,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
-pub use counter::{Counter, CounterAttention, CounterBill, CreationKey};
+pub use counter::{Counter, CounterAttention, CounterBill, CounterRecent, CounterTag, CreationKey};
 use crate_templates::CrateTemplateBook;
 pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{

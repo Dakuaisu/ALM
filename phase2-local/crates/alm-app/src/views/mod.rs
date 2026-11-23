@@ -5,19 +5,36 @@ use crate::gst_print::{esc, indian_digits};
 use alm_core::Money;
 
 mod bill;
+mod counter;
 mod drafts;
 mod gst;
+mod icons;
 mod receipt;
 mod sales;
 
 pub use bill::{BillView, bill_screen};
+pub use counter::counter_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 
+/// Sidebar sections follow the HTML NAV (L1896–1975); only ported screens are listed.
+const NAV: &[(&str, &[(&str, &str)])] = &[(
+    "Daily",
+    &[
+        ("counter", "Counter"),
+        ("bill", "New Bill"),
+        ("review", "Owner review"),
+        ("sales", "Sales"),
+        ("receipt", "Receive Payment"),
+        ("gst", "GST invoice"),
+    ],
+)];
+
 pub fn tabs(active: &str) -> String {
     let (title, subtitle) = match active {
+        "counter" => ("Counter", "What to do next · counts only"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",
@@ -31,25 +48,23 @@ pub fn tabs(active: &str) -> String {
         _ => ("New Bill", "Provisional only; not posted"),
     };
     let mut html = format!(
-        r#"<template id="screen-nav" data-title="{title}" data-subtitle="{}"><div class="navsec">Billing</div>"#,
+        r#"<template id="screen-nav" data-title="{title}" data-subtitle="{}">"#,
         esc(subtitle)
     );
-    for (tab, label) in [
-        ("bill", "New Bill"),
-        ("review", "Owner review"),
-        ("sales", "Sales"),
-        ("receipt", "Receive Payment"),
-        ("gst", "GST invoice"),
-    ] {
-        let (class, current) = if tab == active {
-            ("navitem on", " aria-current=\"page\"")
-        } else {
-            ("navitem", "")
-        };
-        let _ = write!(
-            html,
-            "<button type=\"button\" class=\"{class}\"{current} data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
-        );
+    for (section, items) in NAV {
+        let _ = write!(html, r#"<div class="navsec">{section}</div>"#);
+        for (tab, label) in *items {
+            let (class, current) = if *tab == active {
+                ("navitem on", " aria-current=\"page\"")
+            } else {
+                ("navitem", "")
+            };
+            let _ = write!(
+                html,
+                "<button type=\"button\" class=\"{class}\"{current} data-action=\"screen\" data-tab=\"{tab}\"><span class=\"ic\">{}</span><span>{label}</span></button>",
+                icons::nav(tab)
+            );
+        }
     }
     html += "</template>";
     if active == "bill" {

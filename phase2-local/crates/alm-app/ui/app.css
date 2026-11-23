@@ -8,7 +8,12 @@
 #nav button.navitem {
   width: 100%;
   text-align: left;
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
 }
+#nav button.navitem:hover { background: var(--panel2); }
+#nav button.navitem.on { background: var(--accent-weak); }
 
 .bill-items { overflow-x: auto; }
 .bill-line {

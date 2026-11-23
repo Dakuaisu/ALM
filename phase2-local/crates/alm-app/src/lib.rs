@@ -153,6 +153,9 @@ impl Trial {
     fn render(&mut self, tab: &str) -> Result<String, String> {
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
+            "counter" => {
+                views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
+            }
             "receipt" => {
                 views::receipt_screen(&self.authority, &self.directory, self.role(), self.today()?)
                     .map_err(debug)?

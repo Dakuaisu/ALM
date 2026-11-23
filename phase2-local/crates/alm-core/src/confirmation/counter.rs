@@ -1,11 +1,14 @@
 use std::cmp::Reverse;
 
 use super::{ConfirmationError, ConfirmationFixture};
-use crate::{BillDate, DraftCustomerId, DraftId, Role};
+use crate::{BillDate, DraftCustomer, DraftCustomerId, DraftId, Role};
 
 #[cfg(test)]
 #[path = "counter/attention_tests.rs"]
 mod attention_tests;
+#[cfg(test)]
+#[path = "counter/recents_tests.rs"]
+mod recents_tests;
 
 /// Caller-supplied creation order for the in-memory fixture, independent of document date and invoice.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -29,6 +32,23 @@ pub struct CounterAttention {
     pub low_stock: usize,
     pub open_purchase_orders: usize,
     pub debtors: usize,
+}
+
+/// How a recent bill was settled: any unpaid remainder makes it Credit, as in the legacy tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CounterTag {
+    Cash,
+    Online,
+    Credit,
+}
+
+/// A recent bill as the Counter lists it: who, when and how it was paid, never an amount.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CounterRecent {
+    pub bill: CounterBill,
+    pub customer: Option<String>,
+    pub date: Option<BillDate>,
+    pub tag: CounterTag,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -106,5 +126,43 @@ impl ConfirmationFixture {
             debtor_ids,
             attention,
         })
+    }
+
+    /// Labels each of the Counter's recent bills without exposing amounts.
+    ///
+    /// # Errors
+    /// Denies Managers and rejects bills missing from the fixture.
+    pub fn counter_recents(
+        &self,
+        role: Role,
+        counter: &Counter,
+    ) -> Result<Vec<CounterRecent>, ConfirmationError> {
+        counter
+            .recents
+            .iter()
+            .map(|bill| {
+                let (review, receipt) = self.current_sale(role, bill.draft_id)?;
+                let customer = match review.draft().customer() {
+                    DraftCustomer::Unassigned => None,
+                    DraftCustomer::Typed(name) | DraftCustomer::Selected { name, .. } => {
+                        Some(name.clone())
+                    }
+                };
+                let tag = if receipt.due.is_some_and(|due| due.minor_units() > 0) {
+                    CounterTag::Credit
+                } else {
+                    match review.payment_mode() {
+                        super::ReceiptMode::Cash => CounterTag::Cash,
+                        super::ReceiptMode::Online => CounterTag::Online,
+                    }
+                };
+                Ok(CounterRecent {
+                    bill: *bill,
+                    customer,
+                    date: review.draft().bill_date(),
+                    tag,
+                })
+            })
+            .collect()
     }
 }
