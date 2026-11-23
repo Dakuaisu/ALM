@@ -14,6 +14,7 @@ mod godown;
 mod gst;
 mod gst_sales;
 mod icons;
+mod products;
 mod receipt;
 mod reorder;
 mod sales;
@@ -28,6 +29,7 @@ pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;
+pub use products::{ProductsState, products_screen};
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
@@ -51,6 +53,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
         "Manage",
         &[
             ("customers", "Customers"),
+            ("products", "Products"),
             ("stock", "Stock"),
             ("godown", "Godown"),
             ("reorder", "Reorder"),
@@ -67,6 +70,7 @@ pub fn tabs(active: &str) -> String {
         "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
         "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "stock" => ("Stock", "Live inventory (billing stock)"),
+        "products" => ("Products", "Price list, margins & supplier comparison"),
         "godown" => ("Godown", "Simple list of what's stored in the godown"),
         "review" => (
             "Owner review",
@@ -112,6 +116,9 @@ pub fn tabs(active: &str) -> String {
     }
     if active == "expenses" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
+    }
+    if active == "products" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="product_new">＋ Add Product</button></template>"#;
     }
     if active == "stock" {
         html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="screen" data-tab="reorder">🔁 Reorder List</button></template>"#;

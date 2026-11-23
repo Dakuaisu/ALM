@@ -10,6 +10,7 @@ mod receiving;
 
 mod pricing;
 mod product_entry;
+mod product_list;
 mod reorder;
 mod stock_list;
 mod stock_lots;
@@ -25,6 +26,7 @@ pub use physical_count::{
 pub use pricing::{ProductPriceInput, ProductPricing};
 use product_entry::ProductDetails;
 pub use product_entry::{ProductEntry, ProductEntryError, ProductTaxOverrides, ResolvedProductTax};
+pub use product_list::{ProductList, ProductListRow, ProductText};
 pub use reorder::{ReorderError, ReorderRow, ReorderStatus};
 pub use stock_list::{StockList, StockListRow, StockStatus};
 pub use stock_lots::{StockLotRow, StockLots, StockLotsError};

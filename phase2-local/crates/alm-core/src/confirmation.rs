@@ -46,9 +46,10 @@ pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
 pub use catalog::{
     DailyMovementError, DailyMovementRow, PhysicalCount, PhysicalCountError, PhysicalCountInput,
-    ProductEntry, ProductEntryError, ProductPriceInput, ProductPricing, ProductTaxOverrides,
-    ReorderError, ReorderRow, ReorderStatus, ResolvedProductTax, StockCountMovement,
-    StockCountReason, StockList, StockListRow, StockLotRow, StockLots, StockLotsError, StockStatus,
+    ProductEntry, ProductEntryError, ProductList, ProductListRow, ProductPriceInput,
+    ProductPricing, ProductTaxOverrides, ProductText, ReorderError, ReorderRow, ReorderStatus,
+    ResolvedProductTax, StockCountMovement, StockCountReason, StockList, StockListRow, StockLotRow,
+    StockLots, StockLotsError, StockStatus,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use counter::{Counter, CounterAttention, CounterBill, CounterRecent, CounterTag, CreationKey};

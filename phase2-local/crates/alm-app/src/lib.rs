@@ -12,6 +12,7 @@ mod godown;
 mod gst_print;
 mod gst_sales;
 mod ipc;
+mod products;
 mod receipts;
 #[cfg(test)]
 mod screen_tests;
@@ -87,6 +88,7 @@ struct Trial {
     gst_form: Option<alm_core::confirmation::GstBillFields>,
     /// The bill shown on the invoice view.
     gst_view: GstBillId,
+    products: views::ProductsState,
 }
 
 type AppState = Mutex<Trial>;
@@ -138,6 +140,7 @@ impl Trial {
             gst_db: gst,
             gst_form: None,
             gst_view: TRIAL_BILL,
+            products: views::ProductsState::default(),
         })
     }
 
@@ -215,6 +218,8 @@ impl Trial {
                 views::gst_sales_screen(&self.authority, self.role(), self.gst_form.as_ref())
                     .map_err(debug)?
             }
+            "products" => views::products_screen(&self.authority, self.role(), &self.products)
+                .map_err(debug)?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -439,6 +444,11 @@ pub fn run() {
             gst_sales::gst_cancel,
             gst_sales::gst_delete,
             gst_sales::gst_view,
+            products::products_filter,
+            products::product_new,
+            products::product_edit,
+            products::product_save,
+            products::product_close,
             print_page,
             share_text
         ])

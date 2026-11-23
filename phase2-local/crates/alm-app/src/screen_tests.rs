@@ -453,3 +453,61 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
     assert!(!html.contains('₹'));
     assert!(trial.gst_submit(HashMap::new(), 1).is_err());
 }
+
+#[test]
+fn products_render_core_prices_margins_and_hide_them_from_the_manager() {
+    use alm_core::ProductId;
+    let root = Root::new("products");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.products.form = Some(
+        trial
+            .authority
+            .open_product_entry(Role::Owner, ProductId::new(1))
+            .unwrap(),
+    );
+    let form = crate::products::Form {
+        item: "Synthetic Lime".into(),
+        brand: "Synthetic Co".into(),
+        buy: "70".into(),
+        sell: "".into(),
+        reorder: "60".into(),
+    };
+    trial.product_save(&form).unwrap();
+    let row = trial
+        .authority
+        .product_list(Role::Owner, "lime", None)
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(
+        (row.buy.minor_units(), row.sell.minor_units()),
+        (7_000, 19_050)
+    );
+    assert_eq!(row.margin_percent.as_deref(), Some("172.1%"));
+    let html = trial.render("products").unwrap();
+    assert!(html.contains(r#"<td class="num">₹70</td><td class="num">₹191</td><td class="num">172.1%</td><td class="num"><span>50 pkt</span> <span class="tag low">low</span>"#), "{html}");
+    assert!(html.contains(r#"value="Synthetic Co">Synthetic Co</button>"#));
+    trial.products.form = Some(
+        trial
+            .authority
+            .open_product_entry(Role::Owner, ProductId::new(2))
+            .unwrap(),
+    );
+    let dup = crate::products::Form {
+        item: "synthetic lime".into(),
+        ..form
+    };
+    assert!(
+        trial
+            .product_save(&dup)
+            .unwrap_err()
+            .contains("already exists")
+    );
+    trial.owner = false;
+    trial.products.form = None;
+    let html = trial.render("products").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    for hidden in ["₹", "%", "Synthetic Lime"] {
+        assert!(!html.contains(hidden), "{hidden}");
+    }
+}
