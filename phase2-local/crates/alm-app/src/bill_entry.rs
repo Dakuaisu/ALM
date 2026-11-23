@@ -198,4 +198,6 @@ pub fn bill_open(state: State<'_, AppState>, id: IpcId) -> Result<String, String
 }
 
 #[cfg(test)]
+mod batch1;
+#[cfg(test)]
 mod tests;

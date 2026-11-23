@@ -94,6 +94,15 @@ impl Trial {
     }
 }
 
+#[cfg(test)]
+impl Trial {
+    /// Opens a saved row in the form, as the ✎ button does.
+    pub(crate) fn cash_edit_for_test(&mut self, id: u64) {
+        let row = self.cashbook.find(alm_core::Role::Owner, id).unwrap();
+        self.cash_form = Some((row.draft(), Some(id)));
+    }
+}
+
 #[tauri::command(async)]
 pub fn cash_entry(state: State<'_, AppState>, terms: Entry) -> Result<String, String> {
     with(&state, "expenses", |trial| trial.cash_entry(terms))
