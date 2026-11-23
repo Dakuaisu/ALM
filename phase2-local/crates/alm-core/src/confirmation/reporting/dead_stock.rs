@@ -14,6 +14,15 @@ pub struct DeadStockRow {
     pub locked_value: Money,
 }
 
+/// The Reports screen cutoff: `shiftDate(today, -30)`; stock last sold before it is dead.
+///
+/// # Errors
+/// Rejects dates whose cutoff would fall before the representable calendar.
+pub fn dead_stock_cutoff(today: BillDate) -> Result<BillDate, ConfirmationError> {
+    crate::confirmation::dashboard::windows::before(today, 30)
+        .map_err(|_| ConfirmationError::InvalidDraft)
+}
+
 impl ConfirmationFixture {
     /// Projects stock last sold strictly before an already-resolved calendar cutoff.
     /// No clock or timezone conversion is performed. Ties preserve catalog order.
@@ -78,5 +87,19 @@ impl ConfirmationFixture {
         rows.sort_by_key(|row| std::cmp::Reverse(row.locked_value.minor_units()));
         rows.truncate(15);
         Ok(rows)
+    }
+}
+
+#[cfg(test)]
+mod cutoff_tests {
+    use super::dead_stock_cutoff;
+    use crate::BillDate;
+
+    #[test]
+    fn cutoff_is_thirty_calendar_days_back() {
+        let day = |y, m, d| BillDate::new(y, m, d).unwrap();
+        assert_eq!(dead_stock_cutoff(day(2025, 3, 1)), Ok(day(2025, 1, 30)));
+        assert_eq!(dead_stock_cutoff(day(2024, 3, 30)), Ok(day(2024, 2, 29)));
+        assert_eq!(dead_stock_cutoff(day(2025, 1, 15)), Ok(day(2024, 12, 16)));
     }
 }

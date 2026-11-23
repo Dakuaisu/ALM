@@ -263,6 +263,9 @@ impl Trial {
                 )
                 .map_err(debug)?
             }
+            "reports" => {
+                views::reports_screen(&self.authority, &self.cashbook, self.role(), self.today()?)?
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }

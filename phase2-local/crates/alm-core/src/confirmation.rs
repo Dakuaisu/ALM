@@ -106,7 +106,7 @@ pub use purchase_orders::{
     SavedPurchaseLine, SavedPurchaseSupplier, SupplierBookRow, SupplierPrice,
     SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow, parse_quote,
 };
-pub use reporting::{CustomerRank, DeadStockRow, MonthlyProfit, ReportsError};
+pub use reporting::{CustomerRank, DeadStockRow, MonthlyProfit, ReportsError, dead_stock_cutoff};
 pub use sales_history::{
     SalesCollected, SalesDetail, SalesHistory, SalesPeriod, SalesProfit, SalesProfitError,
     SalesReceiptId, SalesRow, SalesSource,

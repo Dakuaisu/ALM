@@ -1,7 +1,7 @@
 //! Read-only synthetic dashboard; role selection is not authentication.
 #[cfg(test)]
 mod tests;
-mod windows;
+pub(super) mod windows;
 
 use super::{ConfirmationFixture, ProposedPayment, ReceiptMode};
 use crate::{BillDate, DraftId, Money, Role};

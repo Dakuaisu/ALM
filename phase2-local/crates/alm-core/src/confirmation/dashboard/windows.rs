@@ -1,7 +1,10 @@
 use super::{DashboardError, DashboardPeriod, DashboardWindow};
 use crate::BillDate;
 
-fn before(date: BillDate, days: u8) -> Result<BillDate, DashboardError> {
+pub(in crate::confirmation) fn before(
+    date: BillDate,
+    days: u8,
+) -> Result<BillDate, DashboardError> {
     (0..days).try_fold(date, |date, _| {
         let (year, month, day) = date.parts();
         if day > 1 {

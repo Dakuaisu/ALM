@@ -21,6 +21,7 @@ mod purchases;
 mod ratelist;
 mod receipt;
 mod reorder;
+mod reports;
 mod sales;
 mod stock;
 mod suppliers;
@@ -41,6 +42,7 @@ pub use purchases::purchases_screen;
 pub use ratelist::ratelist_screen;
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
+pub use reports::reports_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 pub use stock::{StockState, stock_screen};
 pub use suppliers::suppliers_screen;
@@ -75,7 +77,11 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
     ),
     (
         "More",
-        &[("ratelist", "Rate List"), ("dashboard", "Dashboard")],
+        &[
+            ("ratelist", "Rate List"),
+            ("dashboard", "Dashboard"),
+            ("reports", "Reports"),
+        ],
     ),
 ];
 
@@ -85,6 +91,7 @@ pub fn tabs(active: &str) -> String {
         "customers" => ("Customers", "Contacts & credit ledger (udhaar)"),
         "expenses" => ("Cash Book", "Daily income & expenses"),
         "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
+        "reports" => ("Reports", "Business performance"),
         "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),

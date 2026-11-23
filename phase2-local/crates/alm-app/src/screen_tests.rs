@@ -780,3 +780,32 @@ fn rate_list_renders_core_rows_ticks_and_text_and_denies_the_manager() {
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
 }
+
+#[test]
+fn reports_render_core_months_and_dead_stock_and_deny_the_manager() {
+    use alm_core::confirmation::{dead_stock_cutoff, manual_cashbook::ManualCashBook};
+    let fixture = books();
+    let book = ManualCashBook::default();
+    let today = alm_core::BillDate::new(2025, 6, 15).unwrap();
+    let months = fixture
+        .monthly_profit_report(Role::Owner, &book, today)
+        .unwrap();
+    let april = months.iter().find(|m| m.month == 4).unwrap();
+    assert_eq!(
+        (april.revenue.minor_units(), april.gross.minor_units()),
+        (12_050, 5_050)
+    );
+    let cutoff = dead_stock_cutoff(today).unwrap();
+    assert_eq!(cutoff, alm_core::BillDate::new(2025, 5, 16).unwrap());
+    let dead = fixture.dead_stock_report(Role::Owner, cutoff).unwrap();
+    let html = views::reports_screen(&fixture, &book, Role::Owner, today).unwrap();
+    assert!(html.contains(r#"<tr><td>2025-04</td><td class="num">1</td><td class="num">₹121</td><td class="num">₹51</td>"#), "{html}");
+    assert!(html.contains("Last sold before 2025-05-16."));
+    for row in dead {
+        assert!(html.contains(&money_r(row.locked_value)));
+    }
+    assert!(html.contains("<td class=\"muted\">2025-04-30</td>"));
+    let manager = views::reports_screen(&fixture, &book, Role::Manager, today).unwrap();
+    assert!(manager.contains("role=\"alert\""));
+    assert!(!manager.contains('₹'));
+}

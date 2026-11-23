@@ -3,7 +3,7 @@ use crate::DraftCustomer;
 
 mod dead_stock;
 mod monthly;
-pub use dead_stock::DeadStockRow;
+pub use dead_stock::{DeadStockRow, dead_stock_cutoff};
 #[cfg(test)]
 mod dead_stock_tests;
 pub use monthly::{CustomerRank, MonthlyProfit, ReportsError};
