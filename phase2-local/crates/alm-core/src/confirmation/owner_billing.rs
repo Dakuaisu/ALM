@@ -4,7 +4,9 @@ use super::{ConfirmationError, ConfirmationFixture, Receipt, ReceiptMode, Reques
 use crate::receive_payment::{Customer, ReceivePayment, SaveError};
 use crate::{BillDate, DraftCustomerId, InvalidBillDate, Money, ProvisionalDraft, Role};
 
+mod customer_book;
 mod directory;
+pub use customer_book::{BalanceSide, CustomerBook, CustomerBookRow, CustomerFilter, is_debtor};
 pub use directory::{BillingDirectory, DirectoryCustomer, DirectoryProduct};
 
 /// One Owner-priced line of a saved draft: the catalog sell rate times the draft quantity.

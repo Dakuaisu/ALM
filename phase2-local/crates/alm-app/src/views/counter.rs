@@ -70,7 +70,8 @@ pub fn counter_screen(
             "Settle udhaar",
             "receipt"
         ),
-        act("sm", &nav("sales"), "Sales", "", "sales"),
+        act("sm", &nav("sales"), "Sales", "", "sales")
+            + &act("sm", &nav("customers"), "Customers", "", "customers"),
     );
     html += r#"<div class="ctr-sec">Needs attention</div><div class="ctr-flag">"#;
     let attention = counter.attention;
@@ -102,14 +103,15 @@ pub fn counter_screen(
         );
     }
     if attention.debtors > 0 {
-        html += &flag(
-            "warn",
+        let _ = write!(
+            html,
+            r#"<form data-action="customers_filter" data-payload="terms"><input type="hidden" name="q" value=""><button class="flag warn" type="submit" name="mode" value="due"><span class="fi">{}</span><span>{}</span></button></form>"#,
             nav("customers"),
             plural(
                 attention.debtors,
                 " customer to collect from",
-                " customers to collect from",
-            ),
+                " customers to collect from"
+            )
         );
     }
     if attention.low_stock + attention.open_purchase_orders + attention.debtors == 0 {

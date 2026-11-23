@@ -6,6 +6,7 @@ use alm_core::Money;
 
 mod bill;
 mod counter;
+mod customers;
 mod drafts;
 mod gst;
 mod icons;
@@ -14,27 +15,32 @@ mod sales;
 
 pub use bill::{BillView, bill_screen};
 pub use counter::counter_screen;
+pub use customers::{CustomersState, customers_screen};
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 
 /// Sidebar sections follow the HTML NAV (L1896–1975); only ported screens are listed.
-const NAV: &[(&str, &[(&str, &str)])] = &[(
-    "Daily",
-    &[
-        ("counter", "Counter"),
-        ("bill", "New Bill"),
-        ("review", "Owner review"),
-        ("sales", "Sales"),
-        ("receipt", "Receive Payment"),
-        ("gst", "GST invoice"),
-    ],
-)];
+const NAV: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Daily",
+        &[
+            ("counter", "Counter"),
+            ("bill", "New Bill"),
+            ("review", "Owner review"),
+            ("sales", "Sales"),
+            ("receipt", "Receive Payment"),
+            ("gst", "GST invoice"),
+        ],
+    ),
+    ("Manage", &[("customers", "Customers")]),
+];
 
 pub fn tabs(active: &str) -> String {
     let (title, subtitle) = match active {
         "counter" => ("Counter", "What to do next · counts only"),
+        "customers" => ("Customers", "Contacts & credit ledger (udhaar)"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",
@@ -71,6 +77,19 @@ pub fn tabs(active: &str) -> String {
         html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="bill_fresh">＋ Fresh Bill</button></template>"#;
     }
     html
+}
+
+/// KPI card markup from the HTML's kpi() (L2986–3001); ₹ values get the privacy class.
+pub fn kpi(class: &str, label: &str, value: &str, sub: &str, icon: &str) -> String {
+    let private = if value.starts_with('₹') {
+        " privcard"
+    } else {
+        ""
+    };
+    format!(
+        r#"<div class="kpi {class}{private}"><div class="ic">{icon}</div><div class="label">{label}</div><div class="val">{value}</div><div class="sub">{}</div></div>"#,
+        esc(sub)
+    )
 }
 
 pub fn denied(screen: &str) -> String {

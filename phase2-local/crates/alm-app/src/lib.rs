@@ -6,9 +6,12 @@ mod bill_entry;
 mod billing;
 #[cfg(test)]
 mod billing_tests;
+mod customers;
 mod gst_print;
 mod ipc;
 mod receipts;
+#[cfg(test)]
+mod screen_tests;
 mod views;
 
 #[cfg(test)]
@@ -67,6 +70,7 @@ struct Trial {
     message: String,
     posting: OwnerPosting,
     sales_filter: views::Filter,
+    customers: views::CustomersState,
 }
 
 type AppState = Mutex<Trial>;
@@ -112,6 +116,7 @@ impl Trial {
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),
+            customers: views::CustomersState::default(),
         })
     }
 
@@ -153,6 +158,13 @@ impl Trial {
     fn render(&mut self, tab: &str) -> Result<String, String> {
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
+            "customers" => views::customers_screen(
+                &self.authority,
+                &self.directory,
+                self.role(),
+                &self.customers,
+            )
+            .map_err(debug)?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -325,6 +337,9 @@ pub fn run() {
             billing::sale_cancel,
             billing::sale_restore,
             receipts::receipt_save,
+            customers::customers_filter,
+            customers::customer_open,
+            customers::customer_opening,
             print_page,
             share_text
         ])

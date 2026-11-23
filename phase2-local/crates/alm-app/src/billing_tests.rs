@@ -25,6 +25,13 @@ fn review(fixture: &mut ConfirmationFixture) -> OwnerPosting {
     posting
 }
 
+/// Posts the reviewed bill #1: ₹120.50 total, ₹20 paid in cash on 2025-04-30.
+pub(crate) fn posted(fixture: &mut ConfirmationFixture) {
+    review(fixture)
+        .confirm(fixture, Role::Owner, 1)
+        .expect("post");
+}
+
 pub(crate) fn draft() -> ProvisionalDraft {
     ProvisionalDraft::new(
         DraftId::new(1),
