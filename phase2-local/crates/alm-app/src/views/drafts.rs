@@ -1,5 +1,4 @@
-//! Screen fragments for the trial, built with the frozen HTML's CSS classes. The page script
-//! only inserts these and forwards clicks and form fields to commands.
+//! Draft and review fragments. HTML source: ALM_Business_Manager.html L3373–4359 (bill entry).
 use std::fmt::Write as _;
 
 use alm_core::confirmation::ConfirmationError;
@@ -21,34 +20,6 @@ fn customer(draft: &ProvisionalDraft) -> &str {
     match draft.customer() {
         DraftCustomer::Unassigned => "Unassigned",
         DraftCustomer::Typed(name) | DraftCustomer::Selected { name, .. } => name,
-    }
-}
-
-pub fn tabs(active: &str) -> String {
-    let mut html =
-        String::from("<div class=\"row no-print\" style=\"gap:8px;margin-bottom:12px\">");
-    for (tab, label) in [
-        ("draft", "Manager draft"),
-        ("review", "Owner review"),
-        ("gst", "GST invoice"),
-    ] {
-        let class = if tab == active { "btn primary" } else { "btn" };
-        let _ = write!(
-            html,
-            "<button class=\"{class}\" data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
-        );
-    }
-    html + "</div>"
-}
-
-pub fn notice(message: &str) -> String {
-    if message.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "<div class=\"help no-print\" style=\"margin-bottom:10px\">{}</div>",
-            esc(message)
-        )
     }
 }
 
@@ -169,13 +140,4 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
         }
     }
     html + "</div>"
-}
-
-pub fn gst_screen(invoice_html: &str, print_title: &str) -> String {
-    let title = esc(print_title);
-    format!(
-        "<div class=\"help no-print\" style=\"margin-bottom:10px\">Standalone GST tax invoice — not linked to stock or dues.</div>\
-         <div class=\"row no-print\" style=\"gap:8px;margin-bottom:10px\"><button class=\"btn\" data-action=\"print\" data-title=\"{title}\">🖨️ Print</button><button class=\"btn\" data-action=\"print\" data-title=\"{title}\">📄 Save PDF</button><button class=\"btn\" data-action=\"share\">Share</button></div>\
-         <div id=\"printable\">{invoice_html}</div>"
-    )
 }
