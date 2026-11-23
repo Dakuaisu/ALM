@@ -16,6 +16,8 @@ use alm_phase2_local::{
 mod customer;
 #[path = "sqlite_restart/reconnect.rs"]
 mod reconnect;
+#[path = "common/sqlite_list.rs"]
+mod sqlite_list;
 
 const WORKER_MODE: &str = "ALM_SQLITE_RESTART_MODE";
 const WORKER_DB: &str = "ALM_SQLITE_RESTART_DB";
@@ -118,25 +120,14 @@ fn run_worker(mode: &str, path: &Path) {
     );
 }
 
-fn sqlite3(path: &Path, flags: &[&str], sql: &str) -> String {
-    // Keep a developer's SQLite startup config out of the test.
-    let home = path.parent().expect("database has a scratch directory");
-    let output = Command::new("sqlite3")
-        .env("HOME", home)
-        .env("USERPROFILE", home)
-        .args(["-batch", "-bail", "-list", "-noheader"])
-        .args(flags)
-        .arg(path)
-        .arg(sql)
-        .output()
-        .expect("run sqlite3 CLI (required for schema inspection and failure injection)");
-    assert!(
-        output.status.success(),
-        "sqlite3 failed ({}): {}",
-        output.status,
-        String::from_utf8_lossy(&output.stderr),
-    );
-    String::from_utf8(output.stdout).expect("SQLite query output is UTF-8")
+fn run_sql(path: &Path, read_only: bool, sql: &str) -> String {
+    let conn = if read_only {
+        sqlite_list::open_read_only(path)
+    } else {
+        rusqlite::Connection::open(path)
+    }
+    .expect("open synthetic SQLite file");
+    sqlite_list::sqlite_list(&conn, sql).expect("run synthetic SQL")
 }
 
 #[test]
@@ -150,9 +141,9 @@ fn edited_and_empty_drafts_survive_a_fresh_process_without_posting_tables() {
     run_worker("read", &path);
 
     // Then: both drafts survived, and SQLite has no posting tables.
-    let tables = sqlite3(
+    let tables = run_sql(
         &path,
-        &["-readonly"],
+        true,
         "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;",
     );
     assert_eq!(
@@ -264,9 +255,9 @@ fn failed_line_insert_rolls_back_draft_replacement() {
         .session(Role::Manager)
         .save_draft(original.clone())
         .expect("commit original draft");
-    sqlite3(
+    run_sql(
         &path,
-        &[],
+        false,
         "CREATE TRIGGER reject_synthetic_line BEFORE INSERT ON provisional_draft_lines \
          BEGIN SELECT RAISE(ABORT, 'synthetic line insert failure'); END;",
     );

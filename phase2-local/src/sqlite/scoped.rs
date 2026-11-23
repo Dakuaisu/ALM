@@ -2,7 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::io::ErrorKind;
 use std::path::Path;
 
-use super::{DraftStorageError, SqliteDraftStore, schema};
+use super::{DraftStorageError, SqliteDraftStore, connect, schema, text};
 
 const DIRECTORY: &str = "manager-accounts";
 const SCOPE_TABLE: &str = "manager_account_scope";
@@ -68,34 +68,53 @@ impl SqliteDraftStore {
             check_file_slot(&directory.join(format!("{filename}{suffix}")))?;
         }
         let reservation = OpenOptions::new().write(true).create_new(true).open(&path);
-        let store = Self { path };
         match reservation {
             Ok(file) => {
                 drop(file);
+                let store = Self {
+                    conn: connect(&path)?,
+                };
                 store.initialize_scoped(&key)?;
+                Ok(store)
             }
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => store.check_scope(&key)?,
-            Err(error) => return Err(error.into()),
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                check_file_slot(&path)?;
+                let store = connect(&path)
+                    .map(|conn| Self { conn })
+                    .map_err(|_| DraftStorageError::AccountStoreMismatch)?;
+                store.check_scope(&key)?;
+                Ok(store)
+            }
+            Err(error) => Err(error.into()),
         }
-        Ok(store)
     }
 
     fn initialize_scoped(&self, key: &str) -> Result<(), DraftStorageError> {
-        let sql = format!(
-            "BEGIN IMMEDIATE;\n{}\n\
-             CREATE TABLE {SCOPE_TABLE} (account_hex TEXT PRIMARY KEY NOT NULL) STRICT;\n\
-             INSERT INTO {SCOPE_TABLE} VALUES ('{key}');\nCOMMIT;",
-            schema::DRAFT_TABLES,
-        );
-        self.run(sql.as_bytes(), false).map(|_| ())
+        let tx = self.begin()?;
+        tx.execute_batch(schema::DRAFT_TABLES)?;
+        tx.execute_batch(&format!(
+            "CREATE TABLE {SCOPE_TABLE} (account_hex TEXT PRIMARY KEY NOT NULL) STRICT;"
+        ))?;
+        tx.execute(&format!("INSERT INTO {SCOPE_TABLE} VALUES (?1)"), [key])?;
+        tx.commit()?;
+        Ok(())
     }
 
     fn check_scope(&self, key: &str) -> Result<(), DraftStorageError> {
-        check_file_slot(&self.path)?;
-        let sql = format!("SELECT account_hex FROM {SCOPE_TABLE};");
-        match self.run(sql.as_bytes(), true) {
-            Ok(output) if output.strip_suffix(b"\n") == Some(key.as_bytes()) => Ok(()),
-            Ok(_) | Err(DraftStorageError::SqliteFailed { .. }) => {
+        let bound = (|| {
+            let mut query = self
+                .conn
+                .prepare(&format!("SELECT account_hex FROM {SCOPE_TABLE}"))?;
+            let mut rows = query.query([])?;
+            let mut keys = Vec::new();
+            while let Some(row) = rows.next()? {
+                keys.push(text(row, 0)?);
+            }
+            Ok::<_, DraftStorageError>(keys)
+        })();
+        match bound {
+            Ok(keys) if keys == [Some(key.to_owned())] => Ok(()),
+            Ok(_) | Err(DraftStorageError::Sqlite(_) | DraftStorageError::InvalidOutput) => {
                 Err(DraftStorageError::AccountStoreMismatch)
             }
             Err(error) => Err(error),

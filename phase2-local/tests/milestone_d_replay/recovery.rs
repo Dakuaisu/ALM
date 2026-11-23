@@ -2,12 +2,15 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::process::Command;
+
+use rusqlite::Connection;
 
 use alm_phase2_local::confirmation::{
     ConfirmationFixture, GstJurisdiction, GstLineMetadata, GstRequest,
 };
 use alm_phase2_local::{BillDate, DraftCustomerId, DraftId, ProductId, Role};
+
+use super::sqlite_list::{open_read_only, sqlite_list};
 
 const SCHEMA: &str =
     "CREATE TABLE records (name TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID";
@@ -15,24 +18,13 @@ const NAMES: &str = "account|cashbook_feb|cashbook_mar|fifo_a|fifo_b|gst_invoice
 const CONTROLS: &str = "SELECT CASE WHEN (SELECT value FROM records WHERE name='settings') LIKE '%show_profile=1%' THEN (SELECT value FROM records WHERE name='profile') ELSE '' END; SELECT CASE WHEN (SELECT value FROM records WHERE name='settings') LIKE 'receipt_mode=online|%' THEN 'online' ELSE 'cash' END;";
 
 fn sqlite(path: &Path, sql: &str, readonly: bool) -> Result<String, ()> {
-    let mut command = Command::new("sqlite3");
-    if readonly {
-        command.arg("-readonly");
+    let conn = if readonly {
+        open_read_only(path)
+    } else {
+        Connection::open(path)
     }
-    let output = command
-        .arg("-batch")
-        .arg(path)
-        .arg(sql)
-        .output()
-        .map_err(|_| ())?;
-    if !output.status.success() {
-        return Err(());
-    }
-    String::from_utf8(output.stdout).map_err(|_| ())
-}
-
-fn literal(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+    .map_err(|_| ())?;
+    sqlite_list(&conn, sql).map_err(|_| ())
 }
 
 fn snapshot(fixture: &ConfirmationFixture) -> Vec<(&'static str, String)> {
@@ -156,7 +148,9 @@ fn backup(role: Role, source: &Path, archive: &Path) -> Result<(), ()> {
     }
     valid(source)?;
     let name = archive.to_str().ok_or(())?;
-    sqlite(source, &format!("VACUUM INTO {};", literal(name)), false)?;
+    Connection::open(source)
+        .and_then(|conn| conn.execute("VACUUM INTO ?1", [name]))
+        .map_err(|_| ())?;
     Ok(())
 }
 
@@ -190,17 +184,17 @@ pub(super) fn exercise(fixture: &ConfirmationFixture, dir: &Path) {
     let archive = dir.join("d-read-model-v2.sqlite");
     let restored = dir.join("d-read-model-restored.sqlite");
     let rows = snapshot(fixture);
-    let mut sql = format!("BEGIN; PRAGMA user_version=2; {SCHEMA};");
-    for (name, value) in &rows {
-        sql.push_str(&format!(
-            "INSERT INTO records VALUES ({},{});",
-            literal(name),
-            literal(value)
-        ));
-    }
-    sql.push_str("COMMIT;");
     assert!(!source.exists() && !archive.exists() && !restored.exists());
-    sqlite(&source, &sql, false).unwrap();
+    let mut conn = Connection::open(&source).unwrap();
+    let tx = conn.transaction().unwrap();
+    tx.execute_batch(&format!("PRAGMA user_version=2; {SCHEMA};"))
+        .unwrap();
+    for (name, value) in &rows {
+        tx.execute("INSERT INTO records VALUES (?1, ?2)", (name, value))
+            .unwrap();
+    }
+    tx.commit().unwrap();
+    drop(conn);
     let before = readback(&source).unwrap();
     let controls = sqlite(&source, CONTROLS, true).expect("read source settings controls");
     assert_eq!(

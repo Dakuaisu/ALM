@@ -1,4 +1,6 @@
-use super::{DraftStorageError, SqliteDraftStore, customer};
+use rusqlite::OptionalExtension;
+
+use super::{DraftStorageError, SqliteDraftStore, text};
 use crate::confirmation::RequestId;
 
 impl SqliteDraftStore {
@@ -7,28 +9,27 @@ impl SqliteDraftStore {
         id: RequestId,
         snapshot: &str,
     ) -> Result<(), DraftStorageError> {
-        let sql = format!(
-            "PRAGMA synchronous = FULL; BEGIN IMMEDIATE; INSERT INTO pending_owner_confirmations VALUES ('{}', {}); COMMIT;",
-            id.0,
-            customer::sql_text(snapshot)
-        );
-        self.run(sql.as_bytes(), false).map(|_| ())
+        let tx = self.begin()?;
+        tx.execute(
+            "INSERT INTO pending_owner_confirmations VALUES (?1, ?2)",
+            (id.0.to_string(), snapshot),
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 
     pub(crate) fn load_pending(&self, id: RequestId) -> Result<Option<String>, DraftStorageError> {
-        let sql = format!(
-            "SELECT snapshot FROM pending_owner_confirmations WHERE request_id = '{}';",
-            id.0
-        );
-        let output = self.run(sql.as_bytes(), true)?;
-        if output.is_empty() {
-            return Ok(None);
+        let snapshot = self
+            .conn
+            .query_row(
+                "SELECT snapshot FROM pending_owner_confirmations WHERE request_id = ?1",
+                [id.0.to_string()],
+                |row| Ok(text(row, 0)),
+            )
+            .optional()?;
+        match snapshot {
+            None => Ok(None),
+            Some(value) => value?.ok_or(DraftStorageError::InvalidOutput).map(Some),
         }
-        let text = String::from_utf8(output).map_err(|_| DraftStorageError::InvalidOutput)?;
-        Ok(Some(
-            text.strip_suffix('\n')
-                .ok_or(DraftStorageError::InvalidOutput)?
-                .to_owned(),
-        ))
     }
 }

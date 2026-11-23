@@ -5,7 +5,7 @@ use alm_phase2_local::{
     AccessDenied, BillDate, DraftCustomer, DraftId, Money, ProductId, ProvisionalDraft, Role,
 };
 
-use super::{PROFIT, ScratchDir, draft, open_sales, run_worker, sqlite3};
+use super::{PROFIT, ScratchDir, draft, open_sales, run_sql, run_worker};
 
 const SAVED_ID: DraftId = DraftId::new(51);
 const PRODUCT: u64 = 7;
@@ -32,9 +32,9 @@ fn saved_draft_reconnects_without_posting_until_owner_confirms_current_price() {
     run_worker("read_reconnect", &path);
 
     // Then: even after confirmation, SQLite still holds only the unchanged draft.
-    let tables = sqlite3(
+    let tables = run_sql(
         &path,
-        &["-readonly"],
+        true,
         "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;",
     );
     assert_eq!(

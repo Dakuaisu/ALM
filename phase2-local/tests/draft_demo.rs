@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -8,6 +8,10 @@ use alm_phase2_local::{DraftCustomer, DraftId, LocalSales, ProductId};
 
 #[path = "draft_demo/scoped_edit.rs"]
 mod scoped_edit;
+#[path = "common/sqlite_dump.rs"]
+mod sqlite_dump;
+#[path = "common/sqlite_list.rs"]
+mod sqlite_list;
 
 const DEMO: &str = env!("CARGO_BIN_EXE_alm-draft-demo");
 const CREATE_DRAFT: &str = "new\nSynthetic Customer\n1\n3\nreview\nsave\nquit\n";
@@ -105,48 +109,25 @@ fn run_script(mut command: Command, script: &str, launch: &str) -> (u32, Output)
 }
 
 fn assert_no_pending_confirmations(scratch: &ScratchDir) {
-    let output = scratch
-        .command("sqlite3")
-        .args(["-batch", "-bail", "-list", "-noheader", "-readonly"])
-        .arg(scratch.database())
-        .arg("SELECT COUNT(*) FROM pending_owner_confirmations;")
-        .output()
-        .expect("run read-only SQLite pending-confirmation query");
-    assert!(
-        output.status.success() && output.stderr.is_empty(),
-        "read-only SQLite query failed: {}",
-        output.status,
-    );
-    let stdout = String::from_utf8(output.stdout).expect("SQLite stdout is UTF-8");
+    let conn = sqlite_list::open_read_only(&scratch.database())
+        .expect("open read-only SQLite pending-confirmation query");
+    let stdout =
+        sqlite_list::sqlite_list(&conn, "SELECT COUNT(*) FROM pending_owner_confirmations;")
+            .expect("run read-only SQLite pending-confirmation query");
     assert_eq!(stdout.trim().parse::<u64>().ok(), Some(0));
     println!("SQLite (read-only): 0 pending owner confirmations");
 }
 
-fn logical_snapshot(scratch: &ScratchDir) -> Vec<u8> {
-    let output = scratch
-        .command("sqlite3")
-        .args(["-batch", "-bail", "-readonly"])
-        .arg(scratch.database())
-        .arg(".dump")
-        .output()
-        .expect("run read-only SQLite dump");
-    assert!(output.status.success() && output.stderr.is_empty());
-    output.stdout
+fn logical_snapshot(scratch: &ScratchDir) -> String {
+    let conn =
+        sqlite_list::open_read_only(&scratch.database()).expect("open read-only SQLite dump");
+    sqlite_dump::sqlite_dump(&conn).expect("run read-only SQLite dump")
 }
 
-fn data_version(input: &mut impl Write, output: &mut impl BufRead) -> u64 {
-    writeln!(input, "PRAGMA data_version;").expect("request SQLite data version");
-    input.flush().expect("flush SQLite data version query");
-    let mut line = String::new();
-    assert_ne!(
-        output
-            .read_line(&mut line)
-            .expect("read SQLite data version"),
-        0
-    );
-    line.trim()
-        .parse()
-        .expect("SQLite data version is an integer")
+fn data_version(observer: &rusqlite::Connection) -> i64 {
+    observer
+        .pragma_query_value(None, "data_version", |row| row.get(0))
+        .expect("read SQLite data version")
 }
 
 fn assert_transcript(launch: &str, stdout: &str, expected: &[&str]) {
@@ -167,28 +148,14 @@ fn saved_provisional_draft_reopens_in_a_fresh_cli_process() {
 
     // When: one process saves and exits, then a second process opens draft 1.
     let (before_pid, before) = run_demo(&scratch, CREATE_DRAFT, "Launch 1: create and save");
-    let mut observer = scratch
-        .command("sqlite3")
-        .args(["-batch", "-bail", "-list", "-noheader", "-readonly"])
-        .arg(scratch.database())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("start read-only SQLite observer");
-    let mut observer_input = observer.stdin.take().expect("SQLite observer stdin");
-    let mut observer_output =
-        BufReader::new(observer.stdout.take().expect("SQLite observer stdout"));
-    let version_before = data_version(&mut observer_input, &mut observer_output);
+    let observer =
+        sqlite_list::open_read_only(&scratch.database()).expect("start read-only SQLite observer");
+    let version_before = data_version(&observer);
     let snapshot_before = logical_snapshot(&scratch);
     let (after_pid, after) = run_demo(&scratch, REOPEN_DRAFT, "Launch 2: open and review");
-    let version_after = data_version(&mut observer_input, &mut observer_output);
+    let version_after = data_version(&observer);
     let snapshot_after = logical_snapshot(&scratch);
-    drop(observer_input);
-    let observer_result = observer
-        .wait_with_output()
-        .expect("wait for SQLite observer");
-    assert!(observer_result.status.success() && observer_result.stderr.is_empty());
+    drop(observer);
 
     // Then: review shows the same synthetic draft, still provisional, across distinct launches.
     assert_ne!(

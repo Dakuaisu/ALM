@@ -14,6 +14,8 @@ mod crate_checkout;
 mod crate_template;
 mod fifo;
 mod named_payment;
+#[path = "../../../tests/common/sqlite_list.rs"]
+mod sqlite_list;
 mod sqlite_pending;
 mod transport;
 use codec::{OwnerRequest, draft_fields, read_receipt, receipt_frame};

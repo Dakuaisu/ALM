@@ -1,9 +1,12 @@
-use std::env;
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+
+#[path = "sqlite_dump.rs"]
+mod sqlite_dump;
+#[path = "sqlite_list.rs"]
+mod sqlite_list;
 
 const COLUMNS: &str = concat!(
     "table|manager_account_scope|account_hex\n",
@@ -52,7 +55,7 @@ impl SqliteEvidence {
             columns,
             scope: query(path, "SELECT account_hex FROM manager_account_scope;"),
             rows: query(path, ROWS),
-            dump: query(path, ".dump"),
+            dump: sqlite_dump::sqlite_dump(&open(path)).expect("read-only SQLite dump"),
         }
     }
 
@@ -92,32 +95,12 @@ pub(crate) fn account_hex(account: &str) -> String {
     key
 }
 
+fn open(path: &Path) -> rusqlite::Connection {
+    sqlite_list::open_read_only(path).expect("open Manager SQLite read-only")
+}
+
 fn query(path: &Path, query: &str) -> String {
-    let home = path.parent().expect("database directory");
-    let result = Command::new("sqlite3")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").expect("PATH for sqlite3"))
-        .env("HOME", home)
-        .env("USERPROFILE", home)
-        .env("TMPDIR", home)
-        .args([
-            "-readonly",
-            "-batch",
-            "-bail",
-            "-list",
-            "-noheader",
-            "-separator",
-            "|",
-        ])
-        .arg(path)
-        .arg(query)
-        .output()
-        .expect("sqlite3 is required for Manager evidence");
-    assert!(
-        result.status.success(),
-        "read-only SQLite failed: {result:?}"
-    );
-    String::from_utf8(result.stdout).expect("text SQLite projection")
+    sqlite_list::sqlite_list(&open(path), query).expect("read-only SQLite projection")
 }
 
 pub(crate) fn databases(root: &Path) -> Vec<PathBuf> {

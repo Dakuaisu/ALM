@@ -8,7 +8,7 @@ use alm_phase2_local::{
     AccessDenied, DraftCustomer, DraftCustomerId, DraftId, ProvisionalDraft, Role,
 };
 
-use super::{EDITED_LINES, ORIGINAL_LINES, ScratchDir, draft, open_sales, run_worker, sqlite3};
+use super::{EDITED_LINES, ORIGINAL_LINES, ScratchDir, draft, open_sales, run_sql, run_worker};
 
 const SELECTED: DraftId = DraftId::new(101);
 const TYPED: DraftId = DraftId::new(102);
@@ -52,9 +52,9 @@ fn customer_entry_survives_process_restart_and_isolated_edit() {
     run_worker("customer_write", &path);
     run_worker("customer_edit", &path);
     run_worker("customer_read", &path);
-    let tables = sqlite3(
+    let tables = run_sql(
         &path,
-        &["-readonly"],
+        true,
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;",
     );
     assert_eq!(
@@ -142,9 +142,9 @@ pub(super) fn worker(mode: &str, path: &Path) {
 fn old_database_reopens_unassigned_without_losing_lines() {
     let scratch = ScratchDir::new();
     let path = scratch.db_path();
-    sqlite3(
+    run_sql(
         &path,
-        &[],
+        false,
         "CREATE TABLE provisional_drafts (id TEXT PRIMARY KEY NOT NULL); CREATE TABLE provisional_draft_lines (draft_id TEXT NOT NULL, position INTEGER NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL, PRIMARY KEY(draft_id, position)); INSERT INTO provisional_drafts VALUES ('101'); INSERT INTO provisional_draft_lines VALUES ('101',0,'4',1);",
     );
     let reopened = open_sales(&path)
@@ -164,9 +164,9 @@ fn customer_and_lines_roll_back_together_when_line_insert_fails() {
         .session(Role::Manager)
         .save_draft(expected(TYPED, false))
         .unwrap();
-    sqlite3(
+    run_sql(
         &path,
-        &[],
+        false,
         "CREATE TRIGGER reject_customer_edit BEFORE INSERT ON provisional_draft_lines BEGIN SELECT RAISE(ABORT, 'reject'); END;",
     );
     assert!(

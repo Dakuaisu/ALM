@@ -1,5 +1,4 @@
 use super::*;
-use std::process::Command;
 
 #[test]
 fn mixed_approval_survives_client_restart_and_replays_after_price_change() {
@@ -144,8 +143,7 @@ fn sqlite_abort_and_duplicate_never_send_or_replace_approval() {
     authority.register_draft(draft(45, 2)).unwrap();
     let approved = authority.review(Role::Owner, DraftId::new(45)).unwrap();
     let id = RequestId::new(456);
-    let output = Command::new("sqlite3").arg(&database).arg("CREATE TRIGGER reject_pending BEFORE INSERT ON pending_owner_confirmations BEGIN SELECT RAISE(ABORT, 'rejected'); END;").output().unwrap();
-    assert!(output.status.success());
+    rusqlite::Connection::open(&database).unwrap().execute_batch("CREATE TRIGGER reject_pending BEFORE INSERT ON pending_owner_confirmations BEGIN SELECT RAISE(ABORT, 'rejected'); END;").unwrap();
     let mut client = Client::start("sqlite_fail", &scratch.0);
     client.write_frame(
         &OwnerRequest {
@@ -156,12 +154,10 @@ fn sqlite_abort_and_duplicate_never_send_or_replace_approval() {
     );
     assert_eq!(client.finish(), ["SAVE_FAILED"]);
     assert_no_sidecar(&scratch.0);
-    let output = Command::new("sqlite3")
-        .arg(&database)
-        .arg("DROP TRIGGER reject_pending;")
-        .output()
+    rusqlite::Connection::open(&database)
+        .unwrap()
+        .execute_batch("DROP TRIGGER reject_pending;")
         .unwrap();
-    assert!(output.status.success());
     sales
         .session(Role::Owner)
         .confirm_pending(id, &approved, |_, _| {})

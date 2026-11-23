@@ -17,6 +17,8 @@ mod png_output;
 mod recovery;
 #[path = "milestone_d_replay/sales_output.rs"]
 mod sales_output;
+#[path = "common/sqlite_list.rs"]
+mod sqlite_list;
 
 static NEXT_REPLAY: AtomicU64 = AtomicU64::new(0);
 

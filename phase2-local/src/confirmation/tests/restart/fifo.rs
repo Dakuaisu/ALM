@@ -1,7 +1,6 @@
 use super::*;
 use crate::DraftLine;
 use std::num::NonZeroU32;
-use std::process::Command;
 
 #[test]
 fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
@@ -61,15 +60,10 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
         Some(draft)
     );
     let sql = "SELECT m.name || ':' || (SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info(m.name) ORDER BY cid)) FROM sqlite_schema m WHERE m.type='table' ORDER BY m.name; SELECT 'draft|' || id FROM provisional_drafts; SELECT 'line|' || draft_id || '|' || position || '|' || product_id || '|' || quantity FROM provisional_draft_lines ORDER BY position; SELECT 'pending|' || request_id || '|' || snapshot FROM pending_owner_confirmations; SELECT 'customers|' || count(*) FROM provisional_draft_customers; SELECT 'crates|' || count(*) FROM provisional_draft_crates;";
-    let output = Command::new("sqlite3")
-        .arg("-readonly")
-        .arg(&database)
-        .arg(sql)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+    let output =
+        sqlite_list::sqlite_list(&sqlite_list::open_read_only(&database).unwrap(), sql).unwrap();
     assert_eq!(
-        String::from_utf8(output.stdout).unwrap(),
+        output,
         concat!(
             "pending_owner_confirmations:request_id,snapshot\n",
             "provisional_draft_crates:draft_id,definition\n",

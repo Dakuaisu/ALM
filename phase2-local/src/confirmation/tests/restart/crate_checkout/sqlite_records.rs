@@ -1,5 +1,6 @@
 use std::path::Path;
-use std::process::Command;
+
+use super::sqlite_list::{open_read_only, sqlite_list};
 
 pub(super) fn assert_cost_free_records(database: &Path) {
     let sql = "
@@ -15,31 +16,10 @@ pub(super) fn assert_cost_free_records(database: &Path) {
         SELECT 'crate', * FROM provisional_draft_crates ORDER BY draft_id;
         SELECT 'pending', * FROM pending_owner_confirmations ORDER BY request_id;
     ";
-    let output = Command::new("sqlite3")
-        .args([
-            "-batch",
-            "-bail",
-            "-readonly",
-            "-list",
-            "-noheader",
-            "-separator",
-            "|",
-        ])
-        .env(
-            "HOME",
-            database.parent().expect("fixture scratch directory"),
-        )
-        .arg(database)
-        .arg(sql)
-        .output()
-        .expect("query raw client SQLite records");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let conn = open_read_only(database).expect("open raw client SQLite records");
+    let output = sqlite_list(&conn, sql).expect("query raw client SQLite records");
     assert_eq!(
-        String::from_utf8(output.stdout).expect("SQLite fixture output is UTF-8"),
+        output,
         concat!(
             "pending_owner_confirmations:request_id,snapshot\n",
             "provisional_draft_crates:draft_id,definition\n",
