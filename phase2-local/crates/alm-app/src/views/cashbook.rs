@@ -30,6 +30,12 @@ fn signed(rupees: i64) -> String {
     format!("{sign}{}", indian_digits(rupees.unsigned_abs()))
 }
 
+/// Whole rupees as moneyR shows them ("₹20", "₹-3").
+fn whole(rupees: i64) -> String {
+    let sign = if rupees < 0 { "-" } else { "" };
+    format!("₹{sign}{}", indian_digits(rupees.unsigned_abs()))
+}
+
 fn shown(amount: Money) -> String {
     if amount.minor_units() == 0 {
         String::new()
@@ -114,8 +120,8 @@ fn entry_form(
         let _ = write!(
             html,
             r#"<div style="font-weight:600">📟 System total for {date}: Cash {} · Online {}{source}</div><div class="help" style="margin-top:4px">Part-payments on Credit bills count as cash. Enter what you actually counted below, then Check.</div><div style="margin-top:6px">Cash difference: <b class="{}">{}</b>  ·  Online difference: <b class="{}">{}</b></div>"#,
-            signed(check.system.cash_rupees),
-            signed(check.system.online_rupees),
+            whole(check.system.cash_rupees),
+            whole(check.system.online_rupees),
             class(check.cash_difference_rupees),
             signed(check.cash_difference_rupees),
             class(check.online_difference_rupees),

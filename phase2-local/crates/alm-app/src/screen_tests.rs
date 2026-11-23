@@ -146,7 +146,7 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
         .unwrap();
     let html = trial.render("expenses").unwrap();
     assert!(
-        html.contains("System total for 2025-04-30: Cash +₹20 · Online ₹0 — from 1 bills/receipts")
+        html.contains("System total for 2025-04-30: Cash ₹20 · Online ₹0 — from 1 bills/receipts")
     );
     assert!(html.contains(r#"Cash difference: <b class="neg">−₹2</b>"#));
     trial
