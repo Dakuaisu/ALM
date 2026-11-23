@@ -17,6 +17,7 @@ pub struct Entry {
     pub salary: String,
     pub goods: String,
     pub misc: String,
+    #[serde(default)]
     pub intent: String,
 }
 
@@ -26,8 +27,18 @@ fn amount(label: &str, text: &str) -> Result<Money, String> {
 }
 
 impl Trial {
-    pub(crate) fn cash_entry(&mut self, entry: Entry) -> Result<(), String> {
+    /// The day-close card for the typed (unsaved) entry, for live updates.
+    pub(crate) fn cash_live(&self, entry: &Entry) -> Result<String, String> {
         let role = self.require_owner()?;
+        let (draft, _) = self.cash_draft(role, entry)?;
+        crate::views::cash_system_card(&self.authority, role, &draft).map_err(debug)
+    }
+
+    fn cash_draft(
+        &self,
+        role: alm_core::Role,
+        entry: &Entry,
+    ) -> Result<(ManualCashBookDraft, Option<u64>), String> {
         let editing = if entry.id.is_empty() {
             None
         } else {
@@ -38,15 +49,6 @@ impl Trial {
                     .map_err(|_| "Unknown entry.".to_owned())?,
             )
         };
-        if entry.intent == "delete" {
-            let id = editing.ok_or("Unknown entry.")?;
-            let row = self.cashbook.find(role, id).map_err(debug)?;
-            self.cashbook
-                .delete(role, CashBookDeletion::Confirm(row.id))
-                .map_err(debug)?;
-            self.cash_form = None;
-            return Ok(());
-        }
         let date = if entry.date.is_empty() {
             None
         } else {
@@ -67,6 +69,24 @@ impl Trial {
         };
         draft.date = date;
         draft.amounts = amounts;
+        Ok((draft, editing))
+    }
+
+    pub(crate) fn cash_entry(&mut self, entry: Entry) -> Result<(), String> {
+        let role = self.require_owner()?;
+        if entry.intent == "delete" {
+            let id = entry
+                .id
+                .parse::<u64>()
+                .map_err(|_| "Unknown entry.".to_owned())?;
+            let row = self.cashbook.find(role, id).map_err(debug)?;
+            self.cashbook
+                .delete(role, CashBookDeletion::Confirm(row.id))
+                .map_err(debug)?;
+            self.cash_form = None;
+            return Ok(());
+        }
+        let (mut draft, editing) = self.cash_draft(role, &entry)?;
         match entry.intent.as_str() {
             "system" => {
                 draft
@@ -101,6 +121,12 @@ impl Trial {
 #[tauri::command(async)]
 pub fn cash_entry(state: State<'_, AppState>, terms: Entry) -> Result<String, String> {
     with(&state, "expenses", |trial| trial.cash_entry(terms))
+}
+
+#[tauri::command(async)]
+pub fn cash_live(state: State<'_, AppState>, terms: Entry) -> Result<String, String> {
+    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    trial.cash_live(&terms)
 }
 
 #[tauri::command(async)]

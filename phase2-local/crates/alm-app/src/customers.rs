@@ -44,6 +44,14 @@ pub fn customer_open(state: State<'_, AppState>, id: String) -> Result<String, S
     })
 }
 
+#[tauri::command(async)]
+pub fn customer_close(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "customers", |trial| {
+        trial.customers.open = None;
+        Ok(())
+    })
+}
+
 pub fn save_opening(trial: &mut crate::Trial, terms: Opening) -> Result<(), String> {
     let role = trial.require_owner()?;
     let customer = trial

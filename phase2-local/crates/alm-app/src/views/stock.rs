@@ -83,15 +83,13 @@ pub fn stock_screen(
             .iter()
             .find(|row| row.product == id)
             .map_or("Product", |row| row.item.as_str());
-        let _ = write!(
-            html,
-            r#"<div class="card" style="margin-top:14px"><h3>📅 {} — stock lots</h3><div class="help" style="margin-bottom:8px">Oldest stock sells first (FIFO). {} on hand.</div><div class="tbl-wrap"><table><thead><tr><th>Received</th><th class="num">Left</th><th class="num">Rate ₹</th><th class="num">Value</th></tr></thead><tbody>"#,
-            esc(name),
+        let mut body = format!(
+            r#"<div class="help" style="margin-bottom:8px">Oldest stock sells first (FIFO). {} on hand.</div><div class="tbl-wrap"><table><thead><tr><th>Received</th><th class="num">Left</th><th class="num">Rate ₹</th><th class="num">Value</th></tr></thead><tbody>"#,
             indian_digits(u64::from(lots.on_hand))
         );
         for lot in &lots.rows {
             let _ = write!(
-                html,
+                body,
                 r#"<tr><td>{}</td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td class="num">{}</td></tr>"#,
                 lot.date
                     .map_or_else(|| "Opening".to_owned(), alm_core::BillDate::display),
@@ -101,10 +99,17 @@ pub fn stock_screen(
             );
         }
         let _ = write!(
-            html,
-            r#"</tbody></table></div><div style="margin-top:8px"><b>Remaining value {}</b></div></div>"#,
+            body,
+            r#"</tbody></table></div><div style="margin-top:8px"><b>Remaining value {}</b></div>"#,
             lots.total_value
                 .map_or_else(|| "Unknown".to_owned(), money_r)
+        );
+        html += &super::modal(
+            "📅",
+            &format!("{name} — stock lots"),
+            "stock_lots_close",
+            false,
+            &body,
         );
     }
     Ok(html)

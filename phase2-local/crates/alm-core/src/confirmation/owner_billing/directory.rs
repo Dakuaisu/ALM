@@ -50,6 +50,35 @@ impl BillingDirectory {
         })
     }
 
+    /// The autocomplete list: names containing `query` (case-insensitive), by name, at most 40.
+    pub fn search_customers<'a>(
+        &'a self,
+        authority: &'a ConfirmationFixture,
+        query: &str,
+    ) -> Vec<DirectoryCustomer> {
+        let query = query.trim().to_lowercase();
+        let mut found: Vec<_> = self
+            .customers(authority)
+            .filter(|customer| customer.name.to_lowercase().contains(&query))
+            .collect();
+        found.sort_by(|a, b| a.name.cmp(b.name));
+        found.truncate(40);
+        found
+    }
+
+    /// The item autocomplete: names containing `query` (case-insensitive), catalog order, ≤ 40.
+    pub fn search_products<'a>(
+        &'a self,
+        authority: &'a ConfirmationFixture,
+        query: &str,
+    ) -> Vec<(ProductId, &'a str)> {
+        let query = query.trim().to_lowercase();
+        self.products(authority)
+            .filter(|(_, name)| name.to_lowercase().contains(&query))
+            .take(40)
+            .collect()
+    }
+
     pub fn customer(
         &self,
         authority: &ConfirmationFixture,
@@ -119,5 +148,29 @@ impl BillingDirectory {
                 record.gst_basis_points,
             ))
         })
+    }
+}
+
+#[cfg(test)]
+mod search_tests {
+    use crate::ProductId;
+    use crate::confirmation::demo_fixture::{directory, fixture};
+
+    #[test]
+    fn searches_match_case_insensitively_in_core_order() {
+        let authority = fixture().unwrap();
+        let directory = directory();
+        let names: Vec<_> = directory
+            .search_customers(&authority, " SYNTH")
+            .iter()
+            .map(|c| c.name)
+            .collect();
+        assert_eq!(names, ["Synthetic Customer", "Synthetic Market"]);
+        assert_eq!(directory.search_customers(&authority, "market").len(), 1);
+        assert_eq!(
+            directory.search_products(&authority, "soda"),
+            [(ProductId::new(2), "Synthetic Soda")]
+        );
+        assert_eq!(directory.search_products(&authority, "").len(), 2);
     }
 }

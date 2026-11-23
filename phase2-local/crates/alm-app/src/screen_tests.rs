@@ -285,10 +285,10 @@ fn reorder_renders_core_rows_and_hides_costs_from_the_manager() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].suggested_quantity.get(), 130);
     assert_eq!(rows[0].estimated_cost.minor_units(), 910_000);
-    let html = views::reorder_screen(&fixture, Role::Owner, None).unwrap();
+    let html = views::reorder_screen(&fixture, Role::Owner).unwrap();
     assert!(html.contains("<b>⚠️ 1 item(s) at or below reorder level.</b>"));
     assert!(html.contains(r#"<td class="num">50</td><td class="num">60</td><td class="num" style="font-weight:700;color:var(--accent)">130 pkt</td><td><span class="muted">buy ₹70.00</span></td><td class="num">₹9,100</td><td><span class="tag low">LOW</span>"#), "{html}");
-    let manager = views::reorder_screen(&fixture, Role::Manager, None).unwrap();
+    let manager = views::reorder_screen(&fixture, Role::Manager).unwrap();
     assert!(manager.contains("role=\"alert\""));
     assert!(!manager.contains('₹'));
     assert!(!manager.contains("Synthetic Lime"));
@@ -854,4 +854,66 @@ fn products_margin_preview_comes_from_core() {
     assert!(trial.product_preview(&form("x", "", "", "buy")).is_err());
     trial.owner = false;
     assert!(trial.product_preview(&form("40", "", "", "buy")).is_err());
+}
+
+#[test]
+fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
+    use alm_core::ProductId;
+    let root = Root::new("glue");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.authority = books();
+    trial.customers.open = Some("batch1-customer".into());
+    let html = trial.render("customers").unwrap();
+    assert!(html.contains(r#"<template id="screen-modal"><div class="modal lg" role="dialog" aria-modal="true" aria-label="Synthetic Customer"><h3>👤 Synthetic Customer<button class="x" type="button" aria-label="Close" data-action="customer_close""#));
+    trial.stock.lots = Some(ProductId::new(1));
+    assert!(
+        trial
+            .render("stock")
+            .unwrap()
+            .contains(r#"data-action="stock_lots_close""#)
+    );
+    trial
+        .cash_entry(entry("", "2025-04-30", "18", "check"))
+        .unwrap();
+    let html = trial.render("expenses").unwrap();
+    assert!(html.contains(r#"data-live="cash_live" data-target="cash-system""#));
+    let live = trial.cash_live(&entry("", "2025-04-30", "25", "")).unwrap();
+    assert!(live.starts_with(r#"<div class="card" id="cash-system""#));
+    assert!(
+        live.contains(r#"Cash difference: <b class="neg">+₹5</b>"#),
+        "{live}"
+    );
+    let options = trial.item_options("soda", "item_0", Some("fill")).unwrap();
+    assert!(options.contains(r#"data-fill="item_0=Synthetic%20Soda" data-submit="fill""#));
+    crate::godown::save(
+        &mut trial,
+        &crate::godown::Row {
+            item: "Soda".into(),
+            cases: "3".into(),
+            note: String::new(),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        trial.godown_copy_text().unwrap(),
+        "*Godown Stock* (30-Apr-2025)\n\nSoda — 3 cases\n\nTotal: 1 items"
+    );
+    assert!(
+        trial
+            .rate_copy_text()
+            .unwrap()
+            .contains("Synthetic Lime — ₹120.5")
+    );
+    assert!(
+        trial
+            .reorder_copy_text()
+            .unwrap()
+            .starts_with("*ALM Reorder List* (30-Apr-2025)")
+    );
+    trial.owner = false;
+    assert!(trial.godown_copy_text().is_err());
+    assert!(trial.rate_copy_text().is_err());
+    assert!(trial.reorder_copy_text().is_err());
+    assert!(trial.item_options("", "item", None).is_err());
+    assert!(trial.cash_live(&entry("", "2025-04-30", "25", "")).is_err());
 }

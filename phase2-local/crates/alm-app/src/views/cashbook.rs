@@ -105,34 +105,14 @@ fn entry_form(
         "Add Day Entry"
     };
     let mut html = format!(
-        r#"<div class="card" style="margin-bottom:14px"><h3>📒 {title}</h3><form data-action="cash_entry" data-payload="terms"><input type="hidden" name="id" value="{}"><div class="field"><label>Date <input class="inp" type="date" name="date" value="{date}" required></label></div>"#,
+        r#"<form data-action="cash_entry" data-payload="terms" data-live="cash_live" data-target="cash-system"><input type="hidden" name="id" value="{}"><div class="field"><label>Date <input class="inp" type="date" name="date" value="{date}" required></label></div>"#,
         view.editing.map_or_else(String::new, |id| id.to_string())
     );
-    html += r#"<div class="card" style="padding:10px 12px;margin-bottom:12px;background:var(--accent-weak);border-color:#c5d6fb">"#;
-    if let Some(shown) = entry.date.map(alm_core::BillDate::display) {
-        let check = entry.compare(view.fixture, view.role)?;
-        let source = if check.system.count > 0 {
-            format!(" — from {} bills/receipts", check.system.count)
-        } else {
-            " — no records".into()
-        };
-        let class = |rupees: i64| if rupees == 0 { "pos" } else { "neg" };
-        let _ = write!(
-            html,
-            r#"<div style="font-weight:600">📟 System total for {shown}: Cash {} · Online {}{source}</div><div class="help" style="margin-top:4px">Part-payments on Credit bills count as cash. Enter what you actually counted below, then Check.</div><div style="margin-top:6px">Cash difference: <b class="{}">{}</b>  ·  Online difference: <b class="{}">{}</b></div>"#,
-            whole(check.system.cash_rupees),
-            whole(check.system.online_rupees),
-            class(check.cash_difference_rupees),
-            signed(check.cash_difference_rupees),
-            class(check.online_difference_rupees),
-            signed(check.online_difference_rupees)
-        );
-    }
-    html += r#"<button class="btn sm" style="margin-top:8px" type="submit" name="intent" value="system">Use system figures</button> <button class="btn sm" style="margin-top:8px" type="submit" name="intent" value="check">Check</button></div>"#;
+    html += &cash_system_card(view.fixture, view.role, entry)?;
     let a = entry.amounts;
     let field = |label: &str, name: &str, value: Money| {
         format!(
-            r#"<div><label>{label} <input class="inp num" name="{name}" inputmode="decimal" value="{}"></label></div>"#,
+            r#"<div><label>{label} <input class="inp num" id="cash-{name}" name="{name}" inputmode="decimal" value="{}"></label></div>"#,
             value.to_rupee_text()
         )
     };
@@ -151,6 +131,38 @@ fn entry_form(
     if view.editing.is_some() {
         html += r#"<details style="margin-right:auto"><summary class="btn danger">Delete</summary><button class="btn danger" type="submit" name="intent" value="delete">Delete this entry</button></details>"#;
     }
-    html += r#"<button class="btn" type="button" data-action="cash_close">Cancel</button><button class="btn primary" type="submit" name="intent" value="save">Save</button></div></form></div>"#;
+    html += r#"<button class="btn" type="button" data-action="cash_close">Cancel</button><button class="btn primary" type="submit" name="intent" value="save">Save</button></div></form>"#;
+    Ok(super::modal("📒", title, "cash_close", false, &html))
+}
+
+/// The day-close card (`sysFor` / `updSys`), returned alone for live updates while typing.
+pub fn cash_system_card(
+    fixture: &ConfirmationFixture,
+    role: Role,
+    entry: &ManualCashBookDraft,
+) -> Result<String, ManualCashBookError> {
+    let mut html = String::from(
+        r#"<div class="card" id="cash-system" style="padding:10px 12px;margin-bottom:12px;background:var(--accent-weak);border-color:#c5d6fb">"#,
+    );
+    if let Some(shown) = entry.date.map(alm_core::BillDate::display) {
+        let check = entry.compare(fixture, role)?;
+        let source = if check.system.count > 0 {
+            format!(" — from {} bills/receipts", check.system.count)
+        } else {
+            " — no records".into()
+        };
+        let class = |rupees: i64| if rupees == 0 { "pos" } else { "neg" };
+        let _ = write!(
+            html,
+            r#"<div style="font-weight:600">📟 System total for {shown}: Cash {} · Online {}{source}</div><div class="help" style="margin-top:4px">Part-payments on Credit bills count as cash. Enter what you actually counted below — any difference shows here instantly.</div><div style="margin-top:6px">Cash difference: <b class="{}">{}</b>  ·  Online difference: <b class="{}">{}</b></div>"#,
+            whole(check.system.cash_rupees),
+            whole(check.system.online_rupees),
+            class(check.cash_difference_rupees),
+            signed(check.cash_difference_rupees),
+            class(check.online_difference_rupees),
+            signed(check.online_difference_rupees)
+        );
+    }
+    html += r#"<button class="btn sm" style="margin-top:8px" type="submit" name="intent" value="system">Use system figures</button></div>"#;
     Ok(html)
 }

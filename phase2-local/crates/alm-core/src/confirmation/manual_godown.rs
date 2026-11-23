@@ -71,6 +71,32 @@ impl ConfirmationFixture {
         Ok(ManualGodownList { rows, total_cases })
     }
 
+    /// `copyGodownList`: the WhatsApp-style text of every row by name, or `None` when empty.
+    pub fn manual_godown_copy_text(
+        &self,
+        role: Role,
+        today: crate::BillDate,
+    ) -> Result<Option<String>, ManualGodownError> {
+        let list = self.manual_godown_list(role, "")?;
+        if list.rows.is_empty() {
+            return Ok(None);
+        }
+        let mut text = format!("*Godown Stock* ({})\n\n", today.display());
+        for row in &list.rows {
+            let note = row
+                .note
+                .as_deref()
+                .map_or_else(String::new, |note| format!(" ({note})"));
+            text.push_str(&format!(
+                "{} — {} cases{note}\n",
+                row.item,
+                super::image_handoff::group_indian_digits(u64::from(row.cases.get()))
+            ));
+        }
+        text.push_str(&format!("\nTotal: {} items", list.rows.len()));
+        Ok(Some(text))
+    }
+
     /// Reopens the Owner's manual list, without reading or changing billing stock.
     pub fn open_manual_godown(
         &self,
@@ -152,5 +178,32 @@ mod list_tests {
             fixture.manual_godown_list(Role::Manager, ""),
             Err(ManualGodownError::AccessDenied)
         );
+    }
+}
+
+#[cfg(test)]
+mod copy_tests {
+    use super::ManualGodownInput;
+    use crate::confirmation::demo_fixture::fixture;
+    use crate::{BillDate, Role};
+
+    #[test]
+    fn copy_text_follows_copy_godown_list() {
+        let mut f = fixture().unwrap();
+        let day = BillDate::new(2025, 4, 30).unwrap();
+        assert_eq!(f.manual_godown_copy_text(Role::Owner, day), Ok(None));
+        for (item, cases, note) in [("Soda", "1200", "back rack"), ("Ice", "2", "")] {
+            f.save_manual_godown(Role::Owner, ManualGodownInput { item, cases, note })
+                .unwrap();
+        }
+        assert_eq!(
+            f.manual_godown_copy_text(Role::Owner, day)
+                .unwrap()
+                .as_deref(),
+            Some(
+                "*Godown Stock* (30-Apr-2025)\n\nIce — 2 cases\nSoda — 1,200 cases (back rack)\n\nTotal: 2 items"
+            )
+        );
+        assert!(f.manual_godown_copy_text(Role::Manager, day).is_err());
     }
 }

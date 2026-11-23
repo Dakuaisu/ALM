@@ -202,6 +202,21 @@ impl ConfirmationFixture {
         })
     }
 
+    /// The Owner item autocomplete: item or brand containing `query`, catalog order, at most 40.
+    pub fn product_suggestions(
+        &self,
+        role: Role,
+        query: &str,
+    ) -> Result<Vec<ProductListRow>, ProductEntryError> {
+        let needle = query.trim().to_lowercase();
+        let mut rows = self.product_list(role, "", None)?.rows;
+        rows.retain(|row| {
+            row.item.to_lowercase().contains(&needle) || row.brand.to_lowercase().contains(&needle)
+        });
+        rows.truncate(40);
+        Ok(rows)
+    }
+
     /// A product ID above every catalog product, for a new entry.
     pub fn next_product_id(&self, role: Role) -> Result<ProductId, ProductEntryError> {
         owner(role)?;
@@ -263,6 +278,31 @@ mod tests {
                 .is_err()
         );
         assert_eq!(entry, before);
+    }
+
+    #[test]
+    fn suggestions_match_item_or_brand_for_the_owner_only() {
+        let mut fixture = fixture().unwrap();
+        let mut form = fixture
+            .open_product_entry(Role::Owner, ProductId::new(2))
+            .unwrap();
+        form.brand = "Fizz Co".into();
+        fixture.save_product_entry(Role::Owner, &form).unwrap();
+        let names = |q| -> Vec<String> {
+            fixture
+                .product_suggestions(Role::Owner, q)
+                .unwrap()
+                .into_iter()
+                .map(|r| r.item)
+                .collect()
+        };
+        assert_eq!(names("fizz"), ["Synthetic Soda"]);
+        assert_eq!(names("LIME"), ["Synthetic Lime"]);
+        assert_eq!(names("").len(), 2);
+        assert_eq!(
+            fixture.product_suggestions(Role::Manager, ""),
+            Err(ProductEntryError::AccessDenied)
+        );
     }
 
     #[test]

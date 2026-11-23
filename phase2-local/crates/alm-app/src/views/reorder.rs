@@ -1,6 +1,6 @@
 //! Reorder Planner: ALM_Business_Manager.html L8308–8429 (VIEWS.reorder, suggestQty,
 //! copyReorder). Rows, suggested quantities, best supplier and estimated cost come from
-//! `ConfirmationFixture::open_reorder_planner`; the Copy List text from `copy_reorder_list`.
+//! `ConfirmationFixture::open_reorder_planner`; the Copy List text (clipboard) from `copy_reorder_list`.
 use std::fmt::Write as _;
 
 use alm_core::Role;
@@ -9,24 +9,13 @@ use alm_core::confirmation::{ConfirmationFixture, ReorderError, ReorderStatus};
 use super::denied;
 use crate::gst_print::{esc, indian_digits, inr};
 
-pub fn reorder_screen(
-    fixture: &ConfirmationFixture,
-    role: Role,
-    copied: Option<&str>,
-) -> Result<String, ReorderError> {
+pub fn reorder_screen(fixture: &ConfirmationFixture, role: Role) -> Result<String, ReorderError> {
     let rows = match fixture.open_reorder_planner(role) {
         Ok(rows) => rows,
         Err(ReorderError::AccessDenied) => return Ok(denied("Reorder")),
         Err(error) => return Err(error),
     };
     let mut html = String::new();
-    if let Some(text) = copied {
-        let _ = write!(
-            html,
-            r#"<div class="card" style="margin-bottom:14px"><div class="sectit">Reorder list text</div><textarea class="inp" readonly rows="6" style="width:100%">{}</textarea></div>"#,
-            esc(text)
-        );
-    }
     if rows.is_empty() {
         return Ok(
             html + r#"<div class="card"><div class="empty"><div class="big">✅</div><div>Everything is well stocked! No reorders needed right now.</div></div></div>"#

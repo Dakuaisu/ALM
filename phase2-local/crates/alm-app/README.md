@@ -9,6 +9,15 @@ cargo run --locked --offline -p alm-app
 cargo tauri android build --debug --apk --target aarch64
 ```
 
+## Generic glue
+
+`ui/glue.js` has no screen code. Rust markup drives four generic behaviours:
+`<template id="screen-modal">` opens the overlay (its × carries the closing command);
+`form[data-live]` sends its fields plus `_changed` after typing and replaces the
+`data-target` fragment; `input[data-search]` lists Rust options whose `data-fill` query
+string fills the form (`data-submit` submits an intent); `button[data-copy]` writes the
+command's text to the clipboard. Tests: `node --test tests/*.test.cjs`.
+
 ## Platform notes
 
 - **Android safe area.** The system-bar and display-cutout padding is applied natively in

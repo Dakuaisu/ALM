@@ -27,8 +27,8 @@ mod sales;
 mod stock;
 mod suppliers;
 
-pub use bill::{BillView, bill_screen};
-pub use cashbook::{CashBookView, cashbook_screen};
+pub use bill::{BillView, bill_body, bill_screen};
+pub use cashbook::{CashBookView, cash_system_card, cashbook_screen};
 pub use counter::counter_screen;
 pub use crates::{CrateForm, crates_screen};
 pub use customers::{CustomersState, customers_screen};
@@ -41,7 +41,7 @@ pub use order::{OrderState, order_screen};
 pub use products::{ProductsState, product_form, products_screen};
 pub use purchases::purchases_screen;
 pub use ratelist::ratelist_screen;
-pub use receipt::receipt_screen;
+pub use receipt::{receipt_customer_options, receipt_screen};
 pub use reorder::reorder_screen;
 pub use reports::reports_screen;
 pub use sale_edit::sale_edit_form;
@@ -163,11 +163,17 @@ pub fn tabs(active: &str) -> String {
     if active == "products" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="product_new">＋ Add Product</button></template>"#;
     }
+    if active == "godown" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="godown_copy_text">📋 Copy List</button></template>"#;
+    }
+    if active == "ratelist" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="rate_copy_text">📋 Copy</button></template>"#;
+    }
     if active == "stock" {
         html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="screen" data-tab="reorder">🔁 Reorder List</button></template>"#;
     }
     if active == "reorder" {
-        html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="reorder_copy">📋 Copy List</button></template>"#;
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="reorder_copy_text">📋 Copy List</button></template>"#;
     }
     if active == "bill" {
         html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="bill_fresh">＋ Fresh Bill</button></template>"#;
@@ -186,6 +192,64 @@ pub fn kpi(class: &str, label: &str, value: &str, sub: &str, icon: &str) -> Stri
         r#"<div class="kpi {class}{private}"><div class="ic">{icon}</div><div class="label">{label}</div><div class="val">{value}</div><div class="sub">{}</div></div>"#,
         esc(sub)
     )
+}
+
+/// A modal as the HTML's modal() builds it (L1519–1560), delivered as `<template id="screen-modal">`
+/// for the glue to show; the × button carries the Rust command that closes it.
+pub fn modal(icon: &str, title: &str, close: &str, large: bool, body: &str) -> String {
+    let size = if large { " lg" } else { "" };
+    let title = esc(title);
+    format!(
+        r#"<template id="screen-modal"><div class="modal{size}" role="dialog" aria-modal="true" aria-label="{title}"><h3>{icon} {title}<button class="x" type="button" aria-label="Close" data-action="{close}" style="margin-left:auto">×</button></h3><div class="body">{body}</div></div></template>"#
+    )
+}
+
+/// One autocomplete option (`.autolist` row): picking it fills the named form fields and, with
+/// `submit`, submits the form with that intent.
+pub struct SearchOption<'a> {
+    pub fill: &'a [(&'a str, &'a str)],
+    pub label: &'a str,
+    pub sub: &'a str,
+    pub submit: Option<&'a str>,
+}
+
+fn query_escape(text: &str) -> String {
+    let mut out = String::new();
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-_.~".contains(&byte) {
+            out.push(char::from(byte));
+        } else {
+            let _ = write!(out, "%{byte:02X}");
+        }
+    }
+    out
+}
+
+pub fn search_options(options: &[SearchOption<'_>]) -> String {
+    let mut html = String::new();
+    for option in options {
+        let fill = option
+            .fill
+            .iter()
+            .map(|(name, value)| format!("{}={}", query_escape(name), query_escape(value)))
+            .collect::<Vec<_>>()
+            .join("&");
+        let submit = option.submit.map_or_else(String::new, |intent| {
+            format!(r#" data-submit="{}""#, esc(intent))
+        });
+        let sub = if option.sub.is_empty() {
+            String::new()
+        } else {
+            format!("<small>{}</small>", esc(option.sub))
+        };
+        let _ = write!(
+            html,
+            r#"<div role="option" data-fill="{}"{submit}><span>{}</span>{sub}</div>"#,
+            esc(&fill),
+            esc(option.label)
+        );
+    }
+    html
 }
 
 pub fn denied(screen: &str) -> String {

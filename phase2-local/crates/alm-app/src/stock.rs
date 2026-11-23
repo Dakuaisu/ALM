@@ -22,6 +22,14 @@ pub fn stock_filter(state: State<'_, AppState>, terms: Filter) -> Result<String,
 }
 
 #[tauri::command(async)]
+pub fn stock_lots_close(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "stock", |trial| {
+        trial.stock.lots = None;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
 pub fn stock_lots(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = ProductId::new(id.value());
     with(&state, "stock", |trial| {

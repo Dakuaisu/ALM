@@ -42,6 +42,73 @@ impl Trial {
         }))
     }
 
+    /// Live quantity edit: applies the quantity like `bill_quantity` and returns `#bill-body`.
+    pub(crate) fn bill_live(&mut self, line: &str, qty: &str) -> Result<String, String> {
+        let line = line
+            .parse::<usize>()
+            .ok()
+            .and_then(NonZeroUsize::new)
+            .ok_or("Unknown line.")?;
+        let qty = quantity(qty)?;
+        self.edit_bill(|draft| {
+            let previous = draft
+                .replace_line_quantity(line, qty)
+                .ok_or("Unknown line.")?;
+            Ok(previous != qty)
+        })?;
+        let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
+        Ok(views::bill_body(&views::BillView {
+            authority: &self.authority,
+            directory: &self.directory,
+            draft,
+            saved: *saved,
+            saved_ids: &[],
+            role: self.role(),
+        }))
+    }
+
+    pub(crate) fn bill_customer_search(&self, q: &str) -> String {
+        let found = self.directory.search_customers(&self.authority, q);
+        let options: Vec<_> = found
+            .iter()
+            .map(|c| [("customer", c.id), ("customer_q", c.name)])
+            .collect();
+        views::search_options(
+            &found
+                .iter()
+                .zip(&options)
+                .map(|(c, fill)| views::SearchOption {
+                    fill,
+                    label: c.name,
+                    sub: "",
+                    submit: Some("select"),
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    pub(crate) fn bill_item_search(&self, q: &str) -> String {
+        let found = self.directory.search_products(&self.authority, q);
+        let ids: Vec<String> = found.iter().map(|(id, _)| id.to_string()).collect();
+        let fills: Vec<_> = found
+            .iter()
+            .zip(&ids)
+            .map(|((_, name), id)| [("product", id.as_str()), ("product_q", *name)])
+            .collect();
+        views::search_options(
+            &found
+                .iter()
+                .zip(&fills)
+                .map(|((_, name), fill)| views::SearchOption {
+                    fill,
+                    label: name,
+                    sub: "",
+                    submit: None,
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
     fn fresh_bill(&mut self, saved_ids: &[u64]) -> Result<(), String> {
         let id = saved_ids
             .last()
@@ -134,6 +201,24 @@ fn quantity(raw: &str) -> Result<NonZeroU32, String> {
     raw.trim()
         .parse()
         .map_err(|_| "Quantity must be a positive whole number.".to_owned())
+}
+
+#[tauri::command(async)]
+pub fn bill_live(state: State<'_, AppState>, line: String, qty: String) -> Result<String, String> {
+    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    trial.bill_live(&line, &qty)
+}
+
+#[tauri::command(async)]
+pub fn bill_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    Ok(trial.bill_customer_search(&q))
+}
+
+#[tauri::command(async)]
+pub fn bill_item_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    Ok(trial.bill_item_search(&q))
 }
 
 #[tauri::command(async)]

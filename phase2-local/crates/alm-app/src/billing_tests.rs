@@ -81,7 +81,13 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
         .expect("receipt");
     let html =
         views::receipt_screen(&fixture, &directory(), Role::Owner, day()).expect("receipt screen");
-    assert!(html.contains("₹70"));
+    assert!(html.contains(r#"data-search="receipt_customer_search""#));
+    let options =
+        views::receipt_customer_options(&fixture, &directory(), Role::Owner, "customer").unwrap();
+    assert!(
+        options.contains("<span>Synthetic Customer</span><small>balance ₹70</small>"),
+        "{options}"
+    );
     fixture
         .cancel_sale(Role::Owner, DraftId::new(1))
         .expect("cancel");
@@ -117,16 +123,20 @@ fn new_bill_renders_connected_choices_in_source_layout() {
     let root = std::env::temp_dir().join(format!("alm-bill-markup-{}", std::process::id()));
     std::fs::create_dir(&root).unwrap();
     let mut trial = Trial::open(&root, Some(day())).unwrap();
-    let html = trial.render("bill").unwrap();
+    let mut html = trial.render("bill").unwrap();
+    html += &trial.bill_customer_search("");
+    html += &trial.bill_item_search("");
     drop(trial);
     std::fs::remove_dir_all(root).unwrap();
     for markup in [
         "data-title=\"New Bill\"",
         "class=\"f3\"",
-        "value=\"batch1-customer\"",
-        "value=\"batch1-market\"",
-        "value=\"1\">Synthetic Lime",
-        "value=\"2\">Synthetic Soda",
+        r#"data-search="bill_customer_search""#,
+        r#"data-search="bill_item_search""#,
+        r#"data-fill="customer=batch1-customer&amp;customer_q=Synthetic%20Customer" data-submit="select""#,
+        r#"data-fill="customer=batch1-market&amp;customer_q=Synthetic%20Market""#,
+        r#"data-fill="product=1&amp;product_q=Synthetic%20Lime"><span>Synthetic Lime"#,
+        r#"data-fill="product=2&amp;product_q=Synthetic%20Soda"><span>Synthetic Soda"#,
         "Bill Amount",
     ] {
         assert!(html.contains(markup), "missing {markup}");

@@ -9,6 +9,7 @@ mod billing;
 #[cfg(test)]
 mod billing_tests;
 mod cashbook;
+mod copy;
 mod crates;
 mod customers;
 mod godown;
@@ -87,7 +88,6 @@ struct Trial {
     cashbook: ManualCashBook,
     cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
     dash_period: alm_core::confirmation::DashboardPeriod,
-    reorder_text: Option<String>,
     stock: views::StockState,
     godown_query: String,
     gst_db: GstBillDatabase,
@@ -146,7 +146,6 @@ impl Trial {
             cashbook: ManualCashBook::default(),
             cash_form: None,
             dash_period: alm_core::confirmation::DashboardPeriod::Month,
-            reorder_text: None,
             stock: views::StockState::default(),
             godown_query: String::new(),
             gst_db: gst,
@@ -222,10 +221,7 @@ impl Trial {
                 self.today()?,
                 self.dash_period,
             )?,
-            "reorder" => {
-                views::reorder_screen(&self.authority, self.role(), self.reorder_text.as_deref())
-                    .map_err(debug)?
-            }
+            "reorder" => views::reorder_screen(&self.authority, self.role()).map_err(debug)?,
             "stock" => {
                 views::stock_screen(&self.authority, self.role(), &self.stock).map_err(debug)?
             }
@@ -383,22 +379,6 @@ fn dash_period(state: State<'_, AppState>, period: String) -> Result<String, Str
     })
 }
 
-/// Shows the core's Copy List text for the user to copy; nothing is sent anywhere.
-#[tauri::command(async)]
-fn reorder_copy(state: State<'_, AppState>) -> Result<String, String> {
-    with(&state, "reorder", |trial| {
-        let role = trial.require_owner()?;
-        let today = trial.today()?;
-        let mut text = None;
-        trial
-            .authority
-            .copy_reorder_list(role, today, &mut |copied| text = Some(copied))
-            .map_err(debug)?;
-        trial.reorder_text = text;
-        Ok(())
-    })
-}
-
 #[tauri::command(async)]
 fn rate_brand(state: State<'_, AppState>, q: String) -> Result<String, String> {
     with(&state, "ratelist", |trial| {
@@ -516,6 +496,9 @@ pub fn run() {
             bill_entry::bill_quantity,
             bill_entry::bill_remove,
             bill_entry::bill_open,
+            bill_entry::bill_live,
+            bill_entry::bill_customer_search,
+            bill_entry::bill_item_search,
             review_role,
             billing::sale_prepare,
             billing::sale_confirm,
@@ -529,14 +512,22 @@ pub fn run() {
             customers::customers_filter,
             customers::customer_open,
             customers::customer_opening,
+            customers::customer_close,
             cashbook::cash_entry,
             cashbook::cash_new,
             cashbook::cash_edit,
             cashbook::cash_close,
+            cashbook::cash_live,
             dash_period,
-            reorder_copy,
+            copy::reorder_copy_text,
+            copy::rate_copy_text,
+            copy::godown_copy_text,
+            copy::receipt_customer_search,
+            copy::gst_item_search,
+            copy::godown_item_search,
             stock::stock_filter,
             stock::stock_lots,
+            stock::stock_lots_close,
             godown::godown_save,
             godown::godown_filter,
             gst_sales::gst_new,

@@ -73,9 +73,9 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
     trial.bill_open(DraftId::new(1)).unwrap();
     let html = trial.render("bill").unwrap();
     for markup in [
-        r#"value="batch1-market" selected>Synthetic Market"#,
+        r#"name="customer_q" data-search="bill_customer_search" placeholder="Search customer…" autocomplete="off" value="Synthetic Market"><input type="hidden" name="customer" value="batch1-market">"#,
         r#"value="2025-05-01""#,
-        r#"data-product="2"><b>Synthetic Soda"#,
+        r#"data-product="2" data-live="bill_live" data-target="bill-body"><input type="hidden" name="line" value="2"><b>Synthetic Soda"#,
         r#"<span class="num">₹59.00</span>"#,
         r#"<b>₹118.00</b>"#,
         "Bill Amount</span><b>₹236.00</b>",
@@ -180,4 +180,20 @@ fn only_explicit_owner_confirmation_posts_the_selected_customer_and_product() {
     assert_eq!(effects(&trial).2, Some(38));
     assert_eq!(effects(&trial).4.minor_units(), 0);
     assert_eq!(effects(&trial).5.minor_units(), 10_500);
+}
+
+#[test]
+fn live_quantity_returns_core_totals_fragment_and_marks_the_draft_unsaved() {
+    let root = Root::new();
+    let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
+    trial.render("bill").unwrap();
+    trial.bill_add(ProductId::new(1), NonZeroU32::MIN).unwrap();
+    let html = trial.bill_live("1", "3").unwrap();
+    assert!(html.starts_with(r#"<div id="bill-body">"#));
+    assert!(html.contains(r#"id="bill-qty-1" name="qty" inputmode="numeric" value="3""#));
+    assert!(html.contains("Bill Amount</span><b>₹354.00</b>"), "{html}");
+    assert!(!trial.current.as_ref().unwrap().1);
+    assert!(trial.bill_live("1", "0").is_err());
+    assert!(trial.bill_live("9", "1").is_err());
+    assert_eq!(trial.authority.posted_count(), 0);
 }

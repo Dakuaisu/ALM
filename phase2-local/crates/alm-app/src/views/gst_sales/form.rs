@@ -94,7 +94,7 @@ pub fn gst_form(
     const GRID: &str = "display:grid;grid-template-columns:2.1fr .9fr .7fr .7fr 1fr .8fr .7fr 1fr 26px;gap:8px;align-items:center";
     let _ = write!(
         html,
-        r#"<div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><span><button class="btn sm" type="submit" name="intent" value="fill">Fill from items</button> <button class="btn sm" type="submit" name="intent" value="add">＋ Add Line</button></span></div><div class="bill-items" style="margin-top:12px"><div style="{GRID};padding:0 2px 6px;font-size:11px;color:var(--mut2);text-transform:uppercase;letter-spacing:.4px;font-weight:700"><div>Item</div><div>HSN</div><div>Unit</div><div class="num">Qty</div><div class="num">Rate ₹ (incl.)</div><div class="num">GST %</div><div class="num">Pack</div><div class="num">Amount</div><div></div></div>"#
+        r#"<div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><span><button class="btn sm" type="submit" name="intent" value="add">＋ Add Line</button></span></div><div class="bill-items" style="margin-top:12px"><div style="{GRID};padding:0 2px 6px;font-size:11px;color:var(--mut2);text-transform:uppercase;letter-spacing:.4px;font-weight:700"><div>Item</div><div>HSN</div><div>Unit</div><div class="num">Qty</div><div class="num">Rate ₹ (incl.)</div><div class="num">GST %</div><div class="num">Pack</div><div class="num">Amount</div><div></div></div>"#
     );
     for (i, line) in f.lines.iter().enumerate() {
         let amount = fixture
@@ -103,7 +103,7 @@ pub fn gst_form(
         let unit = select("", &format!("unit_{i}"), &line.unit, &["Case", "Piece"]);
         let _ = write!(
             html,
-            r#"<div style="{GRID};margin-bottom:7px"><input class="inp" name="item_{i}" placeholder="Type item…" aria-label="Item {n}" value="{}"><input class="inp" name="hsn_{i}" aria-label="HSN {n}" value="{}">{unit}<input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Quantity {n}" value="{}"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {n}" value="{}"><input class="inp num" name="gst_{i}" placeholder="auto" aria-label="GST % {n}" value="{}"><input class="inp num" name="pack_{i}" inputmode="numeric" aria-label="Pack {n}" value="{}"><span class="num">{amount}</span><button class="x" type="submit" name="intent" value="remove:{i}" aria-label="Remove line {n}">×</button></div>"#,
+            r#"<div style="{GRID};margin-bottom:7px"><div class="autobox"><input class="inp" id="gst-item-{i}" name="item_{i}" data-search="gst_item_search" autocomplete="off" placeholder="Type item…" aria-label="Item {n}" value="{}"><div class="autolist"></div></div><input class="inp" name="hsn_{i}" aria-label="HSN {n}" value="{}">{unit}<input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Quantity {n}" value="{}"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {n}" value="{}"><input class="inp num" name="gst_{i}" placeholder="auto" aria-label="GST % {n}" value="{}"><input class="inp num" name="pack_{i}" inputmode="numeric" aria-label="Pack {n}" value="{}"><span class="num">{amount}</span><button class="x" type="submit" name="intent" value="remove:{i}" aria-label="Remove line {n}">×</button></div>"#,
             esc(&line.item),
             esc(&line.hsn),
             esc(&line.quantity),

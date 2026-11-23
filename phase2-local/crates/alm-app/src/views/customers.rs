@@ -116,8 +116,7 @@ fn ledger(
         }
     };
     let mut html = format!(
-        r#"<div class="card" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3>{}</h3><div style="text-align:right"><div class="muted" style="font-size:11px">BALANCE</div><div style="font-size:22px;font-weight:800" class="{class}">{balance}</div></div></div><div class="row" style="margin:12px 0"><button class="btn sm" data-action="screen" data-tab="receipt">💵 Receive Payment</button></div>"#,
-        esc(name)
+        r#"<div class="row" style="justify-content:space-between"><div style="font-size:13px;color:var(--mut)">no mobile</div><div style="text-align:right"><div class="muted" style="font-size:11px">BALANCE</div><div style="font-size:22px;font-weight:800" class="{class}">{balance}</div></div></div><div class="row" style="margin:12px 0"><button class="btn sm" data-action="screen" data-tab="receipt">💵 Receive Payment</button></div>"#
     );
     let _ = write!(
         html,
@@ -153,5 +152,6 @@ fn ledger(
             money_r(entry.balance)
         );
     }
-    Ok(html + "</tbody></table></div></div>")
+    html += "</tbody></table></div>";
+    Ok(super::modal("👤", name, "customer_close", true, &html))
 }

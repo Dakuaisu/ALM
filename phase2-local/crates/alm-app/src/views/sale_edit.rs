@@ -18,8 +18,7 @@ pub fn sale_edit_form(
 ) -> Result<String, ConfirmationError> {
     let bill = fixture.bill_preview(role, id, BalanceMode::AsOnBillDate)?;
     let mut html = format!(
-        r#"<div class="card" style="margin-bottom:14px"><h3>🧾 Edit Bill #{}</h3><div class="help" style="margin-bottom:10px">Editing bill #{} — {}. Saving replaces it and recalculates stock and the customer's balance.</div><form data-action="sale_edit_save" data-payload="terms"><input type="hidden" name="id" value="{}"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate ₹</th><th class="num">Amount</th></tr></thead><tbody>"#,
-        bill.invoice,
+        r#"<div class="help" style="margin-bottom:10px">Editing bill #{} — {}. Saving replaces it and recalculates stock and the customer's balance.</div><form data-action="sale_edit_save" data-payload="terms"><input type="hidden" name="id" value="{}"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate ₹</th><th class="num">Amount</th></tr></thead><tbody>"#,
         bill.invoice,
         bill.date.display(),
         id.value()
@@ -42,8 +41,14 @@ pub fn sale_edit_form(
     }
     let _ = write!(
         html,
-        r#"</tbody></table></div><div class="help">Paid {} stays as entered on the bill.</div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" type="button" data-action="sale_edit_close">Cancel</button><button class="btn primary" type="submit">Save Changes</button></div></form></div>"#,
+        r#"</tbody></table></div><div class="help">Paid {} stays as entered on the bill.</div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" type="button" data-action="sale_edit_close">Cancel</button><button class="btn primary" type="submit">Save Changes</button></div></form>"#,
         money_r(bill.paid)
     );
-    Ok(html)
+    Ok(super::modal(
+        "🧾",
+        &format!("Edit Bill #{}", bill.invoice),
+        "sale_edit_close",
+        true,
+        &html,
+    ))
 }
