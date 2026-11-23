@@ -12,11 +12,11 @@ mod authority;
 mod crate_review;
 #[path = "account_switch_restart/fixtures.rs"]
 mod fixtures;
-#[path = "../crates/alm-store/tests/common/manager_sqlite.rs"]
+#[path = "../../alm-store/tests/common/manager_sqlite.rs"]
 mod manager_sqlite;
 #[path = "account_switch_restart/sqlite_evidence.rs"]
 mod sqlite_evidence;
-#[path = "../crates/alm-store/tests/common/target_scratch.rs"]
+#[path = "../../alm-store/tests/common/target_scratch.rs"]
 mod target_scratch;
 
 use alm_store::SqliteSales;

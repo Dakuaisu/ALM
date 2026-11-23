@@ -9,6 +9,7 @@ pub(crate) fn target_dir() -> PathBuf {
         .canonicalize()
         .unwrap()
         .join("target");
+    fs::create_dir_all(&target).expect("create crate target directory");
     assert_eq!(
         target.canonicalize().expect("existing Cargo target"),
         target

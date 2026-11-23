@@ -3,6 +3,14 @@
 version = 4
 
 [[package]]
+name = "alm-cli"
+version = "0.1.0"
+dependencies = [
+ "alm-store",
+ "rusqlite",
+]
+
+[[package]]
 name = "alm-core"
 version = "0.1.0"
 dependencies = [
@@ -18,14 +26,6 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "alm_phase2_local"
-version = "0.1.0"
-dependencies = [
- "alm-store",
- "rusqlite",
 ]
 
 [[package]]

@@ -1,0 +1,10 @@
+[package]
+name = "alm-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alm-store = { workspace = true }
+
+[dev-dependencies]
+rusqlite = { workspace = true }

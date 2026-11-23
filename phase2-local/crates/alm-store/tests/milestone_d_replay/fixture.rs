@@ -9,9 +9,9 @@ use alm_store::{
     ProvisionalDraft, Role,
 };
 
-#[path = "../../../../tests/milestone_c_replay/accounts.rs"]
+#[path = "../../../alm-cli/tests/milestone_c_replay/accounts.rs"]
 mod accounts;
-#[path = "../../../../tests/milestone_c_replay/inventory.rs"]
+#[path = "../../../alm-cli/tests/milestone_c_replay/inventory.rs"]
 mod inventory;
 
 use accounts::{AccountCheckpoint, assert_accounts};

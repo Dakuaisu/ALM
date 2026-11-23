@@ -8,7 +8,7 @@ use alm_store::confirmation::{
 
 use super::{A, B, BUYER, DENIED, ITEM_A, ITEM_B, MANAGER, OWNER, SALE, feb};
 
-#[path = "../../crates/alm-store/tests/common/ordinary_gst_fixture.rs"]
+#[path = "../../../alm-store/tests/common/ordinary_gst_fixture.rs"]
 mod ordinary_gst_fixture;
 use ordinary_gst_fixture::GST_METADATA;
 

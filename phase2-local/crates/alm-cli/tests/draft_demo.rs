@@ -9,9 +9,9 @@ use alm_store::{DraftCustomer, DraftId, LocalSales, ProductId};
 
 #[path = "draft_demo/scoped_edit.rs"]
 mod scoped_edit;
-#[path = "../crates/alm-store/tests/common/sqlite_dump.rs"]
+#[path = "../../alm-store/tests/common/sqlite_dump.rs"]
 mod sqlite_dump;
-#[path = "../crates/alm-store/tests/common/sqlite_list.rs"]
+#[path = "../../alm-store/tests/common/sqlite_list.rs"]
 mod sqlite_list;
 
 const DEMO: &str = env!("CARGO_BIN_EXE_alm-draft-demo");
