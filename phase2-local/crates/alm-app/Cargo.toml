@@ -11,6 +11,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "alm-app"
 path = "src/main.rs"
 
+[dev-dependencies]
+alm-core = { workspace = true, features = ["demo-fixture", "test-support"] }
+
 [build-dependencies]
 tauri-build = { version = "=2.7.6", features = [] }
 

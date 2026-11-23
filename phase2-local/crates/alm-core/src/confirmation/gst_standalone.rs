@@ -1,6 +1,7 @@
 //! Standalone synthetic GST bills; independent of ordinary sales and numbering.
 //! Ports `nextGstNo`, `newGstDraft`, `fillGstItem`, `saveGstBill` and the list actions of the
 //! frozen HTML. Nothing here reads or writes stock, lots, dues, the cash book or reports.
+mod form;
 mod print;
 mod record;
 mod store;
@@ -14,6 +15,7 @@ use super::{ConfirmationFixture, GstJurisdiction};
 use crate::synthetic_read_model::{date, money};
 use crate::{BillDate, Money, ProductId, Role};
 
+pub use form::{GstBillFields, GstBillListRow, GstLineFields, gst_percent_text, parse_gst_percent};
 pub use print::{GstCustomerContact, GstHsnSummary, GstInvoiceLine, GstInvoiceParty};
 pub use store::{GstBillLedger, GstBillStore, GstBillStoreError};
 

@@ -73,9 +73,10 @@ pub use gst_invoice::{
     GstError, GstGroup, GstInvoice, GstJurisdiction, GstLine, GstLineMetadata, GstRequest,
 };
 pub use gst_standalone::{
-    GstBill, GstBillDraft, GstBillError, GstBillId, GstBillInvoice, GstBillLedger, GstBillLine,
-    GstBillLineInput, GstBillNumber, GstBillStore, GstBillStoreError, GstBillTotals,
-    GstCustomerContact, GstHsnSummary, GstInvoiceLine, GstInvoiceParty, GstItemFill, GstUnit,
+    GstBill, GstBillDraft, GstBillError, GstBillFields, GstBillId, GstBillInvoice, GstBillLedger,
+    GstBillLine, GstBillLineInput, GstBillListRow, GstBillNumber, GstBillStore, GstBillStoreError,
+    GstBillTotals, GstCustomerContact, GstHsnSummary, GstInvoiceLine, GstInvoiceParty, GstItemFill,
+    GstLineFields, GstUnit, gst_percent_text, parse_gst_percent,
 };
 pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,

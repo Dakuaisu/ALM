@@ -1,0 +1,195 @@
+use std::collections::HashMap;
+
+use alm_core::confirmation::{GstBillError, GstBillId, GstLineFields};
+use tauri::State;
+
+use crate::{AppState, Trial, debug, ipc::IpcId, with};
+
+fn warn(error: GstBillError) -> String {
+    error.warning().map_or_else(|| debug(error), str::to_owned)
+}
+
+fn take(terms: &mut HashMap<String, String>, key: &str) -> String {
+    terms.remove(key).unwrap_or_default()
+}
+
+impl Trial {
+    /// Copies the submitted text into the open form; core reads it on save.
+    fn gst_apply(&mut self, mut terms: HashMap<String, String>) -> Result<String, String> {
+        let form = self.gst_form.as_mut().ok_or("No GST invoice is open.")?;
+        for (field, key) in [
+            (&mut form.customer, "customer"),
+            (&mut form.gstin, "gstin"),
+            (&mut form.cust_addr, "cust_addr"),
+            (&mut form.cust_phone, "cust_phone"),
+            (&mut form.cust_email, "cust_email"),
+            (&mut form.cust_state, "cust_state"),
+            (&mut form.cust_state_code, "cust_state_code"),
+            (&mut form.pos_state, "pos_state"),
+            (&mut form.pos_code, "pos_code"),
+            (&mut form.date, "date"),
+            (&mut form.pay_mode, "pay_mode"),
+            (&mut form.reverse_charge, "reverse_charge"),
+            (&mut form.eway_number, "eway_number"),
+            (&mut form.transporter, "transporter"),
+            (&mut form.vehicle_no, "vehicle_no"),
+            (&mut form.lr_no, "lr_no"),
+            (&mut form.terms_delivery, "terms_delivery"),
+        ] {
+            *field = take(&mut terms, key);
+        }
+        for (i, line) in form.lines.iter_mut().enumerate() {
+            let item = take(&mut terms, &format!("item_{i}"));
+            if item != line.item {
+                line.product = None;
+            }
+            line.item = item;
+            line.hsn = take(&mut terms, &format!("hsn_{i}"));
+            line.unit = take(&mut terms, &format!("unit_{i}"));
+            line.quantity = take(&mut terms, &format!("qty_{i}"));
+            line.rate = take(&mut terms, &format!("rate_{i}"));
+            line.gst = take(&mut terms, &format!("gst_{i}"));
+            line.packet_qty = take(&mut terms, &format!("pack_{i}"));
+        }
+        Ok(take(&mut terms, "intent"))
+    }
+
+    pub(crate) fn gst_submit(
+        &mut self,
+        terms: HashMap<String, String>,
+        now: u64,
+    ) -> Result<(), String> {
+        let role = self.require_owner()?;
+        let intent = self.gst_apply(terms)?;
+        let form = self.gst_form.as_mut().ok_or("No GST invoice is open.")?;
+        match intent.as_str() {
+            "add" => form.lines.push(GstLineFields::blank()),
+            "fill" => self.authority.fill_gst_lines(role, form).map_err(warn)?,
+            "save" => {
+                let lines = form
+                    .lines
+                    .iter()
+                    .map(|line| self.authority.gst_line_input(role, line))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(warn)?;
+                let draft = self
+                    .authority
+                    .gst_bill_draft(role, form, &lines, now)
+                    .map_err(warn)?;
+                let mut number = String::new();
+                self.authority
+                    .save_gst_bill_to(role, &draft, &mut self.gst_db, &mut |invoice| {
+                        number = invoice.invoice_number();
+                    })
+                    .map_err(debug)?;
+                self.message = format!("GST invoice {number} saved ✓");
+                self.gst_form = None;
+            }
+            remove => {
+                let index: usize = remove
+                    .strip_prefix("remove:")
+                    .and_then(|i| i.parse().ok())
+                    .ok_or("Unknown action.")?;
+                if index < form.lines.len() {
+                    form.lines.remove(index);
+                }
+                if form.lines.is_empty() {
+                    form.lines.push(GstLineFields::blank());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+#[tauri::command(async)]
+pub fn gst_new(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "gstsales", |trial| {
+        let role = trial.require_owner()?;
+        let today = trial.today()?;
+        trial.gst_form = Some(
+            trial
+                .authority
+                .new_gst_bill_fields(role, today)
+                .map_err(warn)?,
+        );
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+pub fn gst_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+    let id = GstBillId(id.value());
+    with(&state, "gstsales", |trial| {
+        let role = trial.require_owner()?;
+        trial.gst_form = Some(
+            trial
+                .authority
+                .edit_gst_bill_fields(role, id)
+                .map_err(warn)?,
+        );
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+pub fn gst_submit(
+    state: State<'_, AppState>,
+    terms: HashMap<String, String>,
+) -> Result<String, String> {
+    with(&state, "gstsales", |trial| trial.gst_submit(terms, now()))
+}
+
+#[tauri::command(async)]
+pub fn gst_back(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "gstsales", |trial| {
+        trial.gst_form = None;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+pub fn gst_cancel(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+    let id = GstBillId(id.value());
+    with(&state, "gstsales", |trial| {
+        let role = trial.require_owner()?;
+        trial
+            .authority
+            .cancel_gst_bill_to(role, id, &mut trial.gst_db)
+            .map_err(debug)
+    })
+}
+
+#[tauri::command(async)]
+pub fn gst_delete(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+    let id = GstBillId(id.value());
+    with(&state, "gstsales", |trial| {
+        let role = trial.require_owner()?;
+        trial
+            .authority
+            .delete_gst_bill_to(role, id, &mut trial.gst_db)
+            .map_err(debug)
+    })
+}
+
+#[tauri::command(async)]
+pub fn gst_view(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+    let id = GstBillId(id.value());
+    with(&state, "gst", |trial| {
+        let role = trial.require_owner()?;
+        trial
+            .authority
+            .emit_gst_bill(role, id, &mut |_| {})
+            .map_err(warn)?;
+        trial.gst_view = id;
+        Ok(())
+    })
+}

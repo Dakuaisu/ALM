@@ -10,6 +10,7 @@ mod cashbook;
 mod customers;
 mod godown;
 mod gst_print;
+mod gst_sales;
 mod ipc;
 mod receipts;
 #[cfg(test)]
@@ -82,6 +83,10 @@ struct Trial {
     reorder_text: Option<String>,
     stock: views::StockState,
     godown_query: String,
+    gst_db: GstBillDatabase,
+    gst_form: Option<alm_core::confirmation::GstBillFields>,
+    /// The bill shown on the invoice view.
+    gst_view: GstBillId,
 }
 
 type AppState = Mutex<Trial>;
@@ -94,12 +99,8 @@ impl Trial {
         authority
             .load_gst_bills_from(Role::Owner, &gst)
             .map_err(debug)?;
-        if authority
-            .next_gst_bill_number(Role::Owner)
-            .map_err(debug)?
-            .0
-            == 1
-        {
+        let ledger = authority.gst_bill_ledger(Role::Owner).map_err(debug)?;
+        if ledger.bills.is_empty() && ledger.deleted.is_empty() {
             let draft = GstBillDraft {
                 customer: "Synthetic GST Buyer",
                 cust_addr: "12 Synthetic Lane, Kanpur",
@@ -134,6 +135,9 @@ impl Trial {
             reorder_text: None,
             stock: views::StockState::default(),
             godown_query: String::new(),
+            gst_db: gst,
+            gst_form: None,
+            gst_view: TRIAL_BILL,
         })
     }
 
@@ -207,6 +211,10 @@ impl Trial {
             }
             "godown" => views::godown_screen(&self.authority, self.role(), &self.godown_query)
                 .map_err(debug)?,
+            "gstsales" => {
+                views::gst_sales_screen(&self.authority, self.role(), self.gst_form.as_ref())
+                    .map_err(debug)?
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -248,7 +256,7 @@ impl Trial {
             "gst" => {
                 let mut page = Err("GST bill missing".to_owned());
                 self.authority
-                    .emit_gst_bill(Role::Owner, TRIAL_BILL, &mut |invoice| {
+                    .emit_gst_bill(Role::Owner, self.gst_view, &mut |invoice| {
                         // printHTML's title: "GST-Invoice-" + fyStr(date) + "-" + no.
                         let number = invoice.invoice_number();
                         let title = format!(
@@ -373,7 +381,7 @@ fn share_text(state: State<'_, AppState>) -> Result<String, String> {
     let mut summary = Err("GST bill missing".to_owned());
     trial
         .authority
-        .emit_gst_bill(role, TRIAL_BILL, &mut |invoice| {
+        .emit_gst_bill(role, trial.gst_view, &mut |invoice| {
             summary = Ok(format!(
                 "GST Invoice {} dated {} for {}: ₹{}",
                 invoice.invoice_number(),
@@ -424,6 +432,13 @@ pub fn run() {
             stock::stock_lots,
             godown::godown_save,
             godown::godown_filter,
+            gst_sales::gst_new,
+            gst_sales::gst_edit,
+            gst_sales::gst_submit,
+            gst_sales::gst_back,
+            gst_sales::gst_cancel,
+            gst_sales::gst_delete,
+            gst_sales::gst_view,
             print_page,
             share_text
         ])

@@ -346,3 +346,110 @@ fn godown_renders_the_core_manual_list_and_leaves_billing_stock_alone() {
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("1,012"));
 }
+
+#[test]
+fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
+    use alm_core::confirmation::{GstBillId, GstBillNumber};
+    use std::collections::HashMap;
+    let root = Root::new("gstsales");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let ordinary = trial.authority.without_gst_bills();
+    let next = trial.authority.next_gst_bill_number(Role::Owner).unwrap();
+    assert_eq!(next, GstBillNumber(2));
+    trial.gst_form = Some(
+        trial
+            .authority
+            .new_gst_bill_fields(Role::Owner, day())
+            .unwrap(),
+    );
+    let form = trial.render("gstsales").unwrap();
+    assert!(form.contains(r#"<label>GST Invoice No <input class="inp" value="2" readonly>"#));
+    assert!(form.contains(r#"name="cust_state" value="Uttar Pradesh""#));
+    let terms = |intent: &str, qty: &str| -> HashMap<String, String> {
+        [
+            ("customer", "Synthetic GST Buyer B"),
+            ("gstin", "09ABCDE1234F1Z5"),
+            ("date", "2025-04-30"),
+            ("pay_mode", "UPI"),
+            ("reverse_charge", "No"),
+            ("eway_number", "123456789012"),
+            ("transporter", "Self Delivery"),
+            ("item_0", "Synthetic Soda"),
+            ("unit_0", "Case"),
+            ("qty_0", qty),
+            ("rate_0", ""),
+            ("gst_0", ""),
+            ("pack_0", ""),
+            ("intent", intent),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect()
+    };
+    trial.gst_submit(terms("fill", "2"), 50).unwrap();
+    let form = trial.render("gstsales").unwrap();
+    assert!(
+        form.contains(r#"name="rate_0" inputmode="decimal" aria-label="Rate 1" value="62.50""#)
+    );
+    assert!(form.contains("<span class=\"num\">₹125.00</span>"));
+    assert!(
+        form.contains(r#"<span class="muted">Total</span><b>₹125.00</b>"#),
+        "{form}"
+    );
+    let mut save = terms("save", "2");
+    save.insert("rate_0".into(), "62.50".into());
+    save.insert("gst_0".into(), "18".into());
+    trial.gst_submit(save, 50).unwrap();
+    let list = trial.render("gstsales").unwrap();
+    let rows = trial.authority.gst_bill_list(Role::Owner).unwrap();
+    assert_eq!(rows[0].number, "ALM/25-26/2");
+    assert!(list.find("ALM/25-26/2").unwrap() < list.find("ALM/25-26/1").unwrap());
+    assert!(list.contains(
+        r#"<td>Synthetic GST Buyer B</td><td class="num">1</td><td class="num">₹125</td>"#
+    ));
+
+    trial
+        .authority
+        .cancel_gst_bill_to(Role::Owner, GstBillId(2), &mut trial.gst_db)
+        .unwrap();
+    let list = trial.render("gstsales").unwrap();
+    assert!(list.contains(
+        r#"<tr style="opacity:.5"><td>2025-04-30</td><td><b>ALM/25-26/2</b><span class="tag""#
+    ));
+    assert_eq!(
+        trial.authority.next_gst_bill_number(Role::Owner).unwrap(),
+        GstBillNumber(3)
+    );
+    trial
+        .authority
+        .delete_gst_bill_to(Role::Owner, GstBillId(2), &mut trial.gst_db)
+        .unwrap();
+    assert_eq!(trial.authority.without_gst_bills(), ordinary);
+    drop(trial);
+
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let ledger = trial.authority.gst_bill_ledger(Role::Owner).unwrap();
+    assert_eq!(ledger.deleted, [GstBillId(2)]);
+    assert_eq!(
+        trial.authority.next_gst_bill_id(Role::Owner).unwrap(),
+        GstBillId(3)
+    );
+    trial
+        .authority
+        .delete_gst_bill_to(Role::Owner, GstBillId(1), &mut trial.gst_db)
+        .unwrap();
+    drop(trial);
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    assert!(
+        trial
+            .authority
+            .gst_bill_list(Role::Owner)
+            .unwrap()
+            .is_empty()
+    );
+    trial.owner = false;
+    let html = trial.render("gstsales").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+    assert!(trial.gst_submit(HashMap::new(), 1).is_err());
+}

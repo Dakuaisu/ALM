@@ -12,6 +12,7 @@ mod dashboard;
 mod drafts;
 mod godown;
 mod gst;
+mod gst_sales;
 mod icons;
 mod receipt;
 mod reorder;
@@ -26,6 +27,7 @@ pub use dashboard::dashboard_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use godown::godown_screen;
 pub use gst::gst_screen;
+pub use gst_sales::gst_sales_screen;
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
@@ -41,7 +43,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("review", "Owner review"),
             ("sales", "Sales"),
             ("receipt", "Receive Payment"),
-            ("gst", "GST invoice"),
+            ("gstsales", "GST Sales"),
             ("expenses", "Cash Book"),
         ],
     ),
@@ -76,6 +78,10 @@ pub fn tabs(active: &str) -> String {
             "Record a separately dated customer receipt",
         ),
         "gst" => ("GST invoice", "Standalone synthetic invoice"),
+        "gstsales" => (
+            "GST Sales",
+            "Standalone GST tax invoices — does NOT change stock or customer balance",
+        ),
         _ => ("New Bill", "Provisional only; not posted"),
     };
     let mut html = format!(
@@ -98,6 +104,12 @@ pub fn tabs(active: &str) -> String {
         }
     }
     html += "</template>";
+    if active == "gstsales" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="gst_new">＋ New GST Invoice</button></template>"#;
+    }
+    if active == "gst" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="screen" data-tab="gstsales">← Back to list</button></template>"#;
+    }
     if active == "expenses" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
     }
