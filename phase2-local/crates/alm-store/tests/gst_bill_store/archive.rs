@@ -1,6 +1,7 @@
 //! Backup archive: new fields round-trip, markers keep deleted bills out, older archives default.
-use alm_store::confirmation::{GstBillId, GstBillLedger, GstUnit};
-use alm_store::synthetic_read_model::{Error, Records, Store};
+use alm_core::confirmation::{GstBillId, GstBillLedger, GstUnit};
+use alm_core::synthetic_read_model::{Error, Records};
+use alm_store::synthetic_read_model::Store;
 
 use super::{OWNER, fixture, full_draft, target_scratch};
 

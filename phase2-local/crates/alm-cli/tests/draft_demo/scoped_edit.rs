@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 
-use alm_store::{
+use alm_core::{
     DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft,
 };
 

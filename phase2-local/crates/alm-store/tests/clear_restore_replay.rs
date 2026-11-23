@@ -1,8 +1,9 @@
 //! Source-derived simulation using the typed archive subset, not the legacy JSON codec.
 //! Browser APIs, transports, watermarks and folder handles are not modeled.
 //! The primary winner's follow-up writes are assumed successful and synchronous.
-use alm_store::Role;
-use alm_store::synthetic_read_model::{BusinessProfile, Records, Store};
+use alm_core::Role;
+use alm_core::synthetic_read_model::{BusinessProfile, Records};
+use alm_store::synthetic_read_model::Store;
 
 #[path = "clear_restore_replay/fixture.rs"]
 mod fixture;

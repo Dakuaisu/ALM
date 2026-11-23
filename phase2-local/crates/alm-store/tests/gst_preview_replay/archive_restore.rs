@@ -1,8 +1,9 @@
 use std::fs;
 
-use alm_store::Role;
-use alm_store::confirmation::{GstBillId, GstBillInvoice, GstBillNumber};
-use alm_store::synthetic_read_model::{BusinessProfile, Error, Records, Store};
+use alm_core::Role;
+use alm_core::confirmation::{GstBillId, GstBillInvoice, GstBillNumber};
+use alm_core::synthetic_read_model::{BusinessProfile, Error, Records};
+use alm_store::synthetic_read_model::Store;
 
 use super::{artifacts::Sandbox, fixture};
 

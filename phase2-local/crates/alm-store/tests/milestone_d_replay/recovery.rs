@@ -5,8 +5,8 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-use alm_store::confirmation::{ConfirmationFixture, GstJurisdiction, GstLineMetadata, GstRequest};
-use alm_store::{BillDate, DraftCustomerId, DraftId, ProductId, Role};
+use alm_core::confirmation::{ConfirmationFixture, GstJurisdiction, GstLineMetadata, GstRequest};
+use alm_core::{BillDate, DraftCustomerId, DraftId, ProductId, Role};
 
 use super::sqlite_list::{open_read_only, sqlite_list};
 

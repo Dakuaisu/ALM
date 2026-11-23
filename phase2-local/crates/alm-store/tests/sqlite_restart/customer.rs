@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use alm_store::draft_entry::{
+use alm_core::draft_entry::{
     ActiveBillFacts, ActiveBillForm, CustomerId, CustomerPrefill, DraftChoice, DraftEntry,
     DraftEntryAction, DraftEntryOutcome, FreshBillStart,
 };
-use alm_store::{AccessDenied, DraftCustomer, DraftCustomerId, DraftId, ProvisionalDraft, Role};
+use alm_core::{AccessDenied, DraftCustomer, DraftCustomerId, DraftId, ProvisionalDraft, Role};
 
 use super::{EDITED_LINES, ORIGINAL_LINES, ScratchDir, draft, open_sales, run_sql, run_worker};
 

@@ -1,8 +1,8 @@
 use std::num::NonZeroU32;
 
 use super::*;
-use alm_store::confirmation::{CheckoutAmounts, CrateTemplate, CrateTemplateError, ProductTerms};
-use alm_store::{
+use alm_core::confirmation::{CheckoutAmounts, CrateTemplate, CrateTemplateError, ProductTerms};
+use alm_core::{
     CrateComponent, DraftCustomer, DraftCustomerId, DraftLine, ProvisionalDraft, SaleUnit,
 };
 

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn mixed_approval_survives_client_restart_and_replays_after_price_change() {
-    use alm_store::DraftLine;
+    use alm_core::DraftLine;
     use std::num::NonZeroU32;
     let scratch = Scratch::new();
     let dir = &scratch.0;
@@ -230,7 +230,7 @@ pub(super) fn worker(
                 sales
                     .session(Role::Manager)
                     .retry_pending(RequestId::new(987), |_, _| emit("UNEXPECTED_SEND")),
-                Err(alm_store::confirmation::PendingError::AccessDenied)
+                Err(alm_core::confirmation::PendingError::AccessDenied)
             ));
             emit("DENIED");
         }

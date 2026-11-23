@@ -1,6 +1,6 @@
 use std::cell::{OnceCell, RefCell};
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, EstimateDisplay, EstimateLineDisplay, ImageFile, ImageHandoff,
     ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts,
     PurchaseBusiness, PurchaseDraft, PurchaseLine, PurchaseOrderHandoff, PurchaseOrderSelection,

@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::confirmation::ProductTerms;
-use alm_store::{CrateRow, DraftCustomerId, SaleUnit};
+use alm_core::confirmation::ProductTerms;
+use alm_core::{CrateRow, DraftCustomerId, SaleUnit};
 use std::collections::BTreeMap;
 
 const ID: DraftId = DraftId::new(1);
@@ -88,7 +88,7 @@ fn l03_03_sqlite_reopens_incomplete_and_corrected_draft_before_one_owner_post() 
         .retry_pending(REQUEST, |_, _| ());
     assert!(matches!(
         pending,
-        Err(alm_store::confirmation::PendingError::NotFound)
+        Err(alm_core::confirmation::PendingError::NotFound)
     ));
 
     let corrected = draft(1, 2).with_customer(customer());

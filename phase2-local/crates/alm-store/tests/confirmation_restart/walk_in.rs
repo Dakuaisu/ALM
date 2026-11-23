@@ -1,8 +1,8 @@
 use super::*;
 use crate::cash_draft;
-use alm_store::DurableDraftStore;
-use alm_store::confirmation::{ConfirmationAck, PendingError};
-use alm_store::draft_entry::{
+use alm_core::DurableDraftStore;
+use alm_core::confirmation::{ConfirmationAck, PendingError};
+use alm_core::draft_entry::{
     ActiveBillForm, BillEntryState, ConfirmationAttempt, ConfirmationOutcome,
 };
 

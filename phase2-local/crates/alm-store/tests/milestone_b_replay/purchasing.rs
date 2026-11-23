@@ -1,4 +1,4 @@
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationFixture, PurchaseError, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseOrderView,
 };

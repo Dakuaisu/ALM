@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::confirmation::ReceiptMode;
-use alm_store::{DraftCustomer, DraftCustomerId};
+use alm_core::confirmation::ReceiptMode;
+use alm_core::{DraftCustomer, DraftCustomerId};
 
 #[test]
 fn named_payment_survives_sqlite_process_restart_and_lost_response() {

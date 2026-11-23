@@ -1,9 +1,10 @@
 //! SQLite and subprocess restart replays for Owner confirmation.
-use alm_store::confirmation::{ConfirmationError, ConfirmationFixture, Receipt, RequestId};
-use alm_store::{
+use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, Receipt, RequestId};
+use alm_core::{
     BillDate, DraftCustomer, DraftId, DraftLine, LocalSales, Money, ProductId, ProvisionalDraft,
-    Role, SqliteSales,
+    Role,
 };
+use alm_store::SqliteSales;
 use std::io::{self, BufRead, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};

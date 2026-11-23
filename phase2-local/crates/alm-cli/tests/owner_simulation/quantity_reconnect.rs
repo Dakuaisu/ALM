@@ -1,6 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     CashBookDay, CashBookEntry, CashBookKind, CustomerLedger, CustomerLedgerEntry,
     CustomerLedgerKind, ProposedPayment, ReceiptMode, SalesDetail, SalesHistory, SalesPeriod,
     SalesSource,

@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use alm_store::confirmation::{ConfirmationError, ConfirmationFixture, Receipt, RequestId};
-use alm_store::{
+use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, Receipt, RequestId};
+use alm_core::{
     AccessDenied, BillDate, DraftCustomer, DraftId, Money, ProductId, ProvisionalDraft, Role,
 };
 

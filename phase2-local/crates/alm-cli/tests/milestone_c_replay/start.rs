@@ -4,11 +4,11 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs, io, process};
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, Counter, ProposedPayment, Receipt, RequestId, Review,
     StockLots,
 };
-use alm_store::{DraftCustomerId, DraftLine, LocalSales, Money, ProvisionalDraft};
+use alm_core::{DraftCustomerId, DraftLine, LocalSales, Money, ProvisionalDraft};
 
 use super::accounts::{AccountCheckpoint, AccountReadback, assert_accounts};
 use super::inventory::{StockCheckpoint, assert_stock};

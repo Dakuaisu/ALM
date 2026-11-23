@@ -1,8 +1,8 @@
-use alm_store::confirmation::{ConfirmationFixture, CustomerLedgerKind, ReceiptMode};
-use alm_store::synthetic_read_model::{
+use alm_core::confirmation::{ConfirmationFixture, CustomerLedgerKind, ReceiptMode};
+use alm_core::synthetic_read_model::{
     Component, Customer, HistoricalGst, Line, LineKind, Product, Receipt, Records, Sale,
 };
-use alm_store::{BillDate, DraftCustomerId, Role};
+use alm_core::{BillDate, DraftCustomerId, Role};
 
 use super::fixture::{BUYER_ID, ITEM_A, ITEM_B, SALE};
 use super::{gst, rate_list};

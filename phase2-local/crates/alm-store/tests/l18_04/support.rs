@@ -1,14 +1,14 @@
 use std::cell::Cell;
 use std::num::NonZeroU32;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateLineDisplay, EstimateRequest,
     GstBillDraft, GstBillId, GstBillInvoice, GstBillLineInput, GstBillNumber, ImageFile,
     ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts,
     RequestId, ShareRejected, TextHandoffIntent,
 };
-use alm_store::synthetic_read_model::BusinessProfile;
-use alm_store::{
+use alm_core::synthetic_read_model::BusinessProfile;
+use alm_core::{
     BillDate, DraftCustomer, DraftId, DraftLine, Money, ProductId, ProvisionalDraft, Role,
 };
 

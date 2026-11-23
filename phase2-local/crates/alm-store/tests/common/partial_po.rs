@@ -1,5 +1,5 @@
-use alm_store::ProductId;
-use alm_store::confirmation::{
+use alm_core::ProductId;
+use alm_core::confirmation::{
     ConfirmationFixture, PurchaseBusiness, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseProductDisplay,
 };

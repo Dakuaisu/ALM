@@ -4,8 +4,9 @@ mod l18_04_support;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use alm_store::Role;
-use alm_store::synthetic_read_model::{BusinessProfile, Records, Store};
+use alm_core::Role;
+use alm_core::synthetic_read_model::{BusinessProfile, Records};
+use alm_store::synthetic_read_model::Store;
 use l18_04_support::{Expected, capture, fixture};
 
 #[test]

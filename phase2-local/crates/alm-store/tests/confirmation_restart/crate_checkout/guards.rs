@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::CrateRowAlreadyPresent;
-use alm_store::confirmation::pending;
+use alm_core::CrateRowAlreadyPresent;
+use alm_core::confirmation::pending;
 
 #[test]
 fn adding_a_second_crate_row_preserves_the_original_until_explicit_replacement() {

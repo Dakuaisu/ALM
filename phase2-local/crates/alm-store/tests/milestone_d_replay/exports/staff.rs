@@ -1,13 +1,13 @@
 use std::num::NonZeroU32;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, ConfirmationError, ConfirmationFixture, EstimateDisplay, EstimateError,
     EstimateLineDisplay, EstimateRequest, ImageFile, ImageHandoff, ImageHandoffRequest,
     InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts, ShareRejected, StockLotsError,
     SupplierPriceError, TextHandoffIntent,
 };
-use alm_store::draft_entry::{ActiveBillForm, BillEntryState};
-use alm_store::{AccessDenied, DraftCustomer, DraftLine, LocalSales, Money};
+use alm_core::draft_entry::{ActiveBillForm, BillEntryState};
+use alm_core::{AccessDenied, DraftCustomer, DraftLine, LocalSales, Money};
 
 use super::{A, B, ITEM_A, ITEM_B, MANAGER, OWNER, SALE};
 

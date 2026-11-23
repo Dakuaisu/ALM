@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::Path;
 
-use alm_store::synthetic_read_model::{AccountId, Error, Records, SaleId, Store};
-use alm_store::{BillDate, Role};
+use alm_core::synthetic_read_model::{AccountId, Error, Records, SaleId};
+
+use alm_core::{BillDate, Role};
+use alm_store::synthetic_read_model::Store;
 
 pub(super) fn run(records: &Records, dir: &Path) {
     for (name, due, receipt, expected) in [

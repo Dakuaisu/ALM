@@ -1,7 +1,8 @@
-use alm_store::synthetic_read_model::{
-    AccountId, AccountScope, BusinessProfile, Error, ReceiptId, SaleId, Store,
+use alm_core::synthetic_read_model::{
+    AccountId, AccountScope, BusinessProfile, Error, ReceiptId, SaleId,
 };
-use alm_store::{BillDate, Role};
+use alm_core::{BillDate, Role};
+use alm_store::synthetic_read_model::Store;
 
 #[path = "signed_recovery.rs"]
 mod signed_recovery;

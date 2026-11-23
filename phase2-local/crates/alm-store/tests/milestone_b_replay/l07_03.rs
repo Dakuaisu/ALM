@@ -5,13 +5,13 @@ mod branches;
 #[path = "l07_03/capture.rs"]
 mod capture;
 
-use alm_store::confirmation::{ConfirmationFixture, PurchaseOrderStatus, PurchaseProductDisplay};
+use alm_core::confirmation::{ConfirmationFixture, PurchaseOrderStatus, PurchaseProductDisplay};
 
 use super::purchasing::post_partials;
 use super::{
     A, B, ITEM_A, ITEM_B, MANAGER, OWNER, SELL, fifo, lot, money, save_planned_order, stock,
 };
-use alm_store::ProductId;
+use alm_core::ProductId;
 use capture::capture_outputs;
 
 const PRODUCTS: &[PurchaseProductDisplay<'_>] = &[
@@ -103,7 +103,7 @@ fn l07_03_supplier_outputs_preserve_milestone_b_progress_and_inventory() {
     );
     assert_eq!(
         fixture.close_remaining(MANAGER, selection.id, true),
-        Err(alm_store::confirmation::PurchaseError::AccessDenied)
+        Err(alm_core::confirmation::PurchaseError::AccessDenied)
     );
     fixture.close_remaining(OWNER, selection.id, true).unwrap();
     let closed = fixture.view_purchase_order(selection, PRODUCTS).unwrap();
@@ -135,7 +135,7 @@ fn l07_03_supplier_outputs_preserve_milestone_b_progress_and_inventory() {
     }
 }
 
-fn progress_rows(view: &alm_store::confirmation::PurchaseOrderView) -> Vec<(u32, u32, u32, u32)> {
+fn progress_rows(view: &alm_core::confirmation::PurchaseOrderView) -> Vec<(u32, u32, u32, u32)> {
     view.lines
         .iter()
         .map(|line| (line.ordered, line.received, line.cancelled, line.remaining))

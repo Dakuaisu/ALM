@@ -3,8 +3,9 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::{DraftCustomer, DraftId, DraftStorageError, LocalSales, Money, ProvisionalDraft, Role};
-use crate::SqliteSales;
+use alm_core::{DraftCustomer, DraftId, LocalSales, Money, ProvisionalDraft, Role};
+
+use crate::{DraftStorageError, SqliteSales};
 
 struct DeviceRoot(PathBuf);
 

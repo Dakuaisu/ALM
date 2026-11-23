@@ -2,8 +2,9 @@ use std::ffi::OsString;
 use std::io;
 use std::path::Path;
 
+use alm_core::LocalSales;
+use alm_store::ManagerDraftStore;
 use alm_store::SqliteSales;
-use alm_store::{LocalSales, ManagerDraftStore};
 
 const LEGACY: &str = "Storage: legacy single-account database (--db).";
 const SCOPED: &str = "Storage: account-scoped local drafts.";

@@ -1,8 +1,8 @@
-use alm_store::confirmation::order_planner::{
+use alm_core::confirmation::order_planner::{
     CopyPlanFeedback, CopyPlanRejected, OrderPlannerError,
 };
-use alm_store::confirmation::{ConfirmationFixture, ReorderError};
-use alm_store::{BillDate, Money};
+use alm_core::confirmation::{ConfirmationFixture, ReorderError};
+use alm_core::{BillDate, Money};
 
 use super::{A, B, ITEM_A, ITEM_B, MANAGER, OWNER};
 

@@ -1,8 +1,6 @@
 //! SQLite draft storage and file-backed archives for the local synthetic slice.
 #![forbid(unsafe_code)]
 
-pub use alm_core::*;
-
 mod error;
 #[cfg(test)]
 mod manager_account_tests;

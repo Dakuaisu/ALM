@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use alm_store::confirmation::GstBillInvoice;
+use alm_core::confirmation::GstBillInvoice;
 
 use super::markup;
 

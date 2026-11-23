@@ -1,5 +1,5 @@
-use alm_store::confirmation::order_planner::OrderPlannerError;
-use alm_store::confirmation::{
+use alm_core::confirmation::order_planner::OrderPlannerError;
+use alm_core::confirmation::{
     ConfirmationFixture, PurchaseError, PurchaseLine, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseProduct, PurchaseSupplier, StockLots, SupplierPriceEdit, SupplierPriceError,
 };

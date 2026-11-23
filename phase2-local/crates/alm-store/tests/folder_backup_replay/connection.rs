@@ -184,10 +184,12 @@ fn dated_publication_failure_preserves_current_before_retry() {
 fn manual_dated_failure_leaves_current_recoverable_without_overwriting() {
     use std::io::ErrorKind;
 
-    use alm_store::{
+    use alm_core::{
         Role,
-        synthetic_read_model::{Error, Records, Store},
+        synthetic_read_model::{Error, Records},
     };
+
+    use alm_store::synthetic_read_model::Store;
 
     let sandbox = Sandbox::new();
     let destinations = seed_occupied_backups(&sandbox);

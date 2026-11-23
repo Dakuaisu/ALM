@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use alm_store::confirmation::BalanceMode;
-use alm_store::preferences::{Preference, Preferences, Theme};
-use alm_store::synthetic_read_model::{Error, SaleId, Store};
-use alm_store::{BillDate, Money, Role};
+use alm_core::confirmation::BalanceMode;
+use alm_core::preferences::{Preference, Theme};
+use alm_core::synthetic_read_model::{Error, SaleId};
+use alm_core::{BillDate, Money, Role};
+use alm_store::preferences::Preferences;
+use alm_store::synthetic_read_model::Store;
 
 const OWNER: Role = Role::Owner;
 const MANAGER: Role = Role::Manager;

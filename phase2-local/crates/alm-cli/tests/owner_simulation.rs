@@ -5,14 +5,14 @@ use std::process::{self, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
-use alm_store::SqliteSales;
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, StockLotRow, StockLots,
 };
-use alm_store::{
+use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, Money, ProductId,
     ProvisionalDraft, Role,
 };
+use alm_store::SqliteSales;
 
 #[path = "owner_simulation/quantity_reconnect.rs"]
 mod quantity_reconnect;

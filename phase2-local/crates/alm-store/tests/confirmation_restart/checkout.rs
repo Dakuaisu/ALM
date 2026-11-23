@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::confirmation::{ProductTerms, SaleUnit};
-use alm_store::{DraftCustomer, DraftCustomerId, DraftLine, ProvisionalDraft};
+use alm_core::confirmation::{ProductTerms, SaleUnit};
+use alm_core::{DraftCustomer, DraftCustomerId, DraftLine, ProvisionalDraft};
 use std::num::NonZeroU32;
 
 fn configured(lots: &[(u32, Money)], quantities: [u32; 2]) -> ConfirmationFixture {

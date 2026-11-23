@@ -1,11 +1,11 @@
 use std::cell::Cell;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, ConfirmationError, EstimateDisplay, EstimateError, EstimateLineDisplay, ImageFile,
     ImageHandoff, InvoiceHandoff, InvoiceImageAttempts, SalesOutput, ShareRejected,
     TextHandoffIntent,
 };
-use alm_store::{
+use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, ProductId, ProvisionalDraft, Role,
 };
 
@@ -82,7 +82,7 @@ fn active_row_whatsapp_uses_selected_sale_and_matching_contact() {
     fixture
         .confirm(
             Role::Owner,
-            alm_store::confirmation::RequestId::new(2),
+            alm_core::confirmation::RequestId::new(2),
             &review,
         )
         .unwrap();

@@ -7,11 +7,12 @@ use std::process::{self, Command};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs, io};
 
-use alm_store::SqliteSales;
-use alm_store::{
-    AccessDenied, DraftId, DraftLine, DraftStorageError, DraftStoreFailure, LocalSales, Money,
-    ProductId, ProvisionalDraft, Role,
+use alm_core::{
+    AccessDenied, DraftId, DraftLine, DraftStoreFailure, LocalSales, Money, ProductId,
+    ProvisionalDraft, Role,
 };
+use alm_store::DraftStorageError;
+use alm_store::SqliteSales;
 
 #[path = "sqlite_restart/customer.rs"]
 mod customer;

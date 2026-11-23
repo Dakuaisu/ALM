@@ -1,10 +1,11 @@
 use std::path::Path;
 
-use alm_store::confirmation::{GstError, GstInvoice, GstJurisdiction};
-use alm_store::synthetic_read_model::{
-    GstArchiveError, HistoricalGst, HistoricalGstLine, Sale, SaleId, Store,
+use alm_core::confirmation::{GstError, GstInvoice, GstJurisdiction};
+use alm_core::synthetic_read_model::{
+    GstArchiveError, HistoricalGst, HistoricalGstLine, Sale, SaleId,
 };
-use alm_store::{BillDate, DraftLine, ProductId, Role};
+use alm_core::{BillDate, DraftLine, ProductId, Role};
+use alm_store::synthetic_read_model::Store;
 use serde_json::json;
 
 pub fn snapshot(sale: &Sale, draft: &[DraftLine]) -> HistoricalGst {

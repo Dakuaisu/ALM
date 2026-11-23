@@ -1,10 +1,10 @@
 use std::num::NonZeroU32;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, CustomerReceiptInput, EditChanges, Receipt,
     ReceiptMode, RequestId, StockLots,
 };
-use alm_store::{
+use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role,
 };

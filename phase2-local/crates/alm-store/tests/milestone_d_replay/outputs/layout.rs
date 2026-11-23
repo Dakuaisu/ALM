@@ -1,8 +1,8 @@
 use std::fmt::Write;
 
-use alm_store::confirmation::{BillPreview, EstimateLineDisplay};
-use alm_store::synthetic_read_model::{EstimateDocument, EstimateRow};
-use alm_store::{BillDate, Money};
+use alm_core::confirmation::{BillPreview, EstimateLineDisplay};
+use alm_core::synthetic_read_model::{EstimateDocument, EstimateRow};
+use alm_core::{BillDate, Money};
 
 pub(super) fn render(
     preview: &BillPreview,

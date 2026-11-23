@@ -1,6 +1,6 @@
 pub(super) fn product_setting(store: &alm_store::synthetic_read_model::Store) {
-    use alm_store::confirmation::ConfirmationFixture;
-    use alm_store::{Money, ProductId, Role};
+    use alm_core::confirmation::ConfirmationFixture;
+    use alm_core::{Money, ProductId, Role};
     let mut domain =
         ConfirmationFixture::new(ProductId::new(90), 0, Money::from_minor_units(100)).unwrap();
     assert!(

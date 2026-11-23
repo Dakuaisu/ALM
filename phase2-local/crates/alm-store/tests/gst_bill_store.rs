@@ -2,14 +2,12 @@
 //! Local save only (`persist()` → `saveDB()`); sync and shared numbering are out of scope.
 use std::num::NonZeroU32;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillError, GstBillId, GstBillInvoice, GstBillLedger,
     GstBillLineInput, GstBillNumber, GstBillStoreError, GstUnit,
 };
-use alm_store::{
-    BillDate, DraftId, DraftStorageError, GstBillDatabase, LocalSales, Money, ProductId,
-    ProvisionalDraft, Role, SqliteSales,
-};
+use alm_core::{BillDate, DraftId, LocalSales, Money, ProductId, ProvisionalDraft, Role};
+use alm_store::{DraftStorageError, GstBillDatabase, SqliteSales};
 
 #[path = "gst_bill_store/archive.rs"]
 mod archive;
@@ -269,6 +267,6 @@ fn stored_lines_keep_unit_pack_size_and_inert_product_reference() {
 }
 
 fn database_ledger(database: &GstBillDatabase) -> GstBillLedger {
-    use alm_store::confirmation::GstBillStore;
+    use alm_core::confirmation::GstBillStore;
     database.load_gst_bills().unwrap()
 }

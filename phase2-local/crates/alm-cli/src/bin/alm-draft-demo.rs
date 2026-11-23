@@ -4,9 +4,9 @@ use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 use std::process::ExitCode;
 use std::str::FromStr;
 
-use alm_store::{
-    DraftCustomer, DraftId, DraftLine, ManagerDraftStore, ProductId, ProvisionalDraft,
-};
+use alm_core::{DraftCustomer, DraftId, DraftLine, ProductId, ProvisionalDraft};
+
+use alm_store::ManagerDraftStore;
 
 #[path = "alm-draft-demo/launch.rs"]
 mod launch;

@@ -2,14 +2,14 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
-use alm_store::Role;
-use alm_store::confirmation::{
+use alm_core::Role;
+use alm_core::confirmation::{
     PopupDocument, PrintIntent, PurchaseOrderStatus, PurchaseOrderView, PurchaseProgressLine,
 };
-use alm_store::synthetic_read_model::{
+use alm_core::synthetic_read_model::{
     ArchivedPurchaseOrder, ArchivedPurchaseReceipt, ArchivedPurchaseStatus, Error, PurchaseCapture,
-    Store,
 };
+use alm_store::synthetic_read_model::Store;
 
 use super::fixture::partial_po::partial_purchase_order_setup;
 use super::fixture::{A, B, ITEM_A, ITEM_B, feb, money, qty};

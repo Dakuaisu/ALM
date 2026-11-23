@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
-use alm_store::Role;
-use alm_store::confirmation::{
+use alm_core::Role;
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, EstimateError, EstimateRequest, ImageFile,
     ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts,
     ShareRejected, TextHandoffIntent,

@@ -1,8 +1,8 @@
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     CashBookDay, ConfirmationError, ConfirmationFixture, CustomerLedger, CustomerReceiptInput,
     Receipt, ReceiptMode, RequestId, Review, StockLots,
 };
-use alm_store::{DraftCustomer, DraftId, DraftLine, Money, ProvisionalDraft, Role};
+use alm_core::{DraftCustomer, DraftId, DraftLine, Money, ProvisionalDraft, Role};
 
 use super::fixtures::{A_EDITED, A_INITIAL, B_SAVED, DRAFT, PRODUCTS, positive};
 

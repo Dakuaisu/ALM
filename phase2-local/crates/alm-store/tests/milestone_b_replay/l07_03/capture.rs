@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationFixture, ImageFile, ImageHandoff, PrintIntent, PurchaseBusiness,
     PurchaseOrderHandoff, PurchaseOrderSelection, PurchaseOutputRequest, PurchaseWhatsAppRequest,
     ShareRejected, TextHandoffIntent,

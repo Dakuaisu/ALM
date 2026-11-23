@@ -1,8 +1,9 @@
-use alm_store::BillDate;
-use alm_store::Money;
-use alm_store::confirmation::BalanceMode;
-use alm_store::preferences::{Preference, Preferences, Theme};
-use alm_store::synthetic_read_model::{Customer, Product, Receipt, Records, Sale};
+use alm_core::BillDate;
+use alm_core::Money;
+use alm_core::confirmation::BalanceMode;
+use alm_core::preferences::{Preference, Theme};
+use alm_core::synthetic_read_model::{Customer, Product, Receipt, Records, Sale};
+use alm_store::preferences::Preferences;
 use std::path::Path;
 
 pub(super) fn preferences(directory: &Path) {

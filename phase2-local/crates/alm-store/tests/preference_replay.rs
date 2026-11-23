@@ -1,14 +1,16 @@
 // allow: SIZE_OK - One shared fixture drives the explicit failure and recovery matrix.
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, ConfirmationError, ConfirmationFixture, CustomerReceiptInput, EstimateDisplay,
     EstimateLineDisplay, EstimateRequest, ReceiptMode, RequestId,
 };
-use alm_store::preferences::{Preference, Preferences, Theme};
-use alm_store::synthetic_read_model::{BusinessProfile, Customer, Records, Store};
-use alm_store::{
+use alm_core::preferences::{Preference, Theme};
+use alm_core::synthetic_read_model::{BusinessProfile, Customer, Records};
+use alm_core::{
     AccessDenied, BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, Money,
     ProductId, ProvisionalDraft, Role,
 };
+use alm_store::preferences::Preferences;
+use alm_store::synthetic_read_model::Store;
 
 fn projection(preferences: &Preferences) -> (&'static str, Option<Money>, BalanceMode) {
     (
@@ -237,7 +239,7 @@ fn preference_failures_replay_without_changing_business_or_permissions() {
         );
         assert!(matches!(
             store.backup(Role::Manager),
-            Err(alm_store::synthetic_read_model::Error::AccessDenied)
+            Err(alm_core::synthetic_read_model::Error::AccessDenied)
         ));
         assert_eq!(
             local.session(Role::Manager).total_profit(),

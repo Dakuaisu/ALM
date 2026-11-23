@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use alm_store::confirmation::ConfirmationError;
-use alm_store::{LocalSales, Role};
+use alm_core::confirmation::ConfirmationError;
+use alm_core::{LocalSales, Role};
 
 #[path = "account_switch_restart/authority.rs"]
 mod authority;

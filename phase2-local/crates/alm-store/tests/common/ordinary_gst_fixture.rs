@@ -1,5 +1,5 @@
-use alm_store::ProductId;
-use alm_store::confirmation::GstLineMetadata;
+use alm_core::ProductId;
+use alm_core::confirmation::GstLineMetadata;
 
 pub const GST_METADATA: [GstLineMetadata<'static>; 2] = [
     GstLineMetadata {

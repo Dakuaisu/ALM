@@ -1,11 +1,11 @@
 use std::path::Path;
 use std::time::Duration;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     BalanceMode, ConfirmationError, ConfirmationFixture, EstimateDisplay, EstimateError,
     EstimateLineDisplay, EstimateRequest, PrintIntent,
 };
-use alm_store::{BillDate, DraftId, Money, ProductId, Role};
+use alm_core::{BillDate, DraftId, Money, ProductId, Role};
 
 #[path = "outputs/handoff.rs"]
 mod handoff;

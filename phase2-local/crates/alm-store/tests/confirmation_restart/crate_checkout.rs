@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::confirmation::{CheckoutAmounts, ProductTerms, Review};
-use alm_store::{
+use alm_core::confirmation::{CheckoutAmounts, ProductTerms, Review};
+use alm_core::{
     CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftLine, ProvisionalDraft, SaleUnit,
 };
 use std::num::NonZeroU32;

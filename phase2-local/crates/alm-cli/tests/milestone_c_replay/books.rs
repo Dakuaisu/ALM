@@ -1,8 +1,8 @@
-use alm_store::DraftCustomer;
-use alm_store::confirmation::manual_cashbook::{
+use alm_core::DraftCustomer;
+use alm_core::confirmation::manual_cashbook::{
     CashBookAmounts, ManualCashBook, ManualCashBookDraft, ManualCashBookError, ManualCashBookRow,
 };
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     CashBookEntry, CashBookKind, CustomerLedgerKind, SalesDetail, SalesPeriod, SalesReceiptId,
     SalesSource,
 };

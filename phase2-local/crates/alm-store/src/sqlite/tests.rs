@@ -6,11 +6,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rusqlite::Connection;
 
-use super::SqliteDraftStore;
-use crate::{
+use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, DurableDraftStore, LocalSales,
-    Money, ProductId, ProvisionalDraft, Role, SqliteSales, decode_crate_row,
+    Money, ProductId, ProvisionalDraft, Role, decode_crate_row,
 };
+
+use super::SqliteDraftStore;
+use crate::SqliteSales;
 
 // Frozen copy of the DDL the sqlite3 CLI store fed to `sqlite3` before the driver switch.
 const CLI_SCHEMA: &str = "

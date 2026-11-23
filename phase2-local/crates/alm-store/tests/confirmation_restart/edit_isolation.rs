@@ -1,7 +1,7 @@
 use super::*;
-use alm_store::DraftCustomerId;
-use alm_store::confirmation::{EditChanges, Review};
-use alm_store::draft_entry::{
+use alm_core::DraftCustomerId;
+use alm_core::confirmation::{EditChanges, Review};
+use alm_core::draft_entry::{
     ActiveBillFacts, BillEntryState, DraftChoice, DraftEntry, DraftEntryAction, DraftEntryOutcome,
     DraftRowFacts,
 };

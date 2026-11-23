@@ -1,5 +1,5 @@
-use alm_store::confirmation::manual_cashbook::ManualCashBook;
-use alm_store::confirmation::{
+use alm_core::confirmation::manual_cashbook::ManualCashBook;
+use alm_core::confirmation::{
     BalanceMode, BillPreview, MonthlyProfit, Review, SalesHistory, SalesPeriod, SalesProfit,
     StockLots,
 };

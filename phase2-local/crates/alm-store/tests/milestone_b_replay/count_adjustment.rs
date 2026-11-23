@@ -1,13 +1,13 @@
 use std::num::NonZeroI64;
 
-use alm_store::confirmation::manual_cashbook::ManualCashBook;
-use alm_store::confirmation::{
+use alm_core::confirmation::manual_cashbook::ManualCashBook;
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, DailyMovementError, DailyMovementRow, DeadStockRow,
     PhysicalCount, PhysicalCountError, PhysicalCountInput, ProductEntryError, PurchaseError,
     ReorderError, ReorderStatus, ReportsError, StockCountMovement, StockCountReason, StockLotRow,
     StockLots, StockLotsError,
 };
-use alm_store::{BillDate, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft};
+use alm_core::{BillDate, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft};
 
 use super::manager_sqlite::{SqliteEvidence, databases};
 use super::target_scratch::Scratch;

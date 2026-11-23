@@ -1,7 +1,7 @@
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillInvoice, GstBillLineInput, GstBillNumber,
 };
-use alm_store::{BillDate, Money, ProductId, Role};
+use alm_core::{BillDate, Money, ProductId, Role};
 
 pub fn reopened(count: usize) -> GstBillInvoice {
     let names: Vec<_> = (1..=count).map(|id| format!("ITEM-{id:03}")).collect();

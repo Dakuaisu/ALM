@@ -1,6 +1,6 @@
 use super::{DraftId, Money, Receipt, RequestId};
-use alm_store::ProvisionalDraft;
-use alm_store::confirmation::{Review, pending};
+use alm_core::ProvisionalDraft;
+use alm_core::confirmation::{Review, pending};
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct OwnerRequest {

@@ -1,11 +1,12 @@
 use std::fs;
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, GstBillDraft, GstBillError, GstBillId,
     GstBillLineInput, GstBillNumber, GstBillTotals,
 };
-use alm_store::synthetic_read_model::{Records, Store};
-use alm_store::{BillDate, DraftId, Money, ProductId, Role};
+use alm_core::synthetic_read_model::Records;
+use alm_core::{BillDate, DraftId, Money, ProductId, Role};
+use alm_store::synthetic_read_model::Store;
 
 use super::artifacts::Sandbox;
 use super::sink::{Action, Event, Sink};

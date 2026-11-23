@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use alm_store::BillDate;
-use alm_store::confirmation::{
+use alm_core::BillDate;
+use alm_core::confirmation::{
     BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateError, EstimateLineDisplay,
     EstimateRequest, GstError, GstInvoice, GstJurisdiction, GstRequest, PrintIntent,
 };
@@ -195,7 +195,7 @@ pub(super) fn assert_gst(
             gst.sgst,
             gst.igst
         ]
-        .map(alm_store::Money::minor_units),
+        .map(alm_core::Money::minor_units),
         amounts,
     );
     let groups = gst

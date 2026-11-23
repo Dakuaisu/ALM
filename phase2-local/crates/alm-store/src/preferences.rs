@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 
 use alm_core::Money;
 use alm_core::confirmation::BalanceMode;
-use alm_core::preferences::PreferenceState;
-pub use alm_core::preferences::{Preference, Theme};
+use alm_core::preferences::{Preference, PreferenceState, Theme};
 
 /// A session's local preferences; storage failure never changes authorization.
 pub struct Preferences {

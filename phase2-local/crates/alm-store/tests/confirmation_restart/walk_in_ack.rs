@@ -1,6 +1,6 @@
 use super::*;
-use alm_store::confirmation::PendingError;
-use alm_store::draft_entry::{
+use alm_core::confirmation::PendingError;
+use alm_core::draft_entry::{
     ActiveBillForm, BillEntryState, ConfirmationAttempt, ConfirmationOutcome,
 };
 

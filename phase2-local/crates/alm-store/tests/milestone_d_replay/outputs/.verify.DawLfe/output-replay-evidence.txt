@@ -1,0 +1,5 @@
+Synthetic reconstruction from the local cancelled invoice projection.
+The SVG is an actual vector image, not a legacy PNG or a pixel-parity result.
+The adjacent HTML is the actual inert Rust print/PDF projection. It lacks the legacy business header, simplified table columns, visual styling and footer; its cancellation marker also follows Bill To rather than the legacy header.
+Raster blocked/not requested in the normal tool-independent replay; handoff used a 1x1 PNG sentinel.
+Real sharing, printing and PDF creation were not performed.

@@ -1,11 +1,11 @@
 use std::num::{NonZeroI64, NonZeroU32};
 
-use alm_store::confirmation::{
+use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, CrateTemplate, CrateTemplateError, DailyMovementError,
     DailyMovementRow, ManualGodownError, ManualGodownInput, ProductTerms, PurchaseOrderStatus,
     RequestId, StockLotRow, StockLots, StockLotsError,
 };
-use alm_store::{
+use alm_core::{
     BillDate, CrateComponent, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role, SaleUnit,
 };

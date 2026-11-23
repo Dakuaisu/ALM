@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::Path;
 
-use alm_store::Role;
-use alm_store::synthetic_read_model::{Error, Product, Store};
+use alm_core::Role;
+use alm_core::synthetic_read_model::{Error, Product};
+use alm_store::synthetic_read_model::Store;
 
 #[path = "../../../alm-core/tests/rate_list_replay/model.rs"]
 mod model;

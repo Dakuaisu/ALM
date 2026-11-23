@@ -2,8 +2,8 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 
-use alm_store::confirmation::{ConfirmationError, ConfirmationFixture};
-use alm_store::{DraftId, ProductId, Role};
+use alm_core::confirmation::{ConfirmationError, ConfirmationFixture};
+use alm_core::{DraftId, ProductId, Role};
 
 #[path = "exports/clipboard.rs"]
 mod clipboard;

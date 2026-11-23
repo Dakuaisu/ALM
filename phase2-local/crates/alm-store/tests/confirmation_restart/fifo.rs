@@ -1,5 +1,5 @@
 use super::*;
-use alm_store::DraftLine;
+use alm_core::DraftLine;
 use std::num::NonZeroU32;
 
 #[test]

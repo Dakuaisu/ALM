@@ -1,4 +1,4 @@
-use alm_store::confirmation::{GstBillInvoice, GstJurisdiction};
+use alm_core::confirmation::{GstBillInvoice, GstJurisdiction};
 
 const BORDER: &str = "border:1px solid #c2c8d2";
 const CELL: &str = "padding:3px 7px;border-bottom:1px solid #eaedf1";
@@ -39,7 +39,7 @@ pub fn title(invoice: &GstBillInvoice) -> String {
     )
 }
 
-fn row(index: usize, line: &alm_store::confirmation::GstBillLine) -> String {
+fn row(index: usize, line: &alm_core::confirmation::GstBillLine) -> String {
     let quantity = line.quantity.get();
     let inclusive = inr(line.inclusive_rate.minor_units());
     let taxable_rate = inr(line.taxable_rate().unwrap().minor_units());
@@ -58,7 +58,7 @@ fn row(index: usize, line: &alm_store::confirmation::GstBillLine) -> String {
 
 fn summary(invoice: &GstBillInvoice) -> String {
     let totals = invoice.totals;
-    let tax_row = |label, value: alm_store::Money| {
+    let tax_row = |label, value: alm_core::Money| {
         format!(
             "<tr><td style=\"{CELL};text-align:right\" colspan=\"7\">{label}</td><td style=\"{CELL};text-align:right\">{}</td></tr>",
             inr(value.minor_units())

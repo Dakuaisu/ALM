@@ -1,8 +1,9 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use alm_store::Role;
-use alm_store::synthetic_read_model::{Error, ScopedArchiveInput, Store};
+use alm_core::Role;
+use alm_core::synthetic_read_model::{Error, ScopedArchiveInput};
+use alm_store::synthetic_read_model::Store;
 
 #[path = "milestone_d_structured/assertions.rs"]
 mod assertions;
