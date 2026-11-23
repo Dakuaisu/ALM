@@ -2,6 +2,8 @@
 //! Every rule lives in `alm-core`/`alm-store`; the page only displays returned HTML.
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
+mod batch2;
 mod bill_entry;
 mod billing;
 #[cfg(test)]
