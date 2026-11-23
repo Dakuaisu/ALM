@@ -69,8 +69,8 @@ These paths are untracked or unattributed in the working tree. No builder sessio
 | `.kiro/agents/default-eed8665b.json` | Untracked agent-tool configuration |
 | `.gitignore` | Untracked root ignore file |
 | `.DS_Store`, `phase2-local/.DS_Store` | Untracked macOS metadata |
-| `phase2-local/tests/milestone_d_replay/outputs/.verify.DawLfe/` | Untracked replay run artifacts (SVG, PNG, HTML, text) |
-| `phase2-local/tests/milestone_d_replay/recovery/harness.rs` | Untracked Rust test source |
+| `phase2-local/crates/alm-store/tests/milestone_d_replay/outputs/.verify.DawLfe/` | Untracked replay run artifacts (SVG, PNG, HTML, text); moved here from `phase2-local/tests/` with their directory in the D2 split (`2ca90b0`), committed by mistake in `7fbba84` and untracked again; the files stay in that commit's history |
+| `phase2-local/crates/alm-store/tests/milestone_d_replay/recovery/harness.rs` | Untracked Rust test source, not compiled by any target; same move, mistaken commit and untracking as the row above |
 
 ## OPEN-012 HSN code assignment is weak in the legacy HTML
 - Status: DEFERRED BY OWNER
