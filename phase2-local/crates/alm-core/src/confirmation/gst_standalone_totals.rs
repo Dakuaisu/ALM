@@ -1,4 +1,4 @@
-use super::{GstBillError, GstBillLine, GstBillTotals, GstJurisdiction};
+use super::{GstBillError, GstBillLine, GstBillTotals, GstHsnSummary, GstJurisdiction};
 use crate::Money;
 
 const BASIS: i64 = 10_000;
@@ -49,6 +49,13 @@ impl RawTaxable {
             .and_then(|amount| amount.checked_sub(self.numerator))
             .ok_or(OVERFLOW)?;
         Ok(Self::reduced(numerator, self.denominator))
+    }
+
+    fn scaled(self, numerator: i128, denominator: i128) -> Result<Self, GstBillError> {
+        Ok(Self::reduced(
+            self.numerator.checked_mul(numerator).ok_or(OVERFLOW)?,
+            self.denominator.checked_mul(denominator).ok_or(OVERFLOW)?,
+        ))
     }
 
     fn rounded(self, parts: i128) -> Result<Money, GstBillError> {
@@ -116,4 +123,43 @@ pub(super) fn totals(
         igst,
         total: Money::from_minor_units(inclusive),
     })
+}
+
+/// `hsnMap`: taxable value summed per HSN and rate, then each displayed amount rounded once.
+pub(super) fn hsn_summary<'a>(
+    lines: impl IntoIterator<Item = (&'a str, i64, u32)>,
+    jurisdiction: GstJurisdiction,
+) -> Result<Vec<GstHsnSummary>, GstBillError> {
+    let mut groups: Vec<(&str, u32, RawTaxable)> = Vec::new();
+    for (hsn, amount, rate) in lines {
+        let raw = RawTaxable::from_inclusive(amount, rate)?;
+        match groups
+            .iter_mut()
+            .find(|group| group.0 == hsn && group.1 == rate)
+        {
+            Some(group) => group.2 = group.2.add(raw)?,
+            None => groups.push((hsn, rate, raw)),
+        }
+    }
+    let zero = Money::from_minor_units(0);
+    groups
+        .into_iter()
+        .map(|(hsn, rate, raw)| {
+            let rate_parts = i128::from(rate);
+            let total_tax = raw.scaled(rate_parts, i128::from(BASIS))?.rounded(1)?;
+            let half_tax = raw.scaled(rate_parts, i128::from(BASIS) * 2)?.rounded(1)?;
+            let (half_tax, integrated_tax) = match jurisdiction {
+                GstJurisdiction::Intra => (half_tax, zero),
+                GstJurisdiction::Inter => (zero, total_tax),
+            };
+            Ok(GstHsnSummary {
+                hsn: hsn.to_owned(),
+                gst_basis_points: rate,
+                taxable: raw.rounded(1)?,
+                half_tax,
+                integrated_tax,
+                total_tax,
+            })
+        })
+        .collect()
 }

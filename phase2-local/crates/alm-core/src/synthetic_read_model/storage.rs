@@ -7,7 +7,7 @@ mod standalone_gst;
 use super::{AccountScope, BusinessProfile, HistoricalGst, Records};
 use super::{ArchivedPurchaseOrder, ScopedArchiveInput};
 use crate::Role;
-use crate::confirmation::{ConfirmationFixture, GstBill, ProductEntryError};
+use crate::confirmation::{ConfirmationFixture, GstBill, GstBillId, ProductEntryError};
 
 #[derive(Debug)]
 pub enum Error {
@@ -45,6 +45,8 @@ struct Archive {
     purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     standalone_gst: Option<Vec<GstBill>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    standalone_gst_deleted: Option<Vec<GstBillId>>,
 }
 
 impl Archive {
@@ -57,6 +59,7 @@ impl Archive {
             gst: None,
             purchase_orders: None,
             standalone_gst: None,
+            standalone_gst_deleted: None,
         }
     }
 
@@ -71,6 +74,12 @@ impl Archive {
         let mut ids = std::collections::BTreeSet::new();
         for bill in self.standalone_gst.iter().flatten() {
             if !ids.insert(bill.id) || bill.validate_saved().is_err() {
+                return Err(Error::InvalidArchive);
+            }
+        }
+        let mut deleted = std::collections::BTreeSet::new();
+        for id in self.standalone_gst_deleted.iter().flatten() {
+            if ids.contains(id) || !deleted.insert(*id) {
                 return Err(Error::InvalidArchive);
             }
         }
@@ -93,6 +102,7 @@ pub struct ReadModel {
     pub(super) gst: Option<Vec<HistoricalGst>>,
     pub(super) purchase_orders: Option<Vec<ArchivedPurchaseOrder>>,
     standalone_gst: Option<Vec<GstBill>>,
+    standalone_gst_deleted: Option<Vec<GstBillId>>,
 }
 
 impl ReadModel {
@@ -175,6 +185,7 @@ impl ReadModel {
             gst: archive.gst,
             purchase_orders: archive.purchase_orders,
             standalone_gst: archive.standalone_gst,
+            standalone_gst_deleted: archive.standalone_gst_deleted,
         }
     }
 
@@ -268,6 +279,7 @@ impl ReadModel {
             gst: self.gst.clone(),
             purchase_orders: self.purchase_orders.clone(),
             standalone_gst: self.standalone_gst.clone(),
+            standalone_gst_deleted: self.standalone_gst_deleted.clone(),
         })?)
     }
 

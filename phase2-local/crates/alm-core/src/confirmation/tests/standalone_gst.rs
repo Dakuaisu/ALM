@@ -3,6 +3,10 @@ use super::*;
 
 #[path = "standalone_gst_edges.rs"]
 mod edges;
+#[path = "standalone_gst_parity.rs"]
+mod parity;
+#[path = "standalone_gst_print.rs"]
+mod print;
 
 const ID: GstBillId = GstBillId(1);
 const NUMBER: GstBillNumber = GstBillNumber(700);
@@ -11,12 +15,14 @@ const COLA: GstBillLineInput<'static> = GstBillLineInput {
     quantity: 2,
     inclusive_rate: Money::from_minor_units(14_000),
     gst_basis_points: 4_000,
+    ..GstBillLineInput::BLANK
 };
 const WATER: GstBillLineInput<'static> = GstBillLineInput {
     item: "Water",
     quantity: 1,
     inclusive_rate: Money::from_minor_units(10_500),
     gst_basis_points: 500,
+    ..GstBillLineInput::BLANK
 };
 const LINES: &[GstBillLineInput<'static>] = &[COLA, WATER];
 
@@ -28,8 +34,10 @@ fn gst_draft<'a>(lines: &'a [GstBillLineInput<'a>]) -> GstBillDraft<'a> {
         date: test_bill_date(),
         gstin: None,
         eway_number: None,
-        jurisdiction: GstJurisdiction::Inter,
+        pos_state: "Maharashtra",
+        pos_code: "27",
         lines,
+        ..GstBillDraft::default()
     }
 }
 
@@ -47,6 +55,7 @@ fn amounts(totals: GstBillTotals) -> [i64; 5] {
 fn assert_ordinary_unchanged(fixture: &ConfirmationFixture, before: &ConfirmationFixture) {
     let mut actual = fixture.clone();
     actual.gst_bills.clone_from(&before.gst_bills);
+    actual.gst_deleted.clone_from(&before.gst_deleted);
     assert_eq!(&actual, before);
 }
 
@@ -80,7 +89,7 @@ fn standalone_gst_saved_edited_and_cancelled_without_ordinary_effects() {
         (saved.record.id, saved.record.number, saved.record.cancelled),
         (ID, NUMBER, false)
     );
-    assert_eq!(saved.record.jurisdiction, GstJurisdiction::Inter);
+    assert_eq!(saved.record.jurisdiction(), GstJurisdiction::Inter);
     assert_eq!(amounts(saved.totals), [30_000, 0, 0, 8_500, 38_500]);
     assert_eq!(
         (
@@ -207,7 +216,8 @@ fn standalone_gst_invalid_save_warns_without_writing_or_emitting() {
 fn standalone_gst_is_owner_only_and_intrastate_invoice_splits_tax() {
     let mut fixture = gst_invoice::fixture(3_000);
     let draft = GstBillDraft {
-        jurisdiction: GstJurisdiction::Intra,
+        pos_state: "Uttar Pradesh",
+        pos_code: "09",
         gstin: Some(" 09ABCDE1234F1Z5 "),
         eway_number: Some("1234-5678-9012"),
         ..gst_draft(LINES)

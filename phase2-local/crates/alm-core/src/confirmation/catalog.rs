@@ -161,7 +161,18 @@ impl Catalog {
         self.products.get(&id.value()).and_then(Product::item_name)
     }
 
-    fn product_id_by_exact_name(&self, item: &str) -> Option<ProductId> {
+    pub(super) fn has_product(&self, id: ProductId) -> bool {
+        self.products.contains_key(&id.value())
+    }
+
+    /// The product's current sell price, as `fillGstItem` reads `p.sellRate`.
+    pub(super) fn sell_price(&self, id: ProductId) -> Money {
+        self.products
+            .get(&id.value())
+            .map_or(Money::from_minor_units(0), |product| product.pricing.sell())
+    }
+
+    pub(super) fn product_id_by_exact_name(&self, item: &str) -> Option<ProductId> {
         self.products.iter().find_map(|(&id, product)| {
             (product.item_name() == Some(item)).then_some(ProductId::new(id))
         })

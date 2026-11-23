@@ -1,6 +1,5 @@
 use alm_store::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillInvoice, GstBillLineInput, GstBillNumber,
-    GstJurisdiction,
 };
 use alm_store::{BillDate, Money, ProductId, Role};
 
@@ -13,6 +12,7 @@ pub fn reopened(count: usize) -> GstBillInvoice {
             quantity: 1,
             inclusive_rate: Money::from_minor_units(11_800),
             gst_basis_points: 1_800,
+            ..GstBillLineInput::BLANK
         })
         .collect();
     let draft = GstBillDraft {
@@ -22,8 +22,8 @@ pub fn reopened(count: usize) -> GstBillInvoice {
         date: Some(BillDate::new(2025, 1, 2).unwrap()),
         gstin: None,
         eway_number: None,
-        jurisdiction: GstJurisdiction::Intra,
         lines: &lines,
+        ..GstBillDraft::default()
     };
     let mut fixture =
         ConfirmationFixture::new(ProductId::new(1), 0, Money::from_minor_units(0)).unwrap();

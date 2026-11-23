@@ -60,6 +60,7 @@ fn invoice_draft<'a>(gstin: Option<&'a str>) -> GstBillDraft<'a> {
         quantity: 1,
         inclusive_rate: Money::from_minor_units(10_000),
         gst_basis_points: 0,
+        ..GstBillLineInput::BLANK
     }];
     GstBillDraft {
         id: GstBillId(61),
@@ -68,8 +69,10 @@ fn invoice_draft<'a>(gstin: Option<&'a str>) -> GstBillDraft<'a> {
         date: test_bill_date(),
         gstin,
         eway_number: None,
-        jurisdiction: GstJurisdiction::Inter,
+        pos_state: "Maharashtra",
+        pos_code: "27",
         lines: LINES,
+        ..GstBillDraft::default()
     }
 }
 
@@ -159,7 +162,7 @@ fn l06_06_unknown_prefix_stays_editable_and_correct_length_round_trips() {
         readback[0].record.gstin.as_deref(),
         Some(" 88ABCDE1234F1Z5 ")
     );
-    assert_eq!(readback[0].record.jurisdiction, GstJurisdiction::Inter);
+    assert_eq!(readback[0].record.jurisdiction(), GstJurisdiction::Inter);
     println!(
         "L06-06 unknown-prefix save/readback: {form:?}; {:?}",
         readback[0].record

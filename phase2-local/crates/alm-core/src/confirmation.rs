@@ -68,8 +68,9 @@ pub use gst_invoice::{
     GstError, GstGroup, GstInvoice, GstJurisdiction, GstLine, GstLineMetadata, GstRequest,
 };
 pub use gst_standalone::{
-    GstBill, GstBillDraft, GstBillError, GstBillId, GstBillInvoice, GstBillLine, GstBillLineInput,
-    GstBillNumber, GstBillTotals,
+    GstBill, GstBillDraft, GstBillError, GstBillId, GstBillInvoice, GstBillLedger, GstBillLine,
+    GstBillLineInput, GstBillNumber, GstBillStore, GstBillStoreError, GstBillTotals,
+    GstCustomerContact, GstHsnSummary, GstInvoiceLine, GstInvoiceParty, GstItemFill, GstUnit,
 };
 pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
@@ -250,6 +251,7 @@ pub struct ConfirmationFixture {
     lifecycle: BTreeMap<DraftId, (bool, u64)>,
     movement_epoch: u64,
     gst_bills: BTreeMap<GstBillId, GstBill>,
+    gst_deleted: std::collections::BTreeSet<GstBillId>,
     purchases: PurchaseBook,
     manual_godown: BTreeMap<String, ManualGodownRow>,
 }
@@ -304,6 +306,7 @@ impl ConfirmationFixture {
             lifecycle: BTreeMap::new(),
             movement_epoch: 0,
             gst_bills: BTreeMap::new(),
+            gst_deleted: std::collections::BTreeSet::new(),
             purchases: PurchaseBook::default(),
             manual_godown: BTreeMap::new(),
         })

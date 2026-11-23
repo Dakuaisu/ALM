@@ -2,7 +2,7 @@ use std::fs;
 
 use alm_store::confirmation::{
     ConfirmationError, ConfirmationFixture, GstBillDraft, GstBillError, GstBillId,
-    GstBillLineInput, GstBillNumber, GstBillTotals, GstJurisdiction,
+    GstBillLineInput, GstBillNumber, GstBillTotals,
 };
 use alm_store::synthetic_read_model::{Records, Store};
 use alm_store::{BillDate, DraftId, Money, ProductId, Role};
@@ -18,6 +18,7 @@ const ITEM: GstBillLineInput<'static> = GstBillLineInput {
     quantity: 1,
     inclusive_rate: Money::from_minor_units(10_500),
     gst_basis_points: 1_800,
+    ..GstBillLineInput::BLANK
 };
 
 fn amounts(totals: GstBillTotals) -> [i64; 6] {
@@ -63,8 +64,8 @@ fn l06_02_105_inclusive_standalone_save_readback_and_reprint() {
             date: Some(date),
             gstin: None,
             eway_number: None,
-            jurisdiction: GstJurisdiction::Intra,
             lines: &lines,
+            ..GstBillDraft::default()
         };
         let before = fixture.open_stock_lots(OWNER, PRODUCT).unwrap();
         let movements_before = fixture

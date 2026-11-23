@@ -8,6 +8,7 @@ const LINE: [GstBillLineInput<'static>; 1] = [GstBillLineInput {
     quantity: 2,
     inclusive_rate: Money::from_minor_units(11_800),
     gst_basis_points: 1_800,
+    ..GstBillLineInput::BLANK
 }];
 
 fn read_invoice(
@@ -66,8 +67,8 @@ fn l06_03_delete_decline_confirm_and_cancel_replay_independently() {
                     date: test_bill_date(),
                     gstin: None,
                     eway_number: None,
-                    jurisdiction: GstJurisdiction::Intra,
                     lines: &LINE,
+                    ..GstBillDraft::default()
                 },
                 &mut |_| {},
             )

@@ -102,6 +102,26 @@ pub(super) struct ProductDetails {
     tax: ProductTaxOverrides,
 }
 
+impl super::Catalog {
+    /// `gstInfo(item)`: the keyword defaults, then the same-named product's overrides.
+    /// Returns the total rate (GST plus cess) in basis points and the HSN.
+    pub(in crate::confirmation) fn gst_info(&self, item: &str) -> (u32, String) {
+        let (rate, hsn) = gst_defaults::defaults(item);
+        let tax = self
+            .product_id_by_exact_name(item)
+            .and_then(|id| self.products.get(&id.value()))
+            .and_then(|product| product.details.as_ref())
+            .map(|details| &details.tax);
+        match tax {
+            None => (rate, hsn.to_owned()),
+            Some(tax) => (
+                tax.gst_rate.unwrap_or(rate) + tax.cess.unwrap_or(0),
+                tax.hsn().unwrap_or(hsn).to_owned(),
+            ),
+        }
+    }
+}
+
 pub(super) const fn owner(role: Role) -> Result<(), ProductEntryError> {
     match role {
         Role::Owner => Ok(()),

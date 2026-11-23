@@ -64,7 +64,7 @@ fn summary(invoice: &GstBillInvoice) -> String {
             inr(value.minor_units())
         )
     };
-    let tax_rows = match invoice.record.jurisdiction {
+    let tax_rows = match invoice.jurisdiction() {
         GstJurisdiction::Intra => format!(
             "{}\n       {}",
             tax_row("CGST", totals.cgst),

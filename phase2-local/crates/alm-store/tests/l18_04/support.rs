@@ -3,9 +3,9 @@ use std::num::NonZeroU32;
 
 use alm_store::confirmation::{
     BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateLineDisplay, EstimateRequest,
-    GstBillDraft, GstBillId, GstBillInvoice, GstBillLineInput, GstBillNumber, GstJurisdiction,
-    ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
-    InvoiceImageAttempts, RequestId, ShareRejected, TextHandoffIntent,
+    GstBillDraft, GstBillId, GstBillInvoice, GstBillLineInput, GstBillNumber, ImageFile,
+    ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts,
+    RequestId, ShareRejected, TextHandoffIntent,
 };
 use alm_store::synthetic_read_model::BusinessProfile;
 use alm_store::{
@@ -66,6 +66,7 @@ pub fn fixture() -> (ConfirmationFixture, GstBillInvoice) {
         quantity: 1,
         inclusive_rate: Money::from_minor_units(100),
         gst_basis_points: 0,
+        ..GstBillLineInput::BLANK
     }];
     let draft = GstBillDraft {
         id: GstBillId(1),
@@ -74,8 +75,8 @@ pub fn fixture() -> (ConfirmationFixture, GstBillInvoice) {
         date: Some(date),
         gstin: Some("123456789012345"),
         eway_number: None,
-        jurisdiction: GstJurisdiction::Intra,
         lines: &lines,
+        ..GstBillDraft::default()
     };
     let mut invoice = None;
     fixture
