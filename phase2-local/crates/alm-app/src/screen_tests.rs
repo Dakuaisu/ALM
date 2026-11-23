@@ -771,10 +771,24 @@ fn rate_list_renders_core_rows_ticks_and_text_and_denies_the_manager() {
         ),
         "{html}"
     );
-    assert!(html.contains("Synthetic Lime — ₹120.5\nSynthetic Soda — ₹62.5"));
+    assert!(
+        trial
+            .rate_copy_text()
+            .unwrap()
+            .contains("Synthetic Lime — ₹120.5\nSynthetic Soda — ₹62.5")
+    );
+    let print = trial.render("rateprint").unwrap();
+    assert!(print.contains(r#"<div id="printable"><div style="background:#fff;color:#1a1a1a"#));
+    assert!(print.contains("font-weight:700\">₹62.5</td>"));
     trial.rates.toggle(alm_core::ProductId::new(2));
     let html = trial.render("ratelist").unwrap();
-    assert!(!html.contains("Synthetic Soda — ₹"));
+    assert!(html.contains("☐"));
+    assert!(
+        !trial
+            .rate_copy_text()
+            .unwrap()
+            .contains("Synthetic Soda — ₹")
+    );
     trial.owner = false;
     let html = trial.render("ratelist").unwrap();
     assert!(html.contains("role=\"alert\""));
@@ -916,4 +930,42 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
     assert!(trial.reorder_copy_text().is_err());
     assert!(trial.item_options("", "item", None).is_err());
     assert!(trial.cash_live(&entry("", "2025-04-30", "25", "")).is_err());
+}
+
+#[test]
+fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
+    use alm_core::DraftId;
+    let root = Root::new("bill-image");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    crate::billing_tests::posted(&mut trial.authority);
+    let (name, png) = trial.bill_image_png(DraftId::new(1)).unwrap();
+    assert_eq!(name, "Bill-1.png");
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    let decoded = tiny_skia::Pixmap::decode_png(&png).unwrap();
+    assert_eq!((decoded.width(), decoded.height()), (1520, 854));
+    let corner = decoded.pixel(0, 0).unwrap();
+    assert_eq!(
+        (corner.red(), corner.green(), corner.blue()),
+        (255, 255, 255)
+    );
+    let inked = decoded.pixels().iter().filter(|p| p.red() < 128).count();
+    assert!(inked > 5_000, "text and rules are drawn: {inked}");
+    assert_eq!(
+        trial.bill_image_png(DraftId::new(1)).unwrap().1,
+        png,
+        "deterministic bytes"
+    );
+    let path = trial.save_output(&name, &png).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), png);
+    trial.owner = false;
+    assert!(trial.bill_image_png(DraftId::new(1)).is_err());
+}
+
+#[test]
+fn rasterizer_measures_the_rupee_glyph_with_the_bundled_font() {
+    use alm_core::confirmation::bill_image::FontStyle;
+    let rupee = crate::image::measure("₹", 13, FontStyle::Regular);
+    let one = crate::image::measure("1", 13, FontStyle::Regular);
+    assert!(rupee > 4.0 && one > 4.0, "{rupee} {one}");
+    assert!(crate::image::measure("₹1", 13, FontStyle::Bold) > rupee + one);
 }

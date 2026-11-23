@@ -15,8 +15,10 @@ mod customers;
 mod godown;
 mod gst_print;
 mod gst_sales;
+mod image;
 mod ipc;
 mod order;
+mod outputs;
 mod products;
 mod purchases;
 mod receipts;
@@ -100,6 +102,8 @@ struct Trial {
     crate_form: Option<views::CrateForm>,
     rates: alm_core::confirmation::rate_list::RateListSelection,
     sale_edit: Option<DraftId>,
+    /// Generated files (bill images); on Android the cache dir, shareable via FileProvider.
+    outputs: std::path::PathBuf,
 }
 
 type AppState = Mutex<Trial>;
@@ -157,6 +161,7 @@ impl Trial {
             crate_form: None,
             rates: Default::default(),
             sale_edit: None,
+            outputs: device_root.join("outputs"),
         })
     }
 
@@ -308,6 +313,24 @@ impl Trial {
                     );
                 }
                 html
+            }
+            "rateprint" => {
+                let role = self.require_owner()?;
+                let today = self.today()?;
+                let html = self
+                    .authority
+                    .rate_list_html(
+                        role,
+                        &mut self.rates,
+                        (SELLER.name, SELLER.address, ""),
+                        today,
+                    )
+                    .map_err(debug)?
+                    .ok_or("Tick at least one item first")?;
+                views::gst_screen(&html, "Rate List").replace(
+                    "Standalone GST tax invoice — not linked to stock or dues.",
+                    "Rate list for the ticked items.",
+                )
             }
             "gst" if !self.owner => views::denied("GST invoice"),
             "gst" => {
@@ -484,7 +507,13 @@ pub fn run() {
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
-            app.manage(Mutex::new(Trial::open(&root, None)?));
+            #[cfg_attr(desktop, allow(unused_mut))]
+            let mut trial = Trial::open(&root, None)?;
+            #[cfg(mobile)]
+            {
+                trial.outputs = app.path().app_cache_dir()?.join("outputs");
+            }
+            app.manage(Mutex::new(trial));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -508,6 +537,8 @@ pub fn run() {
             billing::sale_edit_open,
             billing::sale_edit_close,
             billing::sale_edit_save,
+            outputs::bill_image_share,
+            outputs::open_url,
             receipts::receipt_save,
             customers::customers_filter,
             customers::customer_open,
@@ -521,6 +552,7 @@ pub fn run() {
             dash_period,
             copy::reorder_copy_text,
             copy::rate_copy_text,
+            copy::rate_whatsapp_url,
             copy::godown_copy_text,
             copy::receipt_customer_search,
             copy::gst_item_search,

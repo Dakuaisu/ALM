@@ -122,6 +122,7 @@ pub fn tabs(active: &str) -> String {
             "Record a separately dated customer receipt",
         ),
         "gst" => ("GST invoice", "Standalone synthetic invoice"),
+        "rateprint" => ("Rate List", "Print or save as PDF"),
         "gstsales" => (
             "GST Sales",
             "Standalone GST tax invoices — does NOT change stock or customer balance",
@@ -167,7 +168,7 @@ pub fn tabs(active: &str) -> String {
         html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="godown_copy_text">📋 Copy List</button></template>"#;
     }
     if active == "ratelist" {
-        html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="rate_copy_text">📋 Copy</button></template>"#;
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="rate_copy_text">📋 Copy</button><button type="button" class="btn" data-action="screen" data-tab="rateprint">🖨️ Print</button><button type="button" class="btn" data-action="screen" data-tab="rateprint">📄 Save PDF</button><button type="button" class="btn wa" data-action="open_url" data-command="rate_whatsapp_url">💬 WhatsApp</button></template>"#;
     }
     if active == "stock" {
         html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="screen" data-tab="reorder">🔁 Reorder List</button></template>"#;

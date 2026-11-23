@@ -1,6 +1,7 @@
 package `in`.alm.trial
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
@@ -9,6 +10,7 @@ import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
@@ -61,6 +63,31 @@ class PlatformBridge(private val activity: MainActivity, private val webView: We
         putExtra(Intent.EXTRA_TEXT, text)
       }
       activity.startActivity(Intent.createChooser(send, "Share invoice"))
+    }
+  }
+
+  /** Shares a PNG the app wrote to its cache output folder (ACTION_SEND image/png). */
+  @JavascriptInterface
+  fun shareImage(path: String) {
+    activity.runOnUiThread {
+      val file = java.io.File(path)
+      if (!file.canonicalPath.startsWith(activity.cacheDir.canonicalPath)) return@runOnUiThread
+      val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
+      val send = Intent(Intent.ACTION_SEND).apply {
+        type = "image/png"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+      activity.startActivity(Intent.createChooser(send, "Share bill image"))
+    }
+  }
+
+  /** Opens a WhatsApp link (wa.me only) in WhatsApp or the browser. */
+  @JavascriptInterface
+  fun openUrl(url: String) {
+    if (!url.startsWith("https://wa.me/")) return
+    activity.runOnUiThread {
+      activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
   }
 }

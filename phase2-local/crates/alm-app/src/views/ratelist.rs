@@ -60,18 +60,11 @@ pub fn ratelist_screen(
         );
     }
     html += "</tbody></table></div>";
-    match fixture.rate_list_text(role, selection, business, today)? {
-        Some((text, uri)) => {
-            let _ = write!(
-                html,
-                r#"<div class="card" style="margin-top:14px"><div class="sectit">💬 WhatsApp text</div><textarea class="inp" readonly rows="8" style="width:100%">{}</textarea><div class="help">Link: {}</div></div>"#,
-                esc(&text),
-                esc(&uri)
-            );
-        }
-        None => {
-            html += r#"<div class="help" style="margin-top:12px">Tick at least one item.</div>"#
-        }
+    if fixture
+        .rate_list_text(role, selection, business, today)?
+        .is_none()
+    {
+        html += r#"<div class="help" style="margin-top:12px">Tick at least one item first.</div>"#;
     }
     Ok(html)
 }

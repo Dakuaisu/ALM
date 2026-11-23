@@ -81,6 +81,24 @@ async function act(element, submitter) {
     if (navigator.share) return navigator.share({ text });
     return navigator.clipboard.writeText(text);
   }
+  if (action === "share_image") {
+    try {
+      const path = await invoke(data.command, { id: data.id });
+      if (window.AlmAndroid) return window.AlmAndroid.shareImage(path);
+      return note("Saved " + path);
+    } catch (error) {
+      return note(String(error), true);
+    }
+  }
+  if (action === "open_url") {
+    try {
+      const url = await invoke(data.command);
+      if (window.AlmAndroid) return window.AlmAndroid.openUrl(url);
+      return await invoke("open_url", { url });
+    } catch (error) {
+      return note(String(error), true);
+    }
+  }
   const values = element.tagName === "FORM" ? fields(element, submitter) : {};
   const args = data.payload ? { [data.payload]: values } : values;
   if (data.line) args.line = Number(data.line);

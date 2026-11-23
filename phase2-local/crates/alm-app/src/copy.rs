@@ -81,6 +81,20 @@ pub fn rate_copy_text(state: State<'_, AppState>) -> Result<String, String> {
 }
 
 #[tauri::command(async)]
+pub fn rate_whatsapp_url(state: State<'_, AppState>) -> Result<String, String> {
+    let mut trial = lock(&state)?;
+    let role = trial.require_owner()?;
+    let today = trial.today()?;
+    let trial = &mut *trial;
+    trial
+        .authority
+        .rate_list_text(role, &mut trial.rates, crate::SELLER.name, today)
+        .map_err(debug)?
+        .map(|(_, uri)| uri)
+        .ok_or_else(|| "Tick at least one item first".into())
+}
+
+#[tauri::command(async)]
 pub fn receipt_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
     let trial = lock(&state)?;
     let role = trial.require_owner()?;

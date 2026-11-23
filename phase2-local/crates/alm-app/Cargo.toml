@@ -18,7 +18,9 @@ alm-core = { workspace = true, features = ["demo-fixture", "test-support"] }
 tauri-build = { version = "=2.7.6", features = [] }
 
 [dependencies]
+ab_glyph = { workspace = true }
 alm-core = { workspace = true, features = ["demo-fixture"] }
 alm-store = { workspace = true }
 serde = { workspace = true }
+tiny-skia = { workspace = true }
 tauri = { version = "=2.12.7", features = [] }

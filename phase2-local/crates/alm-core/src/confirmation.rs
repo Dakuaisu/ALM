@@ -4,6 +4,7 @@ use std::num::NonZeroU32;
 
 use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 
+pub mod bill_image;
 mod cancellation;
 mod cashbook;
 mod catalog;
