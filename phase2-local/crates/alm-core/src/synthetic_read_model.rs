@@ -34,7 +34,37 @@ pub struct BusinessProfile {
     pub device: String,
 }
 
+/// Settings "Default Reorder Level": blank means 5, otherwise a whole number of packets
+/// (`String(ro.value).trim() === "" ? 5 : Math.max(0, +ro.value || 0)`).
+pub fn parse_reorder_default(text: &str) -> Option<u32> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Some(5);
+    }
+    text.bytes()
+        .all(|b| b.is_ascii_digit())
+        .then(|| text.parse().ok())
+        .flatten()
+}
+
+/// Which settings stay on this device and which travel with the shop archive.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SettingScope {
+    /// `alm_core::preferences` keys (theme, privacy, balance display): never in the archive.
+    DeviceLocal,
+    /// Business profile and default reorder level: saved in the archive, backed up and restored.
+    Shared,
+}
+
 impl BusinessProfile {
+    /// The form's checkbox defaults: FSSAI shown unless turned off, GSTIN hidden unless on.
+    pub const fn shows(&self) -> (bool, bool) {
+        (
+            !matches!(self.show_fssai, Some(false)),
+            matches!(self.show_gstin, Some(true)),
+        )
+    }
+
     pub fn estimate_lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
         if !self.fssai.is_empty() && self.show_fssai != Some(false) {
@@ -142,4 +172,25 @@ pub struct Receipt {
     pub mode: String,
     pub customer: String,
     pub amount_minor: i64,
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::{BusinessProfile, parse_reorder_default};
+
+    #[test]
+    fn reorder_default_and_profile_checkbox_defaults_follow_the_html() {
+        assert_eq!(parse_reorder_default(" "), Some(5));
+        assert_eq!(parse_reorder_default("0"), Some(0));
+        assert_eq!(parse_reorder_default("12"), Some(12));
+        assert_eq!(parse_reorder_default("-1"), None);
+        assert_eq!(parse_reorder_default("1.5"), None);
+        assert_eq!(BusinessProfile::default().shows(), (true, false));
+        let set = BusinessProfile {
+            show_fssai: Some(false),
+            show_gstin: Some(true),
+            ..BusinessProfile::default()
+        };
+        assert_eq!(set.shows(), (false, true));
+    }
 }

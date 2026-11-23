@@ -24,6 +24,7 @@ mod purchases;
 mod receipts;
 #[cfg(test)]
 mod screen_tests;
+mod settings;
 mod stock;
 mod suppliers;
 mod views;
@@ -104,6 +105,10 @@ struct Trial {
     sale_edit: Option<DraftId>,
     /// Generated files (bill images); on Android the cache dir, shareable via FileProvider.
     outputs: std::path::PathBuf,
+    /// Device-local presentation preferences (one file per key).
+    prefs: alm_store::preferences::Preferences,
+    /// The shop archive holding shared settings (business profile, default reorder level).
+    shop: alm_store::synthetic_read_model::Store,
 }
 
 type AppState = Mutex<Trial>;
@@ -136,9 +141,24 @@ impl Trial {
                 .save_gst_bill_to(Role::Owner, &draft, &mut gst, &mut |_| {})
                 .map_err(debug)?;
         }
+        let directory = demo_fixture::directory();
+        let prefs_dir = device_root.join("preferences");
+        std::fs::create_dir_all(&prefs_dir).map_err(text)?;
+        let shop_path = device_root.join("shop.json");
+        let shop = if shop_path.exists() {
+            alm_store::synthetic_read_model::Store::open(&shop_path, Role::Owner).map_err(debug)?
+        } else {
+            let records = authority
+                .archive_records(Role::Owner, &directory)
+                .map_err(debug)?;
+            alm_store::synthetic_read_model::Store::create(&shop_path, Role::Owner, records)
+                .map_err(debug)?
+        };
+        shop.apply_product_settings(Role::Owner, &mut authority)
+            .map_err(debug)?;
         Ok(Self {
             drafts,
-            directory: demo_fixture::directory(),
+            directory,
             today,
             authority,
             current: None,
@@ -162,6 +182,8 @@ impl Trial {
             rates: Default::default(),
             sale_edit: None,
             outputs: device_root.join("outputs"),
+            prefs: alm_store::preferences::Preferences::load(&prefs_dir),
+            shop,
         })
     }
 
@@ -269,6 +291,28 @@ impl Trial {
             "reports" => {
                 views::reports_screen(&self.authority, &self.cashbook, self.role(), self.today()?)?
             }
+            "settings" => {
+                let role = self.role();
+                let profile = alm_core::synthetic_read_model::BusinessProfile::default();
+                let (profile, reorder) = match role {
+                    Role::Owner => (
+                        self.shop.business_profile(role).map_err(debug)?,
+                        self.shop.records(role).map_err(debug)?.reorder_default,
+                    ),
+                    Role::Manager => (&profile, 0),
+                };
+                views::settings_screen(&views::SettingsView {
+                    role,
+                    theme: self.prefs.theme(),
+                    balance: self.prefs.balance_mode(),
+                    privacy: self
+                        .prefs
+                        .present_money(Money::from_minor_units(0))
+                        .is_none(),
+                    profile,
+                    reorder_default: reorder,
+                })
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -354,9 +398,10 @@ impl Trial {
         };
         let message = std::mem::take(&mut self.message);
         Ok(format!(
-            "{}{}{body}",
+            r#"{}{}<template id="screen-theme" data-theme="{}"></template>{body}"#,
             views::tabs(tab),
-            views::notice(&message)
+            views::notice(&message),
+            self.prefs.theme().data_theme()
         ))
     }
 }
@@ -539,6 +584,10 @@ pub fn run() {
             billing::sale_edit_save,
             outputs::bill_image_share,
             outputs::open_url,
+            settings::settings_profile,
+            settings::settings_theme,
+            settings::settings_balance,
+            settings::settings_privacy,
             receipts::receipt_save,
             customers::customers_filter,
             customers::customer_open,

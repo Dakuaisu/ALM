@@ -969,3 +969,64 @@ fn rasterizer_measures_the_rupee_glyph_with_the_bundled_font() {
     assert!(rupee > 4.0 && one > 4.0, "{rupee} {one}");
     assert!(crate::image::measure("₹1", 13, FontStyle::Bold) > rupee + one);
 }
+
+#[test]
+fn settings_split_device_local_preferences_from_the_shared_archive_profile() {
+    use alm_core::confirmation::BalanceMode;
+    use alm_core::preferences::{Preference, Theme};
+    let root = Root::new("settings");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("This device only — not saved in backups or the shop archive."));
+    assert!(html.contains(
+        r#"<input type="checkbox" name="show_fssai" value="on" checked> Show FSSAI on bill"#
+    ));
+    assert!(
+        html.contains(r#"<input type="checkbox" name="show_gstin" value="on"> Show GSTIN on bill"#)
+    );
+    let form = |reorder: &str| crate::settings::Profile {
+        gstin: " 09ABCDE1234F1Z5 ".into(),
+        fssai: "12345678901234".into(),
+        show_fssai: String::new(),
+        show_gstin: "on".into(),
+        reorder: reorder.into(),
+    };
+    assert!(trial.settings_profile(&form("x"), 7).is_err());
+    trial.settings_profile(&form("9"), 7).unwrap();
+    trial
+        .settings_preference(Preference::Theme(Theme::Dark))
+        .unwrap();
+    trial
+        .settings_preference(Preference::Balance(BalanceMode::Latest))
+        .unwrap();
+    let rows = trial.authority.open_reorder_planner(Role::Owner).unwrap();
+    assert!(rows.is_empty());
+    let profile = trial.shop.business_profile(Role::Owner).unwrap().clone();
+    assert_eq!(
+        (
+            profile.gstin.as_str(),
+            profile.version,
+            profile.device.as_str()
+        ),
+        ("09ABCDE1234F1Z5", 1, "this-device")
+    );
+    assert_eq!(profile.estimate_lines(), ["GSTIN: 09ABCDE1234F1Z5"]);
+    let backup = String::from_utf8(trial.shop.backup(Role::Owner).unwrap()).unwrap();
+    assert!(backup.contains("09ABCDE1234F1Z5") && backup.contains("\"reorder_default\":9"));
+    assert!(!backup.contains("dark") && !backup.contains("latest"));
+    drop(trial);
+
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains(r#"<template id="screen-theme" data-theme="dark">"#));
+    assert!(html.contains(
+        r#"<button class="on" type="button" data-action="settings_balance" data-q="latest""#
+    ));
+    assert!(html.contains(r#"name="reorder" inputmode="numeric" value="9""#));
+    assert_eq!(trial.prefs.balance_mode(), BalanceMode::Latest);
+    trial.owner = false;
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains("09ABCDE1234F1Z5"));
+    assert!(trial.settings_profile(&form("9"), 8).is_err());
+}

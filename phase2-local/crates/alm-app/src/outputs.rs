@@ -2,7 +2,7 @@
 //! output folder; desktop reveals them, Android hands the path to the share bridge.
 use alm_core::DraftId;
 use alm_core::confirmation::bill_image::BillImageParty;
-use alm_core::confirmation::{BalanceMode, EstimateDisplay, EstimateLineDisplay, EstimateRequest};
+use alm_core::confirmation::{EstimateDisplay, EstimateLineDisplay, EstimateRequest};
 use tauri::State;
 
 use crate::{AppState, Trial, debug, ipc::IpcId};
@@ -11,10 +11,8 @@ impl Trial {
     /// The bill image PNG for an Owner-visible bill, with its file name.
     pub(crate) fn bill_image_png(&self, id: DraftId) -> Result<(String, Vec<u8>), String> {
         let role = self.require_owner()?;
-        let bill = self
-            .authority
-            .bill_preview(role, id, BalanceMode::AsOnBillDate)
-            .map_err(debug)?;
+        let mode = self.prefs.balance_mode();
+        let bill = self.authority.bill_preview(role, id, mode).map_err(debug)?;
         let labels: Vec<String> = bill
             .lines
             .iter()
@@ -37,7 +35,7 @@ impl Trial {
         let request = EstimateRequest {
             role,
             draft_id: id,
-            balance_mode: BalanceMode::AsOnBillDate,
+            balance_mode: mode,
             display: EstimateDisplay {
                 today: self.today()?,
                 lines: &lines,

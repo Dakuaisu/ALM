@@ -24,6 +24,7 @@ mod reorder;
 mod reports;
 mod sale_edit;
 mod sales;
+mod settings;
 mod stock;
 mod suppliers;
 
@@ -46,6 +47,7 @@ pub use reorder::reorder_screen;
 pub use reports::reports_screen;
 pub use sale_edit::sale_edit_form;
 pub use sales::{Filter, SalesFilter, sales_screen};
+pub use settings::{SettingsView, settings_screen};
 pub use stock::{StockState, stock_screen};
 pub use suppliers::suppliers_screen;
 
@@ -83,6 +85,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("ratelist", "Rate List"),
             ("dashboard", "Dashboard"),
             ("reports", "Reports"),
+            ("settings", "Settings"),
         ],
     ),
 ];
@@ -94,6 +97,7 @@ pub fn tabs(active: &str) -> String {
         "expenses" => ("Cash Book", "Daily income & expenses"),
         "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
         "reports" => ("Reports", "Business performance"),
+        "settings" => ("Settings", "Business profile · Backup"),
         "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),

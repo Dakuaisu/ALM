@@ -33,6 +33,10 @@ async function run(command, args) {
     const actions = view.querySelector("#screen-actions");
     document.getElementById("top-actions").replaceChildren(...(actions ? [actions.content] : []));
     syncModal();
+    const theme = view.querySelector("#screen-theme");
+    if (theme && document.documentElement) {
+      document.documentElement.setAttribute("data-theme", theme.dataset.theme);
+    }
   } catch (error) {
     note(String(error), true);
   }
