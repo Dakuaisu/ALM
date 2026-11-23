@@ -71,3 +71,13 @@ These paths are untracked or unattributed in the working tree. No builder sessio
 | `.DS_Store`, `phase2-local/.DS_Store` | Untracked macOS metadata |
 | `phase2-local/tests/milestone_d_replay/outputs/.verify.DawLfe/` | Untracked replay run artifacts (SVG, PNG, HTML, text) |
 | `phase2-local/tests/milestone_d_replay/recovery/harness.rs` | Untracked Rust test source |
+
+## OPEN-012 HSN code assignment is weak in the legacy HTML
+- Status: DEFERRED BY OWNER
+
+Owner note: the HTML's HSN handling is known to be flimsy. The owner chose not to fix it in the HTML and will schedule a proper fix in the Rust core later. Until then, Rust mirrors the HTML's HSN behavior for parity. Do not redesign HSN handling, add HSN validation or change default HSN or rate mappings without a written owner decision. Known weak points in [`gstInfo`](../ALM_Business_Manager.html#L4872):
+
+- HSN and rate come from case-insensitive substring keyword matching on the item name, checked in a fixed order. Short keywords (`sure`, `real`, `hell`, `slice`, `fc `, `ind-`, `milk`, `water`) can match unrelated product names. Anything that matches no keyword falls back to `22029090` at 40%.
+- Plain soda (18%) and packaged water (5%) share HSN `22011010`.
+- The product-level `hsn`, `gstRate` and `cess` overrides are found by exact item name (`prodByItem`), not product ID, so renaming a product can lose its override.
+- On standalone GST bills, the line HSN is free text with no format check (4, 6 or 8 digits), and the invoice falls back to the keyword guess when it is blank.
