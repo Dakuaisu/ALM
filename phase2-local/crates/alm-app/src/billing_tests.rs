@@ -111,3 +111,37 @@ fn new_bill_renders_connected_choices_in_source_layout() {
         assert!(html.contains(markup), "missing {markup}");
     }
 }
+
+#[test]
+fn review_screen_amounts_equal_the_core_projection() {
+    let fixture = fixture().expect("synthetic fixture");
+    let draft = ProvisionalDraft::new(
+        DraftId::new(7),
+        vec![
+            DraftLine::new(ProductId::new(1), NonZeroU32::new(3).unwrap()),
+            DraftLine::new(ProductId::new(2), NonZeroU32::new(2).unwrap()),
+        ],
+    );
+    let priced = alm_core::confirmation::trial_billing::priced_draft(&fixture, Role::Owner, &draft)
+        .expect("priced");
+    let html = views::review_screen(&views::ReviewView {
+        role_is_owner: true,
+        draft: Some(&draft),
+        priced: Ok(priced.clone()),
+    });
+    for line in &priced.lines {
+        assert!(html.contains(&format!("₹{}", gst_print::inr(line.amount))));
+    }
+    assert_eq!(priced.total.minor_units(), 48_650);
+    assert!(html.contains("<b>Owner total ₹486.50</b>"), "{html}");
+    let denied = views::review_screen(&views::ReviewView {
+        role_is_owner: false,
+        draft: Some(&draft),
+        priced: alm_core::confirmation::trial_billing::priced_draft(
+            &fixture,
+            Role::Manager,
+            &draft,
+        ),
+    });
+    assert!(!denied.contains('₹'));
+}

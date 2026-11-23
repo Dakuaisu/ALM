@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use super::{
     CUSTOMER, DAY, OwnerPosting, ReceiptTerms, SaleTerms, TrialBillingError, customer_id, fixture,
-    parse_rupees, preview_unit_prices, save_receipt,
+    parse_rupees, preview_unit_prices, priced_draft, save_receipt,
 };
 use crate::confirmation::{ConfirmationError, ProposedPayment, ReceiptMode};
 use crate::{
@@ -232,4 +232,35 @@ fn preview_preserves_current_review_and_serial_exhaustion_does_not_wrap() {
     );
     assert!(posting.pending(Role::Owner).is_none());
     assert_eq!(authority, before);
+}
+
+#[test]
+fn priced_draft_matches_the_owner_review_amounts() {
+    let mut authority = fixture().unwrap();
+    let draft = ProvisionalDraft::new(
+        DraftId::new(1),
+        vec![
+            DraftLine::new(ProductId::new(1), NonZeroU32::new(3).unwrap()),
+            DraftLine::new(ProductId::new(2), NonZeroU32::new(2).unwrap()),
+        ],
+    )
+    .with_customer(selected_customer());
+    assert_eq!(
+        priced_draft(&authority, Role::Manager, &draft),
+        Err(ConfirmationError::AccessDenied)
+    );
+    let priced = priced_draft(&authority, Role::Owner, &draft).unwrap();
+    let amounts: Vec<i64> = priced
+        .lines
+        .iter()
+        .map(|l| l.amount.minor_units())
+        .collect();
+    assert_eq!(amounts, [36_150, 12_500]);
+    assert_eq!(priced.total.minor_units(), 48_650);
+    let mut posting = OwnerPosting::default();
+    posting
+        .prepare(&mut authority, Role::Owner, Some(&draft), terms("0"))
+        .unwrap();
+    let review = posting.pending(Role::Owner).unwrap().review();
+    assert_eq!(review.amounts().unwrap().total, priced.total);
 }

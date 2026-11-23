@@ -148,14 +148,14 @@ impl Trial {
             "review" => {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
-                let prices = match draft {
-                    Some(draft) => trial_billing::preview_unit_prices(&self.authority, role, draft),
-                    None => Ok(Vec::new()),
+                let priced = match draft {
+                    Some(draft) => trial_billing::priced_draft(&self.authority, role, draft),
+                    None => Err(alm_core::confirmation::ConfirmationError::DraftNotFound),
                 };
                 let mut html = views::review_screen(&views::ReviewView {
                     role_is_owner: self.owner,
                     draft,
-                    prices,
+                    priced,
                 });
                 if self.owner {
                     html += &views::posting_review(

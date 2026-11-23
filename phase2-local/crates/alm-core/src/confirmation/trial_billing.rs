@@ -21,6 +21,51 @@ pub enum FixtureError {
     Product(ProductEntryError),
 }
 
+/// One Owner-priced line of a saved draft: the catalog sell rate times the draft quantity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PricedLine {
+    pub product_id: crate::ProductId,
+    pub quantity: std::num::NonZeroU32,
+    pub unit_price: Money,
+    pub amount: Money,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PricedDraft {
+    pub lines: Vec<PricedLine>,
+    pub total: Money,
+}
+
+/// Owner-only line amounts and total for the review screen, with checked arithmetic.
+pub fn priced_draft(
+    authority: &ConfirmationFixture,
+    role: Role,
+    draft: &ProvisionalDraft,
+) -> Result<PricedDraft, ConfirmationError> {
+    let prices = preview_unit_prices(authority, role, draft)?;
+    let mut total = 0_i64;
+    let mut lines = Vec::with_capacity(prices.len());
+    for (line, unit_price) in draft.lines().iter().zip(prices) {
+        let amount = unit_price
+            .minor_units()
+            .checked_mul(i64::from(line.quantity().get()))
+            .ok_or(ConfirmationError::Overflow)?;
+        total = total
+            .checked_add(amount)
+            .ok_or(ConfirmationError::Overflow)?;
+        lines.push(PricedLine {
+            product_id: line.product_id(),
+            quantity: line.quantity(),
+            unit_price,
+            amount: Money::from_minor_units(amount),
+        });
+    }
+    Ok(PricedDraft {
+        lines,
+        total: Money::from_minor_units(total),
+    })
+}
+
 pub fn preview_unit_prices(
     authority: &ConfirmationFixture,
     role: Role,

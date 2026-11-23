@@ -1,7 +1,9 @@
 //! Review fragments. HTML source: ALM_Business_Manager.html L3373–4359 (bill entry).
+//! Line amounts and totals come from `alm_core` (`priced_draft`); no arithmetic here.
 use std::fmt::Write as _;
 
 use alm_core::confirmation::ConfirmationError;
+use alm_core::confirmation::trial_billing::PricedDraft;
 use alm_core::{DraftCustomer, Money, ProvisionalDraft};
 
 use crate::gst_print::{esc, inr};
@@ -20,7 +22,7 @@ pub fn customer(draft: &ProvisionalDraft) -> &str {
 pub struct ReviewView<'a> {
     pub role_is_owner: bool,
     pub draft: Option<&'a ProvisionalDraft>,
-    pub prices: Result<Vec<Money>, ConfirmationError>,
+    pub priced: Result<PricedDraft, ConfirmationError>,
 }
 
 pub fn review_screen(view: &ReviewView<'_>) -> String {
@@ -35,7 +37,7 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
     let Some(draft) = view.draft else {
         return html + "<div class=\"help\">Open or save a Manager draft first.</div></div>";
     };
-    match &view.prices {
+    match &view.priced {
         Err(ConfirmationError::AccessDenied) => {
             html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
         }
@@ -45,30 +47,27 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
                 "<div class=\"help\">Review unavailable: {error:?}</div>"
             );
         }
-        Ok(prices) => {
+        Ok(priced) => {
             let _ = write!(
                 html,
                 "<div>Draft #{} · Customer: {}</div><table class=\"tbl\" style=\"width:100%;margin-top:8px\"><thead><tr><th>Product</th><th class=\"num\">Qty</th><th class=\"num\">Unit price</th><th class=\"num\">Amount</th></tr></thead><tbody>",
                 draft.id().value(),
                 esc(customer(draft))
             );
-            let mut total = 0_i64;
-            for (line, price) in draft.lines().iter().zip(prices) {
-                let amount = price.minor_units() * i64::from(line.quantity().get());
-                total += amount;
+            for line in &priced.lines {
                 let _ = write!(
                     html,
                     "<tr><td>Product {}</td><td class=\"num\">{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
-                    line.product_id(),
-                    line.quantity(),
-                    rupees(*price),
-                    rupees(Money::from_minor_units(amount))
+                    line.product_id,
+                    line.quantity,
+                    rupees(line.unit_price),
+                    rupees(line.amount)
                 );
             }
             let _ = write!(
                 html,
                 "</tbody></table><div style=\"margin-top:8px\"><b>Owner total {}</b></div>",
-                rupees(Money::from_minor_units(total))
+                rupees(priced.total)
             );
         }
     }
