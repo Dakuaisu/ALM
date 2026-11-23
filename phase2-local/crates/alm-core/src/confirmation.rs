@@ -38,6 +38,7 @@ mod sales_history;
 mod sales_output;
 #[cfg(feature = "test-support")]
 mod test_support;
+pub mod trial_billing;
 pub use crate::SaleUnit;
 pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
@@ -328,10 +329,18 @@ impl ConfirmationFixture {
             .drafts
             .get(&draft_id)
             .ok_or(ConfirmationError::DraftNotFound)?;
+        self.review_draft(draft, *revision)
+    }
+
+    fn review_draft(
+        &self,
+        draft: &ProvisionalDraft,
+        revision: u64,
+    ) -> Result<Review, ConfirmationError> {
         let prices = self.catalog.prices(draft)?;
         Ok(Review {
             draft: draft.clone(),
-            draft_revision: *revision,
+            draft_revision: revision,
             terms_revision: self.terms_revision,
             prices,
             payment: ProposedPayment::Legacy,

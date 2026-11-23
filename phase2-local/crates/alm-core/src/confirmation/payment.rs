@@ -24,6 +24,13 @@ impl Review {
     pub const fn payment_mode(&self) -> ReceiptMode {
         self.payment_mode
     }
+
+    pub(super) fn with_named_payment(mut self, received: Money) -> Result<Self, ConfirmationError> {
+        self.payment = ProposedPayment::Named(received);
+        let total = self.amounts()?.total.minor_units();
+        stage(&self, total, &BTreeMap::new())?;
+        Ok(self)
+    }
 }
 
 /// Legacy approvals carry no proposed payment.
@@ -49,11 +56,7 @@ impl ConfirmationFixture {
         received: Money,
     ) -> Result<Review, ConfirmationError> {
         self.bill_for_payment(role, id)?;
-        let mut review = self.review(role, id)?;
-        review.payment = ProposedPayment::Named(received);
-        let total = review.amounts()?.total.minor_units();
-        stage(&review, total, &BTreeMap::new())?;
-        Ok(review)
+        self.review(role, id)?.with_named_payment(received)
     }
 
     /// Selects a payment mode for a regular named bill after Owner validation.
