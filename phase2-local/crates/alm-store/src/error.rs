@@ -1,34 +1,7 @@
 use std::fmt;
 use std::io;
 
-use crate::{DraftId, ProvisionalDraft};
-
-/// Durable draft and pending-approval storage behind a [`crate::LocalSales`].
-pub trait DurableDraftStore: Send {
-    /// Saves or replaces a draft with the same ID in one transaction.
-    ///
-    /// # Errors
-    /// Returns a storage error if the save cannot be committed.
-    fn save(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError>;
-
-    /// Reopens a saved draft without changing it.
-    ///
-    /// # Errors
-    /// Returns a storage error on a failed read rather than reporting a missing draft.
-    fn reopen(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError>;
-
-    /// Commits an encoded Owner approval; a duplicate request ID fails.
-    ///
-    /// # Errors
-    /// Returns a storage error if the approval cannot be committed.
-    fn save_pending(&mut self, request: u64, snapshot: &str) -> Result<(), DraftStorageError>;
-
-    /// Loads an encoded Owner approval.
-    ///
-    /// # Errors
-    /// Returns a storage error on a failed or undecodable read.
-    fn load_pending(&self, request: u64) -> Result<Option<String>, DraftStorageError>;
-}
+use alm_core::InvalidStoredText;
 
 /// Failure to open, save, or reopen a local SQLite draft.
 #[derive(Debug)]
@@ -42,8 +15,8 @@ pub enum DraftStorageError {
     AccountStoreMismatch,
     /// A file-system operation on the device root or account directory failed.
     Io(io::Error),
-    /// SQLite rejected an open, statement, or transaction; holds the driver's `rusqlite::Error`.
-    Sqlite(Box<dyn std::error::Error + Send + Sync>),
+    /// SQLite rejected an open, statement, or transaction.
+    Sqlite(rusqlite::Error),
     /// The stored rows could not be decoded as a draft.
     InvalidOutput,
     /// A line position exceeds SQLite's integer range.
@@ -72,7 +45,7 @@ impl std::error::Error for DraftStorageError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io(err) => Some(err),
-            Self::Sqlite(err) => Some(err.as_ref()),
+            Self::Sqlite(err) => Some(err),
             Self::InvalidPath
             | Self::InvalidAccountScope
             | Self::AccountStoreMismatch
@@ -85,5 +58,17 @@ impl std::error::Error for DraftStorageError {
 impl From<io::Error> for DraftStorageError {
     fn from(err: io::Error) -> Self {
         Self::Io(err)
+    }
+}
+
+impl From<rusqlite::Error> for DraftStorageError {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::Sqlite(err)
+    }
+}
+
+impl From<InvalidStoredText> for DraftStorageError {
+    fn from(_: InvalidStoredText) -> Self {
+        Self::InvalidOutput
     }
 }

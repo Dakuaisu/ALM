@@ -1,9 +1,8 @@
 use std::path::Path;
 
-use alm_core::{
-    DraftId, DraftStorageError, DurableDraftStore, LocalSales, Money, ProvisionalDraft,
-};
+use alm_core::{DraftId, LocalSales, Money, ProvisionalDraft};
 
+use crate::DraftStorageError;
 use crate::sqlite::SqliteDraftStore;
 
 /// A draft-only capability; it has no Owner session, posting, or profit API.
@@ -56,10 +55,10 @@ impl SqliteSales for LocalSales {
 
 impl ManagerDraftStore {
     pub fn save_draft(&mut self, draft: ProvisionalDraft) -> Result<(), DraftStorageError> {
-        self.0.save(&draft)
+        self.0.save_rows(&draft)
     }
 
     pub fn reopen_draft(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
-        self.0.reopen(id)
+        self.0.reopen_rows(id)
     }
 }

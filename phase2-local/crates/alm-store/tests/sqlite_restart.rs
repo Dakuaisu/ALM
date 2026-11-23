@@ -9,8 +9,8 @@ use std::{env, fs, io};
 
 use alm_store::SqliteSales;
 use alm_store::{
-    AccessDenied, DraftId, DraftLine, DraftStorageError, LocalSales, Money, ProductId,
-    ProvisionalDraft, Role,
+    AccessDenied, DraftId, DraftLine, DraftStorageError, DraftStoreFailure, LocalSales, Money,
+    ProductId, ProvisionalDraft, Role,
 };
 
 #[path = "sqlite_restart/customer.rs"]
@@ -215,7 +215,7 @@ fn sqlite_restart_worker() {
                 (EMPTY_ID, Some(draft(EMPTY_ID, &[]))),
                 (MISSING_ID, None),
             ] {
-                let reopened: Result<Option<ProvisionalDraft>, DraftStorageError> =
+                let reopened: Result<Option<ProvisionalDraft>, DraftStoreFailure> =
                     manager.reopen_draft(id);
                 assert_eq!(reopened.expect("reopen draft after restart"), expected);
             }
@@ -264,7 +264,7 @@ fn failed_line_insert_rolls_back_draft_replacement() {
     );
 
     // When: a line insert aborts while saving a replacement for the same draft ID.
-    let rejected: Result<(), DraftStorageError> =
+    let rejected: Result<(), DraftStoreFailure> =
         open_sales(&path).session(Role::Manager).save_draft(
             draft(EDITED_ID, EDITED_LINES).with_bill_date(Some("2024-03-01".parse().unwrap())),
         );

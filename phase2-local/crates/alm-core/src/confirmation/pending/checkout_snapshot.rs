@@ -1,4 +1,4 @@
-use super::{DraftStorageError, Money, Review, hex, unhex};
+use super::{InvalidStoredText, Money, Review, hex, unhex};
 use crate::confirmation::{CheckoutTerms, LineTerms, ProductTerms, SaleUnit};
 
 pub(super) fn encode(base: &str, terms: &CheckoutTerms) -> String {
@@ -27,8 +27,8 @@ pub(super) fn encode(base: &str, terms: &CheckoutTerms) -> String {
     )
 }
 
-pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
-    let invalid = || DraftStorageError::InvalidOutput;
+pub(super) fn decode(snapshot: &str) -> Result<Review, InvalidStoredText> {
+    let invalid = || InvalidStoredText;
     let fields: Vec<_> = snapshot.split('|').collect();
     let [_, base, loading, lines] = fields.as_slice() else {
         return Err(invalid());
@@ -67,7 +67,7 @@ pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
             }
             Ok(LineTerms { unit, product })
         })
-        .collect::<Result<Vec<_>, DraftStorageError>>()?;
+        .collect::<Result<Vec<_>, InvalidStoredText>>()?;
     if lines.len() != review.draft.lines().len() {
         return Err(invalid());
     }

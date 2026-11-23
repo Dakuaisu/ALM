@@ -3,8 +3,8 @@ use std::num::NonZeroU32;
 
 use super::{ProposedPayment, RequestId, Review};
 use crate::{
-    DraftCustomer, DraftCustomerId, DraftId, DraftLine, DraftStorageError, DraftStore, Money,
-    ProductId, ProvisionalDraft, Role, SalesSession,
+    DraftCustomer, DraftCustomerId, DraftId, DraftLine, DraftStore, DraftStoreFailure,
+    InvalidStoredText, Money, ProductId, ProvisionalDraft, Role, SalesSession,
 };
 
 /// Local precondition, authorization or persistence failure, not an authority outcome.
@@ -14,7 +14,9 @@ pub enum PendingError {
     ActiveDraftMismatch,
     DurableStoreRequired,
     NotFound,
-    Storage(DraftStorageError),
+    Storage(DraftStoreFailure),
+    /// The stored approval text does not decode.
+    InvalidSnapshot,
 }
 
 impl fmt::Display for PendingError {
@@ -25,15 +27,22 @@ impl fmt::Display for PendingError {
             Self::DurableStoreRequired => f.write_str("SQLite store required"),
             Self::NotFound => f.write_str("pending approval not found"),
             Self::Storage(error) => write!(f, "pending approval storage: {error}"),
+            Self::InvalidSnapshot => write!(f, "pending approval storage: {InvalidStoredText}"),
         }
     }
 }
 
 impl std::error::Error for PendingError {}
 
-impl From<DraftStorageError> for PendingError {
-    fn from(value: DraftStorageError) -> Self {
+impl From<DraftStoreFailure> for PendingError {
+    fn from(value: DraftStoreFailure) -> Self {
         Self::Storage(value)
+    }
+}
+
+impl From<InvalidStoredText> for PendingError {
+    fn from(_: InvalidStoredText) -> Self {
+        Self::InvalidSnapshot
     }
 }
 
@@ -94,17 +103,17 @@ fn hex(text: &str) -> String {
     result
 }
 
-fn unhex(text: &str) -> Result<String, DraftStorageError> {
+fn unhex(text: &str) -> Result<String, InvalidStoredText> {
     let bytes = text.as_bytes();
     if !bytes.len().is_multiple_of(2) {
-        return Err(DraftStorageError::InvalidOutput);
+        return Err(InvalidStoredText);
     }
     let mut result = Vec::new();
     for pair in bytes.as_chunks::<2>().0 {
-        let digits = std::str::from_utf8(pair).map_err(|_| DraftStorageError::InvalidOutput)?;
-        result.push(u8::from_str_radix(digits, 16).map_err(|_| DraftStorageError::InvalidOutput)?);
+        let digits = std::str::from_utf8(pair).map_err(|_| InvalidStoredText)?;
+        result.push(u8::from_str_radix(digits, 16).map_err(|_| InvalidStoredText)?);
     }
-    String::from_utf8(result).map_err(|_| DraftStorageError::InvalidOutput)
+    String::from_utf8(result).map_err(|_| InvalidStoredText)
 }
 
 fn encode_customer(customer: &DraftCustomer) -> String {
@@ -115,7 +124,7 @@ fn encode_customer(customer: &DraftCustomer) -> String {
     }
 }
 
-fn decode_customer(customer: &str) -> Result<DraftCustomer, DraftStorageError> {
+fn decode_customer(customer: &str) -> Result<DraftCustomer, InvalidStoredText> {
     let parts: Vec<_> = customer.split(',').collect();
     Ok(match parts.as_slice() {
         ["0", "", ""] => DraftCustomer::Unassigned,
@@ -124,7 +133,7 @@ fn decode_customer(customer: &str) -> Result<DraftCustomer, DraftStorageError> {
             id: DraftCustomerId::new(unhex(id)?),
             name: unhex(name)?,
         },
-        _ => return Err(DraftStorageError::InvalidOutput),
+        _ => return Err(InvalidStoredText),
     })
 }
 
@@ -181,7 +190,7 @@ fn encode_undated(review: &Review) -> String {
     }
 }
 
-pub fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
+pub fn decode(snapshot: &str) -> Result<Review, InvalidStoredText> {
     if let Some(payload) = snapshot.strip_prefix("8|") {
         return online_snapshot::decode(payload);
     }
@@ -194,8 +203,8 @@ pub fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
     online_snapshot::decode_dated(dated)
 }
 
-fn decode_undated(snapshot: &str) -> Result<Review, DraftStorageError> {
-    let invalid = || DraftStorageError::InvalidOutput;
+fn decode_undated(snapshot: &str) -> Result<Review, InvalidStoredText> {
+    let invalid = || InvalidStoredText;
     if snapshot.starts_with("4|") {
         return checkout_snapshot::decode(snapshot);
     }

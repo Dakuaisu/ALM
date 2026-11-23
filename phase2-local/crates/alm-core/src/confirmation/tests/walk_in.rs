@@ -91,7 +91,7 @@ fn walk_in_cash_snapshot_rejects_missing_date_non_cash_identity_and_non_full_amo
     ] {
         assert!(matches!(
             pending::decode(&malformed),
-            Err(crate::DraftStorageError::InvalidOutput)
+            Err(crate::InvalidStoredText)
         ));
     }
 }

@@ -3,11 +3,12 @@ use std::num::NonZeroU32;
 use rusqlite::Row;
 
 use alm_core::{
-    BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, DraftStorageError, ProductId,
-    ProvisionalDraft, decode_crate_row,
+    BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, ProductId, ProvisionalDraft,
+    decode_crate_row,
 };
 
 use super::{integer, text};
+use crate::DraftStorageError;
 
 #[derive(Eq, PartialEq)]
 struct Metadata {

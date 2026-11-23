@@ -6,7 +6,7 @@ mod bill_math;
 pub mod confirmation;
 mod crate_row_codec;
 pub mod draft_entry;
-mod draft_storage;
+mod draft_store;
 mod drafts;
 pub mod preferences;
 pub mod provisional_preview;
@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 pub use bill_date::{BillDate, InvalidBillDate};
 #[doc(hidden)]
 pub use crate_row_codec::{decode as decode_crate_row, encode as encode_crate_row};
-pub use draft_storage::{DraftStorageError, DurableDraftStore};
+pub use draft_store::{DraftStoreFailure, DurableDraftStore, InvalidStoredText};
 pub use drafts::{
     CrateComponent, CrateRow, CrateRowAlreadyPresent, DraftCustomer, DraftCustomerId, DraftId,
     DraftLine, ProductId, ProvisionalDraft, SaleUnit,
@@ -99,7 +99,7 @@ impl SalesSession<'_> {
     ///
     /// # Errors
     /// Returns a storage error if a durable save cannot be completed.
-    pub fn save_draft(&mut self, draft: ProvisionalDraft) -> Result<(), DraftStorageError> {
+    pub fn save_draft(&mut self, draft: ProvisionalDraft) -> Result<(), DraftStoreFailure> {
         match &mut self.sales.drafts {
             DraftStore::Memory(drafts) => {
                 drafts.insert(draft.id(), draft);
@@ -113,7 +113,7 @@ impl SalesSession<'_> {
     ///
     /// # Errors
     /// Returns a storage error on a failed read, rather than reporting a missing draft.
-    pub fn reopen_draft(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
+    pub fn reopen_draft(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStoreFailure> {
         match &self.sales.drafts {
             DraftStore::Memory(drafts) => Ok(drafts.get(&id).cloned()),
             DraftStore::Durable(store) => store.reopen(id),

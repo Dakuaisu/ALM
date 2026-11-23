@@ -84,10 +84,7 @@ fn l03_03_v6_rejects_invalid_dates_and_nested_or_missing_payloads() {
         format!("6|2024-02-29|6|2024-02-29|{payload}"),
         "6|2024-02-29".into(),
     ] {
-        assert!(matches!(
-            decode(&snapshot),
-            Err(DraftStorageError::InvalidOutput)
-        ));
+        assert!(matches!(decode(&snapshot), Err(InvalidStoredText)));
     }
 }
 

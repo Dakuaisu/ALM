@@ -2,7 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::io::ErrorKind;
 use std::path::Path;
 
-use super::{DraftStorageError, SqliteDraftStore, connect, schema, sqlite, text};
+use super::{DraftStorageError, SqliteDraftStore, connect, schema, text};
 
 const DIRECTORY: &str = "manager-accounts";
 const SCOPE_TABLE: &str = "manager_account_scope";
@@ -72,7 +72,7 @@ impl SqliteDraftStore {
             Ok(file) => {
                 drop(file);
                 let mut store = Self {
-                    conn: connect(&path).map_err(sqlite)?,
+                    conn: connect(&path)?,
                 };
                 store.initialize_scoped(&key)?;
                 store.enable_wal()?;
@@ -92,26 +92,23 @@ impl SqliteDraftStore {
     }
 
     fn initialize_scoped(&mut self, key: &str) -> Result<(), DraftStorageError> {
-        let tx = self.begin().map_err(sqlite)?;
-        tx.execute_batch(schema::DRAFT_TABLES).map_err(sqlite)?;
+        let tx = self.begin()?;
+        tx.execute_batch(schema::DRAFT_TABLES)?;
         tx.execute_batch(&format!(
             "CREATE TABLE {SCOPE_TABLE} (account_hex TEXT PRIMARY KEY NOT NULL) STRICT;"
-        ))
-        .map_err(sqlite)?;
-        tx.execute(&format!("INSERT INTO {SCOPE_TABLE} VALUES (?1)"), [key])
-            .map_err(sqlite)?;
-        tx.commit().map_err(sqlite)
+        ))?;
+        tx.execute(&format!("INSERT INTO {SCOPE_TABLE} VALUES (?1)"), [key])?;
+        Ok(tx.commit()?)
     }
 
     fn check_scope(&self, key: &str) -> Result<(), DraftStorageError> {
         let bound = (|| {
             let mut query = self
                 .conn
-                .prepare(&format!("SELECT account_hex FROM {SCOPE_TABLE}"))
-                .map_err(sqlite)?;
-            let mut rows = query.query([]).map_err(sqlite)?;
+                .prepare(&format!("SELECT account_hex FROM {SCOPE_TABLE}"))?;
+            let mut rows = query.query([])?;
             let mut keys = Vec::new();
-            while let Some(row) = rows.next().map_err(sqlite)? {
+            while let Some(row) = rows.next()? {
                 keys.push(text(row, 0)?);
             }
             Ok::<_, DraftStorageError>(keys)

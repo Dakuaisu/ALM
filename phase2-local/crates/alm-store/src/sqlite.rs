@@ -5,9 +5,11 @@ use rusqlite::types::ValueRef;
 use rusqlite::{Connection, Row, Transaction, TransactionBehavior};
 
 use alm_core::{
-    DraftCustomer, DraftId, DraftStorageError, DurableDraftStore, ProvisionalDraft,
+    DraftCustomer, DraftId, DraftStoreFailure, DurableDraftStore, ProvisionalDraft,
     encode_crate_row,
 };
+
+use crate::DraftStorageError;
 
 mod draft_rows;
 mod gst_bills;
@@ -18,11 +20,6 @@ mod scoped;
 mod tests;
 
 pub use gst_bills::GstBillDatabase;
-
-/// Wraps a driver error; the error and `?` conversions are defined in `alm-core`.
-pub(crate) fn sqlite(err: rusqlite::Error) -> DraftStorageError {
-    DraftStorageError::Sqlite(Box::new(err))
-}
 
 pub struct SqliteDraftStore {
     conn: Connection,
@@ -40,7 +37,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
 }
 
 fn text(row: &Row<'_>, index: usize) -> Result<Option<String>, DraftStorageError> {
-    match row.get_ref(index).map_err(sqlite)? {
+    match row.get_ref(index)? {
         ValueRef::Null => Ok(None),
         ValueRef::Text(bytes) => String::from_utf8(bytes.to_vec())
             .map(Some)
@@ -52,7 +49,7 @@ fn text(row: &Row<'_>, index: usize) -> Result<Option<String>, DraftStorageError
 }
 
 fn integer(row: &Row<'_>, index: usize) -> Result<Option<i64>, DraftStorageError> {
-    match row.get_ref(index).map_err(sqlite)? {
+    match row.get_ref(index)? {
         ValueRef::Null => Ok(None),
         ValueRef::Integer(value) => Ok(Some(value)),
         ValueRef::Text(_) | ValueRef::Real(_) | ValueRef::Blob(_) => {
@@ -67,23 +64,21 @@ impl SqliteDraftStore {
             return Err(DraftStorageError::InvalidPath);
         }
         let mut store = Self {
-            conn: connect(path).map_err(sqlite)?,
+            conn: connect(path)?,
         };
-        let tx = store.begin().map_err(sqlite)?;
-        tx.execute_batch(schema::DRAFT_TABLES).map_err(sqlite)?;
-        tx.execute_batch(schema::OWNER_PENDING_TABLE)
-            .map_err(sqlite)?;
-        tx.commit().map_err(sqlite)?;
+        let tx = store.begin()?;
+        tx.execute_batch(schema::DRAFT_TABLES)?;
+        tx.execute_batch(schema::OWNER_PENDING_TABLE)?;
+        tx.commit()?;
         store.enable_wal()?;
         Ok(store)
     }
 
     /// Switches to WAL; called only once a file is known to be ours, since it rewrites the header.
     fn enable_wal(&self) -> Result<(), DraftStorageError> {
-        let mode: String = self
-            .conn
-            .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))
-            .map_err(sqlite)?;
+        let mode: String =
+            self.conn
+                .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))?;
         if mode.eq_ignore_ascii_case("wal") {
             Ok(())
         } else {
@@ -98,29 +93,45 @@ impl SqliteDraftStore {
 }
 
 impl DurableDraftStore for SqliteDraftStore {
-    fn save(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError> {
+    fn save(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStoreFailure> {
+        self.save_rows(draft).map_err(DraftStoreFailure::new)
+    }
+
+    fn reopen(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStoreFailure> {
+        self.reopen_rows(id).map_err(DraftStoreFailure::new)
+    }
+
+    fn save_pending(&mut self, request: u64, snapshot: &str) -> Result<(), DraftStoreFailure> {
+        self.insert_pending(request, snapshot)
+            .map_err(DraftStoreFailure::new)
+    }
+
+    fn load_pending(&self, request: u64) -> Result<Option<String>, DraftStoreFailure> {
+        self.select_pending(request).map_err(DraftStoreFailure::new)
+    }
+}
+
+impl SqliteDraftStore {
+    pub(crate) fn save_rows(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError> {
         let id = draft.id().value().to_string();
-        let tx = self.begin().map_err(sqlite)?;
+        let tx = self.begin()?;
         tx.execute(
             "INSERT INTO provisional_drafts (id) VALUES (?1) ON CONFLICT(id) DO NOTHING",
             [&id],
-        )
-        .map_err(sqlite)?;
+        )?;
         for table in [
             "provisional_draft_customers",
             "provisional_draft_lines",
             "provisional_draft_crates",
             "provisional_draft_dates",
         ] {
-            tx.execute(&format!("DELETE FROM {table} WHERE draft_id = ?1"), [&id])
-                .map_err(sqlite)?;
+            tx.execute(&format!("DELETE FROM {table} WHERE draft_id = ?1"), [&id])?;
         }
         if let Some(date) = draft.bill_date() {
             tx.execute(
                 "INSERT INTO provisional_draft_dates VALUES (?1, ?2)",
                 (&id, date.to_string()),
-            )
-            .map_err(sqlite)?;
+            )?;
         }
         match draft.customer() {
             DraftCustomer::Unassigned => {}
@@ -128,8 +139,7 @@ impl DurableDraftStore for SqliteDraftStore {
                 tx.execute(
                     "INSERT INTO provisional_draft_customers VALUES (?1, 1, NULL, ?2)",
                     (&id, name),
-                )
-                .map_err(sqlite)?;
+                )?;
             }
             DraftCustomer::Selected {
                 id: customer_id,
@@ -138,42 +148,39 @@ impl DurableDraftStore for SqliteDraftStore {
                 tx.execute(
                     "INSERT INTO provisional_draft_customers VALUES (?1, 2, ?2, ?3)",
                     (&id, customer_id.value(), name),
-                )
-                .map_err(sqlite)?;
+                )?;
             }
         }
         {
-            let mut insert = tx
-                .prepare(
-                    "INSERT INTO provisional_draft_lines (draft_id, position, product_id, quantity)
+            let mut insert = tx.prepare(
+                "INSERT INTO provisional_draft_lines (draft_id, position, product_id, quantity)
                  VALUES (?1, ?2, ?3, ?4)",
-                )
-                .map_err(sqlite)?;
+            )?;
             for (position, line) in draft.lines().iter().enumerate() {
                 let position =
                     i64::try_from(position).map_err(|_| DraftStorageError::TooManyLines)?;
-                insert
-                    .execute((
-                        &id,
-                        position,
-                        line.product_id().value().to_string(),
-                        line.quantity().get(),
-                    ))
-                    .map_err(sqlite)?;
+                insert.execute((
+                    &id,
+                    position,
+                    line.product_id().value().to_string(),
+                    line.quantity().get(),
+                ))?;
             }
         }
         if let Some(row) = draft.crate_row() {
             tx.execute(
                 "INSERT INTO provisional_draft_crates VALUES (?1, ?2)",
                 (&id, encode_crate_row(row)),
-            )
-            .map_err(sqlite)?;
+            )?;
         }
-        tx.commit().map_err(sqlite)?;
+        tx.commit()?;
         Ok(())
     }
 
-    fn reopen(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
+    pub(crate) fn reopen_rows(
+        &self,
+        id: DraftId,
+    ) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
         let mut query = self.conn.prepare(
             "SELECT b.bill_date, COALESCE(c.kind, 0), c.customer_id, c.name, k.definition, l.position, l.product_id, l.quantity
              FROM provisional_drafts AS d
@@ -183,20 +190,12 @@ impl DurableDraftStore for SqliteDraftStore {
              LEFT JOIN provisional_draft_crates AS k ON k.draft_id = d.id
              WHERE d.id = ?1
              ORDER BY l.position",
-        ).map_err(sqlite)?;
-        let mut rows = query.query([id.value().to_string()]).map_err(sqlite)?;
+        )?;
+        let mut rows = query.query([id.value().to_string()])?;
         let mut decoded = Vec::new();
-        while let Some(row) = rows.next().map_err(sqlite)? {
+        while let Some(row) = rows.next()? {
             decoded.push(draft_rows::DraftRow::read(row)?);
         }
         draft_rows::decode(id, decoded)
-    }
-
-    fn save_pending(&mut self, request: u64, snapshot: &str) -> Result<(), DraftStorageError> {
-        self.insert_pending(request, snapshot)
-    }
-
-    fn load_pending(&self, request: u64) -> Result<Option<String>, DraftStorageError> {
-        self.select_pending(request)
     }
 }

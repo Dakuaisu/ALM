@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 use crate::{SaleUnit, crate_row_codec};
 
 use super::{
-    DraftId, DraftStorageError, Money, ProposedPayment, ProvisionalDraft, Review, decode_customer,
+    DraftId, InvalidStoredText, Money, ProposedPayment, ProvisionalDraft, Review, decode_customer,
     encode_customer,
 };
 use crate::confirmation::{CheckoutTerms, payment};
@@ -39,8 +39,8 @@ pub(super) fn encode(review: &Review) -> Option<String> {
     ))
 }
 
-pub(super) fn decode(snapshot: &str) -> Result<Review, DraftStorageError> {
-    let invalid = || DraftStorageError::InvalidOutput;
+pub(super) fn decode(snapshot: &str) -> Result<Review, InvalidStoredText> {
+    let invalid = || InvalidStoredText;
     let fields = snapshot.split('|').collect::<Vec<_>>();
     let [
         "5",

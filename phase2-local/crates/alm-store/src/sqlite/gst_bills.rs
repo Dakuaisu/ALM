@@ -8,9 +8,11 @@ use rusqlite::Row;
 use alm_core::confirmation::{
     GstBill, GstBillId, GstBillLedger, GstBillLine, GstBillStore, GstUnit,
 };
-use alm_core::{BillDate, DraftStorageError, Money, ProductId};
+use alm_core::{BillDate, Money, ProductId};
 
-use super::{SqliteDraftStore, integer, sqlite, text};
+use crate::DraftStorageError;
+
+use super::{SqliteDraftStore, integer, text};
 
 // Created only when the GST store is opened, so draft-only files keep their schema.
 const GST_TABLES: &str = "
@@ -89,19 +91,17 @@ impl GstBillDatabase {
     }
 
     fn with_tables(mut store: SqliteDraftStore) -> Result<Self, DraftStorageError> {
-        let tx = store.begin().map_err(sqlite)?;
-        tx.execute_batch(GST_TABLES).map_err(sqlite)?;
-        let version: i64 = tx
-            .query_row(
-                "SELECT max(version) FROM standalone_gst_schema",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(sqlite)?;
+        let tx = store.begin()?;
+        tx.execute_batch(GST_TABLES)?;
+        let version: i64 = tx.query_row(
+            "SELECT max(version) FROM standalone_gst_schema",
+            [],
+            |row| row.get(0),
+        )?;
         if version != SCHEMA_VERSION {
             return Err(DraftStorageError::InvalidOutput);
         }
-        tx.commit().map_err(sqlite)?;
+        tx.commit()?;
         Ok(Self { store })
     }
 }
@@ -207,29 +207,25 @@ impl GstBillStore for GstBillDatabase {
     fn load_gst_bills(&self) -> Result<GstBillLedger, DraftStorageError> {
         let conn = &self.store.conn;
         let mut bills = BTreeMap::new();
-        let mut query = conn
-            .prepare(
-                "SELECT id, number, date, customer_id, customer, gstin, cust_addr, cust_phone,
+        let mut query = conn.prepare(
+            "SELECT id, number, date, customer_id, customer, gstin, cust_addr, cust_phone,
                         cust_email, cust_state, cust_state_code, pos_state, pos_code, pay_mode,
                         pay_terms, reverse_charge, transporter, vehicle_no, lr_no, eway_number,
                         terms_delivery, dispatch, cancelled, created
                  FROM standalone_gst_bills",
-            )
-            .map_err(sqlite)?;
-        let mut rows = query.query([]).map_err(sqlite)?;
-        while let Some(row) = rows.next().map_err(sqlite)? {
+        )?;
+        let mut rows = query.query([])?;
+        while let Some(row) = rows.next()? {
             let bill = read_bill(row)?;
             bills.insert(bill.id, bill);
         }
-        let mut query = conn
-            .prepare(
-                "SELECT bill_id, position, item, product_id, hsn, unit, quantity, inclusive_rate,
+        let mut query = conn.prepare(
+            "SELECT bill_id, position, item, product_id, hsn, unit, quantity, inclusive_rate,
                         gst_basis_points, packet_qty, amount
                  FROM standalone_gst_bill_lines ORDER BY bill_id, position",
-            )
-            .map_err(sqlite)?;
-        let mut rows = query.query([]).map_err(sqlite)?;
-        while let Some(row) = rows.next().map_err(sqlite)? {
+        )?;
+        let mut rows = query.query([])?;
+        while let Some(row) = rows.next()? {
             let (bill, position, line) = read_line(row)?;
             let bill = bills
                 .get_mut(&GstBillId(bill))
@@ -239,12 +235,10 @@ impl GstBillStore for GstBillDatabase {
             }
             bill.lines.push(line);
         }
-        let mut query = conn
-            .prepare("SELECT bill_id FROM standalone_gst_deleted")
-            .map_err(sqlite)?;
-        let mut rows = query.query([]).map_err(sqlite)?;
+        let mut query = conn.prepare("SELECT bill_id FROM standalone_gst_deleted")?;
+        let mut rows = query.query([])?;
         let mut deleted = Vec::new();
-        while let Some(row) = rows.next().map_err(sqlite)? {
+        while let Some(row) = rows.next()? {
             deleted.push(GstBillId(decimal(row, 0)?));
         }
         deleted.sort();
@@ -256,7 +250,7 @@ impl GstBillStore for GstBillDatabase {
 
     fn put_gst_bill(&mut self, bill: &GstBill) -> Result<(), DraftStorageError> {
         let id = bill.id.0.to_string();
-        let tx = self.store.begin().map_err(sqlite)?;
+        let tx = self.store.begin()?;
         tx.execute(
             "INSERT INTO standalone_gst_bills VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                  ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
@@ -299,58 +293,49 @@ impl GstBillStore for GstBillDatabase {
                 bill.cancelled,
                 bill.created.to_string(),
             ],
-        )
-        .map_err(sqlite)?;
+        )?;
         tx.execute(
             "DELETE FROM standalone_gst_bill_lines WHERE bill_id = ?1",
             [&id],
-        )
-        .map_err(sqlite)?;
+        )?;
         {
-            let mut insert = tx
-                .prepare(
-                    "INSERT INTO standalone_gst_bill_lines VALUES
+            let mut insert = tx.prepare(
+                "INSERT INTO standalone_gst_bill_lines VALUES
                      (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                )
-                .map_err(sqlite)?;
+            )?;
             for (position, line) in bill.lines.iter().enumerate() {
                 let position =
                     i64::try_from(position).map_err(|_| DraftStorageError::TooManyLines)?;
-                insert
-                    .execute(rusqlite::params![
-                        id,
-                        position,
-                        line.item,
-                        line.product.map(|product| product.value().to_string()),
-                        line.hsn,
-                        unit_text(line.unit),
-                        line.quantity.get(),
-                        line.inclusive_rate.minor_units(),
-                        line.gst_basis_points,
-                        line.packet_qty.get(),
-                        line.amount.minor_units(),
-                    ])
-                    .map_err(sqlite)?;
+                insert.execute(rusqlite::params![
+                    id,
+                    position,
+                    line.item,
+                    line.product.map(|product| product.value().to_string()),
+                    line.hsn,
+                    unit_text(line.unit),
+                    line.quantity.get(),
+                    line.inclusive_rate.minor_units(),
+                    line.gst_basis_points,
+                    line.packet_qty.get(),
+                    line.amount.minor_units(),
+                ])?;
             }
         }
-        tx.commit().map_err(sqlite)
+        Ok(tx.commit()?)
     }
 
     fn delete_gst_bill(&mut self, id: GstBillId) -> Result<(), DraftStorageError> {
         let id = id.0.to_string();
-        let tx = self.store.begin().map_err(sqlite)?;
+        let tx = self.store.begin()?;
         tx.execute(
             "DELETE FROM standalone_gst_bill_lines WHERE bill_id = ?1",
             [&id],
-        )
-        .map_err(sqlite)?;
-        tx.execute("DELETE FROM standalone_gst_bills WHERE id = ?1", [&id])
-            .map_err(sqlite)?;
+        )?;
+        tx.execute("DELETE FROM standalone_gst_bills WHERE id = ?1", [&id])?;
         tx.execute(
             "INSERT INTO standalone_gst_deleted (bill_id) VALUES (?1) ON CONFLICT DO NOTHING",
             [&id],
-        )
-        .map_err(sqlite)?;
-        tx.commit().map_err(sqlite)
+        )?;
+        Ok(tx.commit()?)
     }
 }

@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use crate::{CrateComponent, CrateRow, DraftStorageError, Money, ProductId, SaleUnit};
+use crate::{CrateComponent, CrateRow, InvalidStoredText, Money, ProductId, SaleUnit};
 
 pub fn encode(row: &CrateRow) -> String {
     let mut definition = row.quantity().to_string();
@@ -26,8 +26,8 @@ pub fn encode(row: &CrateRow) -> String {
     definition
 }
 
-pub fn decode(definition: &str) -> Result<CrateRow, DraftStorageError> {
-    let invalid = || DraftStorageError::InvalidOutput;
+pub fn decode(definition: &str) -> Result<CrateRow, InvalidStoredText> {
+    let invalid = || InvalidStoredText;
     let mut parts = definition.split(';');
     let mut header = parts.next().ok_or_else(invalid)?.split(',');
     let quantity = header
@@ -66,8 +66,8 @@ pub fn decode(definition: &str) -> Result<CrateRow, DraftStorageError> {
     }
 }
 
-fn decode_name(name: &str) -> Result<String, DraftStorageError> {
-    let invalid = || DraftStorageError::InvalidOutput;
+fn decode_name(name: &str) -> Result<String, InvalidStoredText> {
+    let invalid = || InvalidStoredText;
     let (triples, remaining) = name.as_bytes().as_chunks::<3>();
     if name.is_empty() || !remaining.is_empty() || !name.bytes().all(|b| b.is_ascii_digit()) {
         return Err(invalid());
@@ -100,10 +100,7 @@ mod tests {
     #[test]
     fn copied_definition_rejects_invalid_rate_and_name() {
         for invalid in ["2,-1,065", "2,1,", "2,1,65", "2,1,256", "2,1,255"] {
-            assert!(matches!(
-                decode(invalid),
-                Err(DraftStorageError::InvalidOutput)
-            ));
+            assert!(matches!(decode(invalid), Err(InvalidStoredText)));
         }
     }
 }
