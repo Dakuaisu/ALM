@@ -77,7 +77,7 @@ pub fn purchases_screen(
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td><b>{}</b></td><td>{}</td><td><span class="tag {class}">{label}</span></td><td class="num">{} / {}</td><td class="num">{}</td><td class="num">{actions}</td></tr>"#,
-            row.date,
+            row.date.display(),
             esc(&row.number),
             esc(&row.supplier),
             indian_digits(row.received),

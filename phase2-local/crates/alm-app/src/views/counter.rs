@@ -55,7 +55,8 @@ pub fn counter_screen(
         n => format!("{n} bills billed today"),
     };
     let mut html = format!(
-        r#"<div id="counter"><div class="ctr-hi"><h3>Counter</h3><p>{billed} · {today}</p></div><div class="ctr-acts">{}{}</div><div class="ctr-tiles">{}</div>"#,
+        r#"<div id="counter"><div class="ctr-hi"><h3>Counter</h3><p>{billed} · {}</p></div><div class="ctr-acts">{}{}</div><div class="ctr-tiles">{}</div>"#,
+        today.display(),
         act(
             "primary",
             &nav("bill"),
@@ -127,7 +128,9 @@ pub fn counter_screen(
     }
     for row in recents {
         let name = row.customer.as_deref().unwrap_or("—");
-        let when = row.date.map_or_else(String::new, |date| date.to_string());
+        let when = row
+            .date
+            .map_or_else(String::new, alm_core::BillDate::display);
         let (tag, label) = match row.tag {
             CounterTag::Credit => ("credit", "Credit"),
             CounterTag::Cash => ("cash", "Cash"),

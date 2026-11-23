@@ -36,6 +36,52 @@ impl BillDate {
     pub const fn parts(self) -> (u16, u8, u8) {
         (self.year, self.month, self.day)
     }
+
+    /// `dDisp(iso)`: "05-Apr-2025". Forms keep the ISO text from `Display`.
+    pub fn display(self) -> String {
+        format!(
+            "{:02}-{}-{:04}",
+            self.day,
+            MONTHS[usize::from(self.month - 1)],
+            self.year
+        )
+    }
+
+    /// The first day of this date's month (`monthKey(today) + "-01"`).
+    pub const fn first_of_month(self) -> Self {
+        Self { day: 1, ..self }
+    }
+}
+
+const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// `monthName(mk)`: `toLocaleDateString("en-IN", {month: "short", year: "2-digit"})`, e.g.
+/// "Apr 25". Returns `None` for a month outside 1–12.
+pub fn month_label(year: u16, month: u8) -> Option<String> {
+    let name = MONTHS.get(usize::from(month).checked_sub(1)?)?;
+    Some(format!("{name} {:02}", year % 100))
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::{BillDate, month_label};
+
+    #[test]
+    fn display_helpers_follow_ddisp_and_month_name() {
+        let date = BillDate::new(2025, 4, 5).unwrap();
+        assert_eq!(date.display(), "05-Apr-2025");
+        assert_eq!(
+            BillDate::new(2026, 12, 31).unwrap().display(),
+            "31-Dec-2026"
+        );
+        assert_eq!(date.first_of_month(), BillDate::new(2025, 4, 1).unwrap());
+        assert_eq!(month_label(2025, 4).as_deref(), Some("Apr 25"));
+        assert_eq!(month_label(2009, 1).as_deref(), Some("Jan 09"));
+        assert_eq!(month_label(2025, 13), None);
+        assert_eq!(date.to_string(), "2025-04-05");
+    }
 }
 
 impl fmt::Display for BillDate {

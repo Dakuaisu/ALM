@@ -15,7 +15,7 @@ pub mod synthetic_read_model;
 
 use std::collections::BTreeMap;
 
-pub use bill_date::{BillDate, InvalidBillDate};
+pub use bill_date::{BillDate, InvalidBillDate, month_label};
 #[doc(hidden)]
 pub use crate_row_codec::{decode as decode_crate_row, encode as encode_crate_row};
 pub use draft_store::{DraftStoreFailure, DurableDraftStore, InvalidStoredText};

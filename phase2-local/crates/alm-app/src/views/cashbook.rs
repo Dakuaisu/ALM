@@ -80,7 +80,7 @@ pub fn cashbook_screen(view: &CashBookView<'_>) -> Result<String, ManualCashBook
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td class="num pos">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="muted">{}</td><td class="muted">{}</td><td class="num">{}</td><td class="num"><button class="btn sm" data-action="cash_edit" data-id="{}" aria-label="Edit entry">✎</button></td></tr>"#,
-            row.date,
+            row.date.display(),
             shown(a.cash),
             shown(a.paytm),
             shown(a.phonepe),
@@ -109,7 +109,7 @@ fn entry_form(
         view.editing.map_or_else(String::new, |id| id.to_string())
     );
     html += r#"<div class="card" style="padding:10px 12px;margin-bottom:12px;background:var(--accent-weak);border-color:#c5d6fb">"#;
-    if entry.date.is_some() {
+    if let Some(shown) = entry.date.map(alm_core::BillDate::display) {
         let check = entry.compare(view.fixture, view.role)?;
         let source = if check.system.count > 0 {
             format!(" — from {} bills/receipts", check.system.count)
@@ -119,7 +119,7 @@ fn entry_form(
         let class = |rupees: i64| if rupees == 0 { "pos" } else { "neg" };
         let _ = write!(
             html,
-            r#"<div style="font-weight:600">📟 System total for {date}: Cash {} · Online {}{source}</div><div class="help" style="margin-top:4px">Part-payments on Credit bills count as cash. Enter what you actually counted below, then Check.</div><div style="margin-top:6px">Cash difference: <b class="{}">{}</b>  ·  Online difference: <b class="{}">{}</b></div>"#,
+            r#"<div style="font-weight:600">📟 System total for {shown}: Cash {} · Online {}{source}</div><div class="help" style="margin-top:4px">Part-payments on Credit bills count as cash. Enter what you actually counted below, then Check.</div><div style="margin-top:6px">Cash difference: <b class="{}">{}</b>  ·  Online difference: <b class="{}">{}</b></div>"#,
             whole(check.system.cash_rupees),
             whole(check.system.online_rupees),
             class(check.cash_difference_rupees),

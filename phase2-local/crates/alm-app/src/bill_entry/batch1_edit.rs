@@ -175,8 +175,8 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
 
     trial.customers.open = Some(CUSTOMER.into());
     let customers = trial.render("customers").unwrap();
-    assert!(customers.contains("<td>2025-04-30</td><td>Bill #1 (2 items)</td><td class=\"num\">₹429</td><td class=\"num pos\">₹50</td><td class=\"num neg\">₹378</td>"), "{customers}");
-    assert!(customers.contains("<td>2025-05-02</td><td>Payment (Cash)</td><td class=\"num\"></td><td class=\"num pos\">₹31</td><td class=\"num neg\">₹348</td>"));
+    assert!(customers.contains("<td>30-Apr-2025</td><td>Bill #1 (2 items)</td><td class=\"num\">₹429</td><td class=\"num pos\">₹50</td><td class=\"num neg\">₹378</td>"), "{customers}");
+    assert!(customers.contains("<td>02-May-2025</td><td>Payment (Cash)</td><td class=\"num\"></td><td class=\"num pos\">₹31</td><td class=\"num neg\">₹348</td>"));
     let receipt_day = trial
         .authority
         .cashbook_day_close(Role::Owner, date(RECEIPT_DAY))

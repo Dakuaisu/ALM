@@ -64,8 +64,8 @@ pub fn dashboard_screen(
         r#"</div><div class="hero"><div class="hl">Sales · {label}</div><div class="hv"><span class="priv">{}</span></div><div class="hm">{} {bills} · {} to {} · {prior_label} <span class="priv">{}</span></div></div><div class="stat3">"#,
         money_r(cur.sales),
         cur.bill_count,
-        cur.window.start,
-        cur.window.end,
+        cur.window.start.display(),
+        cur.window.end.display(),
         money_r(dashboard.prior.sales)
     );
     html += &stat("Profit", &profit, "estimated from FIFO cost");

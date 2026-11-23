@@ -147,7 +147,7 @@ pub fn sales_screen(
         let _ = write!(
             html,
             r#"<tr style="{style}"><td>{}</td><td><b>#{}</b>{tag}</td><td>{}</td><td class="muted">{} items · {} pkt</td><td><span class="tag {mode_class}">{mode}</span></td><td class="num">{}</td><td class="num {balance_class}">{balance}</td><td class="num">{action}</td></tr>"#,
-            row.date,
+            row.date.display(),
             row.bill.invoice,
             esc(customer(review.draft())),
             review.draft().lines().len(),
@@ -162,10 +162,7 @@ fn filters(filter: &Filter, today: BillDate) -> String {
     let (from, to) = match filter.period {
         SalesPeriod::All => (String::new(), String::new()),
         SalesPeriod::Today => (today.to_string(), today.to_string()),
-        SalesPeriod::ThisMonth => {
-            let (y, m, _) = today.parts();
-            (format!("{y:04}-{m:02}-01"), String::new())
-        }
+        SalesPeriod::ThisMonth => (today.first_of_month().to_string(), String::new()),
         SalesPeriod::Custom((from, to)) => (
             from.map_or_else(String::new, |d| d.to_string()),
             to.map_or_else(String::new, |d| d.to_string()),
@@ -173,12 +170,13 @@ fn filters(filter: &Filter, today: BillDate) -> String {
     };
     format!(
         r#"<div class="row no-print"><button class="btn primary" data-action="screen" data-tab="draft">New Bill</button><button class="btn" data-action="screen" data-tab="review">Owner review</button></div>
-    <p class="help">Synthetic development records · in memory for this session · today: {today}</p>
+    <p class="help">Synthetic development records · in memory for this session · today: {}</p>
     <div class="card" style="margin-bottom:14px"><form class="row" data-action="sales_filter" data-payload="terms">
     <div class="search" style="flex:1;min-width:200px"><input class="inp" name="q" placeholder="Search customer or item…" aria-label="Search customer or item" value="{}"></div>
     <label class="muted">From <input class="inp" type="date" name="from" value="{from}"></label>
     <label class="muted">To <input class="inp" type="date" name="to" value="{to}"></label>
     <button class="btn" type="submit" name="period" value="">Filter</button><button class="pill" name="period" value="Today">Today</button><button class="pill" name="period" value="This Month">This Month</button><button class="pill" name="period" value="All">All</button></form></div>"#,
+        today.display(),
         esc(&filter.q)
     )
 }

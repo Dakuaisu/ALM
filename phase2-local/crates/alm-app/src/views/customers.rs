@@ -145,7 +145,9 @@ fn ledger(
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td>{particulars}</td><td class="num">{}</td><td class="num pos">{}</td><td class="num{running}">{}</td></tr>"#,
-            entry.date.map_or_else(String::new, |date| date.to_string()),
+            entry
+                .date
+                .map_or_else(String::new, alm_core::BillDate::display),
             shown(entry.debit),
             shown(entry.credit),
             money_r(entry.balance)

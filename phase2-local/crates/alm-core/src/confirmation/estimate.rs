@@ -239,11 +239,7 @@ pub(crate) fn render_estimate(
 }
 
 pub(super) fn display_date(date: BillDate) -> String {
-    let (year, month, day) = date.parts();
-    let months = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    format!("{day:02}-{}-{year:04}", months[usize::from(month - 1)])
+    date.display()
 }
 
 pub(super) fn escape_text(value: &str) -> String {

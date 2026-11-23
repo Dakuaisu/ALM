@@ -146,7 +146,7 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
         .unwrap();
     let html = trial.render("expenses").unwrap();
     assert!(
-        html.contains("System total for 2025-04-30: Cash ₹20 · Online ₹0 — from 1 bills/receipts")
+        html.contains("System total for 30-Apr-2025: Cash ₹20 · Online ₹0 — from 1 bills/receipts")
     );
     assert!(html.contains(r#"Cash difference: <b class="neg">−₹2</b>"#));
     trial
@@ -172,7 +172,7 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
         r#"<div class="label">Net (month)</div><div class="val">{}</div>"#,
         money_r(month.net)
     )));
-    assert!(html.contains("<td>2025-04-30</td><td class=\"num pos\">₹20</td>"));
+    assert!(html.contains("<td>30-Apr-2025</td><td class=\"num pos\">₹20</td>"));
     trial
         .cash_entry(entry("0", "2025-04-30", "20", "delete"))
         .unwrap();
@@ -227,11 +227,9 @@ fn dashboard_renders_core_window_totals_profit_receivables_and_ageing() {
     assert!(html.contains(
         r#"<div class="hl">Sales · this month</div><div class="hv"><span class="priv">₹121</span>"#
     ));
-    assert!(
-        html.contains(
-            "1 bill · 2025-04-01 to 2025-04-30 · last month <span class=\"priv\">₹0</span>"
-        )
-    );
+    assert!(html.contains(
+        "1 bill · 01-Apr-2025 to 30-Apr-2025 · last month <span class=\"priv\">₹0</span>"
+    ));
     assert!(html.contains(&format!(
         r#"<div class="sl">Profit</div><div class="sv"><span class="priv">{}</span>"#,
         money_r(profit)
@@ -414,7 +412,7 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
         .unwrap();
     let list = trial.render("gstsales").unwrap();
     assert!(list.contains(
-        r#"<tr style="opacity:.5"><td>2025-04-30</td><td><b>ALM/25-26/2</b><span class="tag""#
+        r#"<tr style="opacity:.5"><td>30-Apr-2025</td><td><b>ALM/25-26/2</b><span class="tag""#
     ));
     assert_eq!(
         trial.authority.next_gst_bill_number(Role::Owner).unwrap(),
@@ -801,17 +799,17 @@ fn reports_render_core_months_and_dead_stock_and_deny_the_manager() {
     assert_eq!(cutoff, alm_core::BillDate::new(2025, 5, 16).unwrap());
     let dead = fixture.dead_stock_report(Role::Owner, cutoff).unwrap();
     let html = views::reports_screen(&fixture, &book, Role::Owner, today).unwrap();
-    assert!(html.contains(r#"<tr><td>2025-04</td><td class="num">1</td><td class="num">₹121</td><td class="num pos">₹51</td>"#), "{html}");
+    assert!(html.contains(r#"<tr><td>Apr 25</td><td class="num">1</td><td class="num">₹121</td><td class="num pos">₹51</td>"#), "{html}");
     assert!(html.contains("<th class=\"num\">Other Expenses</th><th class=\"num\">Net</th>"));
     assert!(html.contains(&format!(
         r#"<td class="num neg">{}</td>"#,
         money_r(april.other_expenses().unwrap())
     )));
-    assert!(html.contains("Last sold before 2025-05-16."));
+    assert!(html.contains("Last sold before 16-May-2025."));
     for row in dead {
         assert!(html.contains(&money_r(row.locked_value)));
     }
-    assert!(html.contains("<td class=\"muted\">2025-04-30</td>"));
+    assert!(html.contains("<td class=\"muted\">30-Apr-2025</td>"));
     let manager = views::reports_screen(&fixture, &book, Role::Manager, today).unwrap();
     assert!(manager.contains("role=\"alert\""));
     assert!(!manager.contains('₹'));

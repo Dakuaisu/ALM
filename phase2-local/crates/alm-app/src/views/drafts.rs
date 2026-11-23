@@ -99,9 +99,10 @@ pub fn posting_review(
         ) {
             let _ = write!(
                 html,
-                r#"<p>Draft #{} · {} · {date} · Total <b>{}</b> · Paid (cash) <b>{}</b></p><button class="btn primary" data-action="sale_confirm" data-id="{}">Confirm simulated sale</button>"#,
+                r#"<p>Draft #{} · {} · {} · Total <b>{}</b> · Paid (cash) <b>{}</b></p><button class="btn primary" data-action="sale_confirm" data-id="{}">Confirm simulated sale</button>"#,
                 review.draft().id().value(),
                 esc(customer(review.draft())),
+                date.display(),
                 rupees(amounts.total),
                 rupees(paid),
                 posting.serial()

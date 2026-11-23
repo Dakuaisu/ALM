@@ -39,9 +39,8 @@ pub fn reports_screen(
             .map_err(|error| format!("{error:?}"))?;
         let _ = write!(
             html,
-            r#"<tr><td>{:04}-{:02}</td><td class="num">{}</td><td class="num">{}</td><td class="num pos">{}</td><td class="num muted" title="Cash Book goods purchases — already inside Gross Profit if they came through a Purchase Order">{goods}</td><td class="num neg">{}</td><td class="num" style="font-weight:700">{}</td></tr>"#,
-            month.year,
-            month.month,
+            r#"<tr><td>{}</td><td class="num">{}</td><td class="num">{}</td><td class="num pos">{}</td><td class="num muted" title="Cash Book goods purchases — already inside Gross Profit if they came through a Purchase Order">{goods}</td><td class="num neg">{}</td><td class="num" style="font-weight:700">{}</td></tr>"#,
+            alm_core::month_label(month.year, month.month).unwrap_or_default(),
             month.bills.len(),
             money_r(month.revenue),
             money_r(month.gross),
@@ -55,7 +54,8 @@ pub fn reports_screen(
         .map_err(|error| format!("{error:?}"))?;
     let _ = write!(
         html,
-        r#"</tbody></table></div></div><div class="card priv" style="margin-top:16px"><div class="sectit">Slow-moving / Dead Stock (in stock, not sold in 30+ days)</div><div class="help">Last sold before {cutoff}.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">In Stock</th><th>Last Sold</th><th class="num">Locked Value</th></tr></thead><tbody>"#
+        r#"</tbody></table></div></div><div class="card priv" style="margin-top:16px"><div class="sectit">Slow-moving / Dead Stock (in stock, not sold in 30+ days)</div><div class="help">Last sold before {}.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">In Stock</th><th>Last Sold</th><th class="num">Locked Value</th></tr></thead><tbody>"#,
+        cutoff.display()
     );
     if dead.is_empty() {
         html += r#"<tr><td colspan="4"><div class="empty">No dead stock 👍</div></td></tr>"#;
@@ -67,7 +67,7 @@ pub fn reports_screen(
             esc(row.item.as_deref().unwrap_or("—")),
             indian_digits(u64::from(row.on_hand)),
             row.last_sale
-                .map_or_else(|| "never".to_owned(), |d| d.to_string()),
+                .map_or_else(|| "never".to_owned(), alm_core::BillDate::display),
             money_r(row.locked_value)
         );
     }

@@ -177,9 +177,9 @@ fn counter_lists_counts_and_recent_bills_without_amounts() {
     let html = views::counter_screen(&fixture, Role::Owner, day()).expect("counter");
     assert_eq!(core.billed_today_count, 1);
     assert_eq!(core.attention.debtors, 1);
-    assert!(html.contains("1 bill billed today · 2025-04-30"));
+    assert!(html.contains("1 bill billed today · 30-Apr-2025"));
     assert!(html.contains("<b>1</b> customer to collect from"));
-    assert!(html.contains(r#"<div class="rnm">Synthetic Customer</div><div class="rsub">#1 · 2025-04-30</div></span><span class="tag credit">Credit</span>"#));
+    assert!(html.contains(r#"<div class="rnm">Synthetic Customer</div><div class="rsub">#1 · 30-Apr-2025</div></span><span class="tag credit">Credit</span>"#));
     assert!(!html.contains('₹'), "Counter carries no amounts");
     let manager = views::counter_screen(&fixture, Role::Manager, day()).expect("denial");
     assert!(manager.contains("role=\"alert\""));
@@ -215,4 +215,17 @@ fn sales_balance_column_shows_the_core_balance_side() {
         html.contains(r#"<td class="num pos">₹50 adv</td>"#),
         "{html}"
     );
+}
+
+#[test]
+fn screens_display_ddisp_dates_and_forms_keep_iso() {
+    let mut fixture = fixture().expect("synthetic fixture");
+    posted(&mut fixture);
+    let sales = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    assert!(sales.contains("today: 30-Apr-2025"));
+    assert!(sales.contains("<tr style=\"\"><td>30-Apr-2025</td>"));
+    let receipt = views::receipt_screen(&fixture, &directory(), Role::Owner, day()).unwrap();
+    assert!(receipt.contains(r#"type="date" name="date" value="2025-04-30""#));
+    let counter = views::counter_screen(&fixture, Role::Owner, day()).unwrap();
+    assert!(counter.contains("1 bill billed today · 30-Apr-2025"));
 }

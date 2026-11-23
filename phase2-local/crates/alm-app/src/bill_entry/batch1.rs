@@ -124,7 +124,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     let customers = trial.render("customers").unwrap();
     assert_eq!(money_r(balance(&trial)), "₹161");
     assert!(customers.contains(r#"<td class="num neg">₹161</td>"#));
-    assert!(customers.contains("<td>2025-05-02</td><td>Payment (Online)</td><td class=\"num\"></td><td class=\"num pos\">₹31</td><td class=\"num neg\">₹161</td>"));
+    assert!(customers.contains("<td>02-May-2025</td><td>Payment (Online)</td><td class=\"num\"></td><td class=\"num pos\">₹31</td><td class=\"num neg\">₹161</td>"));
 
     // Cash Book close for both dates, saved from system figures.
     assert_eq!(day_close(&trial, BILL_DAY), (5_000, 0, 1));
@@ -195,7 +195,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     assert_eq!(after.current.collected.minor_units(), 3_050);
     let dashboard = trial.render("dashboard").unwrap();
     assert!(dashboard.contains(
-        "0 bills · 2025-05-01 to 2025-05-02 · last month <span class=\"priv\">₹0</span>"
+        "0 bills · 01-May-2025 to 02-May-2025 · last month <span class=\"priv\">₹0</span>"
     ));
     assert!(dashboard.contains("bills ₹0 · receipts ₹31"));
     assert!(dashboard.contains(

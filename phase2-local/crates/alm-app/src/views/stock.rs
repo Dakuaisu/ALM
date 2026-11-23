@@ -94,7 +94,7 @@ pub fn stock_screen(
                 html,
                 r#"<tr><td>{}</td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td class="num">{}</td></tr>"#,
                 lot.date
-                    .map_or_else(|| "Opening".to_owned(), |d| d.to_string()),
+                    .map_or_else(|| "Opening".to_owned(), alm_core::BillDate::display),
                 indian_digits(u64::from(lot.remaining.get())),
                 lot.unit_cost.map_or_else(|| "—".to_owned(), money_r),
                 lot.value.map_or_else(|| "—".to_owned(), money_r)

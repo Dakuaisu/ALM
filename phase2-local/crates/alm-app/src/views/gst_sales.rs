@@ -51,7 +51,7 @@ pub fn gst_sales_screen(
         let _ = write!(
             html,
             r#"<tr style="{style}"><td>{}</td><td><b>{}</b>{tag}</td><td>{}</td><td class="num">{}</td><td class="num">{}</td><td class="num"><button class="btn sm" data-action="gst_view" data-id="{id}">View</button>{edit} <details style="display:inline-block"><summary class="btn sm danger">Delete</summary><button class="btn sm danger" data-action="gst_delete" data-id="{id}">Delete permanently</button></details></td></tr>"#,
-            row.date,
+            row.date.display(),
             esc(&row.number),
             esc(&row.customer),
             row.items,
