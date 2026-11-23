@@ -6,10 +6,12 @@ use alm_core::Money;
 
 mod drafts;
 mod gst;
+mod receipt;
 mod sales;
 
 pub use drafts::{DraftView, ReviewView, customer, draft_screen, posting_review, review_screen};
 pub use gst::gst_screen;
+pub use receipt::receipt_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 
 pub fn tabs(active: &str) -> String {
@@ -19,6 +21,10 @@ pub fn tabs(active: &str) -> String {
             "Review a saved Manager draft before local simulation",
         ),
         "sales" => ("Sales", "All cash memos & sale records"),
+        "receipt" => (
+            "Receive Payment",
+            "Record a separately dated customer receipt",
+        ),
         "gst" => ("GST invoice", "Standalone synthetic invoice"),
         _ => ("Manager draft", "Provisional only; unsent and not posted"),
     };
@@ -30,6 +36,7 @@ pub fn tabs(active: &str) -> String {
         ("draft", "Manager draft"),
         ("review", "Owner review"),
         ("sales", "Sales"),
+        ("receipt", "Receive Payment"),
         ("gst", "GST invoice"),
     ] {
         let (class, current) = if tab == active {

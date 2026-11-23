@@ -6,6 +6,7 @@ mod billing;
 #[cfg(test)]
 mod billing_tests;
 mod gst_print;
+mod receipts;
 mod views;
 
 use std::num::{NonZeroU32, NonZeroUsize};
@@ -139,6 +140,7 @@ impl Trial {
 
     fn render(&mut self, tab: &str) -> Result<String, String> {
         let body = match tab {
+            "receipt" => views::receipt_screen(&self.authority, self.role()).map_err(debug)?,
             "sales" => views::sales_screen(&self.authority, self.role(), &self.sales_filter)
                 .map_err(debug)?,
             "review" => {
@@ -362,6 +364,7 @@ pub fn run() {
             billing::sales_filter,
             billing::sale_cancel,
             billing::sale_restore,
+            receipts::receipt_save,
             print_page,
             share_text
         ])
