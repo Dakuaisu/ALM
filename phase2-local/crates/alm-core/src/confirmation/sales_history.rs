@@ -33,6 +33,13 @@ pub struct SalesRow {
     pub balance: Money,
 }
 
+impl SalesRow {
+    /// The legacy Credit tag: any unpaid remainder on the bill.
+    pub const fn is_credit(&self) -> bool {
+        self.remainder.minor_units() > 0
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SalesDetail {
     pub source: SalesSource,
@@ -274,5 +281,34 @@ impl ConfirmationFixture {
         result.total_collected = add(result.bill_paid, result.receipt_paid)?;
         result.profit = profit::calculate(self, &result.rows)?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod row_tests {
+    use super::SalesRow;
+    use crate::confirmation::Receipt;
+    use crate::{BillDate, DraftId, Money};
+
+    #[test]
+    fn only_an_unpaid_remainder_makes_a_credit_row() {
+        let row = |remainder| SalesRow {
+            bill: Receipt {
+                draft_id: DraftId::new(1),
+                invoice: 1,
+                quantity: 1,
+                total: Money::from_minor_units(100),
+                received: None,
+                due: None,
+                customer_balance: None,
+            },
+            date: BillDate::new(2025, 4, 30).unwrap(),
+            cancelled: false,
+            remainder: Money::from_minor_units(remainder),
+            balance: Money::from_minor_units(0),
+        };
+        assert!(row(1).is_credit());
+        assert!(!row(0).is_credit());
+        assert!(!row(-1).is_credit());
     }
 }

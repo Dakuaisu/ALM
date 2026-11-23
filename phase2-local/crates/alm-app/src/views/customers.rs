@@ -40,7 +40,7 @@ fn side(side: BalanceSide) -> (&'static str, String) {
 }
 
 fn shown(amount: Money) -> String {
-    if amount.minor_units() == 0 {
+    if amount.is_zero() {
         String::new()
     } else {
         money_r(amount)

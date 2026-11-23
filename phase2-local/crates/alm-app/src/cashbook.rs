@@ -1,12 +1,10 @@
 use alm_core::Money;
 use alm_core::confirmation::manual_cashbook::{
-    CashBookAmounts, CashBookDeletion, ManualCashBookDraft,
+    CashBookAmounts, CashBookDeletion, ManualCashBookDraft, parse_cash_book_amount,
 };
 use tauri::State;
 
 use crate::{AppState, Trial, debug, ipc::IpcId, with};
-
-const ZERO: Money = Money::from_minor_units(0);
 
 #[derive(serde::Deserialize)]
 pub struct Entry {
@@ -23,10 +21,7 @@ pub struct Entry {
 }
 
 fn amount(label: &str, text: &str) -> Result<Money, String> {
-    if text.trim().is_empty() {
-        return Ok(ZERO);
-    }
-    Money::parse_rupees(text)
+    parse_cash_book_amount(text)
         .map_err(|_| format!("{label}: enter a non-negative amount with up to two decimals."))
 }
 
@@ -112,16 +107,10 @@ pub fn cash_entry(state: State<'_, AppState>, terms: Entry) -> Result<String, St
 pub fn cash_new(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "expenses", |trial| {
         trial.require_owner()?;
-        let empty = CashBookAmounts {
-            cash: ZERO,
-            paytm: ZERO,
-            phonepe: ZERO,
-            goods: ZERO,
-            misc: ZERO,
-            salary: ZERO,
-            debt: ZERO,
-        };
-        trial.cash_form = Some((ManualCashBookDraft::new(Some(trial.today()?), empty), None));
+        trial.cash_form = Some((
+            ManualCashBookDraft::new(Some(trial.today()?), CashBookAmounts::ZERO),
+            None,
+        ));
         Ok(())
     })
 }

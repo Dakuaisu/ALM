@@ -1,6 +1,7 @@
 //! Sales history: ALM_Business_Manager.html L5975–6239; table and KPI helpers L2270–2300, L2986–3001.
 use std::fmt::Write as _;
 
+use alm_core::confirmation::owner_billing::BalanceSide;
 use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, ReceiptMode, SalesPeriod};
 use alm_core::{BillDate, Role};
 
@@ -130,7 +131,7 @@ pub fn sales_screen(
                 ),
             )
         };
-        let (mode, mode_class) = if row.remainder.minor_units() > 0 {
+        let (mode, mode_class) = if row.is_credit() {
             ("Credit", "credit")
         } else {
             match review.payment_mode() {
@@ -138,18 +139,10 @@ pub fn sales_screen(
                 ReceiptMode::Online => ("Online", "cash"),
             }
         };
-        let (balance_class, balance) = match row.balance.minor_units().cmp(&0) {
-            std::cmp::Ordering::Less => (
-                "pos",
-                format!(
-                    "{} adv",
-                    money_r(alm_core::Money::from_minor_units(
-                        row.balance.minor_units().saturating_neg()
-                    ))
-                ),
-            ),
-            std::cmp::Ordering::Equal => ("", "—".into()),
-            std::cmp::Ordering::Greater => ("neg", money_r(row.balance)),
+        let (balance_class, balance) = match BalanceSide::of(row.balance)? {
+            BalanceSide::Advance(amount) => ("pos", format!("{} adv", money_r(amount))),
+            BalanceSide::Settled => ("", "—".into()),
+            BalanceSide::Due(amount) => ("neg", money_r(amount)),
         };
         let _ = write!(
             html,

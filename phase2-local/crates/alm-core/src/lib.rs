@@ -74,6 +74,11 @@ impl Money {
         format!("{sign}{}.{:02}", paise / 100, paise % 100)
     }
 
+    /// True for exactly zero paise (the HTML leaves such cells blank).
+    pub const fn is_zero(self) -> bool {
+        self.0 == 0
+    }
+
     /// Whole-rupee display value; half ties round toward positive infinity.
     pub const fn rounded_rupees(self) -> i64 {
         self.0.div_euclid(100) + if self.0.rem_euclid(100) >= 50 { 1 } else { 0 }

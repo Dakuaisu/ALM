@@ -185,3 +185,34 @@ fn counter_lists_counts_and_recent_bills_without_amounts() {
     assert!(manager.contains("role=\"alert\""));
     assert!(!manager.contains("Synthetic Customer"));
 }
+
+#[test]
+fn sales_balance_column_shows_the_core_balance_side() {
+    let mut fixture = fixture().expect("synthetic fixture");
+    review(&mut fixture)
+        .confirm(&mut fixture, Role::Owner, 1)
+        .expect("post");
+    let html = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    assert!(html.contains(r#"<span class="tag credit">Credit</span></td><td class="num">₹121</td><td class="num neg">₹101</td>"#), "{html}");
+    crate::receipts::save(
+        &mut fixture,
+        &directory(),
+        Role::Owner,
+        crate::receipts::Terms {
+            customer: "batch1-customer".into(),
+            date: "2025-05-01".into(),
+            amount: "150.49".into(),
+            mode: crate::receipts::Mode::Cash,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        fixture.customer_due(customer_id().value()).minor_units(),
+        -4_999
+    );
+    let html = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    assert!(
+        html.contains(r#"<td class="num pos">₹50 adv</td>"#),
+        "{html}"
+    );
+}

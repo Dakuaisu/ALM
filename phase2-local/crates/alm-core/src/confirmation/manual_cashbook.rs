@@ -19,6 +19,28 @@ pub struct CashBookAmounts {
     pub debt: Money,
 }
 
+impl CashBookAmounts {
+    pub const ZERO: Self = Self {
+        cash: ZERO,
+        paytm: ZERO,
+        phonepe: ZERO,
+        goods: ZERO,
+        misc: ZERO,
+        salary: ZERO,
+        debt: ZERO,
+    };
+}
+
+/// Reads one typed Cash Book amount as the HTML does (`+input.value || 0`): blank is zero;
+/// anything else must be exact non-negative rupees.
+pub fn parse_cash_book_amount(text: &str) -> Result<Money, crate::RupeesError> {
+    if text.trim().is_empty() {
+        Ok(ZERO)
+    } else {
+        Money::parse_rupees(text)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ManualCashBookId(u64);
 
@@ -278,6 +300,27 @@ fn from_rupees(rupees: i64) -> Result<Money, ManualCashBookError> {
 fn difference(entered: Money, system_rupees: i64) -> Result<i64, ManualCashBookError> {
     let units = sub(entered, from_rupees(system_rupees)?)?.minor_units();
     Ok(units.div_euclid(100) + i64::from(units.rem_euclid(100) >= 50))
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::{CashBookAmounts, parse_cash_book_amount};
+    use crate::{Money, RupeesError};
+
+    #[test]
+    fn blank_cash_book_inputs_read_as_zero_and_typed_ones_exactly() {
+        for (text, paise) in [("", 0), ("   ", 0), ("0", 0), ("20.5", 2_050), (" .01 ", 1)] {
+            assert_eq!(
+                parse_cash_book_amount(text),
+                Ok(Money::from_minor_units(paise))
+            );
+        }
+        for text in ["-1", "abc", "1.234"] {
+            assert_eq!(parse_cash_book_amount(text), Err(RupeesError::Invalid));
+        }
+        assert!(CashBookAmounts::ZERO.cash.is_zero());
+        assert!(!Money::from_minor_units(-1).is_zero());
+    }
 }
 
 #[cfg(test)]
