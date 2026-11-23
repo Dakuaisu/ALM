@@ -61,7 +61,7 @@ impl SqliteDraftStore {
         if !path.is_absolute() || path.as_os_str().as_encoded_bytes().contains(&0) {
             return Err(DraftStorageError::InvalidPath);
         }
-        let store = Self {
+        let mut store = Self {
             conn: connect(path).map_err(sqlite)?,
         };
         let tx = store.begin().map_err(sqlite)?;
@@ -72,13 +72,14 @@ impl SqliteDraftStore {
         Ok(store)
     }
 
-    fn begin(&self) -> rusqlite::Result<Transaction<'_>> {
-        Transaction::new_unchecked(&self.conn, TransactionBehavior::Immediate)
+    fn begin(&mut self) -> rusqlite::Result<Transaction<'_>> {
+        self.conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
     }
 }
 
 impl DurableDraftStore for SqliteDraftStore {
-    fn save(&self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError> {
+    fn save(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError> {
         let id = draft.id().value().to_string();
         let tx = self.begin().map_err(sqlite)?;
         tx.execute(
@@ -172,7 +173,7 @@ impl DurableDraftStore for SqliteDraftStore {
         draft_rows::decode(id, decoded)
     }
 
-    fn save_pending(&self, request: u64, snapshot: &str) -> Result<(), DraftStorageError> {
+    fn save_pending(&mut self, request: u64, snapshot: &str) -> Result<(), DraftStorageError> {
         self.insert_pending(request, snapshot)
     }
 

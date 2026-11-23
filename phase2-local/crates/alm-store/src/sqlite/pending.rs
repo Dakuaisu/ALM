@@ -4,7 +4,7 @@ use super::{DraftStorageError, SqliteDraftStore, sqlite, text};
 
 impl SqliteDraftStore {
     pub(super) fn insert_pending(
-        &self,
+        &mut self,
         request: u64,
         snapshot: &str,
     ) -> Result<(), DraftStorageError> {

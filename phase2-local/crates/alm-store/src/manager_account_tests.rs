@@ -47,9 +47,9 @@ fn case_distinct_accounts_with_same_draft_id_use_independent_databases() {
     let b = draft("Synthetic B");
 
     // When: the Manager saves draft 1 in each account and reopens each store.
-    let upper = LocalSales::open_manager_account(&root.0, "Shop_A-1").unwrap();
+    let mut upper = LocalSales::open_manager_account(&root.0, "Shop_A-1").unwrap();
     upper.save_draft(a.clone()).unwrap();
-    let lower = LocalSales::open_manager_account(&root.0, "shop_a-1").unwrap();
+    let mut lower = LocalSales::open_manager_account(&root.0, "shop_a-1").unwrap();
     assert_eq!(lower.reopen_draft(DRAFT).unwrap(), None);
     lower.save_draft(b.clone()).unwrap();
 
@@ -128,7 +128,7 @@ fn legacy_database_at_scoped_path_is_not_migrated_or_used() {
 fn scoped_reopen_rejects_a_database_copied_from_another_account() {
     // Given: A has a draft and its database was copied to the derived slot for B.
     let root = DeviceRoot::new();
-    let store = LocalSales::open_manager_account(&root.0, "A").unwrap();
+    let mut store = LocalSales::open_manager_account(&root.0, "A").unwrap();
     store.save_draft(draft("A only")).unwrap();
     let directory = root.0.join("manager-accounts");
     let a = directory.join("account-41.sqlite3");

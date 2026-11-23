@@ -216,7 +216,7 @@ fn assert_scoped_manager_draft(supplier: &str) {
     )
     .with_bill_date(Some(feb(16)));
     {
-        let writer = LocalSales::open_manager_account(scratch.path(), ACCOUNT).unwrap();
+        let mut writer = LocalSales::open_manager_account(scratch.path(), ACCOUNT).unwrap();
         writer.save_draft(expected.clone()).unwrap();
     }
     let reader = LocalSales::open_manager_account(scratch.path(), ACCOUNT).unwrap();

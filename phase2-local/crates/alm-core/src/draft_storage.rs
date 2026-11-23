@@ -9,7 +9,7 @@ pub trait DurableDraftStore: Send {
     ///
     /// # Errors
     /// Returns a storage error if the save cannot be committed.
-    fn save(&self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError>;
+    fn save(&mut self, draft: &ProvisionalDraft) -> Result<(), DraftStorageError>;
 
     /// Reopens a saved draft without changing it.
     ///
@@ -21,7 +21,7 @@ pub trait DurableDraftStore: Send {
     ///
     /// # Errors
     /// Returns a storage error if the approval cannot be committed.
-    fn save_pending(&self, request: u64, snapshot: &str) -> Result<(), DraftStorageError>;
+    fn save_pending(&mut self, request: u64, snapshot: &str) -> Result<(), DraftStorageError>;
 
     /// Loads an encoded Owner approval.
     ///

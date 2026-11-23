@@ -52,7 +52,7 @@ impl SalesSession<'_> {
         if self.role != Role::Owner {
             return Err(PendingError::AccessDenied);
         }
-        let DraftStore::Durable(store) = &self.sales.drafts else {
+        let DraftStore::Durable(store) = &mut self.sales.drafts else {
             return Err(PendingError::DurableStoreRequired);
         };
         store.save_pending(id.0, &encode(review))?;

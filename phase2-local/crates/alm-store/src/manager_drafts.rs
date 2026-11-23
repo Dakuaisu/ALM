@@ -55,7 +55,7 @@ impl SqliteSales for LocalSales {
 }
 
 impl ManagerDraftStore {
-    pub fn save_draft(&self, draft: ProvisionalDraft) -> Result<(), DraftStorageError> {
+    pub fn save_draft(&mut self, draft: ProvisionalDraft) -> Result<(), DraftStorageError> {
         self.0.save(&draft)
     }
 

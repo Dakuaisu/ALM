@@ -108,7 +108,7 @@ fn new_draft<R: BufRead, W: Write>(
 fn run_menu(
     input: &mut impl BufRead,
     output: &mut impl Write,
-    session: &ManagerDraftStore,
+    session: &mut ManagerDraftStore,
 ) -> io::Result<()> {
     let mut console = Console { input, output };
     let mut current: Option<CurrentDraft> = None;
@@ -224,7 +224,7 @@ fn run_menu(
 
 fn run() -> io::Result<()> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    let (drafts, mode) = launch::open(&args)?;
+    let (mut drafts, mode) = launch::open(&args)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut output = stdout.lock();
@@ -233,7 +233,7 @@ fn run() -> io::Result<()> {
         "ALM synthetic Manager demo — local drafts only; not authenticated."
     )?;
     writeln!(output, "{mode}")?;
-    run_menu(&mut stdin.lock(), &mut output, &drafts)
+    run_menu(&mut stdin.lock(), &mut output, &mut drafts)
 }
 
 fn main() -> ExitCode {

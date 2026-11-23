@@ -71,7 +71,7 @@ impl SqliteDraftStore {
         match reservation {
             Ok(file) => {
                 drop(file);
-                let store = Self {
+                let mut store = Self {
                     conn: connect(&path).map_err(sqlite)?,
                 };
                 store.initialize_scoped(&key)?;
@@ -89,7 +89,7 @@ impl SqliteDraftStore {
         }
     }
 
-    fn initialize_scoped(&self, key: &str) -> Result<(), DraftStorageError> {
+    fn initialize_scoped(&mut self, key: &str) -> Result<(), DraftStorageError> {
         let tx = self.begin().map_err(sqlite)?;
         tx.execute_batch(schema::DRAFT_TABLES).map_err(sqlite)?;
         tx.execute_batch(&format!(
