@@ -1,7 +1,8 @@
 //! ALM_Business_Manager.html L3452–3600 (cards), L3611–3753 (items), L3819–3942 (totals), L3946–3986 (actions).
 use std::fmt::Write as _;
 
-use alm_core::confirmation::{ConfirmationFixture, trial_billing};
+use alm_core::confirmation::ConfirmationFixture;
+use alm_core::confirmation::owner_billing::BillingDirectory;
 use alm_core::provisional_preview::{PreviewAmounts, ProvisionalPreviewLine};
 use alm_core::{DraftCustomer, ProvisionalDraft, Role};
 
@@ -9,6 +10,7 @@ use crate::gst_print::{esc, inr};
 
 pub struct BillView<'a> {
     pub authority: &'a ConfirmationFixture,
+    pub directory: &'a BillingDirectory,
     pub draft: &'a ProvisionalDraft,
     pub saved: bool,
     pub saved_ids: &'a [u64],
@@ -20,7 +22,7 @@ pub fn bill_screen(view: &BillView<'_>) -> String {
         r#"<div class="bill-form" style="max-width:1050px;margin:0 auto"><div class="grid" style="grid-template-columns:1fr">"#,
     );
     header(&mut html, view);
-    let preview = trial_billing::preview(view.authority, view.draft);
+    let preview = view.directory.preview(view.authority, view.draft);
     html += r#"<div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><button type="submit" form="bill-item" class="btn sm">＋ Add Item</button></div><div class="bill-items" style="margin-top:12px">"#;
     html += r#"<div class="bill-line bill-labels"><div>Item</div><div>Unit</div><div class="num">Rate ₹</div><div class="num">Qty</div><div class="num">Amount</div><div></div></div>"#;
     if let Ok(preview) = &preview {
@@ -29,7 +31,7 @@ pub fn bill_screen(view: &BillView<'_>) -> String {
         }
     }
     html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><select class="inp" name="product" aria-label="Item" required><option value="">Choose item…</option>"#;
-    for (id, name) in trial_billing::products(view.authority) {
+    for (id, name) in view.directory.products(view.authority) {
         let _ = write!(html, "<option value=\"{id}\">{}</option>", esc(name));
     }
     html += r#"</select></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form></div></div>"#;
@@ -65,7 +67,8 @@ fn header(html: &mut String, view: &BillView<'_>) {
         html,
         r#"<div class="card"><form id="bill-header" class="f3" data-action="bill_header" data-payload="header"><div class="autobox"><label for="bill-customer">Customer / Party</label><select id="bill-customer" class="inp" name="customer" required><option value="">Choose customer…</option>"#
     );
-    for (id, name) in trial_billing::customers(view.authority) {
+    for customer in view.directory.customers(view.authority) {
+        let (id, name) = (customer.id, customer.name);
         let attr = if Some(id) == selected {
             " selected"
         } else {

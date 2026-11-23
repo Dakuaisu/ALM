@@ -1,25 +1,11 @@
-use super::{
-    ConfirmationError, ConfirmationFixture, ProductEntryError, Receipt, ReceiptMode, RequestId,
-    Review,
-};
+//! Owner billing rules: customer/product selection, priced review, the serialised Owner
+//! posting review and standalone receipts. Callers supply the directory and dates.
+use super::{ConfirmationError, ConfirmationFixture, Receipt, ReceiptMode, RequestId, Review};
 use crate::receive_payment::{Customer, ReceivePayment, SaveError};
 use crate::{BillDate, DraftCustomerId, InvalidBillDate, Money, ProvisionalDraft, Role};
 
-mod entry;
-pub use entry::{customers, fixture, preview, products, select_customer, select_line};
-
-pub const CUSTOMER: &str = "Synthetic Customer";
-pub const DAY: &str = "2025-04-30";
-
-pub fn customer_id() -> DraftCustomerId {
-    DraftCustomerId::new("batch1-customer".into())
-}
-
-#[derive(Debug)]
-pub enum FixtureError {
-    Confirmation(ConfirmationError),
-    Product(ProductEntryError),
-}
+mod directory;
+pub use directory::{BillingDirectory, DirectoryCustomer, DirectoryProduct};
 
 /// One Owner-priced line of a saved draft: the catalog sell rate times the draft quantity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,7 +62,7 @@ pub fn preview_unit_prices(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TrialBillingError {
+pub enum OwnerBillingError {
     Confirmation(ConfirmationError),
     Date(InvalidBillDate),
     Customer,
@@ -85,7 +71,7 @@ pub enum TrialBillingError {
     ReviewLimit,
 }
 
-impl From<ConfirmationError> for TrialBillingError {
+impl From<ConfirmationError> for OwnerBillingError {
     fn from(error: ConfirmationError) -> Self {
         Self::Confirmation(error)
     }
@@ -138,19 +124,20 @@ impl OwnerPosting {
     pub fn prepare(
         &mut self,
         authority: &mut ConfirmationFixture,
+        directory: &BillingDirectory,
         role: Role,
         saved: Option<&ProvisionalDraft>,
         terms: SaleTerms<'_>,
-    ) -> Result<(), TrialBillingError> {
+    ) -> Result<(), OwnerBillingError> {
         require_owner(role)?;
         self.invalidate();
-        let draft = saved.ok_or(TrialBillingError::NoSavedDraft)?;
+        let draft = saved.ok_or(OwnerBillingError::NoSavedDraft)?;
         let serial = self
             .last_serial
             .checked_add(1)
-            .ok_or(TrialBillingError::ReviewLimit)?;
-        entry::check_customer(authority, draft.customer())?;
-        let date = terms.date.parse().map_err(TrialBillingError::Date)?;
+            .ok_or(OwnerBillingError::ReviewLimit)?;
+        directory.check_customer(authority, draft.customer())?;
+        let date = terms.date.parse().map_err(OwnerBillingError::Date)?;
         let paid = parse_rupees(terms.paid)?;
         let selected = draft.clone().with_bill_date(Some(date));
         super::posting::validate_bill(&selected)?;
@@ -181,9 +168,9 @@ impl OwnerPosting {
         authority: &mut ConfirmationFixture,
         role: Role,
         serial: u64,
-    ) -> Result<Receipt, TrialBillingError> {
+    ) -> Result<Receipt, OwnerBillingError> {
         require_owner(role)?;
-        let pending = self.pending.as_ref().ok_or(TrialBillingError::NoReview)?;
+        let pending = self.pending.as_ref().ok_or(OwnerBillingError::NoReview)?;
         if serial != pending.serial {
             return Err(ConfirmationError::StaleReview.into());
         }
@@ -192,24 +179,28 @@ impl OwnerPosting {
     }
 }
 
+/// Records a standalone receipt for a directory customer, dated independently of any bill.
 pub fn save_receipt(
     authority: &mut ConfirmationFixture,
+    directory: &BillingDirectory,
     role: Role,
+    customer: &str,
     terms: ReceiptTerms<'_>,
-) -> Result<(), TrialBillingError> {
+) -> Result<(), OwnerBillingError> {
     require_owner(role)?;
-    let date: BillDate = terms.date.parse().map_err(TrialBillingError::Date)?;
+    let date: BillDate = terms.date.parse().map_err(OwnerBillingError::Date)?;
     let amount = parse_rupees(terms.amount)?;
+    let chosen = directory.customer(authority, customer)?;
     let customers = [Customer {
-        id: customer_id(),
-        name: CUSTOMER.into(),
+        id: DraftCustomerId::new(chosen.id.into()),
+        name: chosen.name.into(),
     }];
     let mut payment = ReceivePayment::default();
-    payment.input(CUSTOMER, &customers);
+    payment.input(chosen.name, &customers);
     payment
         .save(role, authority, date, amount, terms.mode)
         .map_err(|error| match error {
-            SaveError::PickCustomer => TrialBillingError::Customer,
+            SaveError::PickCustomer => OwnerBillingError::Customer,
             SaveError::Confirmation(error) => error.into(),
         })
 }
@@ -229,5 +220,5 @@ fn parse_rupees(text: &str) -> Result<Money, ConfirmationError> {
 }
 
 #[cfg(test)]
-#[path = "trial_billing_tests.rs"]
+#[path = "owner_billing_tests.rs"]
 mod tests;

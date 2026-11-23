@@ -10,3 +10,5 @@ serde_json = { workspace = true }
 [features]
 # Exposes fixture internals to the storage crate's restart replays; never enable in production.
 test-support = []
+# Seeded synthetic shop (customers, products, lots) for the development app; never production data.
+demo-fixture = []

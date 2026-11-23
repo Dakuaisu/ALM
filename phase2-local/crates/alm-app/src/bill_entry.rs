@@ -1,6 +1,5 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use alm_core::confirmation::trial_billing::{self, DAY};
 use alm_core::{DraftId, ProductId, ProvisionalDraft};
 use tauri::State;
 
@@ -35,6 +34,7 @@ impl Trial {
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_screen(&views::BillView {
             authority: &self.authority,
+            directory: &self.directory,
             draft,
             saved: *saved,
             saved_ids: &saved_ids,
@@ -49,7 +49,7 @@ impl Trial {
             .unwrap_or(0)
             .checked_add(1)
             .ok_or("Draft limit reached.")?;
-        let date = DAY.parse().map_err(debug)?;
+        let date = self.today()?;
         let draft = ProvisionalDraft::new(DraftId::new(id), Vec::new()).with_bill_date(Some(date));
         self.current = Some((draft, false));
         self.posting.invalidate();
@@ -69,7 +69,9 @@ impl Trial {
     }
 
     fn bill_header(&mut self, header: Header) -> Result<(), String> {
-        let customer = trial_billing::select_customer(&self.authority, &header.customer)
+        let customer = self
+            .directory
+            .select_customer(&self.authority, &header.customer)
             .map_err(|_| "Select a connected customer.".to_owned())?;
         let date = header
             .date
@@ -87,7 +89,9 @@ impl Trial {
                 if draft.lines().is_empty() {
                     return Err("Add at least one item before saving.".into());
                 }
-                trial_billing::preview(&self.authority, &draft).map_err(debug)?;
+                self.directory
+                    .preview(&self.authority, &draft)
+                    .map_err(debug)?;
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(
                     "Saved draft {}: PROVISIONAL, NOT POSTED.",
@@ -104,7 +108,9 @@ impl Trial {
     }
 
     fn bill_add(&mut self, product: ProductId, quantity: NonZeroU32) -> Result<(), String> {
-        let line = trial_billing::select_line(&self.authority, product, quantity)
+        let line = self
+            .directory
+            .select_line(&self.authority, product, quantity)
             .map_err(|_| "Select a connected product.".to_owned())?;
         self.edit_bill(|draft| {
             draft.add_line(line);

@@ -1,9 +1,12 @@
 use std::num::NonZeroU32;
 
+const DAY: &str = "2025-04-30";
+
 use super::{
-    CUSTOMER, DAY, OwnerPosting, ReceiptTerms, SaleTerms, TrialBillingError, customer_id, fixture,
-    preview_unit_prices, priced_draft, save_receipt,
+    OwnerBillingError, OwnerPosting, ReceiptTerms, SaleTerms, preview_unit_prices, priced_draft,
+    save_receipt,
 };
+use crate::confirmation::demo_fixture::{CUSTOMER, customer_id, directory, fixture};
 use crate::confirmation::{ConfirmationError, ProposedPayment, ReceiptMode};
 use crate::{
     DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId, ProvisionalDraft, Role,
@@ -43,7 +46,13 @@ fn posting_review_accepts_zero_and_half_rupee_without_posting() {
     let draft = draft(selected_customer());
     for (paid, paise) in [("0", 0), (".5", 50), ("120.50", 12_050)] {
         posting
-            .prepare(&mut authority, Role::Owner, Some(&draft), terms(paid))
+            .prepare(
+                &mut authority,
+                &directory(),
+                Role::Owner,
+                Some(&draft),
+                terms(paid),
+            )
             .unwrap();
         let pending = posting.pending(Role::Owner).unwrap();
         assert_eq!(
@@ -65,12 +74,25 @@ fn standalone_receipt_requires_positive_rupees() {
         ("92233720368547758.08", ConfirmationError::Overflow),
     ] {
         assert_eq!(
-            save_receipt(&mut authority, Role::Owner, receipt_terms(amount)),
-            Err(TrialBillingError::Confirmation(error))
+            save_receipt(
+                &mut authority,
+                &directory(),
+                Role::Owner,
+                "batch1-customer",
+                receipt_terms(amount)
+            ),
+            Err(OwnerBillingError::Confirmation(error))
         );
         assert_eq!(authority, before);
     }
-    save_receipt(&mut authority, Role::Owner, receipt_terms(".5")).unwrap();
+    save_receipt(
+        &mut authority,
+        &directory(),
+        Role::Owner,
+        "batch1-customer",
+        receipt_terms(".5"),
+    )
+    .unwrap();
     assert_eq!(
         authority.customer_due(customer_id().value()).minor_units(),
         -50
@@ -101,8 +123,14 @@ fn selected_identity_is_not_rebound_by_its_label() {
     ] {
         let draft = draft(customer);
         assert_eq!(
-            posting.prepare(&mut authority, Role::Owner, Some(&draft), terms("0")),
-            Err(TrialBillingError::Customer)
+            posting.prepare(
+                &mut authority,
+                &directory(),
+                Role::Owner,
+                Some(&draft),
+                terms("0")
+            ),
+            Err(OwnerBillingError::Customer)
         );
         assert_eq!(authority, before);
     }
@@ -112,7 +140,13 @@ fn selected_identity_is_not_rebound_by_its_label() {
     };
     let draft = draft(selected.clone());
     posting
-        .prepare(&mut authority, Role::Owner, Some(&draft), terms("0"))
+        .prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms("0"),
+        )
         .unwrap();
     let pending = posting.pending(Role::Owner).unwrap();
     assert_eq!(pending.review().draft().customer(), &selected);
@@ -124,23 +158,47 @@ fn manager_and_stale_serial_cannot_change_authority() {
     let mut posting = OwnerPosting::default();
     let draft = draft(selected_customer());
     let before = authority.clone();
-    let denied = TrialBillingError::Confirmation(ConfirmationError::AccessDenied);
+    let denied = OwnerBillingError::Confirmation(ConfirmationError::AccessDenied);
     assert_eq!(
-        posting.prepare(&mut authority, Role::Manager, None, terms("bad")),
+        posting.prepare(
+            &mut authority,
+            &directory(),
+            Role::Manager,
+            None,
+            terms("bad")
+        ),
         Err(denied)
     );
     assert_eq!(
-        save_receipt(&mut authority, Role::Manager, receipt_terms("bad")),
+        save_receipt(
+            &mut authority,
+            &directory(),
+            Role::Manager,
+            "batch1-customer",
+            receipt_terms("bad")
+        ),
         Err(denied)
     );
     assert_eq!(authority, before);
 
     posting
-        .prepare(&mut authority, Role::Owner, Some(&draft), terms("0"))
+        .prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms("0"),
+        )
         .unwrap();
     let stale = posting.pending(Role::Owner).unwrap().serial();
     posting
-        .prepare(&mut authority, Role::Owner, Some(&draft), terms(".5"))
+        .prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms(".5"),
+        )
         .unwrap();
     let current = posting.pending(Role::Owner).unwrap().serial();
     let before = authority.clone();
@@ -151,22 +209,28 @@ fn manager_and_stale_serial_cannot_change_authority() {
     );
     assert_eq!(
         posting.confirm(&mut authority, Role::Owner, stale),
-        Err(TrialBillingError::Confirmation(
+        Err(OwnerBillingError::Confirmation(
             ConfirmationError::StaleReview
         ))
     );
     assert_eq!(authority, before);
 
     assert_eq!(
-        posting.prepare(&mut authority, Role::Owner, Some(&draft), terms("120.51")),
-        Err(TrialBillingError::Confirmation(
+        posting.prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms("120.51")
+        ),
+        Err(OwnerBillingError::Confirmation(
             ConfirmationError::InvalidAmount
         ))
     );
     assert!(posting.pending(Role::Owner).is_none());
     assert_eq!(
         posting.confirm(&mut authority, Role::Owner, current),
-        Err(TrialBillingError::NoReview)
+        Err(OwnerBillingError::NoReview)
     );
     assert_eq!(authority, before);
 }
@@ -180,7 +244,13 @@ fn preview_preserves_current_review_and_serial_exhaustion_does_not_wrap() {
     };
     let draft = draft(selected_customer());
     posting
-        .prepare(&mut authority, Role::Owner, Some(&draft), terms(".5"))
+        .prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms(".5"),
+        )
         .unwrap();
     let before = authority.clone();
     assert_eq!(
@@ -201,8 +271,14 @@ fn preview_preserves_current_review_and_serial_exhaustion_does_not_wrap() {
     assert_eq!(receipt.received, Some(Money::from_minor_units(50)));
     let before = authority.clone();
     assert_eq!(
-        posting.prepare(&mut authority, Role::Owner, Some(&draft), terms("0")),
-        Err(TrialBillingError::ReviewLimit)
+        posting.prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms("0")
+        ),
+        Err(OwnerBillingError::ReviewLimit)
     );
     assert!(posting.pending(Role::Owner).is_none());
     assert_eq!(authority, before);
@@ -233,7 +309,13 @@ fn priced_draft_matches_the_owner_review_amounts() {
     assert_eq!(priced.total.minor_units(), 48_650);
     let mut posting = OwnerPosting::default();
     posting
-        .prepare(&mut authority, Role::Owner, Some(&draft), terms("0"))
+        .prepare(
+            &mut authority,
+            &directory(),
+            Role::Owner,
+            Some(&draft),
+            terms("0"),
+        )
         .unwrap();
     let review = posting.pending(Role::Owner).unwrap().review();
     assert_eq!(review.amounts().unwrap().total, priced.total);

@@ -1,4 +1,4 @@
-use alm_core::confirmation::trial_billing::{SaleTerms, TrialBillingError};
+use alm_core::confirmation::owner_billing::{OwnerBillingError, SaleTerms};
 use tauri::State;
 
 use crate::ipc::IpcId;
@@ -10,16 +10,16 @@ pub struct Terms {
     pub paid: String,
 }
 
-fn posting_error(error: TrialBillingError) -> String {
+fn posting_error(error: OwnerBillingError) -> String {
     match error {
-        TrialBillingError::Customer => {
+        OwnerBillingError::Customer => {
             "Select a connected customer on New Bill and save the draft.".into()
         }
-        TrialBillingError::NoSavedDraft => "Save or reopen the Manager draft first.".into(),
-        TrialBillingError::NoReview => "Review the sale before confirming.".into(),
-        TrialBillingError::ReviewLimit => "Review limit reached.".into(),
-        TrialBillingError::Confirmation(error) => debug(error),
-        TrialBillingError::Date(error) => debug(error),
+        OwnerBillingError::NoSavedDraft => "Save or reopen the Manager draft first.".into(),
+        OwnerBillingError::NoReview => "Review the sale before confirming.".into(),
+        OwnerBillingError::ReviewLimit => "Review limit reached.".into(),
+        OwnerBillingError::Confirmation(error) => debug(error),
+        OwnerBillingError::Date(error) => debug(error),
     }
 }
 
@@ -35,6 +35,7 @@ pub fn sale_prepare(state: State<'_, AppState>, terms: Terms) -> Result<String, 
             .posting
             .prepare(
                 &mut trial.authority,
+                &trial.directory,
                 role,
                 saved,
                 SaleTerms {

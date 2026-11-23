@@ -1,13 +1,19 @@
 use super::*;
-use alm_core::confirmation::trial_billing::{
-    CUSTOMER, DAY, OwnerPosting, SaleTerms, customer_id, fixture,
-};
+use alm_core::confirmation::demo_fixture::{CUSTOMER, customer_id, directory, fixture};
+use alm_core::confirmation::owner_billing::{OwnerPosting, SaleTerms};
+
+const DAY: &str = "2025-04-30";
+
+pub(crate) fn day() -> BillDate {
+    DAY.parse().expect("fixed test date")
+}
 
 fn review(fixture: &mut ConfirmationFixture) -> OwnerPosting {
     let mut posting = OwnerPosting::default();
     posting
         .prepare(
             fixture,
+            &directory(),
             Role::Owner,
             Some(&draft()),
             SaleTerms {
@@ -39,7 +45,8 @@ fn sales_show_confirmed_owner_amount_not_provisional_amount() {
     assert_eq!(receipt.total.minor_units(), 12_050);
     assert_eq!(posting.confirm(&mut fixture, Role::Owner, 1), Ok(receipt));
     assert_eq!(fixture.posted_count(), 1);
-    let html = views::sales_screen(&fixture, Role::Owner, &Default::default()).expect("sales");
+    let html =
+        views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).expect("sales");
     assert!(html.contains("<td class=\"num\">₹121</td>"));
     assert!(html.contains("₹20 bills"));
     assert!(html.contains("Synthetic Customer"));
@@ -51,7 +58,8 @@ fn manager_cannot_confirm_an_owner_review_or_read_sales() {
     let posting = review(&mut fixture);
     assert!(posting.confirm(&mut fixture, Role::Manager, 1).is_err());
     assert_eq!(fixture.posted_count(), 0);
-    let html = views::sales_screen(&fixture, Role::Manager, &Default::default()).expect("denial");
+    let html =
+        views::sales_screen(&fixture, Role::Manager, &Default::default(), day()).expect("denial");
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("tbl-wrap"));
     assert!(!html.contains('₹'));
@@ -62,13 +70,16 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
     let mut fixture = fixture().expect("synthetic fixture");
     let posting = review(&mut fixture);
     posting.confirm(&mut fixture, Role::Owner, 1).expect("post");
-    crate::receipts::save(&mut fixture, Role::Owner, receipt_terms()).expect("receipt");
-    let html = views::receipt_screen(&fixture, Role::Owner).expect("receipt screen");
+    crate::receipts::save(&mut fixture, &directory(), Role::Owner, receipt_terms())
+        .expect("receipt");
+    let html =
+        views::receipt_screen(&fixture, &directory(), Role::Owner, day()).expect("receipt screen");
     assert!(html.contains("₹70"));
     fixture
         .cancel_sale(Role::Owner, DraftId::new(1))
         .expect("cancel");
-    let sales = views::sales_screen(&fixture, Role::Owner, &Default::default()).expect("sales");
+    let sales =
+        views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).expect("sales");
     assert!(sales.contains("(₹0 bills · ₹31 received)"));
     assert!(sales.contains("CANCELLED"));
 }
@@ -76,8 +87,10 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
 #[test]
 fn manager_cannot_save_a_standalone_receipt_or_read_its_form() {
     let mut fixture = fixture().expect("synthetic fixture");
-    assert!(crate::receipts::save(&mut fixture, Role::Manager, receipt_terms()).is_err());
-    let html = views::receipt_screen(&fixture, Role::Manager).expect("denial");
+    assert!(
+        crate::receipts::save(&mut fixture, &directory(), Role::Manager, receipt_terms()).is_err()
+    );
+    let html = views::receipt_screen(&fixture, &directory(), Role::Manager, day()).expect("denial");
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("<form"));
     assert_eq!(fixture.customer_due(customer_id().value()).minor_units(), 0);
@@ -85,6 +98,7 @@ fn manager_cannot_save_a_standalone_receipt_or_read_its_form() {
 
 fn receipt_terms() -> crate::receipts::Terms {
     crate::receipts::Terms {
+        customer: "batch1-customer".into(),
         date: "2025-05-01".into(),
         amount: "30.50".into(),
         mode: crate::receipts::Mode::Online,
@@ -95,7 +109,7 @@ fn receipt_terms() -> crate::receipts::Terms {
 fn new_bill_renders_connected_choices_in_source_layout() {
     let root = std::env::temp_dir().join(format!("alm-bill-markup-{}", std::process::id()));
     std::fs::create_dir(&root).unwrap();
-    let mut trial = Trial::open(&root).unwrap();
+    let mut trial = Trial::open(&root, Some(day())).unwrap();
     let html = trial.render("bill").unwrap();
     drop(trial);
     std::fs::remove_dir_all(root).unwrap();
@@ -122,7 +136,7 @@ fn review_screen_amounts_equal_the_core_projection() {
             DraftLine::new(ProductId::new(2), NonZeroU32::new(2).unwrap()),
         ],
     );
-    let priced = alm_core::confirmation::trial_billing::priced_draft(&fixture, Role::Owner, &draft)
+    let priced = alm_core::confirmation::owner_billing::priced_draft(&fixture, Role::Owner, &draft)
         .expect("priced");
     let html = views::review_screen(&views::ReviewView {
         role_is_owner: true,
@@ -137,7 +151,7 @@ fn review_screen_amounts_equal_the_core_projection() {
     let denied = views::review_screen(&views::ReviewView {
         role_is_owner: false,
         draft: Some(&draft),
-        priced: alm_core::confirmation::trial_billing::priced_draft(
+        priced: alm_core::confirmation::owner_billing::priced_draft(
             &fixture,
             Role::Manager,
             &draft,

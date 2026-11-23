@@ -1,5 +1,5 @@
 use super::*;
-use alm_core::confirmation::trial_billing::{OwnerPosting, SaleTerms};
+use alm_core::confirmation::owner_billing::{OwnerPosting, SaleTerms};
 use alm_core::{DraftCustomer, Money, Role};
 
 struct Root(std::path::PathBuf);
@@ -44,7 +44,7 @@ fn effects(trial: &Trial) -> (usize, Option<u32>, Option<u32>, Money, Money, Mon
 #[test]
 fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts() {
     let root = Root::new();
-    let mut trial = Trial::open(&root.0).unwrap();
+    let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
     trial.owner = false;
     trial.render("bill").unwrap();
     let before = effects(&trial);
@@ -68,7 +68,7 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
     assert_eq!(effects(&trial), before);
     drop(trial);
 
-    let mut trial = Trial::open(&root.0).unwrap();
+    let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
     trial.owner = false;
     trial.bill_open(DraftId::new(1)).unwrap();
     let html = trial.render("bill").unwrap();
@@ -92,7 +92,7 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
 #[test]
 fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
     let root = Root::new();
-    let mut trial = Trial::open(&root.0).unwrap();
+    let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
     trial.render("bill").unwrap();
     trial.bill_add(ProductId::new(1), NonZeroU32::MIN).unwrap();
     trial
@@ -136,7 +136,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
 #[test]
 fn only_explicit_owner_confirmation_posts_the_selected_customer_and_product() {
     let root = Root::new();
-    let mut trial = Trial::open(&root.0).unwrap();
+    let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
     trial.render("bill").unwrap();
     trial
         .bill_add(ProductId::new(2), quantity("2").unwrap())
@@ -152,7 +152,13 @@ fn only_explicit_owner_confirmation_posts_the_selected_customer_and_product() {
         paid: "20.00",
     };
     posting
-        .prepare(&mut trial.authority, Role::Owner, Some(draft), terms)
+        .prepare(
+            &mut trial.authority,
+            &trial.directory,
+            Role::Owner,
+            Some(draft),
+            terms,
+        )
         .unwrap();
     assert_eq!(effects(&trial), before);
     let review = posting.pending(Role::Owner).unwrap();

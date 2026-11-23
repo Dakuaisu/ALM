@@ -16,7 +16,8 @@ use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::Mutex;
 
-use alm_core::confirmation::trial_billing::{self, OwnerPosting};
+use alm_core::confirmation::demo_fixture;
+use alm_core::confirmation::owner_billing::{self, BillingDirectory, OwnerPosting};
 use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillLineInput, GstUnit,
 };
@@ -57,6 +58,9 @@ const GST_LINES: [GstBillLineInput<'static>; 2] = [
 
 struct Trial {
     drafts: ManagerDraftStore,
+    directory: BillingDirectory,
+    /// The device's local date, sent by the page at start; tests pass a fixed date.
+    today: Option<BillDate>,
     authority: ConfirmationFixture,
     current: Option<(ProvisionalDraft, bool)>,
     owner: bool,
@@ -68,10 +72,10 @@ struct Trial {
 type AppState = Mutex<Trial>;
 
 impl Trial {
-    fn open(device_root: &Path) -> Result<Self, String> {
+    fn open(device_root: &Path, today: Option<BillDate>) -> Result<Self, String> {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
         let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
-        let mut authority = trial_billing::fixture().map_err(debug)?;
+        let mut authority = demo_fixture::fixture().map_err(debug)?;
         authority
             .load_gst_bills_from(Role::Owner, &gst)
             .map_err(debug)?;
@@ -100,6 +104,8 @@ impl Trial {
         }
         Ok(Self {
             drafts,
+            directory: demo_fixture::directory(),
+            today,
             authority,
             current: None,
             owner: true,
@@ -124,6 +130,11 @@ impl Trial {
         Ok(ids)
     }
 
+    fn today(&self) -> Result<BillDate, String> {
+        self.today
+            .ok_or_else(|| "The device date has not been received.".to_owned())
+    }
+
     const fn role(&self) -> Role {
         if self.owner {
             Role::Owner
@@ -142,14 +153,22 @@ impl Trial {
     fn render(&mut self, tab: &str) -> Result<String, String> {
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
-            "receipt" => views::receipt_screen(&self.authority, self.role()).map_err(debug)?,
-            "sales" => views::sales_screen(&self.authority, self.role(), &self.sales_filter)
-                .map_err(debug)?,
+            "receipt" => {
+                views::receipt_screen(&self.authority, &self.directory, self.role(), self.today()?)
+                    .map_err(debug)?
+            }
+            "sales" => views::sales_screen(
+                &self.authority,
+                self.role(),
+                &self.sales_filter,
+                self.today()?,
+            )
+            .map_err(debug)?,
             "review" => {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
                 let priced = match draft {
-                    Some(draft) => trial_billing::priced_draft(&self.authority, role, draft),
+                    Some(draft) => owner_billing::priced_draft(&self.authority, role, draft),
                     None => Err(alm_core::confirmation::ConfirmationError::DraftNotFound),
                 };
                 let mut html = views::review_screen(&views::ReviewView {
@@ -159,6 +178,7 @@ impl Trial {
                 });
                 if self.owner {
                     html += &views::posting_review(
+                        self.today()?,
                         self.posting.pending(role),
                         self.current
                             .as_ref()
@@ -221,6 +241,18 @@ fn screen(state: State<'_, AppState>, tab: String) -> Result<String, String> {
     with(&state, &tab, |_| Ok(()))
 }
 
+/// The page sends the device's local calendar date once at start.
+#[tauri::command(async)]
+fn start(state: State<'_, AppState>, today: String) -> Result<String, String> {
+    let today = today
+        .parse()
+        .map_err(|_| "The device date is not a valid date.".to_owned())?;
+    with(&state, "bill", |trial| {
+        trial.today = Some(today);
+        Ok(())
+    })
+}
+
 #[tauri::command(async)]
 fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, String> {
     with(&state, "review", |trial| {
@@ -271,10 +303,11 @@ pub fn run() {
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
-            app.manage(Mutex::new(Trial::open(&root)?));
+            app.manage(Mutex::new(Trial::open(&root, None)?));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            start,
             screen,
             bill_entry::bill_fresh,
             bill_entry::bill_header,

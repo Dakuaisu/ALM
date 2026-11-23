@@ -6,7 +6,6 @@ use alm_core::{BillDate, Role};
 
 use super::{customer, denied, money_r};
 use crate::gst_print::{esc, indian_digits};
-use alm_core::confirmation::trial_billing::DAY;
 
 #[derive(serde::Deserialize)]
 pub struct SalesFilter {
@@ -61,8 +60,8 @@ pub fn sales_screen(
     fixture: &ConfirmationFixture,
     role: Role,
     filter: &Filter,
+    today: BillDate,
 ) -> Result<String, ConfirmationError> {
-    let today = DAY.parse().map_err(|_| ConfirmationError::InvalidDraft)?;
     let history = match fixture.sales_history(role, today, filter.period, &filter.q) {
         Ok(history) => history,
         Err(ConfirmationError::AccessDenied) => return Ok(denied("Sales")),
@@ -181,7 +180,7 @@ fn filters(filter: &Filter, today: BillDate) -> String {
     };
     format!(
         r#"<div class="row no-print"><button class="btn primary" data-action="screen" data-tab="draft">New Bill</button><button class="btn" data-action="screen" data-tab="review">Owner review</button></div>
-    <p class="help">Synthetic development records · in memory for this session · demo today: {today}</p>
+    <p class="help">Synthetic development records · in memory for this session · today: {today}</p>
     <div class="card" style="margin-bottom:14px"><form class="row" data-action="sales_filter" data-payload="terms">
     <div class="search" style="flex:1;min-width:200px"><input class="inp" name="q" placeholder="Search customer or item…" aria-label="Search customer or item" value="{}"></div>
     <label class="muted">From <input class="inp" type="date" name="from" value="{from}"></label>

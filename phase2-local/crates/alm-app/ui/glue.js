@@ -57,4 +57,7 @@ view.addEventListener("submit", (event) => {
   event.preventDefault();
   act(event.target, event.submitter);
 });
-run("screen", { tab: "bill" });
+// The device's local calendar date; Rust parses and owns every date rule.
+const now = new Date();
+const pad = (n) => String(n).padStart(2, "0");
+run("start", { today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` });

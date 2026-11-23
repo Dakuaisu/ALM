@@ -15,7 +15,7 @@ path = "src/main.rs"
 tauri-build = { version = "=2.7.6", features = [] }
 
 [dependencies]
-alm-core = { workspace = true }
+alm-core = { workspace = true, features = ["demo-fixture"] }
 alm-store = { workspace = true }
 serde = { workspace = true }
 tauri = { version = "=2.12.7", features = [] }

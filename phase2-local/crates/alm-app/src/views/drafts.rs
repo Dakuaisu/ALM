@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use alm_core::confirmation::ConfirmationError;
-use alm_core::confirmation::trial_billing::PricedDraft;
+use alm_core::confirmation::owner_billing::PricedDraft;
 use alm_core::{DraftCustomer, Money, ProvisionalDraft};
 
 use crate::gst_print::{esc, inr};
@@ -75,7 +75,8 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
 }
 
 pub fn posting_review(
-    posting: Option<&alm_core::confirmation::trial_billing::PostingReview>,
+    today: alm_core::BillDate,
+    posting: Option<&alm_core::confirmation::owner_billing::PostingReview>,
     saved: Option<&ProvisionalDraft>,
 ) -> String {
     let mut html = String::from(
@@ -84,10 +85,7 @@ pub fn posting_review(
     let Some(saved) = saved else {
         return html + "<p>Save or reopen the Manager draft first.</p></div>";
     };
-    let date = saved.bill_date().map_or_else(
-        || alm_core::confirmation::trial_billing::DAY.to_owned(),
-        |date| date.to_string(),
-    );
+    let date = saved.bill_date().unwrap_or(today);
     let _ = write!(
         html,
         r#"<form class="row" data-action="sale_prepare" data-payload="terms"><label>Bill date <input class="inp" type="date" name="date" value="{date}" required></label><label>Paid in cash (₹) <input class="inp" name="paid" inputmode="decimal" value="20.00" required></label><button class="btn" type="submit">Review sale terms</button></form>"#

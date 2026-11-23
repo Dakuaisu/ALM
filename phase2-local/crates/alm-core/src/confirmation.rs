@@ -14,6 +14,8 @@ mod customer_accounts;
 mod customer_ageing;
 mod customer_opening;
 mod dashboard;
+#[cfg(any(test, feature = "demo-fixture"))]
+pub mod demo_fixture;
 mod edit;
 pub(crate) mod estimate;
 mod estimate_view;
@@ -24,6 +26,7 @@ mod gst_standalone_totals;
 mod image_handoff;
 pub mod manual_cashbook;
 mod manual_godown;
+pub mod owner_billing;
 mod payment;
 #[cfg(not(feature = "test-support"))]
 mod pending;
@@ -38,7 +41,6 @@ mod sales_history;
 mod sales_output;
 #[cfg(feature = "test-support")]
 mod test_support;
-pub mod trial_billing;
 pub use crate::SaleUnit;
 pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
