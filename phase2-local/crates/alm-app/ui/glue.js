@@ -11,9 +11,12 @@ async function run(command, args) {
     nav.replaceChildren(screen.content);
     document.getElementById("ttl").textContent = screen.dataset.title;
     document.getElementById("tsub").textContent = screen.dataset.subtitle;
+    const actions = view.querySelector("#screen-actions");
+    document.getElementById("top-actions").replaceChildren(...(actions ? [actions.content] : []));
   } catch (error) {
     const note = document.createElement("div");
     note.className = "help";
+    note.setAttribute("role", "alert");
     note.textContent = String(error);
     view.prepend(note);
   }
@@ -54,4 +57,4 @@ view.addEventListener("submit", (event) => {
   event.preventDefault();
   act(event.target, event.submitter);
 });
-run("screen", { tab: "draft" });
+run("screen", { tab: "bill" });

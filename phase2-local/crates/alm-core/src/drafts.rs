@@ -265,6 +265,15 @@ impl ProvisionalDraft {
         &self.lines
     }
 
+    pub fn add_line(&mut self, line: DraftLine) {
+        self.lines.push(line);
+    }
+
+    pub fn remove_line(&mut self, line_number: NonZeroUsize) -> Option<DraftLine> {
+        let index = line_number.get() - 1;
+        (index < self.lines.len()).then(|| self.lines.remove(index))
+    }
+
     /// Replaces the quantity of an ordinary line by its one-based position.
     /// Returns the previous quantity, or `None` if the line does not exist.
     pub fn replace_line_quantity(

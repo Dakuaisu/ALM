@@ -5,10 +5,10 @@ use std::num::NonZeroU32;
 use crate::bill_math::{ExactGstError, checked_line_amount, exact_intra_half, exact_taxable};
 use crate::{Money, ProductId, ProvisionalDraft};
 
-const LIME_ID: ProductId = ProductId::new(1);
-const LIME_NAME: &str = "Synthetic Lime";
-const LIME_INCLUSIVE_PRICE: Money = Money::from_minor_units(11_800);
-const LIME_GST_BASIS_POINTS: u32 = 1_800;
+pub(crate) const LIME_ID: ProductId = ProductId::new(1);
+pub(crate) const LIME_NAME: &str = "Synthetic Lime";
+pub(crate) const LIME_INCLUSIVE_PRICE: Money = Money::from_minor_units(11_800);
+pub(crate) const LIME_GST_BASIS_POINTS: u32 = 1_800;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PreviewAmounts {
@@ -58,6 +58,15 @@ impl From<ExactGstError> for ProvisionalPreviewError {
 pub fn preview(
     draft: &ProvisionalDraft,
 ) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
+    with_catalog(draft, |id| {
+        (id == LIME_ID).then_some((LIME_NAME, LIME_INCLUSIVE_PRICE, LIME_GST_BASIS_POINTS))
+    })
+}
+
+pub(crate) fn with_catalog(
+    draft: &ProvisionalDraft,
+    lookup: impl Fn(ProductId) -> Option<(&'static str, Money, u32)>,
+) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
     if draft.crate_row().is_some() {
         return Err(ProvisionalPreviewError::UnsupportedCrateRow);
     }
@@ -68,13 +77,12 @@ pub fn preview(
     let mut half_tax_total = 0_i64;
     for line in draft.lines() {
         let product_id = line.product_id();
-        if product_id != LIME_ID {
-            return Err(ProvisionalPreviewError::UnknownProduct(product_id));
-        }
+        let (name, rate, gst_basis_points) =
+            lookup(product_id).ok_or(ProvisionalPreviewError::UnknownProduct(product_id))?;
         let quantity = line.quantity();
-        let inclusive = checked_line_amount(LIME_INCLUSIVE_PRICE, quantity.get())
-            .ok_or(ProvisionalPreviewError::Overflow)?;
-        let taxable = exact_taxable(inclusive, LIME_GST_BASIS_POINTS)?;
+        let inclusive =
+            checked_line_amount(rate, quantity.get()).ok_or(ProvisionalPreviewError::Overflow)?;
+        let taxable = exact_taxable(inclusive, gst_basis_points)?;
         let tax = inclusive
             .minor_units()
             .checked_sub(taxable)
@@ -92,10 +100,10 @@ pub fn preview(
             .ok_or(ProvisionalPreviewError::Overflow)?;
         lines.push(ProvisionalPreviewLine {
             product_id,
-            name: LIME_NAME,
+            name,
             quantity,
-            inclusive_unit_price: LIME_INCLUSIVE_PRICE,
-            gst_basis_points: LIME_GST_BASIS_POINTS,
+            inclusive_unit_price: rate,
+            gst_basis_points,
             amounts: PreviewAmounts {
                 inclusive,
                 taxable: Money::from_minor_units(taxable),

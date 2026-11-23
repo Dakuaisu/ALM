@@ -4,12 +4,14 @@ use std::fmt::Write as _;
 use crate::gst_print::{esc, indian_digits};
 use alm_core::Money;
 
+mod bill;
 mod drafts;
 mod gst;
 mod receipt;
 mod sales;
 
-pub use drafts::{DraftView, ReviewView, customer, draft_screen, posting_review, review_screen};
+pub use bill::{BillView, bill_screen};
+pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
@@ -26,14 +28,14 @@ pub fn tabs(active: &str) -> String {
             "Record a separately dated customer receipt",
         ),
         "gst" => ("GST invoice", "Standalone synthetic invoice"),
-        _ => ("Manager draft", "Provisional only; unsent and not posted"),
+        _ => ("New Bill", "Provisional only; not posted"),
     };
     let mut html = format!(
         r#"<template id="screen-nav" data-title="{title}" data-subtitle="{}"><div class="navsec">Billing</div>"#,
         esc(subtitle)
     );
     for (tab, label) in [
-        ("draft", "Manager draft"),
+        ("bill", "New Bill"),
         ("review", "Owner review"),
         ("sales", "Sales"),
         ("receipt", "Receive Payment"),
@@ -49,7 +51,11 @@ pub fn tabs(active: &str) -> String {
             "<button type=\"button\" class=\"{class}\"{current} data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
         );
     }
-    html + "</template>"
+    html += "</template>";
+    if active == "bill" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="bill_fresh">＋ Fresh Bill</button></template>"#;
+    }
+    html
 }
 
 pub fn denied(screen: &str) -> String {

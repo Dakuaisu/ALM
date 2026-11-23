@@ -2,6 +2,7 @@
 //! Every rule lives in `alm-core`/`alm-store`; the page only displays returned HTML.
 #![forbid(unsafe_code)]
 
+mod bill_entry;
 mod billing;
 #[cfg(test)]
 mod billing_tests;
@@ -10,7 +11,8 @@ mod ipc;
 mod receipts;
 mod views;
 
-use std::num::{NonZeroU32, NonZeroUsize};
+#[cfg(test)]
+use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -18,10 +20,9 @@ use alm_core::confirmation::trial_billing::{self, OwnerPosting};
 use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillLineInput, GstUnit,
 };
-use alm_core::{
-    BillDate, DraftCustomer, DraftId, DraftLine, LocalSales, Money, ProductId, ProvisionalDraft,
-    Role,
-};
+use alm_core::{BillDate, DraftId, LocalSales, Money, ProvisionalDraft, Role};
+#[cfg(test)]
+use alm_core::{DraftCustomer, DraftLine, ProductId};
 use alm_store::{GstBillDatabase, ManagerDraftStore, SqliteSales};
 use tauri::{Manager, State};
 
@@ -139,6 +140,7 @@ impl Trial {
     }
 
     fn render(&mut self, tab: &str) -> Result<String, String> {
+        let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
             "receipt" => views::receipt_screen(&self.authority, self.role()).map_err(debug)?,
             "sales" => views::sales_screen(&self.authority, self.role(), &self.sales_filter)
@@ -158,7 +160,9 @@ impl Trial {
                 if self.owner {
                     html += &views::posting_review(
                         self.posting.pending(role),
-                        self.current.as_ref().is_some_and(|(_, saved)| *saved),
+                        self.current
+                            .as_ref()
+                            .and_then(|(draft, saved)| saved.then_some(draft)),
                     );
                 }
                 html
@@ -180,14 +184,8 @@ impl Trial {
                 let (html, title) = page?;
                 views::gst_screen(&html, &title)
             }
-            _ => {
-                let ids = self.saved_ids()?;
-                views::draft_screen(&views::DraftView {
-                    draft: self.current.as_ref().map(|(draft, _)| draft),
-                    saved: self.current.as_ref().is_some_and(|(_, saved)| *saved),
-                    saved_ids: &ids,
-                })
-            }
+            "bill" => self.render_bill()?,
+            _ => return Err("Unknown screen.".into()),
         };
         let message = std::mem::take(&mut self.message);
         Ok(format!(
@@ -221,80 +219,6 @@ fn with<T>(
 #[tauri::command(async)]
 fn screen(state: State<'_, AppState>, tab: String) -> Result<String, String> {
     with(&state, &tab, |_| Ok(()))
-}
-
-#[tauri::command(async)]
-fn draft_new(state: State<'_, AppState>, customer: String) -> Result<String, String> {
-    with(&state, "draft", |trial| {
-        let id = trial.saved_ids()?.len() as u64 + 1;
-        let draft = ProvisionalDraft::new(
-            DraftId::new(id),
-            vec![DraftLine::new(ProductId::new(1), NonZeroU32::MIN)],
-        )
-        .with_customer(DraftCustomer::Typed(customer.trim().to_owned()));
-        trial.current = Some((draft, false));
-        trial.posting.invalidate();
-        trial.message = format!("New draft {id}: UNSAVED.");
-        Ok(())
-    })
-}
-
-#[tauri::command(async)]
-fn draft_quantity(
-    state: State<'_, AppState>,
-    line: usize,
-    quantity: String,
-) -> Result<String, String> {
-    with(&state, "draft", |trial| {
-        let Some((draft, saved)) = trial.current.as_mut() else {
-            return Err("No draft is open.".into());
-        };
-        let quantity: NonZeroU32 = quantity
-            .trim()
-            .parse()
-            .map_err(|_| "Quantity must be a positive whole number.".to_owned())?;
-        let line = NonZeroUsize::new(line).ok_or("Unknown line.")?;
-        let previous = draft
-            .replace_line_quantity(line, quantity)
-            .ok_or("Unknown line.")?;
-        if previous != quantity {
-            *saved = false;
-            trial.posting.invalidate();
-        }
-        Ok(())
-    })
-}
-
-#[tauri::command(async)]
-fn draft_save(state: State<'_, AppState>) -> Result<String, String> {
-    with(&state, "draft", |trial| {
-        let Some((draft, saved)) = trial.current.as_mut() else {
-            return Err("No draft is open.".into());
-        };
-        trial.drafts.save_draft(draft.clone()).map_err(text)?;
-        *saved = true;
-        trial.message = format!(
-            "Saved draft {}: PROVISIONAL — NOT POSTED.",
-            draft.id().value()
-        );
-        Ok(())
-    })
-}
-
-#[tauri::command(async)]
-fn draft_open(state: State<'_, AppState>, id: ipc::IpcId) -> Result<String, String> {
-    let id = id.value();
-    with(&state, "draft", |trial| {
-        let draft = trial
-            .drafts
-            .reopen_draft(DraftId::new(id))
-            .map_err(text)?
-            .ok_or("Draft not found.")?;
-        trial.current = Some((draft, true));
-        trial.posting.invalidate();
-        trial.message = format!("Opened draft {id}: SAVED.");
-        Ok(())
-    })
 }
 
 #[tauri::command(async)]
@@ -352,10 +276,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             screen,
-            draft_new,
-            draft_quantity,
-            draft_save,
-            draft_open,
+            bill_entry::bill_fresh,
+            bill_entry::bill_header,
+            bill_entry::bill_add,
+            bill_entry::bill_quantity,
+            bill_entry::bill_remove,
+            bill_entry::bill_open,
             review_role,
             billing::sale_prepare,
             billing::sale_confirm,

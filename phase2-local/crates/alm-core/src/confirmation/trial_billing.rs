@@ -3,10 +3,10 @@ use super::{
     Review,
 };
 use crate::receive_payment::{Customer, ReceivePayment, SaveError};
-use crate::{
-    BillDate, DraftCustomer, DraftCustomerId, InvalidBillDate, Money, ProductId, ProvisionalDraft,
-    Role,
-};
+use crate::{BillDate, DraftCustomerId, InvalidBillDate, Money, ProvisionalDraft, Role};
+
+mod entry;
+pub use entry::{customers, fixture, preview, products, select_customer, select_line};
 
 pub const CUSTOMER: &str = "Synthetic Customer";
 pub const DAY: &str = "2025-04-30";
@@ -19,27 +19,6 @@ pub fn customer_id() -> DraftCustomerId {
 pub enum FixtureError {
     Confirmation(ConfirmationError),
     Product(ProductEntryError),
-}
-
-pub fn fixture() -> Result<ConfirmationFixture, FixtureError> {
-    let product_id = ProductId::new(1);
-    let mut fixture = ConfirmationFixture::with_ordered_lots(
-        product_id,
-        &[(50, Money::from_minor_units(7_000))],
-        Money::from_minor_units(12_050),
-    )
-    .map_err(FixtureError::Confirmation)?;
-    let mut product = fixture
-        .open_product_entry(Role::Owner, product_id)
-        .map_err(FixtureError::Product)?;
-    product.item = "Synthetic Lime".into();
-    fixture
-        .save_product_entry(Role::Owner, &product)
-        .map_err(FixtureError::Product)?;
-    fixture
-        .register_customer(Role::Owner, &customer_id())
-        .map_err(FixtureError::Confirmation)?;
-    Ok(fixture)
 }
 
 pub fn preview_unit_prices(
@@ -125,28 +104,10 @@ impl OwnerPosting {
             .last_serial
             .checked_add(1)
             .ok_or(TrialBillingError::ReviewLimit)?;
-        let id = customer_id();
-        let selected = match draft.customer() {
-            DraftCustomer::Typed(name) if name == CUSTOMER => {
-                draft.clone().with_customer(DraftCustomer::Selected {
-                    id,
-                    name: name.clone(),
-                })
-            }
-            DraftCustomer::Selected { id: selected, name }
-                if selected == &id && name == CUSTOMER =>
-            {
-                draft.clone()
-            }
-            DraftCustomer::Typed(_)
-            | DraftCustomer::Selected { .. }
-            | DraftCustomer::Unassigned => {
-                return Err(TrialBillingError::Customer);
-            }
-        };
+        entry::check_customer(authority, draft.customer())?;
         let date = terms.date.parse().map_err(TrialBillingError::Date)?;
         let paid = parse_rupees(terms.paid)?;
-        let selected = selected.with_bill_date(Some(date));
+        let selected = draft.clone().with_bill_date(Some(date));
         super::posting::validate_bill(&selected)?;
         let existing = authority
             .drafts

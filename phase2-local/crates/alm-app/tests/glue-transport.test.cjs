@@ -18,6 +18,7 @@ for (const action of ["draft_open", "sale_confirm", "sale_cancel", "sale_restore
       app: { addEventListener: (_, listener) => { click = listener; } },
       view,
       nav: { replaceChildren() {} },
+      "top-actions": { replaceChildren() {} },
       ttl: {},
       tsub: {},
     };

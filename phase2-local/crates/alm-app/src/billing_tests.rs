@@ -24,7 +24,10 @@ pub(crate) fn draft() -> ProvisionalDraft {
         DraftId::new(1),
         vec![DraftLine::new(ProductId::new(1), NonZeroU32::MIN)],
     )
-    .with_customer(DraftCustomer::Typed(CUSTOMER.into()))
+    .with_customer(DraftCustomer::Selected {
+        id: customer_id(),
+        name: CUSTOMER.into(),
+    })
 }
 
 #[test]
@@ -85,5 +88,26 @@ fn receipt_terms() -> crate::receipts::Terms {
         date: "2025-05-01".into(),
         amount: "30.50".into(),
         mode: crate::receipts::Mode::Online,
+    }
+}
+
+#[test]
+fn new_bill_renders_connected_choices_in_source_layout() {
+    let root = std::env::temp_dir().join(format!("alm-bill-markup-{}", std::process::id()));
+    std::fs::create_dir(&root).unwrap();
+    let mut trial = Trial::open(&root).unwrap();
+    let html = trial.render("bill").unwrap();
+    drop(trial);
+    std::fs::remove_dir_all(root).unwrap();
+    for markup in [
+        "data-title=\"New Bill\"",
+        "class=\"f3\"",
+        "value=\"batch1-customer\"",
+        "value=\"batch1-market\"",
+        "value=\"1\">Synthetic Lime",
+        "value=\"2\">Synthetic Soda",
+        "Bill Amount",
+    ] {
+        assert!(html.contains(markup), "missing {markup}");
     }
 }

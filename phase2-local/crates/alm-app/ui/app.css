@@ -10,6 +10,25 @@
   text-align: left;
 }
 
+.bill-items { overflow-x: auto; }
+.bill-line {
+  display: grid;
+  grid-template-columns: minmax(140px, 2fr) .85fr .9fr .7fr 1fr 72px;
+  min-width: 470px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.bill-labels {
+  padding: 0 2px 6px;
+  font-size: 11px;
+  color: var(--mut2);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  font-weight: 700;
+}
+.bill-totals { flex: 0 1 260px; }
+
 @media (max-width: 760px) {
   #app { flex-direction: column; }
   #app #side { display: flex; width: 100%; }

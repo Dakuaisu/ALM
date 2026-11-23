@@ -1,4 +1,4 @@
-use alm_core::confirmation::trial_billing::{CUSTOMER, SaleTerms, TrialBillingError};
+use alm_core::confirmation::trial_billing::{SaleTerms, TrialBillingError};
 use tauri::State;
 
 use crate::ipc::IpcId;
@@ -12,7 +12,9 @@ pub struct Terms {
 
 fn posting_error(error: TrialBillingError) -> String {
     match error {
-        TrialBillingError::Customer => format!("Use the named synthetic customer: {CUSTOMER}."),
+        TrialBillingError::Customer => {
+            "Select a connected customer on New Bill and save the draft.".into()
+        }
         TrialBillingError::NoSavedDraft => "Save or reopen the Manager draft first.".into(),
         TrialBillingError::NoReview => "Review the sale before confirming.".into(),
         TrialBillingError::ReviewLimit => "Review limit reached.".into(),

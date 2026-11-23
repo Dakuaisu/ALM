@@ -21,6 +21,13 @@ fn terms(paid: &str) -> SaleTerms<'_> {
     SaleTerms { date: DAY, paid }
 }
 
+fn selected_customer() -> DraftCustomer {
+    DraftCustomer::Selected {
+        id: customer_id(),
+        name: CUSTOMER.into(),
+    }
+}
+
 fn receipt_terms(amount: &str) -> ReceiptTerms<'_> {
     ReceiptTerms {
         date: DAY,
@@ -59,7 +66,7 @@ fn decimal_rupees_convert_exactly_at_the_i64_boundary() {
 fn posting_review_accepts_zero_and_half_rupee_without_posting() {
     let mut authority = fixture().unwrap();
     let mut posting = OwnerPosting::default();
-    let draft = draft(DraftCustomer::Typed(CUSTOMER.into()));
+    let draft = draft(selected_customer());
     for (paid, paise) in [("0", 0), (".5", 50), ("120.50", 12_050)] {
         posting
             .prepare(&mut authority, Role::Owner, Some(&draft), terms(paid))
@@ -114,6 +121,7 @@ fn selected_identity_is_not_rebound_by_its_label() {
             id: customer_id(),
             name: "Other".into(),
         },
+        DraftCustomer::Typed(CUSTOMER.into()),
         DraftCustomer::Typed("Other".into()),
         DraftCustomer::Unassigned,
     ] {
@@ -140,7 +148,7 @@ fn selected_identity_is_not_rebound_by_its_label() {
 fn manager_and_stale_serial_cannot_change_authority() {
     let mut authority = fixture().unwrap();
     let mut posting = OwnerPosting::default();
-    let draft = draft(DraftCustomer::Typed(CUSTOMER.into()));
+    let draft = draft(selected_customer());
     let before = authority.clone();
     let denied = TrialBillingError::Confirmation(ConfirmationError::AccessDenied);
     assert_eq!(
@@ -196,7 +204,7 @@ fn preview_preserves_current_review_and_serial_exhaustion_does_not_wrap() {
         last_serial: u64::MAX - 1,
         pending: None,
     };
-    let draft = draft(DraftCustomer::Typed(CUSTOMER.into()));
+    let draft = draft(selected_customer());
     posting
         .prepare(&mut authority, Role::Owner, Some(&draft), terms(".5"))
         .unwrap();
