@@ -99,4 +99,90 @@ impl ReadModel {
             today,
         })
     }
+
+    /// The Latest-balance estimate of any archived item bill, as the live app shows it
+    /// (`BalanceMode::Latest`): the customer's archived closing balance rounded once to whole
+    /// rupees, no previous-balance row.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects unknown or duplicated sales, crate lines, inconsistent amounts
+    /// and a missing customer.
+    pub fn latest_estimate(
+        &self,
+        role: Role,
+        id: &SaleId,
+        today: BillDate,
+    ) -> Result<EstimateDocument<'_>, Error> {
+        let records = self.records(role)?;
+        let mut matches = records.sales.iter().filter(|sale| sale.id == id.value());
+        let sale = matches.next().ok_or(Error::InvalidArchive)?;
+        if matches.next().is_some() || sale.lines.is_empty() {
+            return Err(Error::InvalidArchive);
+        }
+        let mut total = 0_i64;
+        let mut quantity = 0_u32;
+        let mut rows = Vec::with_capacity(sale.lines.len());
+        for line in &sale.lines {
+            if !matches!(line.kind, LineKind::Item)
+                || line.rate_minor.checked_mul(i64::from(line.quantity)) != Some(line.amount_minor)
+            {
+                return Err(Error::InvalidArchive);
+            }
+            total = total
+                .checked_add(line.amount_minor)
+                .ok_or(Error::InvalidArchive)?;
+            quantity = quantity
+                .checked_add(line.quantity)
+                .ok_or(Error::InvalidArchive)?;
+            rows.push(EstimateRow {
+                label: &line.item,
+                quantity: line.quantity,
+                price: Money::from_minor_units(line.rate_minor),
+                amount: Money::from_minor_units(line.amount_minor),
+            });
+        }
+        let loading = sale
+            .total_minor
+            .checked_sub(total)
+            .ok_or(Error::InvalidArchive)?;
+        let customer = records
+            .customers
+            .iter()
+            .find(|customer| customer.name == sale.customer)
+            .ok_or(Error::InvalidArchive)?;
+        let balance = round_balance(customer.balance_minor).ok_or(Error::InvalidArchive)?;
+        Ok(EstimateDocument {
+            invoice: sale.number,
+            date: sale.date,
+            customer: &sale.customer,
+            lines: rows,
+            items_quantity: quantity,
+            items_total: Money::from_minor_units(total),
+            loading: Money::from_minor_units(loading),
+            total: Money::from_minor_units(sale.total_minor),
+            paid: Money::from_minor_units(sale.paid_minor),
+            cancelled: sale.cancelled,
+            balance_mode: BalanceMode::Latest,
+            balance: Money::from_minor_units(balance),
+            previous_balance: None,
+            today,
+        })
+    }
+
+    /// The printable estimate of `latest_estimate` with this archive's business profile.
+    ///
+    /// # Errors
+    /// As [`Self::latest_estimate`].
+    pub fn latest_estimate_html(
+        &self,
+        role: Role,
+        id: &SaleId,
+        today: BillDate,
+    ) -> Result<String, Error> {
+        let document = self.latest_estimate(role, id, today)?;
+        Ok(render_estimate(
+            &document,
+            Some(self.business_profile(role)?),
+        ))
+    }
 }

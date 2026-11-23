@@ -130,11 +130,10 @@ impl ConfirmationFixture {
     }
 }
 
-pub(super) fn estimate_html(
-    preview: &BillPreview,
-    display: EstimateDisplay<'_>,
-    profile: Option<&crate::synthetic_read_model::BusinessProfile>,
-) -> String {
+pub(super) fn estimate_document<'a>(
+    preview: &'a BillPreview,
+    display: EstimateDisplay<'a>,
+) -> EstimateDocument<'a> {
     let lines = preview
         .lines
         .iter()
@@ -146,25 +145,30 @@ pub(super) fn estimate_html(
             amount: line.amount,
         })
         .collect();
-    render_estimate(
-        &EstimateDocument {
-            invoice: preview.invoice,
-            date: preview.date,
-            customer: &preview.customer,
-            lines,
-            items_quantity: preview.items_quantity,
-            items_total: preview.items_total,
-            loading: preview.loading,
-            total: preview.total,
-            paid: preview.paid,
-            cancelled: preview.cancelled,
-            balance_mode: preview.balance_mode,
-            balance: preview.balance,
-            previous_balance: preview.previous_balance,
-            today: display.today,
-        },
-        profile,
-    )
+    EstimateDocument {
+        invoice: preview.invoice,
+        date: preview.date,
+        customer: &preview.customer,
+        lines,
+        items_quantity: preview.items_quantity,
+        items_total: preview.items_total,
+        loading: preview.loading,
+        total: preview.total,
+        paid: preview.paid,
+        cancelled: preview.cancelled,
+        balance_mode: preview.balance_mode,
+        balance: preview.balance,
+        previous_balance: preview.previous_balance,
+        today: display.today,
+    }
+}
+
+pub(super) fn estimate_html(
+    preview: &BillPreview,
+    display: EstimateDisplay<'_>,
+    profile: Option<&crate::synthetic_read_model::BusinessProfile>,
+) -> String {
+    render_estimate(&estimate_document(preview, display), profile)
 }
 
 pub use super::estimate_view::{EstimateDocument, EstimateRow};

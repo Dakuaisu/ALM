@@ -294,6 +294,7 @@ impl ReadModel {
         role: Role,
         records: Records,
         ledger: Option<crate::confirmation::GstBillLedger>,
+        orders: Option<Vec<ArchivedPurchaseOrder>>,
     ) -> Result<Vec<u8>, Error> {
         owner(role)?;
         let (standalone_gst, standalone_gst_deleted) = match ledger {
@@ -309,7 +310,7 @@ impl ReadModel {
             profile: self.profile.clone(),
             scope: self.scope.clone(),
             gst: self.gst.clone(),
-            purchase_orders: self.purchase_orders.clone(),
+            purchase_orders: orders.or_else(|| self.purchase_orders.clone()),
             standalone_gst,
             standalone_gst_deleted,
         };
@@ -358,7 +359,7 @@ mod backup_with_tests {
         let mut records = f.archive_records(Role::Owner, &directory()).unwrap();
         records.reorder_default = 11;
         let bytes = model
-            .backup_with(Role::Owner, records.clone(), None)
+            .backup_with(Role::Owner, records.clone(), None, None)
             .unwrap();
         let restored = ReadModel::restore(Role::Owner, &bytes, |_| Ok(())).unwrap();
         assert_eq!(restored.records(Role::Owner).unwrap(), &records);
@@ -372,11 +373,11 @@ mod backup_with_tests {
             deleted: vec![GstBillId(1), GstBillId(1)],
         };
         assert!(matches!(
-            model.backup_with(Role::Owner, records.clone(), Some(clash)),
+            model.backup_with(Role::Owner, records.clone(), Some(clash), None),
             Err(Error::InvalidArchive)
         ));
         assert!(matches!(
-            model.backup_with(Role::Manager, records, None),
+            model.backup_with(Role::Manager, records, None, None),
             Err(Error::AccessDenied)
         ));
     }

@@ -66,14 +66,19 @@ pub fn purchases_screen(
     for row in &list.rows {
         let (class, label) = status(row.status);
         let id = row.id.index();
-        let actions = if row.status.can_receive() {
-            format!(
-                r#"<button class="btn sm primary" data-action="po_receive" data-id="{id}">Receive</button> <details style="display:inline-block"><summary class="btn sm danger">Close remaining</summary><button class="btn sm danger" data-action="po_close" data-id="{id}">Close {} unreceived (no stock change)</button></details>"#,
-                indian_digits(row.remaining)
-            )
-        } else {
-            String::new()
-        };
+        let print = format!(
+            r#"<button class="btn sm" data-action="print_open" data-q="poprint" data-id="{}">🖨 Print</button> "#,
+            row.selection.number
+        );
+        let actions = print
+            + &if row.status.can_receive() {
+                format!(
+                    r#"<button class="btn sm primary" data-action="po_receive" data-id="{id}">Receive</button> <details style="display:inline-block"><summary class="btn sm danger">Close remaining</summary><button class="btn sm danger" data-action="po_close" data-id="{id}">Close {} unreceived (no stock change)</button></details>"#,
+                    indian_digits(row.remaining)
+                )
+            } else {
+                String::new()
+            };
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td><b>{}</b></td><td>{}</td><td><span class="tag {class}">{label}</span></td><td class="num">{} / {}</td><td class="num">{}</td><td class="num">{actions}</td></tr>"#,

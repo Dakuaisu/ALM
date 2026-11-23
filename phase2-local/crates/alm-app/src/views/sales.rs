@@ -127,7 +127,7 @@ pub fn sales_screen(
                 "",
                 "",
                 format!(
-                    r#"<button class="btn sm" data-action="share_file" data-command="bill_image_share" data-id="{id}">🖼 Image</button> <button class="btn sm" data-action="sale_edit_open" data-id="{id}">Edit</button> <details style="display:inline-block"><summary class="btn sm danger">Cancel</summary><button class="btn sm danger" data-action="sale_cancel" data-id="{id}">Cancel this bill</button></details>"#
+                    r#"<button class="btn sm" data-action="print_open" data-q="estimate" data-id="{id}">🖨 Estimate</button> <button class="btn sm" data-action="share_file" data-command="bill_image_share" data-id="{id}">🖼 Image</button> <button class="btn sm" data-action="sale_edit_open" data-id="{id}">Edit</button> <details style="display:inline-block"><summary class="btn sm danger">Cancel</summary><button class="btn sm danger" data-action="sale_cancel" data-id="{id}">Cancel this bill</button></details>"#
                 ),
             )
         };

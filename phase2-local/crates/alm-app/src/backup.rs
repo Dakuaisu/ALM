@@ -64,7 +64,7 @@ impl Trial {
         let ledger = self.authority.gst_bill_ledger(role).map_err(debug)?;
         let bytes = self
             .shop
-            .backup_with(role, records, Some(ledger))
+            .backup_with(role, records, Some(ledger), Some(self.archived_orders()?))
             .map_err(debug)?;
         let dir = self.backup_dir();
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;

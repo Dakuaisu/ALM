@@ -2,6 +2,7 @@
 //! every size, position, text, colour and value; the caller only measures text with its font
 //! (for the address wrap and the mobile after the name) and rasterizes the operations.
 use super::estimate::display_date;
+use super::estimate::{EstimateDocument, estimate_document};
 use super::image_handoff::format_amount;
 use super::{BalanceMode, ConfirmationFixture, EstimateError, EstimateRequest};
 use crate::synthetic_read_model::BusinessProfile;
@@ -150,12 +151,28 @@ impl ConfirmationFixture {
         party: &BillImageParty<'_>,
         measure: &dyn Fn(&str, u32, FontStyle) -> f32,
     ) -> Result<BillImage, EstimateError> {
-        use FontStyle::{Bold, Italic, Regular, SemiBold};
-        use TextAlign::{Center, Left, Right};
-        let bill = self.preview_estimate(request)?;
+        let preview = self.preview_estimate(request)?;
+        Ok(bill_image_layout(
+            &estimate_document(&preview, request.display),
+            party,
+            measure,
+        ))
+    }
+}
+
+/// Lays out the bill image for an estimate document, from the live fixture or a reopened
+/// archive (`ReadModel::latest_estimate`).
+pub fn bill_image_layout(
+    bill: &EstimateDocument<'_>,
+    party: &BillImageParty<'_>,
+    measure: &dyn Fn(&str, u32, FontStyle) -> f32,
+) -> BillImage {
+    use FontStyle::{Bold, Italic, Regular, SemiBold};
+    use TextAlign::{Center, Left, Right};
+    {
         let w = BILL_IMAGE_WIDTH;
         let rupees = |m| format!("₹{}", format_amount(m));
-        let use_live = request.balance_mode == BalanceMode::Latest;
+        let use_live = bill.balance_mode == BalanceMode::Latest;
         let mut summary = vec![
             ("Loading/Delivery".to_owned(), rupees(bill.loading)),
             ("Bill Amount".to_owned(), rupees(bill.total)),
@@ -176,7 +193,7 @@ impl ConfirmationFixture {
             rupees(bill.paid),
         ));
         let due_label = if use_live {
-            format!("Total Due (as on {})", display_date(request.display.today))
+            format!("Total Due (as on {})", display_date(bill.today))
         } else {
             "Balance Due".to_owned()
         };
@@ -276,10 +293,10 @@ impl ConfirmationFixture {
             (PAD, name_y),
             (14, Bold, Left),
             0x000000,
-            bill.customer.clone(),
+            bill.customer,
         );
         if !party.customer_mobile.is_empty() {
-            let after = measure(&bill.customer, 14, Bold);
+            let after = measure(bill.customer, 14, Bold);
             #[allow(clippy::cast_possible_truncation)]
             let x = PAD + after.round() as i32;
             text(
@@ -319,8 +336,8 @@ impl ConfirmationFixture {
             );
         }
         let mut ty = rows_y;
-        for (i, (line, label)) in bill.lines.iter().zip(request.display.lines).enumerate() {
-            let name: String = label.label.chars().take(40).collect();
+        for (i, line) in bill.lines.iter().enumerate() {
+            let name: String = line.label.chars().take(40).collect();
             text(
                 &mut ops,
                 (PAD + 4, ty),
@@ -444,12 +461,12 @@ impl ConfirmationFixture {
             0x000000,
             "Proprietor",
         );
-        Ok(BillImage {
+        BillImage {
             width: w,
             height,
             scale: BILL_IMAGE_SCALE,
             ops,
-        })
+        }
     }
 }
 

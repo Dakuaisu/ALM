@@ -5,6 +5,8 @@
 mod backup;
 #[cfg(test)]
 mod batch2;
+#[cfg(test)]
+mod batch3;
 mod bill_entry;
 mod billing;
 #[cfg(test)]
@@ -113,6 +115,8 @@ struct Trial {
     device_root: std::path::PathBuf,
     /// The last restored backup, opened read-only at a fresh path.
     restored: Option<(String, alm_store::synthetic_read_model::Store)>,
+    /// The bill or PO number shown on the estimate / PO print views.
+    print_view: Option<u64>,
 }
 
 type AppState = Mutex<Trial>;
@@ -190,6 +194,7 @@ impl Trial {
             shop,
             device_root: device_root.to_path_buf(),
             restored: None,
+            print_view: None,
         })
     }
 
@@ -410,6 +415,22 @@ impl Trial {
                 let (html, title) = page?;
                 views::gst_screen(&html, &title)
             }
+            "estimate" => {
+                let id = self.print_view.ok_or("No bill selected.")?;
+                let html = self.estimate_html(DraftId::new(id))?;
+                views::gst_screen(&html, &format!("Estimate-{id}")).replace(
+                    "Standalone GST tax invoice — not linked to stock or dues.",
+                    "Estimate (not a tax invoice).",
+                )
+            }
+            "poprint" => {
+                let number = self.print_view.ok_or("No purchase order selected.")?;
+                let html = self.po_print_html(number)?;
+                views::gst_screen(&html, &format!("PO-{number:03}")).replace(
+                    "Standalone GST tax invoice — not linked to stock or dues.",
+                    "Purchase order for the supplier.",
+                )
+            }
             "bill" => self.render_bill()?,
             _ => return Err("Unknown screen.".into()),
         };
@@ -602,6 +623,7 @@ pub fn run() {
             outputs::bill_image_share,
             outputs::open_url,
             outputs::export_file,
+            outputs::print_open,
             settings::settings_profile,
             settings::settings_theme,
             settings::settings_balance,

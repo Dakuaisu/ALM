@@ -159,33 +159,8 @@ impl ConfirmationFixture {
         header: (&str, &str, &str),
         today: BillDate,
     ) -> Result<Option<String>, ProductEntryError> {
-        use super::estimate::escape_text as esc;
         let (groups, sub) = self.rate_groups(role, selection)?;
-        if groups.is_empty() {
-            return Ok(None);
-        }
-        let (name, tagline, mobile) = header;
-        let sub = if sub.is_empty() {
-            String::new()
-        } else {
-            format!("— {}", esc(&sub))
-        };
-        let mut html = format!(
-            "<div style=\"background:#fff;color:#1a1a1a;padding:22px;max-width:760px;margin:0 auto\">\n    <div style=\"text-align:center;border-bottom:3px solid #2563eb;padding-bottom:10px;margin-bottom:14px\">\n      <div style=\"font-size:22px;font-weight:800;color:#1d4ed8\">{}</div>\n      <div style=\"font-size:12px;color:#555\">{} · Mob: {}</div>\n      <div style=\"font-size:13px;font-weight:700;margin-top:6px\">RATE LIST {sub} <span style=\"font-weight:400;color:#888\">({})</span></div>\n    </div>",
-            esc(name),
-            esc(tagline),
-            esc(mobile),
-            display_date(today)
-        );
-        for (group, items) in groups {
-            html.push_str(&format!("<div style=\"font-weight:700;color:#1d4ed8;margin:10px 0 4px;font-size:14px\">{}</div>\n    <table style=\"width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px\">\n    <thead><tr style=\"background:#eef2fb\"><th style=\"text-align:left;padding:5px 8px;border:1px solid #dbe3f4\">Item</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">Pack</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">MRP</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">Our Rate</th></tr></thead><tbody>", esc(&group)));
-            for (item, rate) in items {
-                html.push_str(&format!("<tr><td style=\"padding:4px 8px;border:1px solid #eee\">{}</td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:center\"></td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:right\"></td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:right;font-weight:700\">₹{}</td></tr>", esc(&item), format_amount(rate)));
-            }
-            html.push_str("</tbody></table>");
-        }
-        html.push_str("<div style=\"font-size:11px;color:#888;margin-top:8px\">Rates are per case/packet and subject to change. * E.&amp;O.E.</div></div>");
-        Ok(Some(html))
+        Ok(render_rate_list(groups, &sub, header, today))
     }
 
     /// The WhatsApp text and its `wa.me` link for the ticked products, or `None` if none.
@@ -217,6 +192,61 @@ impl ConfirmationFixture {
         append_uri_component(&mut uri, &text);
         Ok(Some((text, uri)))
     }
+}
+
+/// The rate list of an archive's products as a fresh device prints it (every product ticked),
+/// in archive (catalog) order within each brand, like the live list.
+pub fn rate_list_html_from_records(
+    records: &crate::synthetic_read_model::Records,
+    header: (&str, &str, &str),
+    today: BillDate,
+) -> Option<String> {
+    let mut groups: BTreeMap<String, Vec<(String, Money)>> = BTreeMap::new();
+    for product in &records.products {
+        groups
+            .entry(brand(&product.company).to_owned())
+            .or_default()
+            .push((
+                product.item.clone(),
+                Money::from_minor_units(product.sell_minor),
+            ));
+    }
+    // Every brand is ticked, so the subtitle (fewer than all brands) never applies.
+    render_rate_list(groups, "", header, today)
+}
+
+fn render_rate_list(
+    groups: BTreeMap<String, Vec<(String, Money)>>,
+    sub: &str,
+    header: (&str, &str, &str),
+    today: BillDate,
+) -> Option<String> {
+    use super::estimate::escape_text as esc;
+    if groups.is_empty() {
+        return None;
+    }
+    let (name, tagline, mobile) = header;
+    let sub = if sub.is_empty() {
+        String::new()
+    } else {
+        format!("— {}", esc(sub))
+    };
+    let mut html = format!(
+        "<div style=\"background:#fff;color:#1a1a1a;padding:22px;max-width:760px;margin:0 auto\">\n    <div style=\"text-align:center;border-bottom:3px solid #2563eb;padding-bottom:10px;margin-bottom:14px\">\n      <div style=\"font-size:22px;font-weight:800;color:#1d4ed8\">{}</div>\n      <div style=\"font-size:12px;color:#555\">{} · Mob: {}</div>\n      <div style=\"font-size:13px;font-weight:700;margin-top:6px\">RATE LIST {sub} <span style=\"font-weight:400;color:#888\">({})</span></div>\n    </div>",
+        esc(name),
+        esc(tagline),
+        esc(mobile),
+        display_date(today)
+    );
+    for (group, items) in groups {
+        html.push_str(&format!("<div style=\"font-weight:700;color:#1d4ed8;margin:10px 0 4px;font-size:14px\">{}</div>\n    <table style=\"width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px\">\n    <thead><tr style=\"background:#eef2fb\"><th style=\"text-align:left;padding:5px 8px;border:1px solid #dbe3f4\">Item</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">Pack</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">MRP</th><th style=\"padding:5px 8px;border:1px solid #dbe3f4\">Our Rate</th></tr></thead><tbody>", esc(&group)));
+        for (item, rate) in items {
+            html.push_str(&format!("<tr><td style=\"padding:4px 8px;border:1px solid #eee\">{}</td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:center\"></td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:right\"></td><td style=\"padding:4px 8px;border:1px solid #eee;text-align:right;font-weight:700\">₹{}</td></tr>", esc(&item), format_amount(rate)));
+        }
+        html.push_str("</tbody></table>");
+    }
+    html.push_str("<div style=\"font-size:11px;color:#888;margin-top:8px\">Rates are per case/packet and subject to change. * E.&amp;O.E.</div></div>");
+    Some(html)
 }
 
 #[cfg(test)]
