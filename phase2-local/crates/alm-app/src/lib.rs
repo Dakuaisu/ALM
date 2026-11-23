@@ -14,6 +14,7 @@ mod gst_sales;
 mod ipc;
 mod order;
 mod products;
+mod purchases;
 mod receipts;
 #[cfg(test)]
 mod screen_tests;
@@ -92,6 +93,7 @@ struct Trial {
     gst_view: GstBillId,
     products: views::ProductsState,
     order: views::OrderState,
+    receiving: Option<alm_core::confirmation::PurchaseOrderId>,
 }
 
 type AppState = Mutex<Trial>;
@@ -146,6 +148,7 @@ impl Trial {
             gst_view: TRIAL_BILL,
             products: views::ProductsState::default(),
             order: views::OrderState::default(),
+            receiving: None,
         })
     }
 
@@ -229,6 +232,12 @@ impl Trial {
             "order" => {
                 views::order_screen(&self.authority, self.role(), &self.order).map_err(debug)?
             }
+            "purchases" => views::purchases_screen(
+                &self.authority,
+                self.role(),
+                self.receiving,
+                self.today()?,
+            )?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -467,6 +476,10 @@ pub fn run() {
             order::order_checkout,
             order::order_po,
             order::order_discard,
+            purchases::po_receive,
+            purchases::po_receive_close,
+            purchases::po_receive_save,
+            purchases::po_close,
             print_page,
             share_text
         ])

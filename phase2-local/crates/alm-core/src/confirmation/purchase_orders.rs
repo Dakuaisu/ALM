@@ -1,5 +1,6 @@
 mod fresh_form;
 mod note_edit;
+mod order_list;
 pub mod order_planner;
 pub(crate) mod output;
 mod paste;
@@ -18,6 +19,7 @@ use super::{ConfirmationError, ConfirmationFixture};
 
 pub use fresh_form::{FreshPurchaseOrderForm, FreshPurchaseOrderLine};
 pub use note_edit::PurchaseOrderNoteEdit;
+pub use order_list::{PurchaseOrderList, PurchaseOrderRow};
 pub use output::{
     PurchaseBusiness, PurchaseOrderHandoff, PurchaseOrderSelection, PurchaseOrderStatus,
     PurchaseOrderView, PurchaseOutputRequest, PurchaseProductDisplay, PurchaseProgressLine,

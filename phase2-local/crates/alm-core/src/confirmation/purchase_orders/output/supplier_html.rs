@@ -24,7 +24,7 @@ pub(crate) struct SupplierRow<'a> {
     pub(crate) ordered: NonZeroU32,
 }
 
-pub(super) fn purchase_order_number(number: u64) -> String {
+pub(in crate::confirmation::purchase_orders) fn purchase_order_number(number: u64) -> String {
     format!("PO-{number:03}")
 }
 

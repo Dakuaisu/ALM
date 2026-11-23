@@ -16,6 +16,7 @@ mod gst_sales;
 mod icons;
 mod order;
 mod products;
+mod purchases;
 mod receipt;
 mod reorder;
 mod sales;
@@ -33,6 +34,7 @@ pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;
 pub use order::{OrderState, order_screen};
 pub use products::{ProductsState, products_screen};
+pub use purchases::purchases_screen;
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
@@ -49,6 +51,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("review", "Owner review"),
             ("sales", "Sales"),
             ("receipt", "Receive Payment"),
+            ("purchases", "Purchase Orders"),
             ("gstsales", "GST Sales"),
             ("expenses", "Cash Book"),
         ],
@@ -78,6 +81,10 @@ pub fn tabs(active: &str) -> String {
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),
         "suppliers" => ("Suppliers", "Where you buy stock from"),
+        "purchases" => (
+            "Purchase Orders",
+            "Order stock — inventory updates only when goods are received",
+        ),
         "order" => (
             "Order Planner",
             "Pick items into the cart, then create the purchase",

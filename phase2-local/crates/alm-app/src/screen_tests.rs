@@ -629,3 +629,88 @@ fn order_planner_cart_po_and_paste_follow_core_without_stock() {
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
 }
+
+#[test]
+fn purchases_receive_dated_partials_close_remaining_and_deny_the_manager() {
+    use alm_core::ProductId;
+    use std::collections::HashMap;
+    let root = Root::new("purchases");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial
+        .order_add(&crate::order::Line {
+            product: "2".into(),
+            qty: "10".into(),
+        })
+        .unwrap();
+    trial.order_checkout().unwrap();
+    trial
+        .order_po(&crate::order::Po {
+            supplier: "Synthetic Depot".into(),
+            date: "2025-04-30".into(),
+            note: "".into(),
+            paste: "".into(),
+            intent: "save".into(),
+        })
+        .unwrap();
+    let html = trial.render("purchases").unwrap();
+    assert!(html.contains(r#"<td><b>PO-001</b></td><td>Synthetic Depot</td><td><span class="tag low">Pending</span></td><td class="num">0 / 10</td><td class="num">₹360</td>"#), "{html}");
+    let receive = |date: &str, qty: &str, rate: &str| -> HashMap<String, String> {
+        [
+            ("po", "0"),
+            ("date", date),
+            ("qty_0", qty),
+            ("rate_0", rate),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect()
+    };
+    trial
+        .po_receive_save(receive("2025-05-01", "3", "36"))
+        .unwrap();
+    trial
+        .po_receive_save(receive("2025-05-03", "4", "37.50"))
+        .unwrap();
+    assert!(
+        trial
+            .po_receive_save(receive("2025-05-03", "0", ""))
+            .is_err()
+    );
+    let lots = trial
+        .authority
+        .open_stock_lots(Role::Owner, ProductId::new(2))
+        .unwrap();
+    let layers: Vec<_> = lots
+        .rows
+        .iter()
+        .map(|lot| (lot.remaining.get(), lot.unit_cost.map(|c| c.minor_units())))
+        .collect();
+    assert_eq!(
+        layers,
+        [(40, Some(3_800)), (3, Some(3_600)), (4, Some(3_750))]
+    );
+    let html = trial.render("purchases").unwrap();
+    assert!(html.contains(
+        r#"<span class="tag credit">Partially Received</span></td><td class="num">7 / 10</td>"#
+    ));
+    assert!(html.contains("Close 3 unreceived"));
+    let id = trial.purchase_id(0).unwrap();
+    trial
+        .authority
+        .close_remaining(Role::Owner, id, true)
+        .unwrap();
+    let html = trial.render("purchases").unwrap();
+    assert!(
+        html.contains(r#"<span class="tag ok">Completed</span></td><td class="num">7 / 10</td>"#)
+    );
+    assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(47));
+    trial.owner = false;
+    let html = trial.render("purchases").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+    assert!(
+        trial
+            .po_receive_save(receive("2025-05-04", "1", ""))
+            .is_err()
+    );
+}

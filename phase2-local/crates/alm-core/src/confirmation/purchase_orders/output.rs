@@ -1,4 +1,4 @@
-mod supplier_html;
+pub(super) mod supplier_html;
 mod whatsapp;
 
 use crate::confirmation::PopupDocument;
