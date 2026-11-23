@@ -243,6 +243,7 @@ fn sub(left: Money, right: Money) -> Result<Money, ManualCashBookError> {
         .ok_or(ManualCashBookError::Overflow)
 }
 
+// Converts whole-rupee system figures, not typed text; typed amounts use `Money::parse_rupees`.
 fn from_rupees(rupees: i64) -> Result<Money, ManualCashBookError> {
     rupees
         .checked_mul(100)

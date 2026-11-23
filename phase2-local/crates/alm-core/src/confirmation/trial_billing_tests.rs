@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use super::{
     CUSTOMER, DAY, OwnerPosting, ReceiptTerms, SaleTerms, TrialBillingError, customer_id, fixture,
-    parse_rupees, preview_unit_prices, priced_draft, save_receipt,
+    preview_unit_prices, priced_draft, save_receipt,
 };
 use crate::confirmation::{ConfirmationError, ProposedPayment, ReceiptMode};
 use crate::{
@@ -33,32 +33,6 @@ fn receipt_terms(amount: &str) -> ReceiptTerms<'_> {
         date: DAY,
         amount,
         mode: ReceiptMode::Cash,
-    }
-}
-
-#[test]
-fn decimal_rupees_convert_exactly_at_the_i64_boundary() {
-    for (text, paise) in [
-        ("0", 0),
-        ("  .5 ", 50),
-        (".01", 1),
-        ("1.", 100),
-        ("20.00", 2_000),
-        ("92233720368547758.07", i64::MAX),
-    ] {
-        assert_eq!(parse_rupees(text), Ok(Money::from_minor_units(paise)));
-    }
-    for text in [
-        "", " ", ".", "+1", "-0.01", "1e2", "1.2.3", "0.001", "1,000", "١",
-    ] {
-        assert_eq!(parse_rupees(text), Err(ConfirmationError::InvalidAmount));
-    }
-    for text in [
-        "92233720368547758.08",
-        "92233720368547759",
-        "9223372036854775808",
-    ] {
-        assert_eq!(parse_rupees(text), Err(ConfirmationError::Overflow));
     }
 }
 

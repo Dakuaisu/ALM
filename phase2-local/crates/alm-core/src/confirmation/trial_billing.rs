@@ -222,31 +222,10 @@ const fn require_owner(role: Role) -> Result<(), ConfirmationError> {
 }
 
 fn parse_rupees(text: &str) -> Result<Money, ConfirmationError> {
-    let text = text.trim();
-    let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
-    if (whole.is_empty() && fraction.is_empty())
-        || fraction.len() > 2
-        || !whole
-            .bytes()
-            .chain(fraction.bytes())
-            .all(|b| b.is_ascii_digit())
-    {
-        return Err(ConfirmationError::InvalidAmount);
-    }
-    let whole = if whole.is_empty() {
-        0
-    } else {
-        whole
-            .parse::<i64>()
-            .map_err(|_| ConfirmationError::Overflow)?
-    };
-    let mut digits = fraction.bytes().map(|digit| i64::from(digit - b'0'));
-    let paise = 10 * digits.next().unwrap_or(0) + digits.next().unwrap_or(0);
-    whole
-        .checked_mul(100)
-        .and_then(|value| value.checked_add(paise))
-        .map(Money::from_minor_units)
-        .ok_or(ConfirmationError::Overflow)
+    Money::parse_rupees(text).map_err(|error| match error {
+        crate::RupeesError::Invalid => ConfirmationError::InvalidAmount,
+        crate::RupeesError::Overflow => ConfirmationError::Overflow,
+    })
 }
 
 #[cfg(test)]

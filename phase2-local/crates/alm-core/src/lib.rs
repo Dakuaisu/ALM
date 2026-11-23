@@ -39,10 +39,45 @@ impl Money {
         self.0
     }
 
+    /// Parses typed non-negative rupees with at most two decimals ("20", ".5", "1.", "120.50").
+    /// Signs, exponents, separators and non-ASCII digits are rejected; nothing is rounded.
+    pub fn parse_rupees(text: &str) -> Result<Self, RupeesError> {
+        let text = text.trim();
+        let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
+        if (whole.is_empty() && fraction.is_empty())
+            || fraction.len() > 2
+            || !whole
+                .bytes()
+                .chain(fraction.bytes())
+                .all(|b| b.is_ascii_digit())
+        {
+            return Err(RupeesError::Invalid);
+        }
+        let whole = if whole.is_empty() {
+            0
+        } else {
+            whole.parse::<i64>().map_err(|_| RupeesError::Overflow)?
+        };
+        let mut digits = fraction.bytes().map(|digit| i64::from(digit - b'0'));
+        let paise = 10 * digits.next().unwrap_or(0) + digits.next().unwrap_or(0);
+        whole
+            .checked_mul(100)
+            .and_then(|value| value.checked_add(paise))
+            .map(Self)
+            .ok_or(RupeesError::Overflow)
+    }
+
     /// Whole-rupee display value; half ties round toward positive infinity.
     pub const fn rounded_rupees(self) -> i64 {
         self.0.div_euclid(100) + if self.0.rem_euclid(100) >= 50 { 1 } else { 0 }
     }
+}
+
+/// Typed rupee text that is not an exact non-negative paise amount.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RupeesError {
+    Invalid,
+    Overflow,
 }
 
 /// Synthetic roles selected by the trusted local harness, not authenticated accounts.
@@ -133,6 +168,40 @@ impl SalesSession<'_> {
         match self.role {
             Role::Owner => Ok(self.sales.total_profit),
             Role::Manager => Err(AccessDenied),
+        }
+    }
+}
+
+#[cfg(test)]
+mod money_tests {
+    use super::{Money, RupeesError};
+
+    #[test]
+    fn decimal_rupees_convert_exactly_at_the_i64_boundary() {
+        for (text, paise) in [
+            ("0", 0),
+            ("  .5 ", 50),
+            (".01", 1),
+            ("1.", 100),
+            ("20.00", 2_000),
+            ("92233720368547758.07", i64::MAX),
+        ] {
+            assert_eq!(
+                Money::parse_rupees(text),
+                Ok(Money::from_minor_units(paise))
+            );
+        }
+        for text in [
+            "", " ", ".", "+1", "-0.01", "1e2", "1.2.3", "0.001", "1,000", "١",
+        ] {
+            assert_eq!(Money::parse_rupees(text), Err(RupeesError::Invalid));
+        }
+        for text in [
+            "92233720368547758.08",
+            "92233720368547759",
+            "9223372036854775808",
+        ] {
+            assert_eq!(Money::parse_rupees(text), Err(RupeesError::Overflow));
         }
     }
 }
