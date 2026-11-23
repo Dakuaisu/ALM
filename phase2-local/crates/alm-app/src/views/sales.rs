@@ -5,8 +5,8 @@ use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, ReceiptMode
 use alm_core::{BillDate, Role};
 
 use super::{customer, denied, money_r};
-use crate::billing::DAY;
 use crate::gst_print::{esc, indian_digits};
+use alm_core::confirmation::trial_billing::DAY;
 
 #[derive(serde::Deserialize)]
 pub struct SalesFilter {

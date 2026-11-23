@@ -6,6 +6,7 @@ mod billing;
 #[cfg(test)]
 mod billing_tests;
 mod gst_print;
+mod ipc;
 mod receipts;
 mod views;
 
@@ -13,6 +14,7 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use std::path::Path;
 use std::sync::Mutex;
 
+use alm_core::confirmation::trial_billing::{self, OwnerPosting};
 use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillLineInput, GstUnit,
 };
@@ -58,8 +60,7 @@ struct Trial {
     current: Option<(ProvisionalDraft, bool)>,
     owner: bool,
     message: String,
-    posting: Option<billing::Posting>,
-    review_serial: u64,
+    posting: OwnerPosting,
     sales_filter: views::Filter,
 }
 
@@ -69,7 +70,7 @@ impl Trial {
     fn open(device_root: &Path) -> Result<Self, String> {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
         let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
-        let mut authority = billing::fixture()?;
+        let mut authority = trial_billing::fixture().map_err(debug)?;
         authority
             .load_gst_bills_from(Role::Owner, &gst)
             .map_err(debug)?;
@@ -102,8 +103,7 @@ impl Trial {
             current: None,
             owner: true,
             message: String::new(),
-            posting: None,
-            review_serial: 0,
+            posting: Default::default(),
             sales_filter: views::Filter::default(),
         })
     }
@@ -147,10 +147,7 @@ impl Trial {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
                 let prices = match draft {
-                    Some(draft) => self
-                        .authority
-                        .reconnect_review(role, draft.clone())
-                        .map(|review| review.unit_prices().to_vec()),
+                    Some(draft) => trial_billing::preview_unit_prices(&self.authority, role, draft),
                     None => Ok(Vec::new()),
                 };
                 let mut html = views::review_screen(&views::ReviewView {
@@ -160,7 +157,7 @@ impl Trial {
                 });
                 if self.owner {
                     html += &views::posting_review(
-                        self.posting.as_ref(),
+                        self.posting.pending(role),
                         self.current.as_ref().is_some_and(|(_, saved)| *saved),
                     );
                 }
@@ -236,7 +233,7 @@ fn draft_new(state: State<'_, AppState>, customer: String) -> Result<String, Str
         )
         .with_customer(DraftCustomer::Typed(customer.trim().to_owned()));
         trial.current = Some((draft, false));
-        trial.posting = None;
+        trial.posting.invalidate();
         trial.message = format!("New draft {id}: UNSAVED.");
         Ok(())
     })
@@ -262,7 +259,7 @@ fn draft_quantity(
             .ok_or("Unknown line.")?;
         if previous != quantity {
             *saved = false;
-            trial.posting = None;
+            trial.posting.invalidate();
         }
         Ok(())
     })
@@ -285,7 +282,8 @@ fn draft_save(state: State<'_, AppState>) -> Result<String, String> {
 }
 
 #[tauri::command(async)]
-fn draft_open(state: State<'_, AppState>, id: u64) -> Result<String, String> {
+fn draft_open(state: State<'_, AppState>, id: ipc::IpcId) -> Result<String, String> {
+    let id = id.value();
     with(&state, "draft", |trial| {
         let draft = trial
             .drafts
@@ -293,7 +291,7 @@ fn draft_open(state: State<'_, AppState>, id: u64) -> Result<String, String> {
             .map_err(text)?
             .ok_or("Draft not found.")?;
         trial.current = Some((draft, true));
-        trial.posting = None;
+        trial.posting.invalidate();
         trial.message = format!("Opened draft {id}: SAVED.");
         Ok(())
     })
@@ -303,7 +301,7 @@ fn draft_open(state: State<'_, AppState>, id: u64) -> Result<String, String> {
 fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, String> {
     with(&state, "review", |trial| {
         if trial.owner != owner {
-            trial.posting = None;
+            trial.posting.invalidate();
         }
         trial.owner = owner;
         Ok(())

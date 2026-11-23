@@ -3,7 +3,7 @@ use alm_core::Role;
 use alm_core::confirmation::{ConfirmationError, ConfirmationFixture};
 
 use super::{denied, money_r};
-use crate::billing::{CUSTOMER, customer_id};
+use alm_core::confirmation::trial_billing::{CUSTOMER, customer_id};
 
 pub fn receipt_screen(
     fixture: &ConfirmationFixture,

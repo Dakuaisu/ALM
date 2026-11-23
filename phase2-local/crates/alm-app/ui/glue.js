@@ -41,7 +41,7 @@ async function act(element, submitter) {
   const fields = element.tagName === "FORM" ? Object.fromEntries(new FormData(element, submitter)) : {};
   const args = data.payload ? { [data.payload]: fields } : fields;
   if (data.line) args.line = Number(data.line);
-  if (data.id) args.id = Number(data.id);
+  if (data.id !== undefined) args.id = data.id;
   if (data.owner) args.owner = data.owner === "true";
   return run(action, args);
 }

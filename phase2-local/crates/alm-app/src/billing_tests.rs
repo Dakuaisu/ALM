@@ -1,8 +1,22 @@
 use super::*;
-use crate::billing::{self, Posting};
+use alm_core::confirmation::trial_billing::{
+    CUSTOMER, DAY, OwnerPosting, SaleTerms, customer_id, fixture,
+};
 
-fn fixture() -> ConfirmationFixture {
-    billing::fixture().expect("synthetic fixture")
+fn review(fixture: &mut ConfirmationFixture) -> OwnerPosting {
+    let mut posting = OwnerPosting::default();
+    posting
+        .prepare(
+            fixture,
+            Role::Owner,
+            Some(&draft()),
+            SaleTerms {
+                date: DAY,
+                paid: "20.00",
+            },
+        )
+        .expect("review");
+    posting
 }
 
 pub(crate) fn draft() -> ProvisionalDraft {
@@ -10,14 +24,13 @@ pub(crate) fn draft() -> ProvisionalDraft {
         DraftId::new(1),
         vec![DraftLine::new(ProductId::new(1), NonZeroU32::MIN)],
     )
-    .with_customer(DraftCustomer::Typed(billing::CUSTOMER.into()))
+    .with_customer(DraftCustomer::Typed(CUSTOMER.into()))
 }
 
 #[test]
 fn sales_show_confirmed_owner_amount_not_provisional_amount() {
-    let mut fixture = fixture();
-    let posting = Posting::prepare(&mut fixture, Role::Owner, &draft(), "2025-04-30", "2000", 1)
-        .expect("review");
+    let mut fixture = fixture().expect("synthetic fixture");
+    let posting = review(&mut fixture);
     assert_eq!(fixture.posted_count(), 0);
     let receipt = posting.confirm(&mut fixture, Role::Owner, 1).expect("post");
     assert_eq!(receipt.total.minor_units(), 12_050);
@@ -31,9 +44,8 @@ fn sales_show_confirmed_owner_amount_not_provisional_amount() {
 
 #[test]
 fn manager_cannot_confirm_an_owner_review_or_read_sales() {
-    let mut fixture = fixture();
-    let posting = Posting::prepare(&mut fixture, Role::Owner, &draft(), "2025-04-30", "2000", 1)
-        .expect("review");
+    let mut fixture = fixture().expect("synthetic fixture");
+    let posting = review(&mut fixture);
     assert!(posting.confirm(&mut fixture, Role::Manager, 1).is_err());
     assert_eq!(fixture.posted_count(), 0);
     let html = views::sales_screen(&fixture, Role::Manager, &Default::default()).expect("denial");
@@ -44,9 +56,8 @@ fn manager_cannot_confirm_an_owner_review_or_read_sales() {
 
 #[test]
 fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
-    let mut fixture = fixture();
-    let posting = Posting::prepare(&mut fixture, Role::Owner, &draft(), "2025-04-30", "2000", 1)
-        .expect("review");
+    let mut fixture = fixture().expect("synthetic fixture");
+    let posting = review(&mut fixture);
     posting.confirm(&mut fixture, Role::Owner, 1).expect("post");
     crate::receipts::save(&mut fixture, Role::Owner, receipt_terms()).expect("receipt");
     let html = views::receipt_screen(&fixture, Role::Owner).expect("receipt screen");
@@ -61,17 +72,12 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
 
 #[test]
 fn manager_cannot_save_a_standalone_receipt_or_read_its_form() {
-    let mut fixture = fixture();
+    let mut fixture = fixture().expect("synthetic fixture");
     assert!(crate::receipts::save(&mut fixture, Role::Manager, receipt_terms()).is_err());
     let html = views::receipt_screen(&fixture, Role::Manager).expect("denial");
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("<form"));
-    assert_eq!(
-        fixture
-            .customer_due(billing::customer_id().value())
-            .minor_units(),
-        0
-    );
+    assert_eq!(fixture.customer_due(customer_id().value()).minor_units(), 0);
 }
 
 fn receipt_terms() -> crate::receipts::Terms {
