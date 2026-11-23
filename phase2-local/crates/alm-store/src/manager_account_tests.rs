@@ -58,11 +58,16 @@ fn case_distinct_accounts_with_same_draft_id_use_independent_databases() {
         let reopened = LocalSales::open_manager_account(&root.0, account).unwrap();
         assert_eq!(reopened.reopen_draft(DRAFT).unwrap(), Some(expected));
     }
+    // SQLite's -wal/-shm/-journal side files belong to their database, not to another account.
+    let mut databases: Vec<_> = fs::read_dir(root.0.join("manager-accounts"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| !["-wal", "-shm", "-journal"].iter().any(|s| name.ends_with(s)))
+        .collect();
+    databases.sort();
     assert_eq!(
-        fs::read_dir(root.0.join("manager-accounts"))
-            .unwrap()
-            .count(),
-        2
+        databases,
+        ["account-53686f705f412d31.sqlite3", "account-73686f705f612d31.sqlite3"]
     );
 }
 
