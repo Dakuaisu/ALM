@@ -48,7 +48,7 @@ pub use catalog::{
     DailyMovementError, DailyMovementRow, PhysicalCount, PhysicalCountError, PhysicalCountInput,
     ProductEntry, ProductEntryError, ProductPriceInput, ProductPricing, ProductTaxOverrides,
     ReorderError, ReorderRow, ReorderStatus, ResolvedProductTax, StockCountMovement,
-    StockCountReason, StockLotRow, StockLots, StockLotsError,
+    StockCountReason, StockList, StockListRow, StockLotRow, StockLots, StockLotsError, StockStatus,
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use counter::{Counter, CounterAttention, CounterBill, CounterRecent, CounterTag, CreationKey};

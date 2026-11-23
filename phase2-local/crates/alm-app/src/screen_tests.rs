@@ -295,3 +295,28 @@ fn reorder_renders_core_rows_and_hides_costs_from_the_manager() {
     assert!(!manager.contains('₹'));
     assert!(!manager.contains("Synthetic Lime"));
 }
+
+#[test]
+fn stock_renders_core_status_and_fifo_value_for_the_owner_only() {
+    use alm_core::ProductId;
+    let fixture = books();
+    let list = fixture.stock_list(Role::Owner, "", false).unwrap();
+    let value = list.value.unwrap();
+    assert_eq!(value.minor_units(), 49 * 7_000 + 40 * 3_800);
+    let state = views::StockState {
+        lots: Some(ProductId::new(1)),
+        ..views::StockState::default()
+    };
+    let html = views::stock_screen(&fixture, Role::Owner, &state).unwrap();
+    assert!(html.contains(&format!(
+        r#"<div class="label">Stock Value</div><div class="val">{}</div>"#,
+        money_r(value)
+    )));
+    assert!(html.contains(r#"<td class="num" style="font-weight:800">49</td><td class="num">₹70</td><td class="num">₹3,430</td>"#), "{html}");
+    let manager = views::stock_screen(&fixture, Role::Manager, &state).unwrap();
+    assert!(manager.contains("role=\"alert\""));
+    for hidden in ['₹', '4'] {
+        assert!(!manager.contains(hidden), "{hidden}");
+    }
+    assert!(!manager.contains("FIFO"));
+}

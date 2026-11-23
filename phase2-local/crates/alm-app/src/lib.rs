@@ -13,6 +13,7 @@ mod ipc;
 mod receipts;
 #[cfg(test)]
 mod screen_tests;
+mod stock;
 mod views;
 
 #[cfg(test)]
@@ -78,6 +79,7 @@ struct Trial {
     cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
     dash_period: alm_core::confirmation::DashboardPeriod,
     reorder_text: Option<String>,
+    stock: views::StockState,
 }
 
 type AppState = Mutex<Trial>;
@@ -128,6 +130,7 @@ impl Trial {
             cash_form: None,
             dash_period: alm_core::confirmation::DashboardPeriod::Month,
             reorder_text: None,
+            stock: views::StockState::default(),
         })
     }
 
@@ -195,6 +198,9 @@ impl Trial {
             "reorder" => {
                 views::reorder_screen(&self.authority, self.role(), self.reorder_text.as_deref())
                     .map_err(debug)?
+            }
+            "stock" => {
+                views::stock_screen(&self.authority, self.role(), &self.stock).map_err(debug)?
             }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
@@ -409,6 +415,8 @@ pub fn run() {
             cashbook::cash_close,
             dash_period,
             reorder_copy,
+            stock::stock_filter,
+            stock::stock_lots,
             print_page,
             share_text
         ])
