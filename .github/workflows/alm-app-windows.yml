@@ -1,0 +1,36 @@
+# Windows leg of the Tauri trial: builds the app and runs the Rust tests. It proves the build;
+# launching the window on a real PC remains a manual check.
+name: alm-app windows build
+
+on:
+  push:
+    paths: ["phase2-local/**", ".github/workflows/alm-app-windows.yml"]
+  pull_request:
+    paths: ["phase2-local/**", ".github/workflows/alm-app-windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: phase2-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: clippy, rustfmt
+      - name: Tests
+        run: cargo test --locked --workspace
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build the Tauri app
+        run: cargo build --locked --release -p alm-app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alm-app-windows
+          path: phase2-local/target/release/alm-app.exe

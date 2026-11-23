@@ -1,0 +1,181 @@
+//! Screen fragments for the trial, built with the frozen HTML's CSS classes. The page script
+//! only inserts these and forwards clicks and form fields to commands.
+use std::fmt::Write as _;
+
+use alm_core::confirmation::ConfirmationError;
+use alm_core::{DraftCustomer, Money, ProvisionalDraft, provisional_preview};
+
+use crate::gst_print::{esc, inr};
+
+pub struct DraftView<'a> {
+    pub draft: Option<&'a ProvisionalDraft>,
+    pub saved: bool,
+    pub saved_ids: &'a [u64],
+}
+
+fn rupees(money: Money) -> String {
+    format!("₹{}", inr(money))
+}
+
+fn customer(draft: &ProvisionalDraft) -> &str {
+    match draft.customer() {
+        DraftCustomer::Unassigned => "Unassigned",
+        DraftCustomer::Typed(name) | DraftCustomer::Selected { name, .. } => name,
+    }
+}
+
+pub fn tabs(active: &str) -> String {
+    let mut html =
+        String::from("<div class=\"row no-print\" style=\"gap:8px;margin-bottom:12px\">");
+    for (tab, label) in [
+        ("draft", "Manager draft"),
+        ("review", "Owner review"),
+        ("gst", "GST invoice"),
+    ] {
+        let class = if tab == active { "btn primary" } else { "btn" };
+        let _ = write!(
+            html,
+            "<button class=\"{class}\" data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
+        );
+    }
+    html + "</div>"
+}
+
+pub fn notice(message: &str) -> String {
+    if message.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div class=\"help no-print\" style=\"margin-bottom:10px\">{}</div>",
+            esc(message)
+        )
+    }
+}
+
+pub fn draft_screen(view: &DraftView<'_>) -> String {
+    let mut html = String::from(
+        "<div class=\"card\"><h3>Manager draft — PROVISIONAL, NOT POSTED</h3>\
+         <form class=\"row\" data-action=\"draft_new\" style=\"gap:8px;margin:8px 0\">\
+         <input class=\"inp\" name=\"customer\" value=\"Synthetic Customer\" aria-label=\"Customer\">\
+         <button class=\"btn primary\" type=\"submit\">＋ New draft</button></form>",
+    );
+    if !view.saved_ids.is_empty() {
+        html += "<div class=\"row\" style=\"gap:6px;margin-bottom:8px\"><span class=\"help\">Saved drafts:</span>";
+        for id in view.saved_ids {
+            let _ = write!(
+                html,
+                "<button class=\"btn sm\" data-action=\"draft_open\" data-id=\"{id}\">Open #{id}</button>"
+            );
+        }
+        html += "</div>";
+    }
+    let Some(draft) = view.draft else {
+        return html
+            + "<div class=\"help\">No draft open. Start one above or open a saved draft.</div></div>";
+    };
+    let state = if view.saved { "SAVED" } else { "UNSAVED" };
+    let _ = write!(
+        html,
+        "<div class=\"row\" style=\"gap:10px\"><b>Draft #{}</b><span class=\"tag\">{state}</span><span>Customer: {}</span></div>",
+        draft.id().value(),
+        esc(customer(draft))
+    );
+    match provisional_preview::preview(draft) {
+        Ok(preview) => {
+            html += "<table class=\"tbl\" style=\"width:100%;margin-top:8px\"><thead><tr><th>#</th><th>Item</th><th class=\"num\">Qty</th><th class=\"num\">Unit (incl.)</th><th class=\"num\">Line total</th><th></th></tr></thead><tbody>";
+            for (index, line) in preview.lines.iter().enumerate() {
+                let number = index + 1;
+                let _ = write!(
+                    html,
+                    "<tr><td>{number}</td><td>{}</td><td class=\"num\"><form data-action=\"draft_quantity\" data-line=\"{number}\" class=\"row\" style=\"gap:4px;justify-content:flex-end\"><input class=\"inp\" style=\"width:80px\" name=\"quantity\" inputmode=\"numeric\" value=\"{}\" aria-label=\"Quantity for line {number}\"><button class=\"btn sm\" type=\"submit\">Set</button></form></td><td class=\"num\">{}</td><td class=\"num\">{}</td><td></td></tr>",
+                    esc(line.name),
+                    line.quantity,
+                    rupees(line.inclusive_unit_price),
+                    rupees(line.amounts.inclusive),
+                );
+            }
+            let _ = write!(
+                html,
+                "</tbody></table><div style=\"margin-top:8px\">Taxable {} · CGST {} · SGST {} · <b>Total {}</b></div>",
+                rupees(preview.totals.taxable),
+                rupees(preview.totals.cgst),
+                rupees(preview.totals.sgst),
+                rupees(preview.totals.inclusive)
+            );
+        }
+        Err(error) => {
+            let _ = write!(
+                html,
+                "<div class=\"help\">Preview unavailable: {error:?}</div>"
+            );
+        }
+    }
+    html + "<div class=\"row\" style=\"margin-top:10px\"><button class=\"btn primary\" data-action=\"draft_save\">Save draft</button></div></div>"
+}
+
+pub struct ReviewView<'a> {
+    pub role_is_owner: bool,
+    pub draft: Option<&'a ProvisionalDraft>,
+    pub prices: Result<Vec<Money>, ConfirmationError>,
+}
+
+pub fn review_screen(view: &ReviewView<'_>) -> String {
+    let (owner, manager) = if view.role_is_owner {
+        ("btn primary", "btn")
+    } else {
+        ("btn", "btn primary")
+    };
+    let mut html = format!(
+        "<div class=\"card\"><h3>Owner review</h3><div class=\"row\" style=\"gap:6px;margin:8px 0\"><span class=\"help\">Synthetic role (not a login):</span><button class=\"{owner}\" data-action=\"review_role\" data-owner=\"true\">Owner</button><button class=\"{manager}\" data-action=\"review_role\" data-owner=\"false\">Manager</button></div>"
+    );
+    let Some(draft) = view.draft else {
+        return html + "<div class=\"help\">Open or save a Manager draft first.</div></div>";
+    };
+    match &view.prices {
+        Err(ConfirmationError::AccessDenied) => {
+            html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
+        }
+        Err(error) => {
+            let _ = write!(
+                html,
+                "<div class=\"help\">Review unavailable: {error:?}</div>"
+            );
+        }
+        Ok(prices) => {
+            let _ = write!(
+                html,
+                "<div>Draft #{} · Customer: {}</div><table class=\"tbl\" style=\"width:100%;margin-top:8px\"><thead><tr><th>Product</th><th class=\"num\">Qty</th><th class=\"num\">Unit price</th><th class=\"num\">Amount</th></tr></thead><tbody>",
+                draft.id().value(),
+                esc(customer(draft))
+            );
+            let mut total = 0_i64;
+            for (line, price) in draft.lines().iter().zip(prices) {
+                let amount = price.minor_units() * i64::from(line.quantity().get());
+                total += amount;
+                let _ = write!(
+                    html,
+                    "<tr><td>Product {}</td><td class=\"num\">{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
+                    line.product_id(),
+                    line.quantity(),
+                    rupees(*price),
+                    rupees(Money::from_minor_units(amount))
+                );
+            }
+            let _ = write!(
+                html,
+                "</tbody></table><div style=\"margin-top:8px\"><b>Total {}</b> — review only; posting is not part of this trial.</div>",
+                rupees(Money::from_minor_units(total))
+            );
+        }
+    }
+    html + "</div>"
+}
+
+pub fn gst_screen(invoice_html: &str, print_title: &str) -> String {
+    let title = esc(print_title);
+    format!(
+        "<div class=\"help no-print\" style=\"margin-bottom:10px\">Standalone GST tax invoice — not linked to stock or dues.</div>\
+         <div class=\"row no-print\" style=\"gap:8px;margin-bottom:10px\"><button class=\"btn\" data-action=\"print\" data-title=\"{title}\">🖨️ Print</button><button class=\"btn\" data-action=\"print\" data-title=\"{title}\">📄 Save PDF</button><button class=\"btn\" data-action=\"share\">Share</button></div>\
+         <div id=\"printable\">{invoice_html}</div>"
+    )
+}

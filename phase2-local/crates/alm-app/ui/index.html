@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALM — one-screen trial</title>
+<link rel="stylesheet" href="alm.css">
+</head>
+<body>
+<!-- Shell markup from ALM_Business_Manager.html L329-352; screens come from Rust commands. -->
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <span class="logo">A</span><h1>ALM <span style="color:var(--mut2);font-weight:400">Manager</span></h1>
+      <small id="bizline">Synthetic trial &middot; local only</small>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidefoot">
+      <div><span class="syncdot off" id="syncdot"></span><span id="synctxt">Local only</span></div>
+    </div>
+  </aside>
+  <main id="main">
+    <div id="top">
+      <div>
+        <h2 id="ttl">One-screen trial</h2>
+        <div class="sub" id="tsub">Drafts are provisional; nothing here posts a sale.</div>
+      </div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<script src="glue.js"></script>
+</body>
+</html>
