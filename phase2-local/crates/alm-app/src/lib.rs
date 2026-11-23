@@ -8,6 +8,7 @@ mod billing;
 mod billing_tests;
 mod cashbook;
 mod customers;
+mod godown;
 mod gst_print;
 mod ipc;
 mod receipts;
@@ -80,6 +81,7 @@ struct Trial {
     dash_period: alm_core::confirmation::DashboardPeriod,
     reorder_text: Option<String>,
     stock: views::StockState,
+    godown_query: String,
 }
 
 type AppState = Mutex<Trial>;
@@ -131,6 +133,7 @@ impl Trial {
             dash_period: alm_core::confirmation::DashboardPeriod::Month,
             reorder_text: None,
             stock: views::StockState::default(),
+            godown_query: String::new(),
         })
     }
 
@@ -202,6 +205,8 @@ impl Trial {
             "stock" => {
                 views::stock_screen(&self.authority, self.role(), &self.stock).map_err(debug)?
             }
+            "godown" => views::godown_screen(&self.authority, self.role(), &self.godown_query)
+                .map_err(debug)?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -417,6 +422,8 @@ pub fn run() {
             reorder_copy,
             stock::stock_filter,
             stock::stock_lots,
+            godown::godown_save,
+            godown::godown_filter,
             print_page,
             share_text
         ])

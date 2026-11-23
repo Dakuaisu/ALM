@@ -45,7 +45,32 @@ const fn owner(role: Role) -> Result<(), ManualGodownError> {
     }
 }
 
+/// The Godown screen's filtered list: rows by name and the total of their whole cases.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ManualGodownList<'a> {
+    pub rows: Vec<&'a ManualGodownRow>,
+    pub total_cases: u64,
+}
+
 impl ConfirmationFixture {
+    /// Lists manual rows whose name contains `query` (case-insensitive), sorted by name, with
+    /// their case total. Billing stock is neither read nor changed.
+    pub fn manual_godown_list(
+        &self,
+        role: Role,
+        query: &str,
+    ) -> Result<ManualGodownList<'_>, ManualGodownError> {
+        let needle = query.trim().to_lowercase();
+        let mut rows: Vec<_> = self
+            .open_manual_godown(role)?
+            .into_iter()
+            .filter(|row| row.item.to_lowercase().contains(&needle))
+            .collect();
+        rows.sort_by(|a, b| a.item.cmp(&b.item));
+        let total_cases = rows.iter().map(|row| u64::from(row.cases.get())).sum();
+        Ok(ManualGodownList { rows, total_cases })
+    }
+
     /// Reopens the Owner's manual list, without reading or changing billing stock.
     pub fn open_manual_godown(
         &self,
@@ -90,5 +115,42 @@ impl ConfirmationFixture {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod list_tests {
+    use super::{ManualGodownError, ManualGodownInput};
+    use crate::confirmation::demo_fixture::fixture;
+    use crate::{ProductId, Role};
+
+    #[test]
+    fn godown_list_filters_sorts_and_totals_without_touching_billing_stock() {
+        let mut fixture = fixture().unwrap();
+        for (item, cases) in [
+            ("Synthetic Soda", "4"),
+            ("synthetic lime", "7"),
+            ("Ice", "2"),
+        ] {
+            fixture
+                .save_manual_godown(
+                    Role::Owner,
+                    ManualGodownInput {
+                        item,
+                        cases,
+                        note: "",
+                    },
+                )
+                .unwrap();
+        }
+        let list = fixture.manual_godown_list(Role::Owner, "SYNTH").unwrap();
+        let rows: Vec<_> = list.rows.iter().map(|row| row.item.as_str()).collect();
+        assert_eq!(rows, ["Synthetic Soda", "synthetic lime"]);
+        assert_eq!(list.total_cases, 11);
+        assert_eq!(fixture.product_stock(ProductId::new(2)), Some(40));
+        assert_eq!(
+            fixture.manual_godown_list(Role::Manager, ""),
+            Err(ManualGodownError::AccessDenied)
+        );
     }
 }

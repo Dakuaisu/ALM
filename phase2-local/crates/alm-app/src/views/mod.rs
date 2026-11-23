@@ -10,6 +10,7 @@ mod counter;
 mod customers;
 mod dashboard;
 mod drafts;
+mod godown;
 mod gst;
 mod icons;
 mod receipt;
@@ -23,6 +24,7 @@ pub use counter::counter_screen;
 pub use customers::{CustomersState, customers_screen};
 pub use dashboard::dashboard_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
+pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
@@ -48,6 +50,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
         &[
             ("customers", "Customers"),
             ("stock", "Stock"),
+            ("godown", "Godown"),
             ("reorder", "Reorder"),
         ],
     ),
@@ -62,6 +65,7 @@ pub fn tabs(active: &str) -> String {
         "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
         "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "stock" => ("Stock", "Live inventory (billing stock)"),
+        "godown" => ("Godown", "Simple list of what's stored in the godown"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",

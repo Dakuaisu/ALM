@@ -320,3 +320,29 @@ fn stock_renders_core_status_and_fifo_value_for_the_owner_only() {
     }
     assert!(!manager.contains("FIFO"));
 }
+
+#[test]
+fn godown_renders_the_core_manual_list_and_leaves_billing_stock_alone() {
+    use alm_core::ProductId;
+    let root = Root::new("godown");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let row = |item: &str, cases: &str| crate::godown::Row {
+        item: item.into(),
+        cases: cases.into(),
+        note: "back rack".into(),
+    };
+    assert!(crate::godown::save(&mut trial, &row("Synthetic Soda", "1.5")).is_err());
+    crate::godown::save(&mut trial, &row("Synthetic Soda", "12")).unwrap();
+    crate::godown::save(&mut trial, &row("Synthetic Lime", "1000")).unwrap();
+    let list = trial.authority.manual_godown_list(Role::Owner, "").unwrap();
+    assert_eq!(list.total_cases, 1_012);
+    let html = trial.render("godown").unwrap();
+    assert!(html.contains("2 items · 1,012 cases"));
+    assert!(html.contains(r#"<td><b>Synthetic Lime</b></td><td class="num" style="font-weight:800">1,000</td><td class="muted">back rack</td>"#));
+    assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(40));
+    trial.owner = false;
+    assert!(crate::godown::save(&mut trial, &row("X", "1")).is_err());
+    let html = trial.render("godown").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains("1,012"));
+}

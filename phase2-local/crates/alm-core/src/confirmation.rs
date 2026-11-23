@@ -81,7 +81,9 @@ pub use image_handoff::{
     ImageFile, ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest,
     InvoiceImageAttempts, ShareRejected, TextHandoffIntent,
 };
-pub use manual_godown::{GodownCases, ManualGodownError, ManualGodownInput, ManualGodownRow};
+pub use manual_godown::{
+    GodownCases, ManualGodownError, ManualGodownInput, ManualGodownList, ManualGodownRow,
+};
 pub use payment::ProposedPayment;
 pub use pending::PendingError;
 use preview::PreviewPayment;
