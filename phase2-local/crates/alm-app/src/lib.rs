@@ -12,6 +12,7 @@ mod godown;
 mod gst_print;
 mod gst_sales;
 mod ipc;
+mod order;
 mod products;
 mod receipts;
 #[cfg(test)]
@@ -90,6 +91,7 @@ struct Trial {
     /// The bill shown on the invoice view.
     gst_view: GstBillId,
     products: views::ProductsState,
+    order: views::OrderState,
 }
 
 type AppState = Mutex<Trial>;
@@ -143,6 +145,7 @@ impl Trial {
             gst_form: None,
             gst_view: TRIAL_BILL,
             products: views::ProductsState::default(),
+            order: views::OrderState::default(),
         })
     }
 
@@ -223,6 +226,9 @@ impl Trial {
             "products" => views::products_screen(&self.authority, self.role(), &self.products)
                 .map_err(debug)?,
             "suppliers" => views::suppliers_screen(&self.authority, self.role())?,
+            "order" => {
+                views::order_screen(&self.authority, self.role(), &self.order).map_err(debug)?
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -454,6 +460,13 @@ pub fn run() {
             products::product_close,
             suppliers::supplier_add,
             suppliers::supplier_quotes,
+            order::order_add,
+            order::order_qty,
+            order::order_remove,
+            order::order_low,
+            order::order_checkout,
+            order::order_po,
+            order::order_discard,
             print_page,
             share_text
         ])

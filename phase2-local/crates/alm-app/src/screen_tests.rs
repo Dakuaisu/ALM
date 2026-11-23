@@ -561,3 +561,71 @@ fn suppliers_render_core_quotes_best_and_hide_buy_rates_from_the_manager() {
         assert!(!html.contains(hidden), "{hidden}");
     }
 }
+
+#[test]
+fn order_planner_cart_po_and_paste_follow_core_without_stock() {
+    let root = Root::new("order");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("order").unwrap();
+    assert!(html.contains(r#"<td><b>Synthetic Lime</b></td><td class="num">50</td><td class="num">5</td><td class="num" style="font-weight:700;color:var(--accent)">1 pkt</td><td class="num">₹69</td><td>Synthetic Wholesale</td>"#), "{html}");
+    let line = |product: &str, qty: &str| crate::order::Line {
+        product: product.into(),
+        qty: qty.into(),
+    };
+    trial.order_add(&line("1", "6")).unwrap();
+    trial.order_add(&line("2", "")).unwrap();
+    assert!(trial.order_add(&line("1", "1")).is_err());
+    let total = trial.order.planner.as_ref().unwrap().cart_total().unwrap();
+    assert_eq!(total.minor_units(), 6 * 6_900 + 3_600);
+    let html = trial.render("order").unwrap();
+    assert!(html.contains("🛒 Cart: 2 items · ₹450"));
+    trial.order_checkout().unwrap();
+    let draft = trial.order.draft.clone().unwrap();
+    assert_eq!(
+        draft.supplier, None,
+        "mixed best suppliers leave the supplier blank"
+    );
+    let po = |supplier: &str, paste: &str, intent: &str| crate::order::Po {
+        supplier: supplier.into(),
+        date: "2025-04-30".into(),
+        note: "".into(),
+        paste: paste.into(),
+        intent: intent.into(),
+    };
+    trial
+        .order_po(&po(
+            "",
+            "Item\tQty\tRate\nSynthetic Soda\t4\t35\nUnknown Fizz\t1\t1\n",
+            "paste",
+        ))
+        .unwrap();
+    assert!(
+        trial
+            .order
+            .warnings
+            .iter()
+            .any(|w| w.contains("Unknown Fizz")),
+        "{:?}",
+        trial.order.warnings
+    );
+    let stock = (
+        trial.authority.product_stock(alm_core::ProductId::new(1)),
+        trial.authority.product_stock(alm_core::ProductId::new(2)),
+    );
+    assert!(trial.order_po(&po("", "", "save")).is_err());
+    trial.order_po(&po("Synthetic Depot", "", "save")).unwrap();
+    let orders = trial.authority.purchase_orders(Role::Owner).unwrap();
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0].supplier_name, "Synthetic Depot");
+    assert_eq!(
+        (
+            trial.authority.product_stock(alm_core::ProductId::new(1)),
+            trial.authority.product_stock(alm_core::ProductId::new(2))
+        ),
+        stock
+    );
+    trial.owner = false;
+    let html = trial.render("order").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+}

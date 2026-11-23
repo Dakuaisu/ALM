@@ -14,6 +14,7 @@ mod godown;
 mod gst;
 mod gst_sales;
 mod icons;
+mod order;
 mod products;
 mod receipt;
 mod reorder;
@@ -30,6 +31,7 @@ pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;
+pub use order::{OrderState, order_screen};
 pub use products::{ProductsState, products_screen};
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
@@ -60,6 +62,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("stock", "Stock"),
             ("godown", "Godown"),
             ("reorder", "Reorder"),
+            ("order", "Order Planner"),
         ],
     ),
     ("More", &[("dashboard", "Dashboard")]),
@@ -75,6 +78,10 @@ pub fn tabs(active: &str) -> String {
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),
         "suppliers" => ("Suppliers", "Where you buy stock from"),
+        "order" => (
+            "Order Planner",
+            "Pick items into the cart, then create the purchase",
+        ),
         "godown" => ("Godown", "Simple list of what's stored in the godown"),
         "review" => (
             "Owner review",
