@@ -50,14 +50,14 @@ fn walk_in_cash_lost_reply_reopens_inertly_and_only_matching_retry_clears_entry(
     client.write_frame(&approved.encode());
     assert_eq!(client.sent(), approved);
     let store = alm_store::SqliteDraftStore::open(&db).unwrap();
-    let original_pending = store.load_pending(REQUEST.0).unwrap().unwrap();
+    let original_pending = store.load_pending(REQUEST.value()).unwrap().unwrap();
     assert_eq!(
         original_pending,
         "7|250|6|2024-02-29|2|81|1|0|125|1,,4C6F63616C202D204E65696768626F72|1,2"
     );
     assert_eq!(effects(&authority), (5, 0, 1, 0, 0));
     assert_eq!(authority.received_ledger().minor_units(), 0);
-    assert!(authority.catalog.allocation_snapshot().is_empty());
+    assert!(authority.catalog().allocation_snapshot().is_empty());
     let original = authority
         .confirm_acknowledged(Role::Owner, approved.id, &approved.review)
         .unwrap();
@@ -98,7 +98,7 @@ fn walk_in_cash_lost_reply_reopens_inertly_and_only_matching_retry_clears_entry(
         );
     }
     assert_eq!(
-        store.load_pending(REQUEST.0).unwrap(),
+        store.load_pending(REQUEST.value()).unwrap(),
         Some(original_pending)
     );
 
@@ -122,13 +122,16 @@ fn walk_in_cash_lost_reply_reopens_inertly_and_only_matching_retry_clears_entry(
 
     assert_eq!(effects(&authority), (3, 250, 2, 1, 1));
     assert_eq!(authority.received_ledger().minor_units(), 250);
-    assert!(authority.customer_balances.is_empty());
-    assert_eq!(authority.catalog.lot_snapshot(product), [0, 3]);
+    assert!(authority.customer_balances().is_empty());
+    assert_eq!(authority.catalog().lot_snapshot(product), [0, 3]);
     assert_eq!(
-        authority.catalog.allocation_snapshot(),
+        authority.catalog().allocation_snapshot(),
         [(BILL, 0, 0, 1, Some(30)), (BILL, 0, 1, 1, Some(50))]
     );
-    assert_eq!(authority.catalog.allocated_cost(draft.id()), Some(Some(80)));
+    assert_eq!(
+        authority.catalog().allocated_cost(draft.id()),
+        Some(Some(80))
+    );
 }
 
 pub(super) fn worker(
@@ -235,8 +238,8 @@ pub(super) fn worker(
 
 fn write_ack(client: &mut Client, ack: &ConfirmationAck) {
     let request = OwnerRequest {
-        id: ack.request,
-        review: ack.review.clone(),
+        id: ack.request(),
+        review: ack.review().clone(),
     };
     client.write_frame(&format!(
         "{}\t{}",
@@ -258,9 +261,9 @@ fn read_ack(
     }
     let (request, receipt) = frame.split_once('\t').unwrap();
     let request = OwnerRequest::decode(request);
-    Ok(Some(ConfirmationAck {
-        request: request.id,
-        review: request.review,
-        receipt: read_receipt(receipt).unwrap(),
-    }))
+    Ok(Some(ConfirmationAck::from_parts(
+        request.id,
+        request.review,
+        read_receipt(receipt).unwrap(),
+    )))
 }

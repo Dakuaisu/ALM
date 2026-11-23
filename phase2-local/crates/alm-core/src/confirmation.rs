@@ -36,6 +36,8 @@ pub(crate) mod purchase_orders;
 mod reporting;
 mod sales_history;
 mod sales_output;
+#[cfg(feature = "test-support")]
+mod test_support;
 pub use crate::SaleUnit;
 pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
@@ -101,16 +103,17 @@ pub use sales_history::{
 pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct RequestId(
-    #[cfg(not(feature = "test-support"))] pub(crate) u64,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub u64,
-);
+pub struct RequestId(pub(crate) u64);
 
 impl RequestId {
     pub const fn new(value: u64) -> Self {
         Self(value)
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub const fn value(self) -> u64 {
+        self.0
     }
 }
 
@@ -134,11 +137,7 @@ pub enum ConfirmationError {
 /// A review can only be produced by the fixture and cannot be altered by its caller.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Review {
-    #[cfg(not(feature = "test-support"))]
     draft: ProvisionalDraft,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub draft: ProvisionalDraft,
     draft_revision: u64,
     terms_revision: u64,
     prices: Vec<Money>,
@@ -170,21 +169,9 @@ pub struct PostedLineItem {
 /// An authority-issued receipt bound to the request and the exact approved review.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfirmationAck {
-    #[cfg(not(feature = "test-support"))]
     request: RequestId,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub request: RequestId,
-    #[cfg(not(feature = "test-support"))]
     review: Review,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub review: Review,
-    #[cfg(not(feature = "test-support"))]
     receipt: Receipt,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub receipt: Receipt,
 }
 
 /// Trusted synthetic fixture. Role selection is not authentication.
@@ -194,56 +181,24 @@ pub struct ConfirmationAck {
 )]
 pub struct ConfirmationFixture {
     product: ProductId,
-    #[cfg(not(feature = "test-support"))]
     catalog: Catalog,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub catalog: Catalog,
     product_reorder_default: u32,
     checkout_products: BTreeMap<u64, ProductTerms>,
-    #[cfg(not(feature = "test-support"))]
     checkout_approvals: BTreeMap<DraftId, Review>,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub checkout_approvals: BTreeMap<DraftId, Review>,
     loading_rate: Money,
     crate_rate: Option<Money>,
     crate_templates: CrateTemplateBook,
     terms_revision: u64,
     draft_revision: u64,
     drafts: BTreeMap<DraftId, (u64, ProvisionalDraft)>,
-    #[cfg(not(feature = "test-support"))]
     ledger: i64,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub ledger: i64,
-    #[cfg(not(feature = "test-support"))]
     received_ledger: i64,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub received_ledger: i64,
     registered_customers: std::collections::BTreeSet<String>,
-    #[cfg(not(feature = "test-support"))]
     customer_balances: BTreeMap<String, i64>,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub customer_balances: BTreeMap<String, i64>,
     customer_openings: BTreeMap<String, customer_opening::StoredOpening>,
-    #[cfg(not(feature = "test-support"))]
     next_invoice: u64,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub next_invoice: u64,
-    #[cfg(not(feature = "test-support"))]
     requests: BTreeMap<RequestId, (Review, Receipt)>,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub requests: BTreeMap<RequestId, (Review, Receipt)>,
-    #[cfg(not(feature = "test-support"))]
     posted: BTreeMap<DraftId, RequestId>,
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub posted: BTreeMap<DraftId, RequestId>,
     current_sales: BTreeMap<DraftId, (Review, Receipt, u64)>,
     first_posts: Vec<(DraftId, Option<CreationKey>)>,
     posted_sale_items: BTreeMap<DraftId, Vec<PostedLineItem>>,

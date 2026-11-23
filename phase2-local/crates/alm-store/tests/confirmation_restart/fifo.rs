@@ -78,7 +78,7 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
     );
     first.write_frame("CONTINUE");
     assert_eq!(first.finish(), ["REPLY_EOF"]);
-    let committed = authority.catalog.allocation_snapshot();
+    let committed = authority.catalog().allocation_snapshot();
     assert_eq!(
         committed,
         vec![
@@ -88,12 +88,12 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
         ]
     );
     assert_eq!(
-        authority.catalog.lot_snapshot(ProductId::new(1)),
+        authority.catalog().lot_snapshot(ProductId::new(1)),
         vec![0, 2]
     );
     assert_eq!(
         (
-            authority.catalog.allocated_cost(DraftId::new(43)),
+            authority.catalog().allocated_cost(DraftId::new(43)),
             authority.ledger().minor_units()
         ),
         (Some(Some(280)), 625)
@@ -110,14 +110,14 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
         retry.finish(),
         [format!("RECEIVED {}", receipt_frame(&receipt))]
     );
-    assert_eq!(authority.catalog.allocation_snapshot(), committed);
+    assert_eq!(authority.catalog().allocation_snapshot(), committed);
     assert_eq!(
-        authority.catalog.lot_snapshot(ProductId::new(1)),
+        authority.catalog().lot_snapshot(ProductId::new(1)),
         vec![0, 2]
     );
     assert_eq!(
         (
-            authority.catalog.allocated_cost(DraftId::new(43)),
+            authority.catalog().allocated_cost(DraftId::new(43)),
             effects(&authority)
         ),
         (Some(Some(280)), (2, 625, 2, 1, 1))

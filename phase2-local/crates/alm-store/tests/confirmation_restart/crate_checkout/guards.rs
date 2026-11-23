@@ -45,7 +45,7 @@ fn crate_requires_exact_current_authority_approval() {
     let encoded = pending::encode(&approved);
     let old = "5|43|1|5|2,63726174652D6275796572,53796E746865746963|2;2,9,0;1,2,1|450|13|6,1|100";
     let undated = pending::decode(old).unwrap();
-    assert_eq!(undated.draft.bill_date(), None);
+    assert_eq!(undated.draft().bill_date(), None);
     assert_eq!(pending::encode(&undated), old);
     assert_eq!(encoded, format!("6|2024-02-29|{old}"));
     let decoded = pending::decode(&encoded).unwrap();
@@ -107,7 +107,7 @@ fn mixed_empty_fractional_and_overflowing_crate_inputs_are_declined() {
             configured.review_checkout(Role::Owner, ID, &[], money(0)),
             Err(error)
         );
-        assert!(configured.checkout_approvals.is_empty());
+        assert!(configured.checkout_approvals().is_empty());
         assert_eq!(effects(&configured), (0, 0, 0, 1, 0, 0));
     }
 }

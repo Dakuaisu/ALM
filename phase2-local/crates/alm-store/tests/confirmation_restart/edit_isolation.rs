@@ -78,7 +78,7 @@ fn setup() -> (ConfirmationFixture, Review, Receipt, EditChanges) {
     .unwrap();
     f.add_product(ProductId::new(2), 2, Money::from_minor_units(80))
         .unwrap();
-    f.catalog
+    f.catalog_mut()
         .seed_lots(ProductId::new(2), &[(2, Money::from_minor_units(30))])
         .unwrap();
     f.register_draft(draft(1, 2).with_customer(DraftCustomer::Selected {

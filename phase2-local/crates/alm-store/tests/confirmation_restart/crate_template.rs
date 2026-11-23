@@ -42,7 +42,7 @@ fn authority() -> ConfirmationFixture {
     .unwrap();
     authority.add_product(CASE, 0, rupees(73)).unwrap();
     authority
-        .catalog
+        .catalog_mut()
         .seed_lots(CASE, &[(4, rupees(23)), (5, rupees(29))])
         .unwrap();
     authority.set_crate_piece_mrp(PIECE, rupees(11)).unwrap();
@@ -141,11 +141,11 @@ fn l10_01_template_sale_survives_template_edit_delete_and_pending_reopen() {
         assert_eq!(authority.current_sale(OWNER, SALE), Ok((&review, &receipt)));
         assert_eq!(authority.product_stock(PIECE), Some(3));
         assert_eq!(authority.product_stock(CASE), Some(3));
-        assert_eq!(authority.catalog.lot_snapshot(PIECE), [0, 3]);
-        assert_eq!(authority.catalog.lot_snapshot(CASE), [0, 3]);
-        assert_eq!(authority.catalog.allocated_cost(SALE), Some(Some(20_400)));
+        assert_eq!(authority.catalog().lot_snapshot(PIECE), [0, 3]);
+        assert_eq!(authority.catalog().lot_snapshot(CASE), [0, 3]);
+        assert_eq!(authority.catalog().allocated_cost(SALE), Some(Some(20_400)));
         assert_eq!(
-            authority.catalog.allocation_snapshot(),
+            authority.catalog().allocation_snapshot(),
             [
                 (43, 0, 0, 1, Some(1_400)),
                 (43, 0, 1, 2, Some(4_000)),

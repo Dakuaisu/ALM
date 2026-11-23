@@ -93,11 +93,11 @@ fn mixed_checkout_survives_lost_response_and_sqlite_process_restart() {
     first.write_frame("CONTINUE");
     assert_eq!(first.finish(), ["REPLY_EOF"]);
     assert_eq!(
-        authority.catalog.lot_snapshot(ProductId::new(1)),
+        authority.catalog().lot_snapshot(ProductId::new(1)),
         vec![0, 3]
     );
     assert_eq!(
-        authority.catalog.allocated_cost(DraftId::new(43)),
+        authority.catalog().allocated_cost(DraftId::new(43)),
         Some(Some(260))
     );
     authority
@@ -125,13 +125,13 @@ fn mixed_checkout_survives_lost_response_and_sqlite_process_restart() {
             authority.ledger().minor_units(),
             authority.received_ledger().minor_units(),
             authority.customer_due("customer-a").minor_units(),
-            authority.next_invoice,
-            authority.requests.len()
+            authority.next_invoice(),
+            authority.requests().len()
         ),
         (3, 556, 100, 456, 2, 1)
     );
     assert_eq!(
-        authority.catalog.lot_snapshot(ProductId::new(1)),
+        authority.catalog().lot_snapshot(ProductId::new(1)),
         vec![0, 3]
     );
 }
@@ -144,16 +144,16 @@ fn late_case_shortage_rolls_back_every_effect() {
         authority.confirm(Role::Owner, approved.id, &approved.review),
         Err(ConfirmationError::InsufficientStock)
     );
-    assert_eq!(authority.catalog.lot_snapshot(ProductId::new(1)), vec![3]);
-    assert!(authority.catalog.allocation_snapshot().is_empty());
+    assert_eq!(authority.catalog().lot_snapshot(ProductId::new(1)), vec![3]);
+    assert!(authority.catalog().allocation_snapshot().is_empty());
     assert_eq!(
         (
             authority.ledger().minor_units(),
             authority.received_ledger().minor_units(),
             authority.customer_due("customer-a").minor_units(),
-            authority.next_invoice,
-            authority.requests.len(),
-            authority.posted.len()
+            authority.next_invoice(),
+            authority.requests().len(),
+            authority.posted().len()
         ),
         (0, 0, 0, 1, 0, 0)
     );
@@ -195,8 +195,8 @@ fn fractional_packets_are_rejected_and_terms_invalidate_reviews() {
             fractional.ledger().minor_units(),
             fractional.received_ledger().minor_units(),
             fractional.customer_due("customer-a").minor_units(),
-            fractional.next_invoice,
-            fractional.requests.len()
+            fractional.next_invoice(),
+            fractional.requests().len()
         ),
         (7, 0, 0, 0, 1, 0)
     );
@@ -236,11 +236,11 @@ fn changed_pack_or_unit_prices_reject_the_original_review() {
                 authority.ledger().minor_units(),
                 authority.received_ledger().minor_units(),
                 authority.customer_due("customer-a").minor_units(),
-                authority.next_invoice,
-                authority.requests.len()
+                authority.next_invoice(),
+                authority.requests().len()
             ),
             (7, 0, 0, 0, 1, 0)
         );
-        assert!(authority.catalog.allocation_snapshot().is_empty());
+        assert!(authority.catalog().allocation_snapshot().is_empty());
     }
 }

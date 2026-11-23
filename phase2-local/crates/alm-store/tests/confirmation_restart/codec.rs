@@ -12,7 +12,7 @@ impl OwnerRequest {
     pub(super) fn encode(&self) -> String {
         format!(
             "PENDING_OWNER {} {}",
-            self.id.0,
+            self.id.value(),
             pending::encode(&self.review)
         )
     }

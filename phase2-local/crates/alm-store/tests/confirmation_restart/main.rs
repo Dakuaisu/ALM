@@ -158,9 +158,9 @@ fn effects(fixture: &ConfirmationFixture) -> (u32, i64, u64, usize, usize) {
     (
         fixture.stock(),
         fixture.ledger().minor_units(),
-        fixture.next_invoice,
+        fixture.next_invoice(),
         fixture.posted_count(),
-        fixture.posted.len(),
+        fixture.posted().len(),
     )
 }
 

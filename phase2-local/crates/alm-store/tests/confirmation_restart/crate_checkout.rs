@@ -60,7 +60,7 @@ fn authority(short: bool, order: ProvisionalDraft) -> ConfirmationFixture {
     authority.add_product(CASE, 0, money(150)).unwrap();
     let later = if short { 0 } else { 4 };
     authority
-        .catalog
+        .catalog_mut()
         .seed_lots(CASE, &[(3, money(30)), (later, money(40))])
         .unwrap();
     for product in [PIECE, CASE] {
@@ -92,9 +92,9 @@ fn effects(authority: &ConfirmationFixture) -> (i64, i64, i64, u64, usize, usize
         authority.ledger().minor_units(),
         authority.received_ledger().minor_units(),
         authority.customer_due("crate-buyer").minor_units(),
-        authority.next_invoice,
-        authority.requests.len(),
-        authority.posted.len(),
+        authority.next_invoice(),
+        authority.requests().len(),
+        authority.posted().len(),
     )
 }
 
@@ -118,9 +118,9 @@ fn sole_crate_persists_and_posts_once_after_lost_response() {
         .unwrap()
         .unwrap();
     assert_eq!(reopened, draft);
-    assert_eq!(authority.catalog.lot_snapshot(PIECE), vec![2, 4]);
-    assert_eq!(authority.catalog.lot_snapshot(CASE), vec![3, 4]);
-    assert!(authority.catalog.allocation_snapshot().is_empty());
+    assert_eq!(authority.catalog().lot_snapshot(PIECE), vec![2, 4]);
+    assert_eq!(authority.catalog().lot_snapshot(CASE), vec![3, 4]);
+    assert!(authority.catalog().allocation_snapshot().is_empty());
     assert_eq!(effects(&authority), (0, 0, 0, 1, 0, 0));
     let review = approval(&mut authority);
     assert_eq!(review.unit_prices(), &[money(450)]);
@@ -173,8 +173,8 @@ fn sole_crate_persists_and_posts_once_after_lost_response() {
         (43, 1, 0, 3, Some(90)),
         (43, 1, 1, 1, Some(40)),
     ];
-    assert_eq!(authority.catalog.allocation_snapshot(), allocations);
-    assert_eq!(authority.catalog.allocated_cost(ID), Some(Some(310)));
+    assert_eq!(authority.catalog().allocation_snapshot(), allocations);
+    assert_eq!(authority.catalog().allocated_cost(ID), Some(Some(310)));
     authority.set_crate_rate(money(999)).unwrap();
     assert_eq!(
         Client::start("sqlite_reopen", &scratch.0).finish(),
@@ -200,9 +200,9 @@ fn sole_crate_persists_and_posts_once_after_lost_response() {
         retry.finish(),
         [format!("RECEIVED {}", receipt_frame(&receipt))]
     );
-    assert_eq!(authority.catalog.lot_snapshot(PIECE), vec![0, 3]);
-    assert_eq!(authority.catalog.lot_snapshot(CASE), vec![0, 3]);
-    assert_eq!(authority.catalog.allocation_snapshot(), allocations);
+    assert_eq!(authority.catalog().lot_snapshot(PIECE), vec![0, 3]);
+    assert_eq!(authority.catalog().lot_snapshot(CASE), vec![0, 3]);
+    assert_eq!(authority.catalog().allocation_snapshot(), allocations);
     assert_eq!(effects(&authority), (991, 100, 891, 2, 1, 1));
 }
 
@@ -214,10 +214,10 @@ fn last_crate_component_shortage_rolls_back_all_effects() {
         authority.confirm(Role::Owner, REQUEST, &review),
         Err(ConfirmationError::InsufficientStock)
     );
-    assert_eq!(authority.catalog.lot_snapshot(PIECE), vec![2, 4]);
-    assert_eq!(authority.catalog.lot_snapshot(CASE), vec![3, 0]);
-    assert!(authority.catalog.allocation_snapshot().is_empty());
-    assert_eq!(authority.catalog.allocated_cost(ID), None);
+    assert_eq!(authority.catalog().lot_snapshot(PIECE), vec![2, 4]);
+    assert_eq!(authority.catalog().lot_snapshot(CASE), vec![3, 0]);
+    assert!(authority.catalog().allocation_snapshot().is_empty());
+    assert_eq!(authority.catalog().allocated_cost(ID), None);
     assert_eq!(effects(&authority), (0, 0, 0, 1, 0, 0));
 }
 
@@ -256,7 +256,7 @@ fn repeated_crate_products_round_trip_and_consume_the_same_lot_once_per_packet()
     );
     let receipt = authority.confirm(Role::Owner, REQUEST, &review).unwrap();
     assert_eq!((receipt.quantity, receipt.total), (2, money(476)));
-    assert_eq!(authority.catalog.lot_snapshot(PIECE), vec![0, 4]);
-    assert_eq!(authority.catalog.allocated_cost(ID), Some(Some(160)));
+    assert_eq!(authority.catalog().lot_snapshot(PIECE), vec![0, 4]);
+    assert_eq!(authority.catalog().allocated_cost(ID), Some(Some(160)));
     assert_eq!(effects(&authority), (476, 0, 476, 2, 1, 1));
 }

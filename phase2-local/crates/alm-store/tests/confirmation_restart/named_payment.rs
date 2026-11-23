@@ -108,21 +108,24 @@ fn named_payment_survives_sqlite_process_restart_and_lost_response() {
             authority.received_ledger().minor_units(),
             authority.customer_due("customer-a").minor_units(),
             authority.posted_count(),
-            authority.next_invoice
+            authority.next_invoice()
         ),
         (1, 250, 100, 150, 1, 2)
     );
     assert_eq!(
-        authority.requests.get(&approved.id),
+        authority.requests().get(&approved.id),
         Some(&(approved.review.clone(), receipt.clone()))
     );
-    assert_eq!(authority.posted.get(&DraftId::new(43)), Some(&approved.id));
     assert_eq!(
-        authority.catalog.allocated_cost(DraftId::new(43)),
+        authority.posted().get(&DraftId::new(43)),
+        Some(&approved.id)
+    );
+    assert_eq!(
+        authority.catalog().allocated_cost(DraftId::new(43)),
         Some(Some(160))
     );
     assert_eq!(
-        authority.catalog.allocation_snapshot(),
+        authority.catalog().allocation_snapshot(),
         vec![(43, 0, 0, 2, Some(160))]
     );
 }

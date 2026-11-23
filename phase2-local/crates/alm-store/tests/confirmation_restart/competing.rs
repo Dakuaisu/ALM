@@ -109,8 +109,8 @@ fn compete(stock: u32, submissions: [(u64, u64); 2], dispatch: Dispatch) {
         let result = authority.confirm(Role::Owner, sent[i].id, &sent[i].review);
         assert_eq!(result, expected);
         assert_eq!(effects(&authority), (stock - 2, 386, 2, 1, 1));
-        assert_eq!(authority.requests, requests);
-        assert_eq!(authority.posted, posted);
+        assert_eq!(authority.requests(), &requests);
+        assert_eq!(authority.posted(), &posted);
 
         clients[i].write_frame(&response_frame(&result));
         received[i] = format!("RECEIVED {}", response_frame(&expected));

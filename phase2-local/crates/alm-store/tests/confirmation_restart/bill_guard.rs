@@ -41,15 +41,15 @@ fn fixture_with_checkout() -> ConfirmationFixture {
 
 fn assert_unposted(fixture: &ConfirmationFixture) {
     assert_eq!(fixture.stock(), 5);
-    assert_eq!(fixture.catalog.lot_snapshot(PRODUCT), [1, 4]);
-    assert!(fixture.catalog.allocation_snapshot().is_empty());
-    assert_eq!(fixture.catalog.allocated_cost(ID), None);
-    assert_eq!(fixture.next_invoice, 1);
-    assert_eq!(fixture.ledger, 0);
-    assert_eq!(fixture.received_ledger, 0);
-    assert!(fixture.customer_balances.is_empty());
-    assert!(fixture.requests.is_empty());
-    assert!(fixture.posted.is_empty());
+    assert_eq!(fixture.catalog().lot_snapshot(PRODUCT), [1, 4]);
+    assert!(fixture.catalog().allocation_snapshot().is_empty());
+    assert_eq!(fixture.catalog().allocated_cost(ID), None);
+    assert_eq!(fixture.next_invoice(), 1);
+    assert_eq!(fixture.ledger().minor_units(), 0);
+    assert_eq!(fixture.received_ledger().minor_units(), 0);
+    assert!(fixture.customer_balances().is_empty());
+    assert!(fixture.requests().is_empty());
+    assert!(fixture.posted().is_empty());
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn l03_03_sqlite_reopens_incomplete_and_corrected_draft_before_one_owner_post() 
         Err(ConfirmationError::MissingBillableItems)
     );
     assert_unposted(&fixture);
-    assert!(fixture.checkout_approvals.is_empty());
+    assert!(fixture.checkout_approvals().is_empty());
     assert_eq!(reopen(), incomplete);
     let pending = open()
         .session(Role::Owner)
@@ -110,7 +110,7 @@ fn l03_03_sqlite_reopens_incomplete_and_corrected_draft_before_one_owner_post() 
         Err(ConfirmationError::AccessDenied)
     );
     assert_unposted(&fixture);
-    assert_eq!(fixture.checkout_approvals, approvals);
+    assert_eq!(fixture.checkout_approvals(), &approvals);
 
     let receipt = fixture.confirm(Role::Owner, REQUEST, &review).unwrap();
     assert_eq!(
@@ -131,17 +131,17 @@ fn l03_03_sqlite_reopens_incomplete_and_corrected_draft_before_one_owner_post() 
         Err(ConfirmationError::DraftAlreadyPosted)
     );
     assert_eq!(fixture.stock(), 3);
-    assert_eq!(fixture.catalog.lot_snapshot(PRODUCT), [0, 3]);
+    assert_eq!(fixture.catalog().lot_snapshot(PRODUCT), [0, 3]);
     assert_eq!(
-        fixture.catalog.allocation_snapshot(),
+        fixture.catalog().allocation_snapshot(),
         [(1, 0, 0, 1, Some(80)), (1, 0, 1, 1, Some(20))]
     );
-    assert_eq!(fixture.catalog.allocated_cost(ID), Some(Some(100)));
-    assert_eq!(fixture.next_invoice, 2);
-    assert_eq!(fixture.ledger, 250);
-    assert_eq!(fixture.received_ledger, 40);
+    assert_eq!(fixture.catalog().allocated_cost(ID), Some(Some(100)));
+    assert_eq!(fixture.next_invoice(), 2);
+    assert_eq!(fixture.ledger().minor_units(), 250);
+    assert_eq!(fixture.received_ledger().minor_units(), 40);
     assert_eq!(fixture.customer_due("buyer"), Money::from_minor_units(210));
     assert_eq!(fixture.posted_count(), 1);
-    assert_eq!(fixture.posted, BTreeMap::from([(ID, REQUEST)]));
-    assert_eq!(fixture.checkout_approvals, approvals);
+    assert_eq!(fixture.posted(), &BTreeMap::from([(ID, REQUEST)]));
+    assert_eq!(fixture.checkout_approvals(), &approvals);
 }
