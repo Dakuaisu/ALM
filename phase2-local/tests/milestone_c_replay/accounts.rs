@@ -1,8 +1,8 @@
-use alm_phase2_local::confirmation::{
+use alm_store::confirmation::{
     CashBookDay, CashBookEntry, CashBookKind, ConfirmationError, ConfirmationFixture,
     CustomerLedger, CustomerLedgerEntry, CustomerLedgerKind, ReceiptMode,
 };
-use alm_phase2_local::{BillDate, DraftCustomerId, Money};
+use alm_store::{BillDate, DraftCustomerId, Money};
 
 use super::{DENIED, MANAGER, OWNER, SALE, feb, money};
 

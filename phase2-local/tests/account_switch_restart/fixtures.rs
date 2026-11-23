@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use alm_phase2_local::{
+use alm_store::{
     BillDate, CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftId, DraftLine,
     ProductId, ProvisionalDraft, SaleUnit,
 };

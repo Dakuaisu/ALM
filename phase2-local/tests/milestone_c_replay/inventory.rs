@@ -1,4 +1,4 @@
-use alm_phase2_local::confirmation::{
+use alm_store::confirmation::{
     ConfirmationFixture, PurchaseDraft, PurchaseError, PurchaseLine, PurchaseOrderSelection,
     PurchaseOrderStatus, PurchaseProduct, PurchaseReceipt, PurchaseSupplier, ReceiveLine,
     ReceiveRequest, ReceiveResult, StockLotRow, StockLotsError,

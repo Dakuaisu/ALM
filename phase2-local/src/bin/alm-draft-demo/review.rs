@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use alm_phase2_local::{DraftCustomer, Money, SaleUnit, provisional_preview};
+use alm_store::{DraftCustomer, Money, SaleUnit, provisional_preview};
 
 use super::CurrentDraft;
 
@@ -90,7 +90,7 @@ pub(super) fn render(output: &mut impl Write, current: &CurrentDraft) -> io::Res
 mod tests {
     use std::num::{NonZeroU32, NonZeroU64};
 
-    use alm_phase2_local::{DraftId, DraftLine, Money, ProductId, ProvisionalDraft};
+    use alm_store::{DraftId, DraftLine, Money, ProductId, ProvisionalDraft};
 
     use super::{Rupees, render};
     use crate::CurrentDraft;

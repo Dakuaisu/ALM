@@ -1,10 +1,10 @@
 use std::num::NonZeroU32;
 
-use alm_phase2_local::confirmation::{
+use alm_store::confirmation::{
     ConfirmationError, ConfirmationFixture, CreationKey, CustomerReceiptInput,
     CustomerReceiptMetadata, EditChanges, GstInvoice, Receipt, ReceiptMode,
 };
-use alm_phase2_local::{
+use alm_store::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId, Role,
 };
 

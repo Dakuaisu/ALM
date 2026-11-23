@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use alm_phase2_local::confirmation::ConfirmationError;
-use alm_phase2_local::{LocalSales, Role};
+use alm_store::confirmation::ConfirmationError;
+use alm_store::{LocalSales, Role};
 
 #[path = "account_switch_restart/authority.rs"]
 mod authority;
@@ -12,14 +12,14 @@ mod authority;
 mod crate_review;
 #[path = "account_switch_restart/fixtures.rs"]
 mod fixtures;
-#[path = "common/manager_sqlite.rs"]
+#[path = "../crates/alm-store/tests/common/manager_sqlite.rs"]
 mod manager_sqlite;
 #[path = "account_switch_restart/sqlite_evidence.rs"]
 mod sqlite_evidence;
-#[path = "common/target_scratch.rs"]
+#[path = "../crates/alm-store/tests/common/target_scratch.rs"]
 mod target_scratch;
 
-use alm_phase2_local::SqliteSales;
+use alm_store::SqliteSales;
 use fixtures::{A_EDITED, A_INITIAL, Account, B_SAVED, DRAFT, MISSING};
 use manager_sqlite::{SqliteEvidence, databases};
 use target_scratch::{Scratch, target_dir};

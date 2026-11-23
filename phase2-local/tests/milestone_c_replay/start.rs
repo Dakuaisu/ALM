@@ -4,16 +4,16 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs, io, process};
 
-use alm_phase2_local::confirmation::{
+use alm_store::confirmation::{
     ConfirmationError, ConfirmationFixture, Counter, ProposedPayment, Receipt, RequestId, Review,
     StockLots,
 };
-use alm_phase2_local::{DraftCustomerId, DraftLine, LocalSales, Money, ProvisionalDraft};
+use alm_store::{DraftCustomerId, DraftLine, LocalSales, Money, ProvisionalDraft};
 
 use super::accounts::{AccountCheckpoint, AccountReadback, assert_accounts};
 use super::inventory::{StockCheckpoint, assert_stock};
 use super::{A, B, BUYER, DENIED, DraftCustomer, MANAGER, OWNER, PAID, SALE, feb, money, qty};
-use alm_phase2_local::SqliteSales;
+use alm_store::SqliteSales;
 
 pub(super) const INITIAL_RATE: Money = money(9_440);
 const POSTING_RATE: Money = money(11_800);

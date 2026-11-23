@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-use alm_phase2_local::BillDate;
-use alm_phase2_local::confirmation::{
+use alm_store::BillDate;
+use alm_store::confirmation::{
     BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateError, EstimateLineDisplay,
     EstimateRequest, GstError, GstInvoice, GstJurisdiction, GstRequest, PrintIntent,
 };
 
 use super::{A, B, BUYER, DENIED, ITEM_A, ITEM_B, MANAGER, OWNER, SALE, feb};
 
-#[path = "../common/ordinary_gst_fixture.rs"]
+#[path = "../../crates/alm-store/tests/common/ordinary_gst_fixture.rs"]
 mod ordinary_gst_fixture;
 use ordinary_gst_fixture::GST_METADATA;
 
@@ -195,7 +195,7 @@ pub(super) fn assert_gst(
             gst.sgst,
             gst.igst
         ]
-        .map(alm_phase2_local::Money::minor_units),
+        .map(alm_store::Money::minor_units),
         amounts,
     );
     let groups = gst

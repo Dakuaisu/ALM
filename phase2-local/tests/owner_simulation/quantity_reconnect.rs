@@ -1,6 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use alm_phase2_local::confirmation::{
+use alm_store::confirmation::{
     CashBookDay, CashBookEntry, CashBookKind, CustomerLedger, CustomerLedgerEntry,
     CustomerLedgerKind, ProposedPayment, ReceiptMode, SalesDetail, SalesHistory, SalesPeriod,
     SalesSource,
@@ -11,7 +11,7 @@ use super::{
     DraftCustomerId, DraftLine, LocalSales, Money, PRODUCT, PostingEffects, ProvisionalDraft,
     RECEIVED, Receipt, RequestId, Review, Role, ScratchDir, StockLotRow, StockLots, ZERO,
 };
-use alm_phase2_local::SqliteSales;
+use alm_store::SqliteSales;
 
 const OWNER: Role = Role::Owner;
 const MANAGER: Role = Role::Manager;

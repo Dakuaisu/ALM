@@ -11,13 +11,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "alm_phase2_local"
+name = "alm-store"
 version = "0.1.0"
 dependencies = [
  "alm-core",
  "rusqlite",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "alm_phase2_local"
+version = "0.1.0"
+dependencies = [
+ "alm-store",
+ "rusqlite",
 ]
 
 [[package]]

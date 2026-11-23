@@ -1,12 +1,12 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 
-use alm_phase2_local::{
+use alm_store::{
     DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft,
 };
 
 use super::{DEMO, DRAFT_ID, PROVISIONAL, REOPEN_DRAFT, ScratchDir, assert_transcript, run_script};
-use alm_phase2_local::SqliteSales;
+use alm_store::SqliteSales;
 
 const A: &str = "synthetic-edit-a";
 const B: &str = "synthetic-edit-b";

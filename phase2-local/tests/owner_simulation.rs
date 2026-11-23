@@ -5,11 +5,11 @@ use std::process::{self, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
-use alm_phase2_local::SqliteSales;
-use alm_phase2_local::confirmation::{
+use alm_store::SqliteSales;
+use alm_store::confirmation::{
     ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, StockLotRow, StockLots,
 };
-use alm_phase2_local::{
+use alm_store::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, Money, ProductId,
     ProvisionalDraft, Role,
 };
