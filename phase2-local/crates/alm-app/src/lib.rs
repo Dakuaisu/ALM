@@ -17,6 +17,7 @@ mod receipts;
 #[cfg(test)]
 mod screen_tests;
 mod stock;
+mod suppliers;
 mod views;
 
 #[cfg(test)]
@@ -98,6 +99,7 @@ impl Trial {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
         let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
         let mut authority = demo_fixture::fixture().map_err(debug)?;
+        demo_fixture::seed_purchasing(&mut authority).map_err(debug)?;
         authority
             .load_gst_bills_from(Role::Owner, &gst)
             .map_err(debug)?;
@@ -220,6 +222,7 @@ impl Trial {
             }
             "products" => views::products_screen(&self.authority, self.role(), &self.products)
                 .map_err(debug)?,
+            "suppliers" => views::suppliers_screen(&self.authority, self.role())?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -449,6 +452,8 @@ pub fn run() {
             products::product_edit,
             products::product_save,
             products::product_close,
+            suppliers::supplier_add,
+            suppliers::supplier_quotes,
             print_page,
             share_text
         ])

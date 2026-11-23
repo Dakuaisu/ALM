@@ -57,6 +57,7 @@ const PRODUCTS: [Seed; 2] = [
 pub enum FixtureError {
     Confirmation(ConfirmationError),
     Product(ProductEntryError),
+    Quote(crate::confirmation::SupplierPriceError),
 }
 
 pub fn directory() -> BillingDirectory {
@@ -64,6 +65,48 @@ pub fn directory() -> BillingDirectory {
         customers: CUSTOMERS.to_vec(),
         products: PRODUCTS.iter().map(|seed| seed.product).collect(),
     }
+}
+
+/// Comparison suppliers and their quotes for the seeded products (per-packet buy rates).
+const QUOTES: [(&str, [i64; 2]); 2] = [
+    ("Synthetic Wholesale", [6_900, 3_700]),
+    ("Synthetic Depot", [7_200, 3_600]),
+];
+
+/// Adds the purchasing seed (buy rates, comparison suppliers and quotes) for the app's batch 2
+/// screens; never creates stock, lots or orders.
+pub fn seed_purchasing(fixture: &mut ConfirmationFixture) -> Result<(), FixtureError> {
+    use FixtureError::Confirmation;
+    for seed in &PRODUCTS {
+        fixture
+            .register_purchase_product(crate::confirmation::PurchaseProduct {
+                id: seed.product.id,
+                item: seed.product.name.into(),
+                buy_rate: seed.cost,
+            })
+            .map_err(Confirmation)?;
+    }
+    for (name, rates) in QUOTES {
+        let supplier = fixture
+            .add_comparison_supplier(Role::Owner, name)
+            .map_err(FixtureError::Quote)?
+            .ok_or(FixtureError::Quote(
+                crate::confirmation::SupplierPriceError::SupplierNotFound,
+            ))?;
+        for (seed, rate) in PRODUCTS.iter().zip(rates) {
+            fixture
+                .edit_comparison_price(
+                    Role::Owner,
+                    crate::confirmation::SupplierPriceEdit {
+                        product: seed.product.id,
+                        supplier: supplier.id,
+                        rate: Some(Money::from_minor_units(rate)),
+                    },
+                )
+                .map_err(FixtureError::Quote)?;
+        }
+    }
+    Ok(())
 }
 
 pub fn fixture() -> Result<ConfirmationFixture, FixtureError> {

@@ -19,6 +19,7 @@ mod receipt;
 mod reorder;
 mod sales;
 mod stock;
+mod suppliers;
 
 pub use bill::{BillView, bill_screen};
 pub use cashbook::{CashBookView, cashbook_screen};
@@ -34,6 +35,7 @@ pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 pub use stock::{StockState, stock_screen};
+pub use suppliers::suppliers_screen;
 
 /// Sidebar sections follow the HTML NAV (L1896–1975); only ported screens are listed.
 const NAV: &[(&str, &[(&str, &str)])] = &[
@@ -54,6 +56,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
         &[
             ("customers", "Customers"),
             ("products", "Products"),
+            ("suppliers", "Suppliers"),
             ("stock", "Stock"),
             ("godown", "Godown"),
             ("reorder", "Reorder"),
@@ -71,6 +74,7 @@ pub fn tabs(active: &str) -> String {
         "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),
+        "suppliers" => ("Suppliers", "Where you buy stock from"),
         "godown" => ("Godown", "Simple list of what's stored in the godown"),
         "review" => (
             "Owner review",

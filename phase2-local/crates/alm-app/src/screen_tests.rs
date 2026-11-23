@@ -511,3 +511,53 @@ fn products_render_core_prices_margins_and_hide_them_from_the_manager() {
         assert!(!html.contains(hidden), "{hidden}");
     }
 }
+
+#[test]
+fn suppliers_render_core_quotes_best_and_hide_buy_rates_from_the_manager() {
+    use alm_core::ProductId;
+    use std::collections::HashMap;
+    let root = Root::new("suppliers");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("suppliers").unwrap();
+    assert!(
+        html.contains(
+            r#"<th class="num">Synthetic Wholesale</th><th class="num">Synthetic Depot</th>"#
+        ),
+        "{html}"
+    );
+    assert!(html.contains(r#"value="69.00" style="color:var(--good);font-weight:700""#));
+    assert!(html.contains(r#"<b class="pos">Synthetic Wholesale</b> @ ₹69"#));
+    let depot = trial.authority.purchase_suppliers(Role::Owner).unwrap()[1]
+        .id
+        .index();
+    let terms: HashMap<String, String> = [
+        ("product".to_owned(), "1".to_owned()),
+        (format!("s{depot}"), "68.50".to_owned()),
+    ]
+    .into();
+    trial.supplier_quotes(terms).unwrap();
+    let row = trial
+        .authority
+        .compare_supplier_prices(Role::Owner, Some(ProductId::new(1)))
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(row.best.unwrap().1.minor_units(), 6_850);
+    let html = trial.render("suppliers").unwrap();
+    assert!(html.contains(r#"<b class="pos">Synthetic Depot</b> @ ₹69"#));
+    assert!(html.contains(
+        "<td><b>Synthetic Depot</b></td><td class=\"num\">0</td><td class=\"num\">₹0</td>"
+    ));
+    let bad: HashMap<String, String> = [
+        ("product".to_owned(), "1".to_owned()),
+        (format!("s{depot}"), "-1".to_owned()),
+    ]
+    .into();
+    assert!(trial.supplier_quotes(bad).is_err());
+    trial.owner = false;
+    let html = trial.render("suppliers").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    for hidden in ["₹", "68.50", "Synthetic Depot"] {
+        assert!(!html.contains(hidden), "{hidden}");
+    }
+}

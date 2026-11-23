@@ -5,6 +5,7 @@ pub(crate) mod output;
 mod paste;
 mod receive_form;
 mod receiving;
+mod supplier_book;
 pub(super) mod supplier_prices;
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,7 @@ pub use output::{
 pub use paste::PurchasePasteWarnings;
 pub use receive_form::{ReceiveForm, ReceiveFormError, ReceiveFormRow};
 pub use receiving::{ReceiveLine, ReceiveRequest, ReceiveResult};
+pub use supplier_book::{SupplierBookRow, parse_quote};
 pub use supplier_prices::{
     SupplierPrice, SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
 };

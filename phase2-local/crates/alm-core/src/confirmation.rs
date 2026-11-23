@@ -99,8 +99,9 @@ pub use purchase_orders::{
     PurchasePasteWarnings, PurchaseProduct, PurchaseProductDisplay, PurchaseProgressLine,
     PurchaseReceipt, PurchaseSupplier, PurchaseSupplierContact, PurchaseSupplierId,
     PurchaseWhatsAppRequest, ReceiveForm, ReceiveFormError, ReceiveFormRow, ReceiveLine,
-    ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier, SupplierPrice,
-    SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError, SupplierPriceRow,
+    ReceiveRequest, ReceiveResult, SavedPurchaseLine, SavedPurchaseSupplier, SupplierBookRow,
+    SupplierPrice, SupplierPriceComparison, SupplierPriceEdit, SupplierPriceError,
+    SupplierPriceRow, parse_quote,
 };
 pub use reporting::{CustomerRank, DeadStockRow, MonthlyProfit, ReportsError};
 pub use sales_history::{
