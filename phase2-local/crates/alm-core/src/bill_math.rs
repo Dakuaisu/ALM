@@ -8,7 +8,9 @@ pub(crate) fn checked_line_amount(unit_price: Money, quantity: u32) -> Option<Mo
 }
 
 pub(crate) fn round_balance(paise: i64) -> Option<i64> {
-    (paise.div_euclid(100) + i64::from(paise.rem_euclid(100) >= 50)).checked_mul(100)
+    Money::from_minor_units(paise)
+        .rounded_rupees()
+        .checked_mul(100)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

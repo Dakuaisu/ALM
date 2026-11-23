@@ -2,11 +2,15 @@
 // No prices, totals, validation or state live here.
 const invoke = window.__TAURI__.core.invoke;
 const view = document.getElementById("view");
-let tab = "draft";
+const nav = document.getElementById("nav");
 
 async function run(command, args) {
   try {
     view.innerHTML = await invoke(command, args);
+    const screen = view.querySelector("#screen-nav");
+    nav.replaceChildren(screen.content);
+    document.getElementById("ttl").textContent = screen.dataset.title;
+    document.getElementById("tsub").textContent = screen.dataset.subtitle;
   } catch (error) {
     const note = document.createElement("div");
     note.className = "help";
@@ -15,16 +19,11 @@ async function run(command, args) {
   }
 }
 
-function fields(form) {
-  return form ? Object.fromEntries(new FormData(form).entries()) : {};
-}
-
-async function act(element) {
+async function act(element, submitter) {
   const action = element.dataset.action;
   const data = element.dataset;
   if (action === "screen") {
-    tab = data.tab;
-    return run("screen", { tab });
+    return run("screen", { tab: data.tab });
   }
   if (action === "print") {
     // Neither WKWebView nor Android's WebView implements window.print(): desktop asks Rust to
@@ -39,19 +38,20 @@ async function act(element) {
     if (navigator.share) return navigator.share({ text });
     return navigator.clipboard.writeText(text);
   }
-  const args = { ...fields(element.tagName === "FORM" ? element : null) };
+  const fields = element.tagName === "FORM" ? Object.fromEntries(new FormData(element, submitter)) : {};
+  const args = data.payload ? { [data.payload]: fields } : fields;
   if (data.line) args.line = Number(data.line);
   if (data.id) args.id = Number(data.id);
   if (data.owner) args.owner = data.owner === "true";
   return run(action, args);
 }
 
-view.addEventListener("click", (event) => {
+document.getElementById("app").addEventListener("click", (event) => {
   const target = event.target.closest("button[data-action]");
   if (target) act(target);
 });
 view.addEventListener("submit", (event) => {
   event.preventDefault();
-  act(event.target.closest("form[data-action]"));
+  act(event.target, event.submitter);
 });
-run("screen", { tab });
+run("screen", { tab: "draft" });

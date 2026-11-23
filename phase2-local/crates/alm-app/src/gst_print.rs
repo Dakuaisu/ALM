@@ -26,7 +26,7 @@ pub fn esc(text: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn indian_digits(mut whole: u64) -> String {
+pub(crate) fn indian_digits(mut whole: u64) -> String {
     let mut groups = vec![format!("{:03}", whole % 1000)];
     whole /= 1000;
     while whole > 0 {

@@ -38,6 +38,11 @@ impl Money {
     pub const fn minor_units(self) -> i64 {
         self.0
     }
+
+    /// Whole-rupee display value; half ties round toward positive infinity.
+    pub const fn rounded_rupees(self) -> i64 {
+        self.0.div_euclid(100) + if self.0.rem_euclid(100) >= 50 { 1 } else { 0 }
+    }
 }
 
 /// Synthetic roles selected by the trusted local harness, not authenticated accounts.

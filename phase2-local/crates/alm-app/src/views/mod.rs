@@ -1,29 +1,61 @@
 //! Rust-rendered screen fragments. HTML source: ALM_Business_Manager.html L329–352, L1994–2017.
 use std::fmt::Write as _;
 
-use crate::gst_print::esc;
+use crate::gst_print::{esc, indian_digits};
+use alm_core::Money;
 
 mod drafts;
 mod gst;
+mod sales;
 
-pub use drafts::{DraftView, ReviewView, draft_screen, review_screen};
+pub use drafts::{DraftView, ReviewView, customer, draft_screen, posting_review, review_screen};
 pub use gst::gst_screen;
+pub use sales::{Filter, SalesFilter, sales_screen};
 
 pub fn tabs(active: &str) -> String {
-    let mut html =
-        String::from("<div class=\"row no-print\" style=\"gap:8px;margin-bottom:12px\">");
+    let (title, subtitle) = match active {
+        "review" => (
+            "Owner review",
+            "Review a saved Manager draft before local simulation",
+        ),
+        "sales" => ("Sales", "All cash memos & sale records"),
+        "gst" => ("GST invoice", "Standalone synthetic invoice"),
+        _ => ("Manager draft", "Provisional only; unsent and not posted"),
+    };
+    let mut html = format!(
+        r#"<template id="screen-nav" data-title="{title}" data-subtitle="{}"><div class="navsec">Billing</div>"#,
+        esc(subtitle)
+    );
     for (tab, label) in [
         ("draft", "Manager draft"),
         ("review", "Owner review"),
+        ("sales", "Sales"),
         ("gst", "GST invoice"),
     ] {
-        let class = if tab == active { "btn primary" } else { "btn" };
+        let (class, current) = if tab == active {
+            ("navitem on", " aria-current=\"page\"")
+        } else {
+            ("navitem", "")
+        };
         let _ = write!(
             html,
-            "<button class=\"{class}\" data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
+            "<button type=\"button\" class=\"{class}\"{current} data-action=\"screen\" data-tab=\"{tab}\">{label}</button>"
         );
     }
-    html + "</div>"
+    html + "</template>"
+}
+
+pub fn denied(screen: &str) -> String {
+    format!(
+        r#"<div class="card" role="alert"><h3>Access denied</h3><p>Only the Owner can open {}.</p></div>"#,
+        esc(screen)
+    )
+}
+
+pub fn money_r(money: Money) -> String {
+    let rounded = money.rounded_rupees();
+    let sign = if rounded < 0 { "-" } else { "" };
+    format!("₹{sign}{}", indian_digits(rounded.unsigned_abs()))
 }
 
 pub fn notice(message: &str) -> String {

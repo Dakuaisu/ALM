@@ -16,7 +16,7 @@ fn rupees(money: Money) -> String {
     format!("₹{}", inr(money))
 }
 
-fn customer(draft: &ProvisionalDraft) -> &str {
+pub fn customer(draft: &ProvisionalDraft) -> &str {
     match draft.customer() {
         DraftCustomer::Unassigned => "Unassigned",
         DraftCustomer::Typed(name) | DraftCustomer::Selected { name, .. } => name,
@@ -134,8 +134,41 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
             }
             let _ = write!(
                 html,
-                "</tbody></table><div style=\"margin-top:8px\"><b>Total {}</b> — review only; posting is not part of this trial.</div>",
+                "</tbody></table><div style=\"margin-top:8px\"><b>Owner total {}</b></div>",
                 rupees(Money::from_minor_units(total))
+            );
+        }
+    }
+    html + "</div>"
+}
+
+pub fn posting_review(posting: Option<&crate::billing::Posting>, saved: bool) -> String {
+    let mut html = String::from(
+        r#"<div class="card"><h3>Local Owner simulation</h3><p class="help">Development only. Owner prices can differ from the provisional draft. Sales are not saved across restarts.</p>"#,
+    );
+    if !saved {
+        return html + "<p>Save or reopen the Manager draft first.</p></div>";
+    }
+    let date = crate::billing::DAY;
+    let _ = write!(
+        html,
+        r#"<form class="row" data-action="sale_prepare" data-payload="terms"><label>Bill date <input class="inp" type="date" name="date" value="{date}" required></label><label>Paid in cash (paise) <input class="inp" name="paid" inputmode="numeric" value="2000" required></label><button class="btn" type="submit">Review sale terms</button></form>"#
+    );
+    if let Some(posting) = posting {
+        let review = &posting.review;
+        if let (Ok(amounts), Some(date), alm_core::confirmation::ProposedPayment::Named(paid)) = (
+            review.amounts(),
+            review.draft().bill_date(),
+            review.payment(),
+        ) {
+            let _ = write!(
+                html,
+                r#"<p>Draft #{} · {} · {date} · Total <b>{}</b> · Paid (cash) <b>{}</b></p><button class="btn primary" data-action="sale_confirm" data-id="{}">Confirm simulated sale</button>"#,
+                review.draft().id().value(),
+                esc(customer(review.draft())),
+                rupees(amounts.total),
+                rupees(paid),
+                posting.serial()
             );
         }
     }

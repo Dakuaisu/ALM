@@ -2,6 +2,9 @@
 //! Every rule lives in `alm-core`/`alm-store`; the page only displays returned HTML.
 #![forbid(unsafe_code)]
 
+mod billing;
+#[cfg(test)]
+mod billing_tests;
 mod gst_print;
 mod views;
 
@@ -54,6 +57,9 @@ struct Trial {
     current: Option<(ProvisionalDraft, bool)>,
     owner: bool,
     message: String,
+    posting: Option<billing::Posting>,
+    review_serial: u64,
+    sales_filter: views::Filter,
 }
 
 type AppState = Mutex<Trial>;
@@ -62,10 +68,7 @@ impl Trial {
     fn open(device_root: &Path) -> Result<Self, String> {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
         let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
-        // Product 1 matches the core preview's "Synthetic Lime" at ₹118.00 inclusive.
-        let mut authority =
-            ConfirmationFixture::new(ProductId::new(1), 50, Money::from_minor_units(11_800))
-                .map_err(debug)?;
+        let mut authority = billing::fixture()?;
         authority
             .load_gst_bills_from(Role::Owner, &gst)
             .map_err(debug)?;
@@ -98,6 +101,9 @@ impl Trial {
             current: None,
             owner: true,
             message: String::new(),
+            posting: None,
+            review_serial: 0,
+            sales_filter: views::Filter::default(),
         })
     }
 
@@ -116,32 +122,49 @@ impl Trial {
         Ok(ids)
     }
 
+    const fn role(&self) -> Role {
+        if self.owner {
+            Role::Owner
+        } else {
+            Role::Manager
+        }
+    }
+
+    fn require_owner(&self) -> Result<Role, String> {
+        match self.role() {
+            Role::Owner => Ok(Role::Owner),
+            Role::Manager => Err("Access denied: Owner only.".into()),
+        }
+    }
+
     fn render(&mut self, tab: &str) -> Result<String, String> {
         let body = match tab {
+            "sales" => views::sales_screen(&self.authority, self.role(), &self.sales_filter)
+                .map_err(debug)?,
             "review" => {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
-                let role = if self.owner {
-                    Role::Owner
-                } else {
-                    Role::Manager
-                };
+                let role = self.role();
                 let prices = match draft {
-                    Some(draft) => {
-                        self.authority
-                            .register_draft(draft.clone())
-                            .map_err(debug)?;
-                        self.authority
-                            .review(role, draft.id())
-                            .map(|review| review.unit_prices().to_vec())
-                    }
+                    Some(draft) => self
+                        .authority
+                        .reconnect_review(role, draft.clone())
+                        .map(|review| review.unit_prices().to_vec()),
                     None => Ok(Vec::new()),
                 };
-                views::review_screen(&views::ReviewView {
+                let mut html = views::review_screen(&views::ReviewView {
                     role_is_owner: self.owner,
                     draft,
                     prices,
-                })
+                });
+                if self.owner {
+                    html += &views::posting_review(
+                        self.posting.as_ref(),
+                        self.current.as_ref().is_some_and(|(_, saved)| *saved),
+                    );
+                }
+                html
             }
+            "gst" if !self.owner => views::denied("GST invoice"),
             "gst" => {
                 let mut page = Err("GST bill missing".to_owned());
                 self.authority
@@ -211,6 +234,7 @@ fn draft_new(state: State<'_, AppState>, customer: String) -> Result<String, Str
         )
         .with_customer(DraftCustomer::Typed(customer.trim().to_owned()));
         trial.current = Some((draft, false));
+        trial.posting = None;
         trial.message = format!("New draft {id}: UNSAVED.");
         Ok(())
     })
@@ -236,6 +260,7 @@ fn draft_quantity(
             .ok_or("Unknown line.")?;
         if previous != quantity {
             *saved = false;
+            trial.posting = None;
         }
         Ok(())
     })
@@ -266,6 +291,7 @@ fn draft_open(state: State<'_, AppState>, id: u64) -> Result<String, String> {
             .map_err(text)?
             .ok_or("Draft not found.")?;
         trial.current = Some((draft, true));
+        trial.posting = None;
         trial.message = format!("Opened draft {id}: SAVED.");
         Ok(())
     })
@@ -274,6 +300,9 @@ fn draft_open(state: State<'_, AppState>, id: u64) -> Result<String, String> {
 #[tauri::command(async)]
 fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, String> {
     with(&state, "review", |trial| {
+        if trial.owner != owner {
+            trial.posting = None;
+        }
         trial.owner = owner;
         Ok(())
     })
@@ -295,10 +324,11 @@ fn print_page(window: tauri::WebviewWindow) -> Result<(), String> {
 #[tauri::command(async)]
 fn share_text(state: State<'_, AppState>) -> Result<String, String> {
     let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let role = trial.require_owner()?;
     let mut summary = Err("GST bill missing".to_owned());
     trial
         .authority
-        .emit_gst_bill(Role::Owner, TRIAL_BILL, &mut |invoice| {
+        .emit_gst_bill(role, TRIAL_BILL, &mut |invoice| {
             summary = Ok(format!(
                 "GST Invoice {} dated {} for {}: ₹{}",
                 invoice.invoice_number(),
@@ -327,6 +357,11 @@ pub fn run() {
             draft_save,
             draft_open,
             review_role,
+            billing::sale_prepare,
+            billing::sale_confirm,
+            billing::sales_filter,
+            billing::sale_cancel,
+            billing::sale_restore,
             print_page,
             share_text
         ])
