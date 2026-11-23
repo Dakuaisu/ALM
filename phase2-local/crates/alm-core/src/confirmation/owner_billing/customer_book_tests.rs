@@ -61,6 +61,13 @@ fn book_totals_follow_the_opening_aware_ledger_and_the_counter_debtor_rule() {
             ),
         ]
     );
+    let top: Vec<_> = book
+        .top_debtors(6)
+        .iter()
+        .map(|row| row.customer.id)
+        .collect();
+    assert_eq!(top, ["batch1-market"]);
+    assert!(book.top_debtors(0).is_empty());
     let due = directory
         .customer_book(&authority, Role::Owner, &CustomerFilter::Due)
         .unwrap();

@@ -76,6 +76,7 @@ struct Trial {
     /// In-memory manual Cash Book (no alm-store table; Supabase later).
     cashbook: ManualCashBook,
     cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
+    dash_period: alm_core::confirmation::DashboardPeriod,
 }
 
 type AppState = Mutex<Trial>;
@@ -124,6 +125,7 @@ impl Trial {
             customers: views::CustomersState::default(),
             cashbook: ManualCashBook::default(),
             cash_form: None,
+            dash_period: alm_core::confirmation::DashboardPeriod::Month,
         })
     }
 
@@ -181,6 +183,13 @@ impl Trial {
                 today: self.today()?,
             })
             .map_err(debug)?,
+            "dashboard" => views::dashboard_screen(
+                &self.authority,
+                &self.directory,
+                self.role(),
+                self.today()?,
+                self.dash_period,
+            )?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -272,6 +281,22 @@ fn screen(state: State<'_, AppState>, tab: String) -> Result<String, String> {
     with(&state, &tab, |_| Ok(()))
 }
 
+#[tauri::command(async)]
+fn dash_period(state: State<'_, AppState>, period: String) -> Result<String, String> {
+    use alm_core::confirmation::DashboardPeriod;
+    let period = match period.as_str() {
+        "today" => DashboardPeriod::Today,
+        "week" => DashboardPeriod::Week,
+        "month" => DashboardPeriod::Month,
+        _ => return Err("Unknown period.".into()),
+    };
+    with(&state, "dashboard", |trial| {
+        trial.require_owner()?;
+        trial.dash_period = period;
+        Ok(())
+    })
+}
+
 /// The page sends the device's local calendar date once at start.
 #[tauri::command(async)]
 fn start(state: State<'_, AppState>, today: String) -> Result<String, String> {
@@ -360,6 +385,7 @@ pub fn run() {
             cashbook::cash_new,
             cashbook::cash_edit,
             cashbook::cash_close,
+            dash_period,
             print_page,
             share_text
         ])

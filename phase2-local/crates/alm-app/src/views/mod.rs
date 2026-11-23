@@ -8,6 +8,7 @@ mod bill;
 mod cashbook;
 mod counter;
 mod customers;
+mod dashboard;
 mod drafts;
 mod gst;
 mod icons;
@@ -18,6 +19,7 @@ pub use bill::{BillView, bill_screen};
 pub use cashbook::{CashBookView, cashbook_screen};
 pub use counter::counter_screen;
 pub use customers::{CustomersState, customers_screen};
+pub use dashboard::dashboard_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
@@ -38,6 +40,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     ("Manage", &[("customers", "Customers")]),
+    ("More", &[("dashboard", "Dashboard")]),
 ];
 
 pub fn tabs(active: &str) -> String {
@@ -45,6 +48,7 @@ pub fn tabs(active: &str) -> String {
         "counter" => ("Counter", "What to do next · counts only"),
         "customers" => ("Customers", "Contacts & credit ledger (udhaar)"),
         "expenses" => ("Cash Book", "Daily income & expenses"),
+        "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",

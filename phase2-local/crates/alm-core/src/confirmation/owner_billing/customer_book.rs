@@ -51,6 +51,20 @@ pub struct CustomerBook {
     pub customers: usize,
 }
 
+impl CustomerBook {
+    /// The Dashboard's top debtors: debtor rows by descending balance, at most `count`.
+    pub fn top_debtors(&self, count: usize) -> Vec<&CustomerBookRow> {
+        let mut rows: Vec<_> = self
+            .rows
+            .iter()
+            .filter(|row| is_debtor(row.balance))
+            .collect();
+        rows.sort_by_key(|row| std::cmp::Reverse(row.balance.minor_units()));
+        rows.truncate(count);
+        rows
+    }
+}
+
 /// The Counter's debtor rule: a positive balance after rounding to whole rupees.
 pub fn is_debtor(balance: Money) -> bool {
     balance.rounded_rupees() > 0

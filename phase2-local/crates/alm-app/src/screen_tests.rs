@@ -188,3 +188,85 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
 }
+
+#[test]
+fn dashboard_renders_core_window_totals_profit_receivables_and_ageing() {
+    use alm_core::confirmation::{DashboardPeriod, SalesPeriod};
+    let fixture = books();
+    let core = fixture
+        .dashboard(Role::Owner, day(), DashboardPeriod::Month)
+        .expect("dashboard");
+    assert_eq!(
+        (
+            core.current.sales.minor_units(),
+            core.current.collected.minor_units()
+        ),
+        (12_050, 2_000)
+    );
+    let profit = fixture
+        .sales_history(
+            Role::Owner,
+            day(),
+            SalesPeriod::Custom((Some(core.current.window.start), Some(day()))),
+            "",
+        )
+        .expect("history")
+        .profit
+        .expect("profit")
+        .profit;
+    assert_eq!(profit.minor_units(), 5_050);
+    let ageing = fixture.customer_ageing(Role::Owner, day()).expect("ageing");
+    let html = views::dashboard_screen(
+        &fixture,
+        &directory(),
+        Role::Owner,
+        day(),
+        DashboardPeriod::Month,
+    )
+    .expect("dashboard");
+    assert!(html.contains(
+        r#"<div class="hl">Sales · this month</div><div class="hv"><span class="priv">₹121</span>"#
+    ));
+    assert!(
+        html.contains(
+            "1 bill · 2025-04-01 to 2025-04-30 · last month <span class=\"priv\">₹0</span>"
+        )
+    );
+    assert!(html.contains(&format!(
+        r#"<div class="sl">Profit</div><div class="sv"><span class="priv">{}</span>"#,
+        money_r(profit)
+    )));
+    assert!(html.contains(
+        r#"<div class="sl">Collected</div><div class="sv"><span class="priv">₹20</span>"#
+    ));
+    assert!(html.contains(r#"<div class="sl">Receivables</div><div class="sv"><span class="priv">₹321</span></div><div class="ss">2 customers owe</div>"#));
+    assert!(html.contains(&format!(
+        r#"<span class="al">0–15 days</span><span class="av priv">{}</span>"#,
+        money_r(ageing.d15)
+    )));
+    assert!(html.find("Synthetic Market").unwrap() < html.find("Synthetic Customer").unwrap());
+
+    let next = alm_core::BillDate::new(2025, 5, 1).unwrap();
+    let html = views::dashboard_screen(
+        &fixture,
+        &directory(),
+        Role::Owner,
+        next,
+        DashboardPeriod::Today,
+    )
+    .expect("today");
+    assert!(html.contains("bills ₹0 · receipts ₹31"));
+    assert!(html.contains(r#"<span>Online</span><b class="priv">₹31</b>"#));
+
+    let manager = views::dashboard_screen(
+        &fixture,
+        &directory(),
+        Role::Manager,
+        day(),
+        DashboardPeriod::Month,
+    )
+    .expect("denial");
+    assert!(manager.contains("role=\"alert\""));
+    assert!(!manager.contains("Profit"));
+    assert!(!manager.contains('₹'));
+}

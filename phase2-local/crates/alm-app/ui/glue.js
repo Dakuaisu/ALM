@@ -46,6 +46,7 @@ async function act(element, submitter) {
   if (data.line) args.line = Number(data.line);
   if (data.id !== undefined) args.id = data.id;
   if (data.owner) args.owner = data.owner === "true";
+  if (data.period) args.period = data.period;
   return run(action, args);
 }
 
