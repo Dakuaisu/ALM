@@ -4,14 +4,31 @@ import android.content.Intent
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.view.View
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+
+    @Suppress("DEPRECATION") // Request IME inset delivery to the edge-to-edge content.
+    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+    val content = findViewById<View>(android.R.id.content)
+    ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
+      val safeArea = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+      )
+      view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+      // Pass the remaining insets (including IME) in the WebView's smaller viewport.
+      insets.inset(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+    }
+    ViewCompat.requestApplyInsets(content)
   }
 
   // Android's WebView has no window.print(); expose the platform print and share dialogs.
