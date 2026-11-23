@@ -714,3 +714,48 @@ fn purchases_receive_dated_partials_close_remaining_and_deny_the_manager() {
             .is_err()
     );
 }
+
+#[test]
+fn crates_render_core_contents_and_value_and_deny_the_manager() {
+    use std::collections::HashMap;
+    let root = Root::new("crates");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.crate_form = Some(views::CrateForm {
+        rows: vec![("1".into(), "2".into(), "Case".into())],
+        ..Default::default()
+    });
+    let terms = |intent: &str| -> HashMap<String, String> {
+        [
+            ("name", "Party Crate"),
+            ("price", "400"),
+            ("product_0", "1"),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("product_1", "2"),
+            ("qty_1", "3"),
+            ("unit_1", "Case"),
+            ("intent", intent),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect()
+    };
+    trial.crate_submit(terms("add")).unwrap();
+    assert_eq!(trial.crate_form.as_ref().unwrap().rows.len(), 2);
+    trial.crate_submit(terms("save")).unwrap();
+    let rows = trial.authority.crate_template_list(Role::Owner).unwrap();
+    assert_eq!(rows[0].value, Ok(alm_core::Money::from_minor_units(42_850)));
+    let html = trial.render("crates").unwrap();
+    assert!(html.contains(r#"<td><b>Party Crate</b></td><td class="muted">2cs Synthetic Lime + 3cs Synthetic Soda</td><td class="num">2</td><td class="num">₹400</td><td class="num" title="Sum of contents at today's rates">₹429</td>"#), "{html}");
+    let mut bad = terms("save");
+    bad.insert("qty_1".into(), "0".into());
+    trial.crate_form = Some(views::CrateForm {
+        rows: vec![Default::default(), Default::default()],
+        ..Default::default()
+    });
+    assert!(trial.crate_submit(bad).is_err());
+    trial.owner = false;
+    let html = trial.render("crates").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+}

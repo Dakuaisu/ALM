@@ -33,6 +33,21 @@ pub(super) struct CrateTemplateBook {
     piece_mrps: BTreeMap<u64, Money>,
 }
 
+impl CrateTemplateId {
+    /// Fixture-local template number, for carrying a selection across IPC.
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+impl CrateTemplateBook {
+    pub(super) fn saved_templates(
+        &self,
+    ) -> impl Iterator<Item = (CrateTemplateId, &CrateTemplate)> {
+        self.saved.iter().map(|(id, template)| (*id, template))
+    }
+}
+
 const fn owner(role: Role) -> Result<(), CrateTemplateError> {
     match role {
         Role::Owner => Ok(()),

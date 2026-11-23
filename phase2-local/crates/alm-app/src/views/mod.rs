@@ -7,6 +7,7 @@ use alm_core::Money;
 mod bill;
 mod cashbook;
 mod counter;
+mod crates;
 mod customers;
 mod dashboard;
 mod drafts;
@@ -26,6 +27,7 @@ mod suppliers;
 pub use bill::{BillView, bill_screen};
 pub use cashbook::{CashBookView, cashbook_screen};
 pub use counter::counter_screen;
+pub use crates::{CrateForm, crates_screen};
 pub use customers::{CustomersState, customers_screen};
 pub use dashboard::dashboard_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
@@ -61,6 +63,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
         &[
             ("customers", "Customers"),
             ("products", "Products"),
+            ("crates", "Crates"),
             ("suppliers", "Suppliers"),
             ("stock", "Stock"),
             ("godown", "Godown"),
@@ -81,6 +84,7 @@ pub fn tabs(active: &str) -> String {
         "stock" => ("Stock", "Live inventory (billing stock)"),
         "products" => ("Products", "Price list, margins & supplier comparison"),
         "suppliers" => ("Suppliers", "Where you buy stock from"),
+        "crates" => ("Crates", "Reusable mixed-crate templates for quick billing"),
         "purchases" => (
             "Purchase Orders",
             "Order stock — inventory updates only when goods are received",
@@ -134,6 +138,9 @@ pub fn tabs(active: &str) -> String {
     }
     if active == "expenses" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
+    }
+    if active == "crates" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="crate_new">＋ New Crate</button></template>"#;
     }
     if active == "products" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="product_new">＋ Add Product</button></template>"#;

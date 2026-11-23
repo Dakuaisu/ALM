@@ -7,6 +7,7 @@ mod billing;
 #[cfg(test)]
 mod billing_tests;
 mod cashbook;
+mod crates;
 mod customers;
 mod godown;
 mod gst_print;
@@ -94,6 +95,7 @@ struct Trial {
     products: views::ProductsState,
     order: views::OrderState,
     receiving: Option<alm_core::confirmation::PurchaseOrderId>,
+    crate_form: Option<views::CrateForm>,
 }
 
 type AppState = Mutex<Trial>;
@@ -149,6 +151,7 @@ impl Trial {
             products: views::ProductsState::default(),
             order: views::OrderState::default(),
             receiving: None,
+            crate_form: None,
         })
     }
 
@@ -238,6 +241,13 @@ impl Trial {
                 self.receiving,
                 self.today()?,
             )?,
+            "crates" => views::crates_screen(
+                &self.authority,
+                &self.directory,
+                self.role(),
+                self.crate_form.as_ref(),
+            )
+            .map_err(debug)?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -480,6 +490,11 @@ pub fn run() {
             purchases::po_receive_close,
             purchases::po_receive_save,
             purchases::po_close,
+            crates::crate_new,
+            crates::crate_edit,
+            crates::crate_submit,
+            crates::crate_close,
+            crates::crate_delete,
             print_page,
             share_text
         ])

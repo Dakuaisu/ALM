@@ -9,6 +9,7 @@ mod cashbook;
 mod catalog;
 mod checkout;
 mod counter;
+mod crate_list;
 mod crate_templates;
 mod customer_accounts;
 mod customer_ageing;
@@ -53,6 +54,7 @@ pub use catalog::{
 };
 pub use checkout::{CheckoutAmounts, CheckoutTerms, LineTerms, ProductTerms};
 pub use counter::{Counter, CounterAttention, CounterBill, CounterRecent, CounterTag, CreationKey};
+pub use crate_list::{CrateListRow, crate_component_from_text};
 use crate_templates::CrateTemplateBook;
 pub use crate_templates::{CrateTemplate, CrateTemplateError, CrateTemplateId};
 pub use customer_accounts::{
