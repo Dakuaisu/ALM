@@ -270,3 +270,28 @@ fn dashboard_renders_core_window_totals_profit_receivables_and_ageing() {
     assert!(!manager.contains("Profit"));
     assert!(!manager.contains('₹'));
 }
+
+#[test]
+fn reorder_renders_core_rows_and_hides_costs_from_the_manager() {
+    use alm_core::ProductId;
+    use alm_core::confirmation::ProductPriceInput;
+    let mut fixture = fixture().expect("synthetic fixture");
+    let mut form = fixture
+        .open_product_entry(Role::Owner, ProductId::new(1))
+        .unwrap();
+    form.reorder_level = Some(60);
+    form.apply_price(ProductPriceInput::Buy(Money::from_minor_units(7_000)))
+        .unwrap();
+    fixture.save_product_entry(Role::Owner, &form).unwrap();
+    let rows = fixture.open_reorder_planner(Role::Owner).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].suggested_quantity.get(), 130);
+    assert_eq!(rows[0].estimated_cost.minor_units(), 910_000);
+    let html = views::reorder_screen(&fixture, Role::Owner, None).unwrap();
+    assert!(html.contains("<b>⚠️ 1 item(s) at or below reorder level.</b>"));
+    assert!(html.contains(r#"<td class="num">50</td><td class="num">60</td><td class="num" style="font-weight:700;color:var(--accent)">130 pkt</td><td><span class="muted">buy ₹70.00</span></td><td class="num">₹9,100</td><td><span class="tag low">LOW</span>"#), "{html}");
+    let manager = views::reorder_screen(&fixture, Role::Manager, None).unwrap();
+    assert!(manager.contains("role=\"alert\""));
+    assert!(!manager.contains('₹'));
+    assert!(!manager.contains("Synthetic Lime"));
+}

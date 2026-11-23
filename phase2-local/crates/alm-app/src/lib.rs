@@ -77,6 +77,7 @@ struct Trial {
     cashbook: ManualCashBook,
     cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
     dash_period: alm_core::confirmation::DashboardPeriod,
+    reorder_text: Option<String>,
 }
 
 type AppState = Mutex<Trial>;
@@ -126,6 +127,7 @@ impl Trial {
             cashbook: ManualCashBook::default(),
             cash_form: None,
             dash_period: alm_core::confirmation::DashboardPeriod::Month,
+            reorder_text: None,
         })
     }
 
@@ -190,6 +192,10 @@ impl Trial {
                 self.today()?,
                 self.dash_period,
             )?,
+            "reorder" => {
+                views::reorder_screen(&self.authority, self.role(), self.reorder_text.as_deref())
+                    .map_err(debug)?
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -297,6 +303,22 @@ fn dash_period(state: State<'_, AppState>, period: String) -> Result<String, Str
     })
 }
 
+/// Shows the core's Copy List text for the user to copy; nothing is sent anywhere.
+#[tauri::command(async)]
+fn reorder_copy(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "reorder", |trial| {
+        let role = trial.require_owner()?;
+        let today = trial.today()?;
+        let mut text = None;
+        trial
+            .authority
+            .copy_reorder_list(role, today, &mut |copied| text = Some(copied))
+            .map_err(debug)?;
+        trial.reorder_text = text;
+        Ok(())
+    })
+}
+
 /// The page sends the device's local calendar date once at start.
 #[tauri::command(async)]
 fn start(state: State<'_, AppState>, today: String) -> Result<String, String> {
@@ -386,6 +408,7 @@ pub fn run() {
             cashbook::cash_edit,
             cashbook::cash_close,
             dash_period,
+            reorder_copy,
             print_page,
             share_text
         ])

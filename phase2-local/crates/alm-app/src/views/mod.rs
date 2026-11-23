@@ -13,6 +13,7 @@ mod drafts;
 mod gst;
 mod icons;
 mod receipt;
+mod reorder;
 mod sales;
 
 pub use bill::{BillView, bill_screen};
@@ -23,6 +24,7 @@ pub use dashboard::dashboard_screen;
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
 pub use gst::gst_screen;
 pub use receipt::receipt_screen;
+pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
 
 /// Sidebar sections follow the HTML NAV (L1896–1975); only ported screens are listed.
@@ -39,7 +41,10 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("expenses", "Cash Book"),
         ],
     ),
-    ("Manage", &[("customers", "Customers")]),
+    (
+        "Manage",
+        &[("customers", "Customers"), ("reorder", "Reorder")],
+    ),
     ("More", &[("dashboard", "Dashboard")]),
 ];
 
@@ -49,6 +54,7 @@ pub fn tabs(active: &str) -> String {
         "customers" => ("Customers", "Contacts & credit ledger (udhaar)"),
         "expenses" => ("Cash Book", "Daily income & expenses"),
         "dashboard" => ("Dashboard", "Sales, collections and udhaar"),
+        "reorder" => ("Reorder Planner", "Items running low + cheapest supplier"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",
@@ -83,6 +89,9 @@ pub fn tabs(active: &str) -> String {
     html += "</template>";
     if active == "expenses" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
+    }
+    if active == "reorder" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="reorder_copy">📋 Copy List</button></template>"#;
     }
     if active == "bill" {
         html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="bill_fresh">＋ Fresh Bill</button></template>"#;
