@@ -4,6 +4,7 @@ use std::fmt::Write as _;
 use crate::gst_print::{esc, indian_digits};
 use alm_core::Money;
 
+mod backup;
 mod bill;
 mod cashbook;
 mod counter;
@@ -28,6 +29,7 @@ mod settings;
 mod stock;
 mod suppliers;
 
+pub use backup::{RestoredSummary, backup_section};
 pub use bill::{BillView, bill_body, bill_screen};
 pub use cashbook::{CashBookView, cash_system_card, cashbook_screen};
 pub use counter::counter_screen;

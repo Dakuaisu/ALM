@@ -2,6 +2,7 @@
 //! Every rule lives in `alm-core`/`alm-store`; the page only displays returned HTML.
 #![forbid(unsafe_code)]
 
+mod backup;
 #[cfg(test)]
 mod batch2;
 mod bill_entry;
@@ -109,6 +110,9 @@ struct Trial {
     prefs: alm_store::preferences::Preferences,
     /// The shop archive holding shared settings (business profile, default reorder level).
     shop: alm_store::synthetic_read_model::Store,
+    device_root: std::path::PathBuf,
+    /// The last restored backup, opened read-only at a fresh path.
+    restored: Option<(String, alm_store::synthetic_read_model::Store)>,
 }
 
 type AppState = Mutex<Trial>;
@@ -184,6 +188,8 @@ impl Trial {
             outputs: device_root.join("outputs"),
             prefs: alm_store::preferences::Preferences::load(&prefs_dir),
             shop,
+            device_root: device_root.to_path_buf(),
+            restored: None,
         })
     }
 
@@ -301,7 +307,7 @@ impl Trial {
                     ),
                     Role::Manager => (&profile, 0),
                 };
-                views::settings_screen(&views::SettingsView {
+                let mut html = views::settings_screen(&views::SettingsView {
                     role,
                     theme: self.prefs.theme(),
                     balance: self.prefs.balance_mode(),
@@ -311,7 +317,18 @@ impl Trial {
                         .is_none(),
                     profile,
                     reorder_default: reorder,
-                })
+                });
+                if role == Role::Owner {
+                    let restored = match &self.restored {
+                        Some((name, store)) => Some((name.as_str(), backup::summary(store)?)),
+                        None => None,
+                    };
+                    html += &views::backup_section(
+                        &self.backups(),
+                        restored.as_ref().map(|(n, s)| (*n, s)),
+                    );
+                }
+                html
             }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
@@ -588,6 +605,8 @@ pub fn run() {
             settings::settings_theme,
             settings::settings_balance,
             settings::settings_privacy,
+            backup::backup_create,
+            backup::backup_restore,
             receipts::receipt_save,
             customers::customers_filter,
             customers::customer_open,

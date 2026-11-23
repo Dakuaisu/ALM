@@ -1030,3 +1030,58 @@ fn settings_split_device_local_preferences_from_the_shared_archive_profile() {
     assert!(!html.contains("09ABCDE1234F1Z5"));
     assert!(trial.settings_profile(&form("9"), 8).is_err());
 }
+
+#[test]
+fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
+    let root = Root::new("backup");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    crate::billing_tests::posted(&mut trial.authority);
+    let name = trial.backup_create().unwrap();
+    assert_eq!(name, "ALM-backup-2025-04-30-1.json");
+    assert_eq!(
+        trial.backup_create().unwrap(),
+        "ALM-backup-2025-04-30-2.json"
+    );
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("<td>ALM-backup-2025-04-30-2.json</td>"));
+    assert!(html.find("-2.json").unwrap() < html.find("-1.json").unwrap());
+
+    trial.backup_restore(&name).unwrap();
+    let (_, store) = trial.restored.as_ref().unwrap();
+    let records = store.records(Role::Owner).unwrap();
+    assert_eq!(
+        records,
+        &trial
+            .authority
+            .archive_records(Role::Owner, &directory())
+            .unwrap()
+    );
+    assert_eq!(records.sales[0].total_minor, 12_050);
+    assert!(
+        root.0
+            .join("restored/ALM-backup-2025-04-30-1-restored-1.json")
+            .exists()
+    );
+    let html = trial.render("settings").unwrap();
+    assert!(
+        html.contains("2 products · 2 customers · 1 sales · 0 receipts · 1 GST bills"),
+        "{html}"
+    );
+
+    let shop_before = std::fs::read(root.0.join("shop.json")).unwrap();
+    std::fs::write(root.0.join("backups/broken.json"), b"{\"version\":2}").unwrap();
+    let err = trial.backup_restore("broken.json").unwrap_err();
+    assert_eq!(err, "Not a valid ALM backup — nothing was changed.");
+    assert!(!root.0.join("restored/broken-restored-1.json").exists());
+    assert_eq!(
+        std::fs::read(root.0.join("shop.json")).unwrap(),
+        shop_before
+    );
+    assert_eq!(trial.restored.as_ref().unwrap().0, name);
+    assert!(trial.backup_restore("../shop.json").is_err());
+
+    trial.owner = false;
+    assert!(trial.backup_create().is_err());
+    assert!(trial.backup_restore(&name).is_err());
+    assert!(!trial.render("settings").unwrap().contains("Full Backup"));
+}

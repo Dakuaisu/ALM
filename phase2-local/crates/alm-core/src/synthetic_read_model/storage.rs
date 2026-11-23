@@ -283,6 +283,40 @@ impl ReadModel {
         })?)
     }
 
+    /// Backup bytes of this archive with the live records and standalone GST ledger swapped in.
+    /// Profile, scope, GST history and purchase orders are kept; the result is validated as a
+    /// restore would validate it.
+    ///
+    /// # Errors
+    /// Denies Managers and rejects records the archive would not reopen.
+    pub fn backup_with(
+        &self,
+        role: Role,
+        records: Records,
+        ledger: Option<crate::confirmation::GstBillLedger>,
+    ) -> Result<Vec<u8>, Error> {
+        owner(role)?;
+        let (standalone_gst, standalone_gst_deleted) = match ledger {
+            Some(ledger) => (Some(ledger.bills), Some(ledger.deleted)),
+            None => (
+                self.standalone_gst.clone(),
+                self.standalone_gst_deleted.clone(),
+            ),
+        };
+        let archive = Archive {
+            version: 1,
+            records,
+            profile: self.profile.clone(),
+            scope: self.scope.clone(),
+            gst: self.gst.clone(),
+            purchase_orders: self.purchase_orders.clone(),
+            standalone_gst,
+            standalone_gst_deleted,
+        };
+        archive.validate()?;
+        Ok(serde_json::to_vec(&archive)?)
+    }
+
     fn save_archive(
         &mut self,
         records: Records,
@@ -294,5 +328,56 @@ impl ReadModel {
         self.records = records;
         self.profile = profile;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod backup_with_tests {
+    use super::{Error, ReadModel};
+    use crate::Role;
+    use crate::confirmation::demo_fixture::{directory, fixture};
+    use crate::confirmation::{GstBillId, GstBillLedger};
+    use crate::synthetic_read_model::BusinessProfile;
+
+    #[test]
+    fn backup_with_swaps_live_records_keeps_the_profile_and_validates() {
+        let f = fixture().unwrap();
+        let mut model = ReadModel::create(
+            Role::Owner,
+            f.archive_records(Role::Owner, &directory()).unwrap(),
+            |_| Ok(()),
+        )
+        .unwrap();
+        let profile = BusinessProfile {
+            gstin: "09ABCDE1234F1Z5".into(),
+            ..BusinessProfile::default()
+        };
+        model
+            .save_business_profile(Role::Owner, &profile, 5, "device-a", |_| Ok(()))
+            .unwrap();
+        let mut records = f.archive_records(Role::Owner, &directory()).unwrap();
+        records.reorder_default = 11;
+        let bytes = model
+            .backup_with(Role::Owner, records.clone(), None)
+            .unwrap();
+        let restored = ReadModel::restore(Role::Owner, &bytes, |_| Ok(())).unwrap();
+        assert_eq!(restored.records(Role::Owner).unwrap(), &records);
+        assert_eq!(
+            restored.business_profile(Role::Owner).unwrap().gstin,
+            "09ABCDE1234F1Z5"
+        );
+        assert_eq!(restored.business_profile(Role::Owner).unwrap().version, 1);
+        let clash = GstBillLedger {
+            bills: vec![],
+            deleted: vec![GstBillId(1), GstBillId(1)],
+        };
+        assert!(matches!(
+            model.backup_with(Role::Owner, records.clone(), Some(clash)),
+            Err(Error::InvalidArchive)
+        ));
+        assert!(matches!(
+            model.backup_with(Role::Manager, records, None),
+            Err(Error::AccessDenied)
+        ));
     }
 }
