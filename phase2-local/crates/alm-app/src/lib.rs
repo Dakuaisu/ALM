@@ -96,6 +96,7 @@ struct Trial {
     order: views::OrderState,
     receiving: Option<alm_core::confirmation::PurchaseOrderId>,
     crate_form: Option<views::CrateForm>,
+    rates: alm_core::confirmation::rate_list::RateListSelection,
 }
 
 type AppState = Mutex<Trial>;
@@ -152,6 +153,7 @@ impl Trial {
             order: views::OrderState::default(),
             receiving: None,
             crate_form: None,
+            rates: Default::default(),
         })
     }
 
@@ -248,6 +250,17 @@ impl Trial {
                 self.crate_form.as_ref(),
             )
             .map_err(debug)?,
+            "ratelist" => {
+                let today = self.today()?;
+                views::ratelist_screen(
+                    &self.authority,
+                    self.role(),
+                    &mut self.rates,
+                    SELLER.name,
+                    today,
+                )
+                .map_err(debug)?
+            }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
             }
@@ -367,6 +380,49 @@ fn reorder_copy(state: State<'_, AppState>) -> Result<String, String> {
             .copy_reorder_list(role, today, &mut |copied| text = Some(copied))
             .map_err(debug)?;
         trial.reorder_text = text;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+fn rate_brand(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    with(&state, "ratelist", |trial| {
+        trial.require_owner()?;
+        trial.rates.toggle_brand_filter(&q);
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+fn rate_group(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    with(&state, "ratelist", |trial| {
+        let role = trial.require_owner()?;
+        trial
+            .authority
+            .rate_list_group_toggle(role, &mut trial.rates, &q)
+            .map_err(debug)
+    })
+}
+
+#[derive(serde::Deserialize)]
+struct RateSearch {
+    q: String,
+}
+
+#[tauri::command(async)]
+fn rate_search(state: State<'_, AppState>, terms: RateSearch) -> Result<String, String> {
+    with(&state, "ratelist", |trial| {
+        trial.require_owner()?;
+        trial.rates.query = terms.q;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+fn rate_toggle(state: State<'_, AppState>, id: ipc::IpcId) -> Result<String, String> {
+    with(&state, "ratelist", |trial| {
+        trial.require_owner()?;
+        trial.rates.toggle(alm_core::ProductId::new(id.value()));
         Ok(())
     })
 }
@@ -495,6 +551,10 @@ pub fn run() {
             crates::crate_submit,
             crates::crate_close,
             crates::crate_delete,
+            rate_brand,
+            rate_group,
+            rate_search,
+            rate_toggle,
             print_page,
             share_text
         ])

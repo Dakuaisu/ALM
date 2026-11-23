@@ -37,6 +37,7 @@ pub mod pending;
 mod posting;
 mod preview;
 pub(crate) mod purchase_orders;
+pub mod rate_list;
 mod reporting;
 mod sales_history;
 mod sales_output;

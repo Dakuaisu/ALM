@@ -18,6 +18,7 @@ mod icons;
 mod order;
 mod products;
 mod purchases;
+mod ratelist;
 mod receipt;
 mod reorder;
 mod sales;
@@ -37,6 +38,7 @@ pub use gst_sales::gst_sales_screen;
 pub use order::{OrderState, order_screen};
 pub use products::{ProductsState, products_screen};
 pub use purchases::purchases_screen;
+pub use ratelist::ratelist_screen;
 pub use receipt::receipt_screen;
 pub use reorder::reorder_screen;
 pub use sales::{Filter, SalesFilter, sales_screen};
@@ -71,7 +73,10 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("order", "Order Planner"),
         ],
     ),
-    ("More", &[("dashboard", "Dashboard")]),
+    (
+        "More",
+        &[("ratelist", "Rate List"), ("dashboard", "Dashboard")],
+    ),
 ];
 
 pub fn tabs(active: &str) -> String {
@@ -85,6 +90,10 @@ pub fn tabs(active: &str) -> String {
         "products" => ("Products", "Price list, margins & supplier comparison"),
         "suppliers" => ("Suppliers", "Where you buy stock from"),
         "crates" => ("Crates", "Reusable mixed-crate templates for quick billing"),
+        "ratelist" => (
+            "Rate List",
+            "Tick the brands and items you want, then print or send",
+        ),
         "purchases" => (
             "Purchase Orders",
             "Order stock — inventory updates only when goods are received",

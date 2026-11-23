@@ -759,3 +759,24 @@ fn crates_render_core_contents_and_value_and_deny_the_manager() {
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
 }
+
+#[test]
+fn rate_list_renders_core_rows_ticks_and_text_and_denies_the_manager() {
+    let root = Root::new("ratelist");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("ratelist").unwrap();
+    assert!(
+        html.contains(
+            r#"<td class="muted">Other</td><td><b>Synthetic Lime</b></td><td class="num">₹121</td>"#
+        ),
+        "{html}"
+    );
+    assert!(html.contains("Synthetic Lime — ₹120.5\nSynthetic Soda — ₹62.5"));
+    trial.rates.toggle(alm_core::ProductId::new(2));
+    let html = trial.render("ratelist").unwrap();
+    assert!(!html.contains("Synthetic Soda — ₹"));
+    trial.owner = false;
+    let html = trial.render("ratelist").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+}

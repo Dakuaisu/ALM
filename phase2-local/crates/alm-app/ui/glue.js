@@ -47,6 +47,7 @@ async function act(element, submitter) {
   if (data.id !== undefined) args.id = data.id;
   if (data.owner) args.owner = data.owner === "true";
   if (data.period) args.period = data.period;
+  if (data.q !== undefined) args.q = data.q;
   return run(action, args);
 }
 
