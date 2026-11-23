@@ -26,20 +26,26 @@ pub fn reports_screen(
         Err(error) => return Err(format!("{error:?}")),
     };
     let mut html = String::from(
-        r#"<div class="card priv"><div class="sectit">Profit &amp; Loss by Month</div><div class="help" style="margin-bottom:8px"><b>Net = Gross Profit − Other Expenses.</b> Gross Profit already has cost of goods deducted (FIFO), so Cash Book Goods (cash) is listed separately.</div><div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Bills</th><th class="num">Sales</th><th class="num">Gross Profit</th><th class="num">Goods (cash)</th><th class="num">Misc</th><th class="num">Salary</th><th class="num">Net</th></tr></thead><tbody>"#,
+        r#"<div class="card priv"><div class="sectit">Profit &amp; Loss by Month</div><div class="help" style="margin-bottom:8px"><b>Net = Gross Profit − Other Expenses.</b> Gross Profit already has cost of goods deducted (FIFO), so Cash Book Goods (cash) is listed separately.</div><div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Bills</th><th class="num">Sales</th><th class="num">Gross Profit</th><th class="num">Goods (cash)</th><th class="num">Other Expenses</th><th class="num">Net</th></tr></thead><tbody>"#,
     );
     for month in months.iter().rev() {
+        let goods = if month.goods.is_zero() {
+            "—".to_owned()
+        } else {
+            money_r(month.goods)
+        };
+        let other = month
+            .other_expenses()
+            .map_err(|error| format!("{error:?}"))?;
         let _ = write!(
             html,
-            r#"<tr><td>{:04}-{:02}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num"><b>{}</b></td></tr>"#,
+            r#"<tr><td>{:04}-{:02}</td><td class="num">{}</td><td class="num">{}</td><td class="num pos">{}</td><td class="num muted" title="Cash Book goods purchases — already inside Gross Profit if they came through a Purchase Order">{goods}</td><td class="num neg">{}</td><td class="num" style="font-weight:700">{}</td></tr>"#,
             month.year,
             month.month,
             month.bills.len(),
             money_r(month.revenue),
             money_r(month.gross),
-            money_r(month.goods),
-            money_r(month.misc),
-            money_r(month.salary),
+            money_r(other),
             money_r(month.net)
         );
     }

@@ -46,6 +46,17 @@ fn add(a: Money, b: Money) -> Result<Money, ConfirmationError> {
         .ok_or(ConfirmationError::Overflow)
 }
 
+impl MonthlyProfit {
+    /// The P&L "Other Expenses" column: Cash Book misc plus salary for the month.
+    pub fn other_expenses(&self) -> Result<Money, ConfirmationError> {
+        self.misc
+            .minor_units()
+            .checked_add(self.salary.minor_units())
+            .map(Money::from_minor_units)
+            .ok_or(ConfirmationError::Overflow)
+    }
+}
+
 fn sub(a: Money, b: Money) -> Result<Money, ConfirmationError> {
     a.minor_units()
         .checked_sub(b.minor_units())
@@ -207,5 +218,40 @@ impl ConfirmationFixture {
         ranks.sort_by_key(|row| std::cmp::Reverse(row.total.minor_units()));
         ranks.truncate(8);
         Ok(ranks)
+    }
+}
+
+#[cfg(test)]
+mod other_expenses_tests {
+    use super::MonthlyProfit;
+    use crate::Money;
+
+    #[test]
+    fn other_expenses_sums_misc_and_salary_and_net_follows() {
+        let m = |p| Money::from_minor_units(p);
+        let row = MonthlyProfit {
+            year: 2025,
+            month: 4,
+            bills: vec![],
+            cash_rows: vec![],
+            revenue: m(10_000),
+            cost: m(6_000),
+            gross: m(4_000),
+            goods: m(900),
+            misc: m(50),
+            salary: m(15_000),
+            net: m(4_000 - 15_050),
+        };
+        assert_eq!(row.other_expenses(), Ok(m(15_050)));
+        assert_eq!(
+            row.gross.minor_units() - row.other_expenses().unwrap().minor_units(),
+            row.net.minor_units()
+        );
+        let overflow = MonthlyProfit {
+            misc: m(i64::MAX),
+            salary: m(1),
+            ..row
+        };
+        assert!(overflow.other_expenses().is_err());
     }
 }

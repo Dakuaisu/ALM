@@ -799,7 +799,12 @@ fn reports_render_core_months_and_dead_stock_and_deny_the_manager() {
     assert_eq!(cutoff, alm_core::BillDate::new(2025, 5, 16).unwrap());
     let dead = fixture.dead_stock_report(Role::Owner, cutoff).unwrap();
     let html = views::reports_screen(&fixture, &book, Role::Owner, today).unwrap();
-    assert!(html.contains(r#"<tr><td>2025-04</td><td class="num">1</td><td class="num">₹121</td><td class="num">₹51</td>"#), "{html}");
+    assert!(html.contains(r#"<tr><td>2025-04</td><td class="num">1</td><td class="num">₹121</td><td class="num pos">₹51</td>"#), "{html}");
+    assert!(html.contains("<th class=\"num\">Other Expenses</th><th class=\"num\">Net</th>"));
+    assert!(html.contains(&format!(
+        r#"<td class="num neg">{}</td>"#,
+        money_r(april.other_expenses().unwrap())
+    )));
     assert!(html.contains("Last sold before 2025-05-16."));
     for row in dead {
         assert!(html.contains(&money_r(row.locked_value)));
