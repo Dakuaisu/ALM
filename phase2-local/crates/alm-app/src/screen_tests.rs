@@ -469,8 +469,10 @@ fn products_render_core_prices_margins_and_hide_them_from_the_manager() {
         item: "Synthetic Lime".into(),
         brand: "Synthetic Co".into(),
         buy: "70".into(),
+        margin: String::new(),
         sell: "".into(),
         reorder: "60".into(),
+        changed: String::new(),
     };
     trial.product_save(&form).unwrap();
     let row = trial
@@ -813,4 +815,45 @@ fn reports_render_core_months_and_dead_stock_and_deny_the_manager() {
     let manager = views::reports_screen(&fixture, &book, Role::Manager, today).unwrap();
     assert!(manager.contains("role=\"alert\""));
     assert!(!manager.contains('₹'));
+}
+
+#[test]
+fn products_margin_preview_comes_from_core() {
+    use alm_core::ProductId;
+    let root = Root::new("product-preview");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.products.form = Some(
+        trial
+            .authority
+            .open_product_entry(Role::Owner, ProductId::new(2))
+            .unwrap(),
+    );
+    let form = |buy: &str, margin: &str, sell: &str, changed: &str| crate::products::Form {
+        item: "Synthetic Soda".into(),
+        brand: String::new(),
+        buy: buy.into(),
+        margin: margin.into(),
+        sell: sell.into(),
+        reorder: String::new(),
+        changed: changed.into(),
+    };
+    let html = trial
+        .product_preview(&form("38", "24.50", "62.50", "buy"))
+        .unwrap();
+    assert!(html.starts_with(r#"<div class="card" id="product-form""#));
+    assert!(
+        html.contains(r#"name="sell" inputmode="decimal" value="62.50""#),
+        "{html}"
+    );
+    let html = trial
+        .product_preview(&form("40", "24.50", "62.50", "buy"))
+        .unwrap();
+    assert!(html.contains(r#"name="sell" inputmode="decimal" value="64.50""#));
+    let html = trial
+        .product_preview(&form("40", "", "30", "sell"))
+        .unwrap();
+    assert!(html.contains(r#"name="margin" inputmode="decimal" value="-10.00""#));
+    assert!(trial.product_preview(&form("x", "", "", "buy")).is_err());
+    trial.owner = false;
+    assert!(trial.product_preview(&form("40", "", "", "buy")).is_err());
 }

@@ -72,13 +72,18 @@ pub fn products_screen(
     Ok(html + "</tbody></table></div>")
 }
 
+/// The edit card alone, so a live price preview can replace just this fragment.
+pub fn product_form(form: &ProductEntry) -> String {
+    edit_form(form)
+}
+
 fn edit_form(form: &ProductEntry) -> String {
     let pricing = form.pricing();
     let reorder = form
         .reorder_level
         .map_or_else(String::new, |r| r.to_string());
     format!(
-        r#"<div class="card" style="margin-bottom:14px"><h3>🥤 Product</h3><form data-action="product_save" data-payload="terms"><div class="f2"><div><label>Item name * <input class="inp" name="item" value="{}"></label></div><div><label>Company / Brand <input class="inp" name="brand" value="{}"></label></div></div><div class="f3"><div><label>Buy Rate ₹ <input class="inp num" name="buy" inputmode="decimal" value="{}"></label></div><div><label>Margin ₹ <input class="inp num" value="{}" readonly></label></div><div><label>Sell Rate ₹ <input class="inp num" name="sell" inputmode="decimal" value="{}"></label></div></div><div class="field"><label>Reorder level (pkt) <input class="inp num" name="reorder" inputmode="numeric" value="{reorder}"></label></div><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-action="product_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form></div>"#,
+        r#"<div class="card" id="product-form" style="margin-bottom:14px"><h3>🥤 Product</h3><form data-action="product_save" data-payload="terms" data-live="product_preview" data-target="product-form"><div class="f2"><div><label>Item name * <input class="inp" name="item" value="{}"></label></div><div><label>Company / Brand <input class="inp" name="brand" value="{}"></label></div></div><div class="f3"><div><label>Buy Rate ₹ <input class="inp num" name="buy" inputmode="decimal" value="{}"></label></div><div><label>Margin ₹ <input class="inp num" name="margin" inputmode="decimal" value="{}"></label></div><div><label>Sell Rate ₹ <input class="inp num" name="sell" inputmode="decimal" value="{}"></label></div></div><div class="field"><label>Reorder level (pkt) <input class="inp num" name="reorder" inputmode="numeric" value="{reorder}"></label></div><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-action="product_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form></div>"#,
         esc(&form.item),
         esc(&form.brand),
         pricing.buy().to_rupee_text(),

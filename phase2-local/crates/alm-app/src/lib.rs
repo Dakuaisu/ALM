@@ -551,6 +551,7 @@ pub fn run() {
             products::product_edit,
             products::product_save,
             products::product_close,
+            products::product_preview,
             suppliers::supplier_add,
             suppliers::supplier_quotes,
             order::order_add,

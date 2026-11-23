@@ -48,7 +48,7 @@ pub use cashbook::{CashBookDay, CashBookEntry, CashBookKind};
 use catalog::Catalog;
 pub use catalog::{
     DailyMovementError, DailyMovementRow, PhysicalCount, PhysicalCountError, PhysicalCountInput,
-    ProductEntry, ProductEntryError, ProductList, ProductListRow, ProductPriceInput,
+    PriceField, ProductEntry, ProductEntryError, ProductList, ProductListRow, ProductPriceInput,
     ProductPricing, ProductTaxOverrides, ProductText, ReorderError, ReorderRow, ReorderStatus,
     ResolvedProductTax, StockCountMovement, StockCountReason, StockList, StockListRow, StockLotRow,
     StockLots, StockLotsError, StockStatus,

@@ -1,5 +1,5 @@
 use alm_core::ProductId;
-use alm_core::confirmation::ProductText;
+use alm_core::confirmation::{PriceField, ProductText};
 use tauri::State;
 
 use crate::{AppState, Trial, debug, ipc::IpcId, with};
@@ -15,8 +15,13 @@ pub struct Form {
     pub item: String,
     pub brand: String,
     pub buy: String,
+    #[serde(default)]
+    pub margin: String,
     pub sell: String,
     pub reorder: String,
+    /// The price box the user typed in, sent by live forms (`_changed`).
+    #[serde(default, rename = "_changed")]
+    pub changed: String,
 }
 
 impl Trial {
@@ -43,6 +48,32 @@ impl Trial {
         self.message = format!("{} saved ✓", entry.item);
         Ok(())
     }
+}
+
+impl Trial {
+    /// Live "buy keeps margin" preview: core recalculates; only the form card is returned.
+    pub(crate) fn product_preview(&mut self, form: &Form) -> Result<String, String> {
+        self.require_owner()?;
+        let entry = self.products.form.as_mut().ok_or("No product is open.")?;
+        let changed = match form.changed.as_str() {
+            "buy" => PriceField::Buy,
+            "margin" => PriceField::Margin,
+            "sell" => PriceField::Sell,
+            _ => return Ok(crate::views::product_form(entry)),
+        };
+        entry.item.clone_from(&form.item);
+        entry.brand.clone_from(&form.brand);
+        entry
+            .preview_prices(&form.buy, &form.margin, &form.sell, changed)
+            .map_err(|_| "Enter prices in rupees (up to two decimals).".to_owned())?;
+        Ok(crate::views::product_form(entry))
+    }
+}
+
+#[tauri::command(async)]
+pub fn product_preview(state: State<'_, AppState>, terms: Form) -> Result<String, String> {
+    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    trial.product_preview(&terms)
 }
 
 #[tauri::command(async)]

@@ -53,7 +53,68 @@ fn margin_percent(buy: Money, sell: Money) -> Option<String> {
     Some(format!("{sign}{}.{}%", abs / 10, abs % 10))
 }
 
+/// Which price box the user last typed in (`buy` / `marg` / `sell` input listeners).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PriceField {
+    Buy,
+    Margin,
+    Sell,
+}
+
+/// `+input.value || 0` for a price box; the margin may be negative when sell is below buy.
+fn price_text(text: &str, signed: bool) -> Result<Money, ProductEntryError> {
+    let invalid = || ProductEntryError::Catalog(ConfirmationError::InvalidAmount);
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(Money::from_minor_units(0));
+    }
+    match text.strip_prefix('-') {
+        Some(rest) if signed => Money::parse_rupees(rest)
+            .ok()
+            .and_then(|m| m.minor_units().checked_neg())
+            .map(Money::from_minor_units)
+            .ok_or_else(invalid),
+        _ => Money::parse_rupees(text).map_err(|_| invalid()),
+    }
+}
+
 impl ProductEntry {
+    /// The live price recalculation (`recalc`): typing buy or margin sets sell = buy + margin;
+    /// typing sell sets margin = sell - buy. The entry's prices are replaced; nothing is saved.
+    ///
+    /// # Errors
+    /// Rejects inexact or negative buy/sell text and arithmetic overflow, leaving prices unchanged.
+    pub fn preview_prices(
+        &mut self,
+        buy: &str,
+        margin: &str,
+        sell: &str,
+        changed: PriceField,
+    ) -> Result<(), ProductEntryError> {
+        let (buy, margin, sell) = (
+            price_text(buy, false)?,
+            price_text(margin, true)?,
+            price_text(sell, false)?,
+        );
+        let mut next = self.clone();
+        let steps = match changed {
+            PriceField::Buy => [
+                ProductPriceInput::Margin(margin),
+                ProductPriceInput::Buy(buy),
+            ],
+            PriceField::Margin => [
+                ProductPriceInput::Buy(buy),
+                ProductPriceInput::Margin(margin),
+            ],
+            PriceField::Sell => [ProductPriceInput::Buy(buy), ProductPriceInput::Sell(sell)],
+        };
+        for step in steps {
+            next.apply_price(step).map_err(ProductEntryError::Catalog)?;
+        }
+        *self = next;
+        Ok(())
+    }
+
     /// Applies typed text with the HTML's order (buy first, then sell; margin follows).
     ///
     /// # Errors
@@ -162,6 +223,47 @@ mod tests {
     use crate::confirmation::demo_fixture::fixture;
     use crate::confirmation::{ConfirmationError, ProductEntryError, StockStatus};
     use crate::{Money, ProductId, Role};
+
+    #[test]
+    fn preview_recalculates_like_the_price_listeners() {
+        use super::PriceField;
+        let fixture = fixture().unwrap();
+        let mut entry = fixture
+            .open_product_entry(Role::Owner, ProductId::new(2))
+            .unwrap();
+        entry
+            .preview_prices("38", "", "62.50", PriceField::Sell)
+            .unwrap();
+        let p = entry.pricing();
+        assert_eq!(
+            (
+                p.buy().minor_units(),
+                p.margin().minor_units(),
+                p.sell().minor_units()
+            ),
+            (3_800, 2_450, 6_250)
+        );
+        entry
+            .preview_prices("40", "24.50", "62.50", PriceField::Buy)
+            .unwrap();
+        assert_eq!(entry.pricing().sell().minor_units(), 6_450);
+        entry
+            .preview_prices("40", "-2", "", PriceField::Margin)
+            .unwrap();
+        assert_eq!(entry.pricing().sell().minor_units(), 3_800);
+        entry
+            .preview_prices("40", "", "30", PriceField::Sell)
+            .unwrap();
+        assert_eq!(entry.pricing().margin().minor_units(), -1_000);
+        let before = entry.clone();
+        assert!(entry.preview_prices("-1", "", "", PriceField::Buy).is_err());
+        assert!(
+            entry
+                .preview_prices("1", "x", "", PriceField::Margin)
+                .is_err()
+        );
+        assert_eq!(entry, before);
+    }
 
     #[test]
     fn margin_percent_follows_to_fixed_one() {

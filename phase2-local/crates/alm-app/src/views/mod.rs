@@ -38,7 +38,7 @@ pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;
 pub use order::{OrderState, order_screen};
-pub use products::{ProductsState, products_screen};
+pub use products::{ProductsState, product_form, products_screen};
 pub use purchases::purchases_screen;
 pub use ratelist::ratelist_screen;
 pub use receipt::receipt_screen;
