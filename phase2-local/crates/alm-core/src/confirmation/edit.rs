@@ -224,3 +224,143 @@ impl ConfirmationFixture {
         Ok(receipt)
     }
 }
+
+/// One posted line after an in-place edit: its new quantity and rate (`li.qty`, `li.rate`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LineEdit {
+    pub quantity: std::num::NonZeroU32,
+    pub price: Money,
+}
+
+impl LineEdit {
+    /// Reads a typed line: a whole quantity above zero and exact non-negative rupees.
+    pub fn from_text(quantity: &str, rate: &str) -> Result<Self, ConfirmationError> {
+        Ok(Self {
+            quantity: quantity
+                .trim()
+                .parse()
+                .map_err(|_| ConfirmationError::InvalidAmount)?,
+            price: Money::parse_rupees(rate).map_err(|_| ConfirmationError::InvalidAmount)?,
+        })
+    }
+}
+
+impl ConfirmationFixture {
+    /// The HTML's Edit Bill on an ordinary named bill: replaces each existing line's quantity and
+    /// rate in place, keeping customer, date, invoice and the amount paid. Stock, lots, the
+    /// customer's balance, the ledger and the frozen sale cost follow; Cash Book (paid) does not
+    /// change. A second edit is allowed.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects missing, cancelled, crate or checkout bills, a line count change,
+    /// negative rates, a total below the amount paid, and stock shortages, all before mutation.
+    pub fn edit_posted_lines(
+        &mut self,
+        role: Role,
+        id: DraftId,
+        edits: &[LineEdit],
+    ) -> Result<Receipt, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        let (original, receipt, revision) = self
+            .current_sales
+            .get(&id)
+            .cloned()
+            .ok_or(ConfirmationError::DraftNotFound)?;
+        if self
+            .lifecycle
+            .get(&id)
+            .is_some_and(|(cancelled, _)| *cancelled)
+            || original.checkout.is_some()
+            || original.draft.crate_row().is_some()
+            || !matches!(original.payment, ProposedPayment::Named(_))
+            || edits.len() != original.draft.lines().len()
+            || edits.iter().any(|edit| edit.price.minor_units() < 0)
+        {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        let mut updated = original.clone();
+        let lines: Vec<DraftLine> = original
+            .draft
+            .lines()
+            .iter()
+            .zip(edits)
+            .map(|(line, edit)| DraftLine::new(line.product_id(), edit.quantity))
+            .collect();
+        updated.draft = ProvisionalDraft::new(id, lines.clone())
+            .with_customer(original.draft.customer().clone())
+            .with_bill_date(original.draft.bill_date());
+        updated.prices = edits.iter().map(|edit| edit.price).collect();
+        let amounts = updated.amounts()?;
+        let received = receipt
+            .received
+            .ok_or(ConfirmationError::InvalidDraft)?
+            .minor_units();
+        let due = amounts
+            .total
+            .minor_units()
+            .checked_sub(received)
+            .filter(|value| *value >= 0)
+            .ok_or(ConfirmationError::InvalidAmount)?;
+        let old_due = receipt
+            .due
+            .ok_or(ConfirmationError::InvalidDraft)?
+            .minor_units();
+        let DraftCustomer::Selected { id: customer, .. } = updated.draft.customer() else {
+            return Err(ConfirmationError::InvalidDraft);
+        };
+        let balance = self
+            .customer_balances
+            .get(customer.value())
+            .copied()
+            .ok_or(ConfirmationError::InvalidDraft)?
+            .checked_sub(old_due)
+            .and_then(|value| value.checked_add(due))
+            .ok_or(ConfirmationError::Overflow)?;
+        let ledger = self
+            .ledger
+            .checked_sub(receipt.total.minor_units())
+            .and_then(|value| value.checked_add(amounts.total.minor_units()))
+            .ok_or(ConfirmationError::Overflow)?;
+        let moves: Vec<_> = original
+            .draft
+            .lines()
+            .iter()
+            .zip(&lines)
+            .map(|(old, new)| {
+                (
+                    old.product_id().value(),
+                    old.quantity().get(),
+                    new.quantity().get(),
+                )
+            })
+            .collect();
+        let catalog = self.catalog.stage_line_edit(id.value(), &moves)?;
+        let movement = self
+            .movement_epoch
+            .checked_add(1)
+            .ok_or(ConfirmationError::Overflow)?;
+        let revision = revision.checked_add(1).ok_or(ConfirmationError::Overflow)?;
+        let receipt = Receipt {
+            quantity: amounts.packets,
+            total: amounts.total,
+            due: Some(Money::from_minor_units(due)),
+            customer_balance: Some(Money::from_minor_units(balance)),
+            ..receipt
+        };
+        self.catalog = catalog;
+        self.movement_epoch = movement;
+        self.lifecycle.insert(id, (false, movement));
+        self.ledger = ledger;
+        self.customer_balances
+            .insert(customer.value().to_owned(), balance);
+        self.current_sales
+            .insert(id, (updated, receipt.clone(), revision));
+        Ok(receipt)
+    }
+}
+
+#[cfg(test)]
+#[path = "edit_lines_tests.rs"]
+mod edit_lines_tests;

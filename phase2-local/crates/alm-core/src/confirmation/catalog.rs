@@ -5,6 +5,7 @@ use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 mod cancellation;
 mod daily_movement;
 mod edit;
+mod line_edit;
 mod physical_count;
 mod receiving;
 
@@ -83,6 +84,8 @@ struct Lot {
 struct AllocationState {
     records: BTreeMap<(u64, usize, u64, usize), Allocation>,
     sale_costs: BTreeMap<u64, Option<i64>>,
+    /// Per-line unit cost frozen by the first in-place edit (`costAtSale`), in paise.
+    line_units: BTreeMap<(u64, usize), Option<i64>>,
 }
 
 type Allocation = (u32, Option<i64>);
@@ -120,6 +123,7 @@ impl Catalog {
             allocations: AllocationState {
                 records: BTreeMap::new(),
                 sale_costs: BTreeMap::new(),
+                line_units: BTreeMap::new(),
             },
         }
     }

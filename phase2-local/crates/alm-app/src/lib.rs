@@ -99,6 +99,7 @@ struct Trial {
     receiving: Option<alm_core::confirmation::PurchaseOrderId>,
     crate_form: Option<views::CrateForm>,
     rates: alm_core::confirmation::rate_list::RateListSelection,
+    sale_edit: Option<DraftId>,
 }
 
 type AppState = Mutex<Trial>;
@@ -156,6 +157,7 @@ impl Trial {
             receiving: None,
             crate_form: None,
             rates: Default::default(),
+            sale_edit: None,
         })
     }
 
@@ -273,13 +275,21 @@ impl Trial {
                 views::receipt_screen(&self.authority, &self.directory, self.role(), self.today()?)
                     .map_err(debug)?
             }
-            "sales" => views::sales_screen(
-                &self.authority,
-                self.role(),
-                &self.sales_filter,
-                self.today()?,
-            )
-            .map_err(debug)?,
+            "sales" => {
+                let mut html = String::new();
+                if let (Some(id), Role::Owner) = (self.sale_edit, self.role()) {
+                    html +=
+                        &views::sale_edit_form(&self.authority, &self.directory, Role::Owner, id)
+                            .map_err(debug)?;
+                }
+                html + &views::sales_screen(
+                    &self.authority,
+                    self.role(),
+                    &self.sales_filter,
+                    self.today()?,
+                )
+                .map_err(debug)?
+            }
             "review" => {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
@@ -512,6 +522,9 @@ pub fn run() {
             billing::sales_filter,
             billing::sale_cancel,
             billing::sale_restore,
+            billing::sale_edit_open,
+            billing::sale_edit_close,
+            billing::sale_edit_save,
             receipts::receipt_save,
             customers::customers_filter,
             customers::customer_open,

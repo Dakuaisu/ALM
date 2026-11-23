@@ -216,3 +216,86 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     );
     assert_eq!(effects(&trial), before);
 }
+
+#[test]
+fn in_place_line_edit_flows_through_sales_customers_cash_book_and_dashboard() {
+    use std::collections::HashMap;
+    let root = Root::new("batch1-inplace");
+    let mut trial = Trial::open(&root.0, Some(date(BILL_DAY))).unwrap();
+    trial.render("bill").unwrap();
+    trial
+        .bill_add(ProductId::new(1), quantity("2").unwrap())
+        .unwrap();
+    trial
+        .bill_header(Header {
+            customer: CUSTOMER.into(),
+            date: BILL_DAY.into(),
+            intent: Intent::Save,
+        })
+        .unwrap();
+    let serial = prepare(&mut trial, "50.01");
+    trial
+        .posting
+        .confirm(&mut trial.authority, Role::Owner, serial)
+        .unwrap();
+    let posted = effects(&trial);
+    assert_eq!(
+        posted,
+        (
+            1,
+            Some(48),
+            Some(40),
+            Money::from_minor_units(24_100),
+            Money::from_minor_units(19_099)
+        )
+    );
+
+    trial.sale_edit = Some(DraftId::new(1));
+    let form = trial.render("sales").unwrap();
+    assert!(form.contains(r#"name="qty_0" inputmode="numeric" aria-label="Edit quantity Synthetic Lime" value="2""#), "{form}");
+    let terms = |qty: &str, rate: &str| -> HashMap<String, String> {
+        [("id", "1"), ("qty_0", qty), ("rate_0", rate)]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .collect()
+    };
+    assert!(trial.sale_edit_save(terms("0", "120.50")).is_err());
+    assert!(trial.sale_edit_save(terms("1", "40")).is_err());
+    assert_eq!(effects(&trial), posted);
+    trial.sale_edit_save(terms("3", "118")).unwrap();
+    let edited = effects(&trial);
+    assert_eq!(
+        edited,
+        (
+            1,
+            Some(47),
+            Some(40),
+            Money::from_minor_units(35_400),
+            Money::from_minor_units(30_399)
+        )
+    );
+    let sales = trial.render("sales").unwrap();
+    assert!(sales.contains(r#"<td class="muted">1 items · 3 pkt</td><td><span class="tag credit">Credit</span></td><td class="num">₹354</td><td class="num neg">₹304</td>"#), "{sales}");
+    trial.customers.open = Some(CUSTOMER.into());
+    let customers = trial.render("customers").unwrap();
+    assert!(customers.contains("<td>Bill #1 (1 items)</td><td class=\"num\">₹354</td><td class=\"num pos\">₹50</td><td class=\"num neg\">₹304</td>"), "{customers}");
+    let close = trial
+        .authority
+        .cashbook_day_close(Role::Owner, date(BILL_DAY))
+        .unwrap();
+    assert_eq!(close.cash.minor_units(), 5_001);
+    let dashboard = trial
+        .authority
+        .dashboard(Role::Owner, date(BILL_DAY), DashboardPeriod::Month)
+        .unwrap();
+    assert_eq!(
+        (
+            dashboard.current.sales.minor_units(),
+            dashboard.current.collected.minor_units()
+        ),
+        (35_400, 5_001)
+    );
+    trial.owner = false;
+    assert!(trial.sale_edit_save(terms("2", "118")).is_err());
+    assert_eq!(effects(&trial), edited);
+}

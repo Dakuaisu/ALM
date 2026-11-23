@@ -68,7 +68,7 @@ pub use dashboard::{
     Dashboard, DashboardDetail, DashboardError, DashboardPeriod, DashboardReceiptId,
     DashboardSource, DashboardSummary, DashboardWindow,
 };
-pub use edit::{EditChanges, SaleEdit};
+pub use edit::{EditChanges, LineEdit, SaleEdit};
 pub use estimate::{
     EstimateDisplay, EstimateError, EstimateLineDisplay, EstimateRequest, PopupDocument,
     PrintIntent,
