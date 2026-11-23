@@ -66,19 +66,23 @@ class PlatformBridge(private val activity: MainActivity, private val webView: We
     }
   }
 
-  /** Shares a PNG the app wrote to its cache output folder (ACTION_SEND image/png). */
+  /** Shares a file the app wrote to its cache output folder (bill PNG, CSV or XLS export). */
   @JavascriptInterface
-  fun shareImage(path: String) {
+  fun shareFile(path: String) {
     activity.runOnUiThread {
       val file = java.io.File(path)
       if (!file.canonicalPath.startsWith(activity.cacheDir.canonicalPath)) return@runOnUiThread
       val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
       val send = Intent(Intent.ACTION_SEND).apply {
-        type = "image/png"
+        type = when (file.extension) {
+          "png" -> "image/png"
+          "csv" -> "text/csv"
+          else -> "application/vnd.ms-excel"
+        }
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       }
-      activity.startActivity(Intent.createChooser(send, "Share bill image"))
+      activity.startActivity(Intent.createChooser(send, "Share ${file.name}"))
     }
   }
 

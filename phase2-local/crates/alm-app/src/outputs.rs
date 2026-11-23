@@ -70,6 +70,52 @@ impl Trial {
     }
 }
 
+/// The structured exports (`exportSalesCSV`, `exportExcel`) over the live archive records.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Export {
+    SalesCsv,
+    Workbook,
+}
+
+impl Trial {
+    pub(crate) fn export(&self, kind: Export) -> Result<(String, String), String> {
+        let role = self.require_owner()?;
+        let records = self
+            .authority
+            .archive_records(role, &self.directory)
+            .map_err(debug)?;
+        let model = alm_core::synthetic_read_model::ReadModel::create(role, records, |_| Ok(()))
+            .map_err(debug)?;
+        let today = self.today()?;
+        Ok(match kind {
+            Export::SalesCsv => (
+                format!("ALM-sales-{today}.csv"),
+                model.sales_csv(role).map_err(debug)?,
+            ),
+            Export::Workbook => (
+                format!("ALM-{today}.xls"),
+                model.workbook(role).map_err(debug)?,
+            ),
+        })
+    }
+}
+
+/// Writes an export to the output folder and returns its path (revealed on desktop).
+#[tauri::command(async)]
+pub fn export_file(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    let kind = match q.as_str() {
+        "csv" => Export::SalesCsv,
+        "xls" => Export::Workbook,
+        _ => return Err("Unknown export.".into()),
+    };
+    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let (name, text) = trial.export(kind)?;
+    let path = trial.save_output(&name, text.as_bytes())?;
+    #[cfg(desktop)]
+    reveal(&path);
+    Ok(path.display().to_string())
+}
+
 #[cfg(desktop)]
 fn reveal(path: &std::path::Path) {
     #[cfg(target_os = "macos")]

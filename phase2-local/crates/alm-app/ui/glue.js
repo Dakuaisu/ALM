@@ -85,10 +85,10 @@ async function act(element, submitter) {
     if (navigator.share) return navigator.share({ text });
     return navigator.clipboard.writeText(text);
   }
-  if (action === "share_image") {
+  if (action === "share_file") {
     try {
-      const path = await invoke(data.command, { id: data.id });
-      if (window.AlmAndroid) return window.AlmAndroid.shareImage(path);
+      const path = await invoke(data.command, { id: data.id || "0", q: data.q || "" });
+      if (window.AlmAndroid) return window.AlmAndroid.shareFile(path);
       return note("Saved " + path);
     } catch (error) {
       return note(String(error), true);

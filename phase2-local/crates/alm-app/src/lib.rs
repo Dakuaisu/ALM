@@ -601,6 +601,7 @@ pub fn run() {
             billing::sale_edit_save,
             outputs::bill_image_share,
             outputs::open_url,
+            outputs::export_file,
             settings::settings_profile,
             settings::settings_theme,
             settings::settings_balance,

@@ -1085,3 +1085,31 @@ fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
     assert!(trial.backup_restore(&name).is_err());
     assert!(!trial.render("settings").unwrap().contains("Full Backup"));
 }
+
+#[test]
+fn structured_exports_follow_the_read_model_and_deny_the_manager() {
+    use crate::outputs::Export;
+    let root = Root::new("exports");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    crate::billing_tests::posted(&mut trial.authority);
+    let (name, csv) = trial.export(Export::SalesCsv).unwrap();
+    assert_eq!(name, "ALM-sales-2025-04-30.csv");
+    let mut lines = csv.lines();
+    assert_eq!(
+        lines.next(),
+        Some("Date,Bill No,Customer,Mode,Item,Pack,Rate,Pkt,Amount,Bill Total,Paid,Status")
+    );
+    let row = lines.next().unwrap();
+    assert!(
+        row.starts_with("2025-04-30,1,Synthetic Customer,Credit,Synthetic Lime,,120.5"),
+        "{row}"
+    );
+    let (name, xls) = trial.export(Export::Workbook).unwrap();
+    assert_eq!(name, "ALM-2025-04-30.xls");
+    assert!(xls.starts_with("<?xml version=\"1.0\"?>") && xls.contains("Synthetic Lime"));
+    let path = trial.save_output(&name, xls.as_bytes()).unwrap();
+    assert_eq!(std::fs::read_to_string(path).unwrap(), xls);
+    trial.owner = false;
+    assert!(trial.export(Export::SalesCsv).is_err());
+    assert!(trial.export(Export::Workbook).is_err());
+}

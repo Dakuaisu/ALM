@@ -49,5 +49,5 @@ pub fn backup_section(
             esc(&s.gstin)
         );
     }
-    html + "</div>"
+    html + r#"<div class="row" style="margin-top:12px;gap:8px"><button class="btn" type="button" data-action="share_file" data-command="export_file" data-q="xls">📊 Export Excel (.xls)</button><button class="btn" type="button" data-action="share_file" data-command="export_file" data-q="csv">⬇ Sales CSV</button></div></div>"#
 }

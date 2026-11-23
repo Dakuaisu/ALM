@@ -170,6 +170,9 @@ pub fn tabs(active: &str) -> String {
     if active == "products" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="product_new">＋ Add Product</button></template>"#;
     }
+    if active == "reports" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn" data-action="share_file" data-command="export_file" data-q="csv">⬇ Sales CSV</button></template>"#;
+    }
     if active == "godown" {
         html += r#"<template id="screen-actions"><button type="button" class="btn" data-copy="godown_copy_text">📋 Copy List</button></template>"#;
     }
