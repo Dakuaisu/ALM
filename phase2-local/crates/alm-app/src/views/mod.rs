@@ -5,6 +5,7 @@ use crate::gst_print::{esc, indian_digits};
 use alm_core::Money;
 
 mod bill;
+mod cashbook;
 mod counter;
 mod customers;
 mod drafts;
@@ -14,6 +15,7 @@ mod receipt;
 mod sales;
 
 pub use bill::{BillView, bill_screen};
+pub use cashbook::{CashBookView, cashbook_screen};
 pub use counter::counter_screen;
 pub use customers::{CustomersState, customers_screen};
 pub use drafts::{ReviewView, customer, posting_review, review_screen};
@@ -32,6 +34,7 @@ const NAV: &[(&str, &[(&str, &str)])] = &[
             ("sales", "Sales"),
             ("receipt", "Receive Payment"),
             ("gst", "GST invoice"),
+            ("expenses", "Cash Book"),
         ],
     ),
     ("Manage", &[("customers", "Customers")]),
@@ -41,6 +44,7 @@ pub fn tabs(active: &str) -> String {
     let (title, subtitle) = match active {
         "counter" => ("Counter", "What to do next · counts only"),
         "customers" => ("Customers", "Contacts & credit ledger (udhaar)"),
+        "expenses" => ("Cash Book", "Daily income & expenses"),
         "review" => (
             "Owner review",
             "Review a saved Manager draft before local simulation",
@@ -73,6 +77,9 @@ pub fn tabs(active: &str) -> String {
         }
     }
     html += "</template>";
+    if active == "expenses" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
+    }
     if active == "bill" {
         html += r#"<template id="screen-actions"><button type="button" class="btn ghost" data-action="bill_fresh">＋ Fresh Bill</button></template>"#;
     }

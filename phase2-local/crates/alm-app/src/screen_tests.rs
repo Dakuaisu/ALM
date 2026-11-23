@@ -101,3 +101,90 @@ fn opening_balance_input_uses_the_core_parser_and_owner_gate() {
     std::fs::remove_dir_all(root).unwrap();
     assert_eq!(due.minor_units(), 25_050);
 }
+
+pub(crate) struct Root(pub std::path::PathBuf);
+
+impl Root {
+    pub(crate) fn new(label: &str) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("alm-{label}-{}-{serial}", std::process::id()));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for Root {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+pub(crate) fn entry(id: &str, date: &str, cash: &str, intent: &str) -> crate::cashbook::Entry {
+    crate::cashbook::Entry {
+        id: id.into(),
+        date: date.into(),
+        cash: cash.into(),
+        paytm: String::new(),
+        phonepe: "".into(),
+        debt: "".into(),
+        salary: "150".into(),
+        goods: "".into(),
+        misc: "0.50".into(),
+        intent: intent.into(),
+    }
+}
+
+#[test]
+fn cash_book_renders_core_system_figures_differences_and_month_totals() {
+    let root = Root::new("cashbook");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.authority = books();
+    trial
+        .cash_entry(entry("", "2025-04-30", "18", "check"))
+        .unwrap();
+    let html = trial.render("expenses").unwrap();
+    assert!(
+        html.contains("System total for 2025-04-30: Cash +₹20 · Online ₹0 — from 1 bills/receipts")
+    );
+    assert!(html.contains(r#"Cash difference: <b class="neg">−₹2</b>"#));
+    trial
+        .cash_entry(entry("", "2025-04-30", "18", "system"))
+        .unwrap();
+    let html = trial.render("expenses").unwrap();
+    assert!(html.contains(r#"name="cash" inputmode="decimal" value="20.00""#));
+    assert!(html.contains(r#"Cash difference: <b class="pos">₹0</b>"#));
+    trial
+        .cash_entry(entry("", "2025-04-30", "20.00", "save"))
+        .unwrap();
+    let month = trial.cashbook.month(Role::Owner, day()).unwrap();
+    assert_eq!(
+        (
+            month.income.minor_units(),
+            month.expenses.minor_units(),
+            month.net.minor_units()
+        ),
+        (2_000, 15_050, -13_050)
+    );
+    let html = trial.render("expenses").unwrap();
+    assert!(html.contains(&format!(
+        r#"<div class="label">Net (month)</div><div class="val">{}</div>"#,
+        money_r(month.net)
+    )));
+    assert!(html.contains("<td>2025-04-30</td><td class=\"num pos\">₹20</td>"));
+    trial
+        .cash_entry(entry("0", "2025-04-30", "20", "delete"))
+        .unwrap();
+    assert!(trial.cashbook.rows(Role::Owner).unwrap().is_empty());
+
+    trial.owner = false;
+    assert!(
+        trial
+            .cash_entry(entry("", "2025-04-30", "1", "save"))
+            .is_err()
+    );
+    let html = trial.render("expenses").unwrap();
+    assert!(html.contains("role=\"alert\""));
+    assert!(!html.contains('₹'));
+}

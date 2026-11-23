@@ -67,6 +67,13 @@ impl Money {
             .ok_or(RupeesError::Overflow)
     }
 
+    /// Exact rupee text that `parse_rupees` reads back ("120.50", "-0.49"), for form fields.
+    pub fn to_rupee_text(self) -> String {
+        let sign = if self.0 < 0 { "-" } else { "" };
+        let paise = self.0.unsigned_abs();
+        format!("{sign}{}.{:02}", paise / 100, paise % 100)
+    }
+
     /// Whole-rupee display value; half ties round toward positive infinity.
     pub const fn rounded_rupees(self) -> i64 {
         self.0.div_euclid(100) + if self.0.rem_euclid(100) >= 50 { 1 } else { 0 }
@@ -196,6 +203,15 @@ mod money_tests {
         ] {
             assert_eq!(Money::parse_rupees(text), Err(RupeesError::Invalid));
         }
+        for paise in [0, 1, 50, 12_050, i64::MAX] {
+            let money = Money::from_minor_units(paise);
+            assert_eq!(Money::parse_rupees(&money.to_rupee_text()), Ok(money));
+        }
+        assert_eq!(Money::from_minor_units(-49).to_rupee_text(), "-0.49");
+        assert_eq!(
+            Money::from_minor_units(i64::MIN).to_rupee_text(),
+            "-92233720368547758.08"
+        );
         for text in [
             "92233720368547758.08",
             "92233720368547759",

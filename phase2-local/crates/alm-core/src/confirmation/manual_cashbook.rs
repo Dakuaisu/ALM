@@ -22,6 +22,13 @@ pub struct CashBookAmounts {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ManualCashBookId(u64);
 
+impl ManualCashBookId {
+    /// The fixture-local row number, for carrying a selection across IPC.
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ManualCashBookDraft {
     id: Option<ManualCashBookId>,
@@ -150,6 +157,23 @@ impl ManualCashBook {
         Ok(self.rows.get(&id).copied())
     }
 
+    /// Saved rows newest date first; equal dates keep the later entry first.
+    pub fn rows(&self, role: Role) -> Result<Vec<ManualCashBookRow>, ManualCashBookError> {
+        owner(role)?;
+        let mut rows: Vec<_> = self.rows.values().copied().collect();
+        rows.sort_by(|a, b| b.date.parts().cmp(&a.date.parts()).then(b.id.cmp(&a.id)));
+        Ok(rows)
+    }
+
+    /// Finds a saved row by its IPC row number.
+    pub fn find(&self, role: Role, value: u64) -> Result<ManualCashBookRow, ManualCashBookError> {
+        owner(role)?;
+        self.rows
+            .get(&ManualCashBookId(value))
+            .copied()
+            .ok_or(ManualCashBookError::RowNotFound)
+    }
+
     pub fn save(
         &mut self,
         role: Role,
@@ -254,4 +278,49 @@ fn from_rupees(rupees: i64) -> Result<Money, ManualCashBookError> {
 fn difference(entered: Money, system_rupees: i64) -> Result<i64, ManualCashBookError> {
     let units = sub(entered, from_rupees(system_rupees)?)?.minor_units();
     Ok(units.div_euclid(100) + i64::from(units.rem_euclid(100) >= 50))
+}
+
+#[cfg(test)]
+mod listing_tests {
+    use super::{CashBookAmounts, ManualCashBook, ManualCashBookDraft, ManualCashBookError, ZERO};
+    use crate::{BillDate, Money, Role};
+
+    #[test]
+    fn rows_list_newest_date_first_and_find_is_owner_only() {
+        let amounts = CashBookAmounts {
+            cash: Money::from_minor_units(100),
+            paytm: ZERO,
+            phonepe: ZERO,
+            goods: ZERO,
+            misc: ZERO,
+            salary: ZERO,
+            debt: ZERO,
+        };
+        let mut book = ManualCashBook::default();
+        for day in [1, 3, 3, 2] {
+            let date = BillDate::new(2025, 5, day).ok();
+            book.save(Role::Owner, &ManualCashBookDraft::new(date, amounts))
+                .unwrap();
+        }
+        let order: Vec<_> = book
+            .rows(Role::Owner)
+            .unwrap()
+            .iter()
+            .map(|row| (row.date.parts().2, row.id.value()))
+            .collect();
+        assert_eq!(order, [(3, 2), (3, 1), (2, 3), (1, 0)]);
+        assert_eq!(book.find(Role::Owner, 3).unwrap().date.parts().2, 2);
+        assert_eq!(
+            book.find(Role::Owner, 9),
+            Err(ManualCashBookError::RowNotFound)
+        );
+        assert_eq!(
+            book.rows(Role::Manager),
+            Err(ManualCashBookError::AccessDenied)
+        );
+        assert_eq!(
+            book.find(Role::Manager, 0),
+            Err(ManualCashBookError::AccessDenied)
+        );
+    }
 }

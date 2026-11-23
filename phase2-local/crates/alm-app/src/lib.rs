@@ -6,6 +6,7 @@ mod bill_entry;
 mod billing;
 #[cfg(test)]
 mod billing_tests;
+mod cashbook;
 mod customers;
 mod gst_print;
 mod ipc;
@@ -20,6 +21,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use alm_core::confirmation::demo_fixture;
+use alm_core::confirmation::manual_cashbook::{ManualCashBook, ManualCashBookDraft};
 use alm_core::confirmation::owner_billing::{self, BillingDirectory, OwnerPosting};
 use alm_core::confirmation::{
     ConfirmationFixture, GstBillDraft, GstBillId, GstBillLineInput, GstUnit,
@@ -71,6 +73,9 @@ struct Trial {
     posting: OwnerPosting,
     sales_filter: views::Filter,
     customers: views::CustomersState,
+    /// In-memory manual Cash Book (no alm-store table; Supabase later).
+    cashbook: ManualCashBook,
+    cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
 }
 
 type AppState = Mutex<Trial>;
@@ -117,6 +122,8 @@ impl Trial {
             posting: Default::default(),
             sales_filter: views::Filter::default(),
             customers: views::CustomersState::default(),
+            cashbook: ManualCashBook::default(),
+            cash_form: None,
         })
     }
 
@@ -164,6 +171,15 @@ impl Trial {
                 self.role(),
                 &self.customers,
             )
+            .map_err(debug)?,
+            "expenses" => views::cashbook_screen(&views::CashBookView {
+                fixture: &self.authority,
+                book: &self.cashbook,
+                entry: self.cash_form.as_ref().map(|(draft, _)| draft),
+                editing: self.cash_form.as_ref().and_then(|(_, id)| *id),
+                role: self.role(),
+                today: self.today()?,
+            })
             .map_err(debug)?,
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
@@ -340,6 +356,10 @@ pub fn run() {
             customers::customers_filter,
             customers::customer_open,
             customers::customer_opening,
+            cashbook::cash_entry,
+            cashbook::cash_new,
+            cashbook::cash_edit,
+            cashbook::cash_close,
             print_page,
             share_text
         ])
