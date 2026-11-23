@@ -63,7 +63,7 @@ These paths are untracked or unattributed in the working tree. No builder sessio
 | `ALM_Business_Manager.html` | Untracked deployed baseline (SHA-256 re-verified as the pinned digest, DISC-DEPLOY-RECHECK); versioning it is the owner's call |
 | `alm-shop-schema.sql` | Untracked SQL file, protected, not read |
 | `Supabase Snippet Untitled query.csv` | Untracked CSV export, protected, not read |
-| `supabase/config.toml`, `supabase/.gitignore` | Untracked Supabase CLI configuration, not read |
+| `supabase/config.toml`, `supabase/.gitignore` | Untracked Supabase CLI configuration. The owner claimed it on 2026-11-23 and approved its use for the local stack; it was read (default local settings, no secrets) and left uncommitted. The new `supabase/migrations/` and `supabase/tests/` are committed separately |
 | `docs/OWNER_REVIEW.md` | Untracked document, not read |
 | `package.json`, `package-lock.json`, `node_modules/` | Untracked Node tooling files and installed packages |
 | `.kiro/agents/default-eed8665b.json` | Untracked agent-tool configuration |
