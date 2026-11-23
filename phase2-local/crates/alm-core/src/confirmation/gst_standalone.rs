@@ -391,6 +391,16 @@ impl ConfirmationFixture {
         })
     }
 
+    /// A copy with no GST bills or markers, for "no ordinary effects" checks in other crates.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn without_gst_bills(&self) -> Self {
+        let mut ordinary = self.clone();
+        ordinary.gst_bills.clear();
+        ordinary.gst_deleted.clear();
+        ordinary
+    }
+
     fn gst_invoice(&self, bill: &GstBill) -> Result<GstBillInvoice, GstBillError> {
         bill.invoice_with(|item| self.catalog.gst_info(item).1)
     }

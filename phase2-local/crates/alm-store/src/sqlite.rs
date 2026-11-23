@@ -10,11 +10,14 @@ use alm_core::{
 };
 
 mod draft_rows;
+mod gst_bills;
 mod pending;
 mod schema;
 mod scoped;
 #[cfg(test)]
 mod tests;
+
+pub use gst_bills::GstBillDatabase;
 
 /// Wraps a driver error; the error and `?` conversions are defined in `alm-core`.
 pub(crate) fn sqlite(err: rusqlite::Error) -> DraftStorageError {

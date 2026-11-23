@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 use alm_core::Role;
-use alm_core::confirmation::GstBill;
+use alm_core::confirmation::{GstBill, GstBillLedger};
 pub use alm_core::synthetic_read_model::*;
 
 #[cfg(test)]
@@ -89,6 +89,20 @@ impl Store {
         Self::at(
             path,
             ReadModel::create_with_standalone_gst(role, records, bills, |bytes| {
+                create_new(path, bytes)
+            }),
+        )
+    }
+
+    pub fn create_with_standalone_gst_ledger(
+        path: &Path,
+        role: Role,
+        records: Records,
+        ledger: GstBillLedger,
+    ) -> Result<Self, Error> {
+        Self::at(
+            path,
+            ReadModel::create_with_standalone_gst_ledger(role, records, ledger, |bytes| {
                 create_new(path, bytes)
             }),
         )
