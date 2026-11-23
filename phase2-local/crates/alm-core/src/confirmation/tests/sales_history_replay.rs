@@ -1,3 +1,4 @@
+//! Legacy case L04.
 use crate::confirmation::ConfirmationError;
 use crate::{DraftCustomerId, Role};
 

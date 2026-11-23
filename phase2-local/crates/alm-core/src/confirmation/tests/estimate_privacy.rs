@@ -1,12 +1,13 @@
+//! Legacy case L05-02.
 use super::*;
 
 #[test]
 fn l05_02_private_fifo_costs_do_not_change_projection_or_captured_documents() {
-    let first = l05_02::estimate_fixture_with_costs(&[
+    let first = estimate_document::estimate_fixture_with_costs(&[
         (1, Money::from_minor_units(4_321)),
         (4, Money::from_minor_units(5_678)),
     ]);
-    let second = l05_02::estimate_fixture_with_costs(&[
+    let second = estimate_document::estimate_fixture_with_costs(&[
         (1, Money::from_minor_units(1_001)),
         (4, Money::from_minor_units(2_002)),
     ]);
@@ -21,7 +22,7 @@ fn l05_02_private_fifo_costs_do_not_change_projection_or_captured_documents() {
             first.bill_preview(Role::Owner, DraftId::new(1), balance_mode),
             second.bill_preview(Role::Owner, DraftId::new(1), balance_mode)
         );
-        let request = l05_02::request(Role::Owner, balance_mode);
+        let request = estimate_document::request(Role::Owner, balance_mode);
         let mut first_print = Vec::new();
         let mut second_print = Vec::new();
         first

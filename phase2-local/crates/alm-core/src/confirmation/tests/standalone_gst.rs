@@ -1,6 +1,7 @@
+//! Legacy case L06-02.
 use super::*;
 
-#[path = "l06_02_edges.rs"]
+#[path = "standalone_gst_edges.rs"]
 mod edges;
 
 const ID: GstBillId = GstBillId(1);
@@ -51,7 +52,7 @@ fn assert_ordinary_unchanged(fixture: &ConfirmationFixture, before: &Confirmatio
 
 #[test]
 fn standalone_gst_saved_edited_and_cancelled_without_ordinary_effects() {
-    let mut fixture = l06_01::fixture(3_000);
+    let mut fixture = gst_invoice::fixture(3_000);
     let before = fixture.clone();
     let lines = [COLA, WATER, GstBillLineInput { item: "", ..WATER }];
     let draft = gst_draft(&lines);
@@ -144,7 +145,7 @@ fn standalone_gst_saved_edited_and_cancelled_without_ordinary_effects() {
 
 #[test]
 fn standalone_gst_invalid_save_warns_without_writing_or_emitting() {
-    let mut fixture = l06_01::fixture(3_000);
+    let mut fixture = gst_invoice::fixture(3_000);
     let draft = gst_draft(LINES);
     fixture
         .save_gst_bill(Role::Owner, &draft, &mut |_| {})
@@ -204,7 +205,7 @@ fn standalone_gst_invalid_save_warns_without_writing_or_emitting() {
 
 #[test]
 fn standalone_gst_is_owner_only_and_intrastate_invoice_splits_tax() {
-    let mut fixture = l06_01::fixture(3_000);
+    let mut fixture = gst_invoice::fixture(3_000);
     let draft = GstBillDraft {
         jurisdiction: GstJurisdiction::Intra,
         gstin: Some(" 09ABCDE1234F1Z5 "),

@@ -1,3 +1,4 @@
+//! Legacy case L16-01.
 use super::*;
 
 #[test]

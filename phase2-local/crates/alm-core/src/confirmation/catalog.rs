@@ -14,7 +14,7 @@ mod reorder;
 mod stock_lots;
 
 #[cfg(test)]
-mod l11_01;
+mod lot_layer_replay;
 
 pub use daily_movement::{DailyMovementError, DailyMovementRow};
 use physical_count::PhysicalCountState;

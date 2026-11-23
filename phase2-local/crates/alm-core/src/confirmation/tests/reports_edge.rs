@@ -1,6 +1,7 @@
+//! Legacy case L16-01.
 use super::*;
 use crate::confirmation::manual_cashbook::{CashBookAmounts, ManualCashBook, ManualCashBookDraft};
-#[path = "l16_unknown_cost.rs"]
+#[path = "reports_unknown_cost.rs"]
 mod unknown_cost;
 
 #[test]

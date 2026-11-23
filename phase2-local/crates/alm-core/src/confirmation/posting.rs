@@ -200,5 +200,5 @@ impl ConfirmationFixture {
 }
 
 #[cfg(test)]
-#[path = "l09_04_operational.rs"]
-mod l09_04_operational;
+#[path = "product_rename_operational.rs"]
+mod product_rename_operational;

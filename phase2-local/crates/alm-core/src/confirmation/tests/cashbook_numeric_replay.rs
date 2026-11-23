@@ -1,3 +1,4 @@
+//! Legacy case L15.
 use super::*;
 use crate::DraftCustomerId;
 use crate::confirmation::PreviewPayment;

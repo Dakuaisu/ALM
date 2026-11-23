@@ -1,9 +1,10 @@
+//! Legacy case L05-02.
 use super::*;
 use crate::DraftCustomerId;
 
 fn assert_rejected(f: &ConfirmationFixture, error: EstimateError) {
     let before = f.clone();
-    let request = l05_02::request(Role::Owner, BalanceMode::Latest);
+    let request = estimate_document::request(Role::Owner, BalanceMode::Latest);
     let mut captured = Vec::new();
     assert_eq!(
         f.print_estimate(request, &mut |popup| captured.push(popup)),
@@ -19,9 +20,9 @@ fn assert_rejected(f: &ConfirmationFixture, error: EstimateError) {
 
 #[test]
 fn l05_02_each_action_uses_its_explicit_synthetic_today() {
-    let f = l05_02::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
+    let f = estimate_document::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
     let before = f.clone();
-    let base = l05_02::request(Role::Owner, BalanceMode::Latest);
+    let base = estimate_document::request(Role::Owner, BalanceMode::Latest);
     let print = EstimateRequest {
         display: EstimateDisplay {
             today: BillDate::new(2025, 1, 2).unwrap(),
@@ -59,7 +60,7 @@ fn l05_02_each_action_uses_its_explicit_synthetic_today() {
 
 #[test]
 fn l05_02_missing_or_mismatched_line_labels_never_emit() {
-    let f = l05_02::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
+    let f = estimate_document::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
     let before = f.clone();
     let wrong = [EstimateLineDisplay {
         product: ProductId::new(2),
@@ -79,7 +80,7 @@ fn l05_02_missing_or_mismatched_line_labels_never_emit() {
             label: "Extra",
         },
     ];
-    let base = l05_02::request(Role::Owner, BalanceMode::Latest);
+    let base = estimate_document::request(Role::Owner, BalanceMode::Latest);
     let mut captured = Vec::new();
     for lines in [&[][..], &wrong[..], &blank[..], &extra[..]] {
         let request = EstimateRequest {
@@ -104,7 +105,8 @@ fn l05_02_missing_or_mismatched_line_labels_never_emit() {
 
 #[test]
 fn l05_02_unexplained_total_difference_never_emits_zero_loading() {
-    let mut f = l05_02::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
+    let mut f =
+        estimate_document::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
     let (_, receipt, _) = f.current_sales.get_mut(&DraftId::new(1)).unwrap();
     receipt.total = Money::from_minor_units(26_000);
     assert_rejected(&f, EstimateError::Preview(ConfirmationError::InvalidDraft));
@@ -112,7 +114,7 @@ fn l05_02_unexplained_total_difference_never_emits_zero_loading() {
 
 #[test]
 fn l05_02_checkout_with_nonzero_loading_remains_unsupported() {
-    let mut f = l05_01::preview_fixture(5);
+    let mut f = receipt_preview::preview_fixture(5);
     f.register_draft(draft(1, 2).with_customer(DraftCustomer::Selected {
         id: DraftCustomerId::new("a".into()),
         name: "Fixture customer".into(),
@@ -146,7 +148,8 @@ fn l05_02_checkout_with_nonzero_loading_remains_unsupported() {
 
 #[test]
 fn l05_02_mixed_lines_use_ordered_labels_and_saved_item_totals() {
-    let mut f = l05_02::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
+    let mut f =
+        estimate_document::estimate_fixture_with_costs(&[(5, Money::from_minor_units(1_001))]);
     f.add_product(ProductId::new(2), 3, Money::from_minor_units(9_000))
         .unwrap();
     let edit = f
@@ -173,7 +176,7 @@ fn l05_02_mixed_lines_use_ordered_labels_and_saved_item_totals() {
         },
     ];
     for mode in [BalanceMode::AsOnBillDate, BalanceMode::Latest] {
-        let base = l05_02::request(Role::Owner, mode);
+        let base = estimate_document::request(Role::Owner, mode);
         let request = EstimateRequest {
             display: EstimateDisplay {
                 lines: &lines,
@@ -211,7 +214,7 @@ fn l05_02_mixed_lines_use_ordered_labels_and_saved_item_totals() {
                 .contains("<th>Loading/Delivery</th><td>₹0.00</td>")
         );
     }
-    let base = l05_02::request(Role::Owner, BalanceMode::Latest);
+    let base = estimate_document::request(Role::Owner, BalanceMode::Latest);
     let reversed = [lines[1], lines[0]];
     let request = EstimateRequest {
         display: EstimateDisplay {

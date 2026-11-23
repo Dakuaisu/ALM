@@ -1,3 +1,4 @@
+//! Legacy case L12-02.
 use std::num::NonZeroI64;
 
 use super::*;

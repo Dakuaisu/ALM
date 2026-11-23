@@ -1,8 +1,9 @@
+//! Legacy case L06-02.
 use super::*;
 
 #[test]
 fn standalone_gst_rejects_fractional_rupee_without_writes_or_emission() {
-    let mut fixture = l06_01::fixture(3_000);
+    let mut fixture = gst_invoice::fixture(3_000);
     let before = fixture.clone();
     let lines = [GstBillLineInput {
         inclusive_rate: Money::from_minor_units(101),
@@ -24,7 +25,7 @@ fn standalone_gst_rejects_fractional_rupee_without_writes_or_emission() {
 
 #[test]
 fn standalone_gst_view_calculates_from_saved_amount_and_rate() {
-    let mut fixture = l06_01::fixture(3_000);
+    let mut fixture = gst_invoice::fixture(3_000);
     fixture
         .save_gst_bill(Role::Owner, &gst_draft(LINES), &mut |_| {})
         .unwrap();

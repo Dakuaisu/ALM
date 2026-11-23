@@ -1,8 +1,9 @@
+//! Legacy case L06-01.
 use super::*;
 
 #[test]
 fn l06_01_hsn_groups_emit_jurisdiction_tax_amounts() {
-    let fixture = l06_01::fixture(4321);
+    let fixture = gst_invoice::fixture(4321);
     for (jurisdiction, expected) in [
         (
             GstJurisdiction::Intra,
@@ -17,7 +18,7 @@ fn l06_01_hsn_groups_emit_jurisdiction_tax_amounts() {
             role: Role::Owner,
             draft_id: DraftId::new(1),
             jurisdiction,
-            lines: &l06_01::metadata(),
+            lines: &gst_invoice::metadata(),
         };
         let mut output = Vec::new();
         fixture
@@ -59,7 +60,7 @@ fn l06_01_hsn_inexact_group_split_rejects_before_emission() {
     fixture
         .confirm(Role::Owner, RequestId::new(1), &review)
         .unwrap();
-    let mut lines = l06_01::metadata();
+    let mut lines = gst_invoice::metadata();
     lines[0].line_rate = Some(100);
     lines[1].line_rate = Some(9900);
     let request = GstRequest {

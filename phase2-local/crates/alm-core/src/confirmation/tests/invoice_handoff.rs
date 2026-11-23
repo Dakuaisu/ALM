@@ -1,9 +1,9 @@
-// L05-04: waInvoice and waText, ALM_Business_Manager.html:4459–4476, 4768–4817.
+//! L05-04: waInvoice and waText, ALM_Business_Manager.html:4459–4476, 4768–4817.
 use std::cell::RefCell;
 
 use super::*;
 use crate::DraftCustomerId;
-use l05_03::{MOBILE, PNG};
+use invoice_image_share::{MOBILE, PNG};
 
 const LINES: &[EstimateLineDisplay<'_>] = &[EstimateLineDisplay {
     product: ProductId::new(1),
@@ -11,7 +11,7 @@ const LINES: &[EstimateLineDisplay<'_>] = &[EstimateLineDisplay {
 }];
 
 fn fixture() -> ConfirmationFixture {
-    let mut fixture = l05_03::fixture();
+    let mut fixture = invoice_image_share::fixture();
     fixture
         .set_unit_price(Money::from_minor_units(12_345_670))
         .unwrap();

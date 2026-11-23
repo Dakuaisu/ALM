@@ -1,13 +1,14 @@
+//! Legacy case L16-01.
 //! Synthetic source-derived Reports replay, not a production report or legacy execution.
 use super::*;
 use crate::DraftCustomerId;
-#[path = "l16_reports_chart_replay.rs"]
+#[path = "reports_chart_replay.rs"]
 mod chart;
-#[path = "l16_reports_edge.rs"]
+#[path = "reports_edge.rs"]
 mod edge;
-#[path = "l16_reports_projection.rs"]
+#[path = "reports_projection.rs"]
 mod projection;
-#[path = "l16_reports_seed.rs"]
+#[path = "reports_seed.rs"]
 mod seed;
 use projection::round;
 use seed::{MonthlyReportSeed, monthly_reports_fixture};

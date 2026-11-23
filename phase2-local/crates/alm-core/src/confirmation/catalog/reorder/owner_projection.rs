@@ -1,3 +1,4 @@
+//! Legacy case L13-01.
 use crate::confirmation::{ConfirmationFixture, ManualGodownInput, SupplierPriceEdit};
 use crate::{BillDate, Money, ProductId, Role};
 

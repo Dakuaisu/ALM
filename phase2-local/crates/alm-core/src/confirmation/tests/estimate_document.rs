@@ -1,3 +1,4 @@
+//! Legacy case L05-02.
 use super::*;
 use crate::DraftCustomerId;
 use std::time::Duration;
@@ -18,7 +19,7 @@ fn estimate_fixture() -> ConfirmationFixture {
 }
 
 pub(super) fn estimate_fixture_with_costs(lots: &[(u32, Money)]) -> ConfirmationFixture {
-    let mut f = l05_01::preview_fixture(5);
+    let mut f = receipt_preview::preview_fixture(5);
     f.catalog.seed_lots(ProductId::new(1), lots).unwrap();
     f.register_draft(draft(1, 2).with_customer(DraftCustomer::Selected {
         id: DraftCustomerId::new("a".into()),
@@ -171,7 +172,7 @@ fn l05_02_denied_actions_do_not_emit_or_mutate() {
 
 #[test]
 fn l05_02_walk_in_latest_uses_bill_date_source() {
-    let mut f = l05_01::preview_fixture(5);
+    let mut f = receipt_preview::preview_fixture(5);
     f.register_draft(draft(1, 2).with_customer(DraftCustomer::Typed("Local - Neighbor".into())))
         .unwrap();
     let review = f.review_walk_in_cash(Role::Owner, DraftId::new(1)).unwrap();

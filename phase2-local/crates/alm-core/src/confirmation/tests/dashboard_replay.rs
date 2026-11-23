@@ -1,3 +1,4 @@
+//! Legacy case L02-02 and L02-03.
 mod readback;
 use std::fmt::{Arguments, Debug};
 

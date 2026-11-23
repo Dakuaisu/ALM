@@ -1,5 +1,6 @@
-use super::super::l04_sales_history_replay::seed::history_fixture;
-use super::super::l15_cashbook_numeric_replay::saved_l15_row;
+//! Legacy case L16-01.
+use super::super::cashbook_numeric_replay::saved_l15_row;
+use super::super::sales_history_replay::seed::history_fixture;
 use super::date;
 use crate::confirmation::manual_cashbook::{
     ManualCashBook, ManualCashBookDraft, ManualCashBookRow,

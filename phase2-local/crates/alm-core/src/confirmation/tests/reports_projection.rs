@@ -1,3 +1,4 @@
+//! Legacy case L16-01.
 use super::super::{ConfirmationFixture, CustomerRank, MonthlyProfit};
 use crate::confirmation::manual_cashbook::ManualCashBookId;
 

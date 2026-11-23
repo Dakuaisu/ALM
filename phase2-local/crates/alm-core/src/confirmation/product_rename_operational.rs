@@ -1,3 +1,4 @@
+//! Legacy case L09-04.
 use std::num::NonZeroU32;
 
 use crate::confirmation::{

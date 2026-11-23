@@ -54,7 +54,7 @@ fn resolve_delete(fixture: &mut ConfirmationFixture, choice: DeleteChoice) {
 
 #[test]
 fn l06_03_delete_decline_confirm_and_cancel_replay_independently() {
-    let mut active = l06_01::fixture(3_000);
+    let mut active = gst_invoice::fixture(3_000);
     for (id, number) in [(CONTROL, 699), (TARGET, 700)] {
         active
             .save_gst_bill(

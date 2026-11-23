@@ -1,4 +1,4 @@
-// L05-03: waInvoice, ALM_Business_Manager.html:4768–4805.
+//! L05-03: waInvoice, ALM_Business_Manager.html:4768–4805.
 use super::*;
 use crate::DraftCustomerId;
 
@@ -13,7 +13,7 @@ pub(super) const PNG: &[u8] = &[
 pub(super) const MOBILE: (&str, &str) = ("customer-saved", "+91 (00000) 00000");
 
 pub(super) fn fixture() -> ConfirmationFixture {
-    let mut fixture = l05_01::preview_fixture(5);
+    let mut fixture = receipt_preview::preview_fixture(5);
     fixture
         .register_draft(draft(41, 2).with_customer(DraftCustomer::Selected {
             id: DraftCustomerId::new(MOBILE.0.into()),

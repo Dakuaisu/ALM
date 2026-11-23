@@ -1,3 +1,4 @@
+//! Legacy case L12-01.
 use super::*;
 use crate::DraftCustomerId;
 

@@ -1,3 +1,4 @@
+//! Legacy case L16-06.
 use super::{date, monthly_reports_fixture};
 use crate::confirmation::ConfirmationFixture;
 use crate::confirmation::manual_cashbook::ManualCashBook;
