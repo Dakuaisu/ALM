@@ -11,6 +11,7 @@ use super::{
     DraftCustomerId, DraftLine, LocalSales, Money, PRODUCT, PostingEffects, ProvisionalDraft,
     RECEIVED, Receipt, RequestId, Review, Role, ScratchDir, StockLotRow, StockLots, ZERO,
 };
+use alm_phase2_local::SqliteSales;
 
 const OWNER: Role = Role::Owner;
 const MANAGER: Role = Role::Manager;

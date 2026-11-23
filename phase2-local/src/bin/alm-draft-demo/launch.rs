@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::Path;
 
+use alm_phase2_local::SqliteSales;
 use alm_phase2_local::{LocalSales, ManagerDraftStore};
 
 const LEGACY: &str = "Storage: legacy single-account database (--db).";

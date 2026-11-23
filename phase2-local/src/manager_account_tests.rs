@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::{DraftCustomer, DraftId, DraftStorageError, LocalSales, Money, ProvisionalDraft, Role};
+use crate::SqliteSales;
 
 struct DeviceRoot(PathBuf);
 

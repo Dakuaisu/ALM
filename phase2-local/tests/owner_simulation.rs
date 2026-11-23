@@ -5,6 +5,7 @@ use std::process::{self, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
+use alm_phase2_local::SqliteSales;
 use alm_phase2_local::confirmation::{
     ConfirmationError, ConfirmationFixture, Receipt, RequestId, Review, StockLotRow, StockLots,
 };

@@ -13,6 +13,7 @@ use alm_phase2_local::{DraftCustomerId, DraftLine, LocalSales, Money, Provisiona
 use super::accounts::{AccountCheckpoint, AccountReadback, assert_accounts};
 use super::inventory::{StockCheckpoint, assert_stock};
 use super::{A, B, BUYER, DENIED, DraftCustomer, MANAGER, OWNER, PAID, SALE, feb, money, qty};
+use alm_phase2_local::SqliteSales;
 
 pub(super) const INITIAL_RATE: Money = money(9_440);
 const POSTING_RATE: Money = money(11_800);

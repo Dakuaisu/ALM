@@ -15,6 +15,7 @@ use super::{
     A, B, ITEM_A, ITEM_B, MANAGER, OWNER, checked_register, feb, fifo, lot, money, movement, qty,
     stock,
 };
+use alm_phase2_local::SqliteSales;
 
 pub(super) fn assert_reorder(
     fixture: &ConfirmationFixture,

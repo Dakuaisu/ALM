@@ -7,10 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use rusqlite::Connection;
 
 use super::SqliteDraftStore;
-use crate::confirmation::RequestId;
 use crate::{
-    BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, LocalSales, Money, ProductId,
-    ProvisionalDraft, Role, crate_row_codec,
+    BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, DurableDraftStore, LocalSales,
+    Money, ProductId, ProvisionalDraft, Role, SqliteSales, decode_crate_row,
 };
 
 // Frozen copy of the DDL the sqlite3 CLI store fed to `sqlite3` before the driver switch.
@@ -118,7 +117,7 @@ fn expected_drafts() -> [ProvisionalDraft; 2] {
         })
         .with_bill_date(Some(BillDate::new(2024, 2, 29).unwrap()));
     crated
-        .add_crate_row(crate_row_codec::decode("2;2,9,0;1,2,1").unwrap())
+        .add_crate_row(decode_crate_row("2;2,9,0;1,2,1").unwrap())
         .unwrap();
     let typed = ProvisionalDraft::new(DraftId::new(44), vec![])
         .with_customer(DraftCustomer::Typed("'Work'".into()));
@@ -162,10 +161,7 @@ fn legacy_cli_database_opens_and_round_trips_with_the_embedded_driver() {
         manager.reopen_draft(DraftId::new(44)).unwrap(),
         Some(typed.clone())
     );
-    assert_eq!(
-        store.load_pending(RequestId::new(987)).unwrap().as_deref(),
-        Some("6|2|a")
-    );
+    assert_eq!(store.load_pending(987).unwrap().as_deref(), Some("6|2|a"));
     let replaced = typed.with_bill_date(Some(BillDate::new(2024, 3, 1).unwrap()));
     manager.save_draft(replaced.clone()).unwrap();
     assert_eq!(

@@ -7,6 +7,7 @@ use std::process::{self, Command};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs, io};
 
+use alm_phase2_local::SqliteSales;
 use alm_phase2_local::{
     AccessDenied, DraftId, DraftLine, DraftStorageError, LocalSales, Money, ProductId,
     ProvisionalDraft, Role,

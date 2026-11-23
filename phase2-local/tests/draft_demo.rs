@@ -4,6 +4,7 @@ use std::process::{self, Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{env, fs};
 
+use alm_phase2_local::SqliteSales;
 use alm_phase2_local::{DraftCustomer, DraftId, LocalSales, ProductId};
 
 #[path = "draft_demo/scoped_edit.rs"]

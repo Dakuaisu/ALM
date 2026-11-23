@@ -6,6 +6,7 @@ use alm_phase2_local::{
 };
 
 use super::{DEMO, DRAFT_ID, PROVISIONAL, REOPEN_DRAFT, ScratchDir, assert_transcript, run_script};
+use alm_phase2_local::SqliteSales;
 
 const A: &str = "synthetic-edit-a";
 const B: &str = "synthetic-edit-b";

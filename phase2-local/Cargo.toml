@@ -1,9 +1,23 @@
+[workspace]
+members = ["crates/alm-core"]
+resolver = "3"
+
+[workspace.dependencies]
+alm-core = { path = "crates/alm-core" }
+rusqlite = { version = "=0.43.0", features = ["bundled"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+
 [package]
 name = "alm_phase2_local"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.154"
-rusqlite = { version = "=0.43.0", features = ["bundled"] }
+alm-core = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+alm-core = { workspace = true, features = ["test-support"] }
+serde = { workspace = true }
+serde_json = { workspace = true }

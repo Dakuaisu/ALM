@@ -19,6 +19,7 @@ mod sqlite_evidence;
 #[path = "common/target_scratch.rs"]
 mod target_scratch;
 
+use alm_phase2_local::SqliteSales;
 use fixtures::{A_EDITED, A_INITIAL, Account, B_SAVED, DRAFT, MISSING};
 use manager_sqlite::{SqliteEvidence, databases};
 use target_scratch::{Scratch, target_dir};

@@ -1,0 +1,12 @@
+[package]
+name = "alm-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+# Exposes fixture internals to the storage crate's restart replays; never enable in production.
+test-support = []

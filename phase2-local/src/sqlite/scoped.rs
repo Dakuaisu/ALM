@@ -2,7 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::io::ErrorKind;
 use std::path::Path;
 
-use super::{DraftStorageError, SqliteDraftStore, connect, schema, text};
+use super::{DraftStorageError, SqliteDraftStore, connect, schema, sqlite, text};
 
 const DIRECTORY: &str = "manager-accounts";
 const SCOPE_TABLE: &str = "manager_account_scope";
@@ -72,7 +72,7 @@ impl SqliteDraftStore {
             Ok(file) => {
                 drop(file);
                 let store = Self {
-                    conn: connect(&path)?,
+                    conn: connect(&path).map_err(sqlite)?,
                 };
                 store.initialize_scoped(&key)?;
                 Ok(store)
@@ -90,24 +90,26 @@ impl SqliteDraftStore {
     }
 
     fn initialize_scoped(&self, key: &str) -> Result<(), DraftStorageError> {
-        let tx = self.begin()?;
-        tx.execute_batch(schema::DRAFT_TABLES)?;
+        let tx = self.begin().map_err(sqlite)?;
+        tx.execute_batch(schema::DRAFT_TABLES).map_err(sqlite)?;
         tx.execute_batch(&format!(
             "CREATE TABLE {SCOPE_TABLE} (account_hex TEXT PRIMARY KEY NOT NULL) STRICT;"
-        ))?;
-        tx.execute(&format!("INSERT INTO {SCOPE_TABLE} VALUES (?1)"), [key])?;
-        tx.commit()?;
-        Ok(())
+        ))
+        .map_err(sqlite)?;
+        tx.execute(&format!("INSERT INTO {SCOPE_TABLE} VALUES (?1)"), [key])
+            .map_err(sqlite)?;
+        tx.commit().map_err(sqlite)
     }
 
     fn check_scope(&self, key: &str) -> Result<(), DraftStorageError> {
         let bound = (|| {
             let mut query = self
                 .conn
-                .prepare(&format!("SELECT account_hex FROM {SCOPE_TABLE}"))?;
-            let mut rows = query.query([])?;
+                .prepare(&format!("SELECT account_hex FROM {SCOPE_TABLE}"))
+                .map_err(sqlite)?;
+            let mut rows = query.query([]).map_err(sqlite)?;
             let mut keys = Vec::new();
-            while let Some(row) = rows.next()? {
+            while let Some(row) = rows.next().map_err(sqlite)? {
                 keys.push(text(row, 0)?);
             }
             Ok::<_, DraftStorageError>(keys)

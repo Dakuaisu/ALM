@@ -4,7 +4,7 @@ use std::path::Path;
 use alm_phase2_local::Role;
 use alm_phase2_local::synthetic_read_model::{Error, Product, Store};
 
-#[path = "../rate_list_replay/model.rs"]
+#[path = "../../crates/alm-core/tests/rate_list_replay/model.rs"]
 mod model;
 
 const PICK: &str = "A & <B>";

@@ -174,7 +174,7 @@ fn captured_purchase_order_survives_rewrite_and_reopens_without_fixture() {
     let mut inconsistent = snapshot.clone();
     inconsistent.lines[0].receipts[0].quantity = NonZeroU32::new(3).unwrap();
     assert!(matches!(
-        purchase_order::validate_orders(Some(&[inconsistent])),
+        validate_orders(Some(&[inconsistent])),
         Err(Error::InvalidArchive)
     ));
     let mut overflowing = snapshot.clone();
@@ -183,7 +183,7 @@ fn captured_purchase_order_survives_rewrite_and_reopens_without_fixture() {
         .receipts
         .push(snapshot.lines[0].receipts[0].clone());
     assert!(matches!(
-        purchase_order::validate_orders(Some(&[overflowing])),
+        validate_orders(Some(&[overflowing])),
         Err(Error::InvalidArchive)
     ));
     let backup = reopened.backup(Role::Owner).unwrap();

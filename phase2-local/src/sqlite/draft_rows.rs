@@ -2,9 +2,9 @@ use std::num::NonZeroU32;
 
 use rusqlite::Row;
 
-use crate::{
+use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, DraftStorageError, ProductId,
-    ProvisionalDraft, crate_row_codec,
+    ProvisionalDraft, decode_crate_row,
 };
 
 use super::{integer, text};
@@ -96,7 +96,7 @@ pub(super) fn decode(
         .with_bill_date(bill_date);
     if let Some(definition) = definition {
         draft
-            .add_crate_row(crate_row_codec::decode(&definition)?)
+            .add_crate_row(decode_crate_row(&definition)?)
             .map_err(|_| InvalidOutput)?;
     }
     Ok(Some(draft))

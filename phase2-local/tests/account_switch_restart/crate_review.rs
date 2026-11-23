@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 
 use super::fixtures::B_LINE_EDITED;
 use super::{Account, B_SAVED, DRAFT, LocalSales, PREFIX, Scratch, SqliteEvidence, only_database};
+use alm_phase2_local::SqliteSales;
 
 fn run_manager_cli(root: &Path, script: &str) -> String {
     let account = Account::B.key();
