@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/alm-cli", "crates/alm-core", "crates/alm-store"]
+members = ["crates/alm-cli", "crates/alm-core", "crates/alm-store", "crates/alm-sync"]
 resolver = "3"
 
 [workspace.dependencies]
