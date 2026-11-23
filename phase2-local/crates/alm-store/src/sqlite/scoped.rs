@@ -75,6 +75,7 @@ impl SqliteDraftStore {
                     conn: connect(&path).map_err(sqlite)?,
                 };
                 store.initialize_scoped(&key)?;
+                store.enable_wal()?;
                 Ok(store)
             }
             Err(error) if error.kind() == ErrorKind::AlreadyExists => {
@@ -83,6 +84,7 @@ impl SqliteDraftStore {
                     .map(|conn| Self { conn })
                     .map_err(|_| DraftStorageError::AccountStoreMismatch)?;
                 store.check_scope(&key)?;
+                store.enable_wal()?;
                 Ok(store)
             }
             Err(error) => Err(error.into()),

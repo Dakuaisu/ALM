@@ -28,10 +28,12 @@ pub struct SqliteDraftStore {
     conn: Connection,
 }
 
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+
 fn connect(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
-    // Fail on lock contention instead of waiting, as the sqlite3 CLI did.
-    conn.busy_timeout(Duration::ZERO)?;
+    // Wait out short lock contention from another connection, such as a reader.
+    conn.busy_timeout(BUSY_TIMEOUT)?;
     conn.pragma_update(None, "foreign_keys", true)?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     Ok(conn)
@@ -72,7 +74,21 @@ impl SqliteDraftStore {
         tx.execute_batch(schema::OWNER_PENDING_TABLE)
             .map_err(sqlite)?;
         tx.commit().map_err(sqlite)?;
+        store.enable_wal()?;
         Ok(store)
+    }
+
+    /// Switches to WAL; called only once a file is known to be ours, since it rewrites the header.
+    fn enable_wal(&self) -> Result<(), DraftStorageError> {
+        let mode: String = self
+            .conn
+            .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))
+            .map_err(sqlite)?;
+        if mode.eq_ignore_ascii_case("wal") {
+            Ok(())
+        } else {
+            Err(DraftStorageError::InvalidOutput)
+        }
     }
 
     fn begin(&mut self) -> rusqlite::Result<Transaction<'_>> {

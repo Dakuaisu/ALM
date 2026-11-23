@@ -62,12 +62,19 @@ fn case_distinct_accounts_with_same_draft_id_use_independent_databases() {
     let mut databases: Vec<_> = fs::read_dir(root.0.join("manager-accounts"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .filter(|name| !["-wal", "-shm", "-journal"].iter().any(|s| name.ends_with(s)))
+        .filter(|name| {
+            !["-wal", "-shm", "-journal"]
+                .iter()
+                .any(|s| name.ends_with(s))
+        })
         .collect();
     databases.sort();
     assert_eq!(
         databases,
-        ["account-53686f705f412d31.sqlite3", "account-73686f705f612d31.sqlite3"]
+        [
+            "account-53686f705f412d31.sqlite3",
+            "account-73686f705f612d31.sqlite3"
+        ]
     );
 }
 
