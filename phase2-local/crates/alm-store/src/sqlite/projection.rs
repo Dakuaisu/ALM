@@ -14,6 +14,7 @@ use alm_core::projection::{ProjectionBatch, ProjectionSnapshot};
 use super::{DraftStorageError, connect, scoped::account_key};
 
 mod books;
+mod purge;
 mod read;
 mod schema;
 mod write;

@@ -24,6 +24,7 @@ impl Trial {
         self.outbox = outbox;
         self.projection = projection;
         self.account = account.to_owned();
+        self.revoked = false;
         self.current = None;
         self.reviewed = None;
         self.posting.invalidate();
@@ -89,5 +90,8 @@ pub fn outbox_retry(state: State<'_, AppState>, q: String) -> Result<String, Str
 
 #[tauri::command(async)]
 pub fn account_switch(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    with(&state, "review", |trial| trial.switch_account(&q))
+    // Allowed after a revocation too: it is how the device leaves the revoked account.
+    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    trial.switch_account(&q)?;
+    trial.render("review")
 }

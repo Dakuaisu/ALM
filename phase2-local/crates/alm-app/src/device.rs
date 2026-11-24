@@ -206,6 +206,9 @@ impl Trial {
         }
         let since = self.projection.checkpoint().map_err(text)?.map(|(c, _)| c);
         match self.authority.pull(role, since) {
+            // The authority grants less than this device holds: drop it before anything else.
+            Ok(batch) if batch.role != role => return self.downgrade(batch.role),
+            Err(AuthorityError::Denied) => return self.revoke(),
             Ok(batch) => match self.projection.apply(&batch) {
                 Ok(()) => {}
                 // The authority's checkpoint is behind ours (its history was reset): rebuild.
@@ -239,3 +242,4 @@ impl Trial {
 }
 
 pub mod account;
+mod revoke;

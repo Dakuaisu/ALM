@@ -75,6 +75,10 @@ fn with<T>(
     change: impl FnOnce(&mut Trial) -> Result<T, String>,
 ) -> Result<String, String> {
     let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    if trial.revoked {
+        // Blocked: nothing runs; the page says why and offers another account.
+        return trial.render(tab);
+    }
     change(&mut trial)?;
     trial.render(tab)
 }

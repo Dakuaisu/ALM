@@ -9,6 +9,11 @@ impl Trial {
         self.refresh()?;
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
+            _ if self.revoked => format!(
+                r#"<div class="card" role="alert"><b>{}</b><div class="help">Nothing of this account is kept on the device. Choose another account:</div></div>{}"#,
+                crate::trial::REVOKED,
+                self.account_pills()
+            ),
             "customers" => {
                 let stored = self.projected()?;
                 self.freshness(&stored)?
@@ -161,18 +166,7 @@ impl Trial {
                 }
                 let stored = self.projected()?;
                 html += &self.freshness(&stored)?;
-                html += r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#;
-                for account in crate::trial::ACCOUNTS {
-                    let on = if *account == self.account {
-                        "pill on"
-                    } else {
-                        "pill"
-                    };
-                    html += &format!(
-                        r#"<button class="{on}" data-action="account_switch" data-q="{account}">{account}</button>"#
-                    );
-                }
-                html + "</div>"
+                html + &self.account_pills()
             }
             "rateprint" => {
                 let role = self.require_owner()?;
@@ -235,5 +229,22 @@ impl Trial {
             views::notice(&message),
             self.prefs.theme().data_theme()
         ))
+    }
+}
+
+impl Trial {
+    fn account_pills(&self) -> String {
+        let mut html = r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#.to_owned();
+        for account in crate::trial::ACCOUNTS {
+            let on = if *account == self.account {
+                "pill on"
+            } else {
+                "pill"
+            };
+            html += &format!(
+                r#"<button class="{on}" data-action="account_switch" data-q="{account}">{account}</button>"#
+            );
+        }
+        html + "</div>"
     }
 }

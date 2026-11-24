@@ -105,12 +105,13 @@ impl Outbox {
     /// # Errors
     /// Fails on storage errors.
     pub fn next_request_id(&self, prefix: &str) -> Result<String, DraftStorageError> {
-        let last: Option<i64> =
-            self.store
-                .conn
-                .query_row("SELECT max(seq) FROM confirmation_outbox", [], |row| {
-                    row.get(0)
-                })?;
+        // The AUTOINCREMENT high-water mark, so a purged outbox never reuses a request ID.
+        let last: Option<i64> = self.store.conn.query_row(
+            "SELECT max(n) FROM (SELECT max(seq) AS n FROM confirmation_outbox
+             UNION ALL SELECT seq FROM sqlite_sequence WHERE name = 'confirmation_outbox')",
+            [],
+            |row| row.get(0),
+        )?;
         Ok(format!("{prefix}-{}", last.unwrap_or(0) + 1))
     }
 
@@ -187,6 +188,19 @@ impl Outbox {
             out.push(read(row)?);
         }
         Ok(out)
+    }
+
+    /// Removes every stored intent and outcome (the account lost the role that sent them) and
+    /// overwrites their bytes in the file; request numbering continues after the last one.
+    ///
+    /// # Errors
+    /// Fails on storage errors.
+    pub fn purge(&mut self) -> Result<(), DraftStorageError> {
+        let conn = &self.store.conn;
+        conn.pragma_update(None, "secure_delete", true)?;
+        conn.execute("DELETE FROM confirmation_outbox", [])?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")?;
+        Ok(())
     }
 
     /// Intents whose outcome this device does not know yet.

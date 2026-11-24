@@ -7,6 +7,7 @@ use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
+use alm_core::Role;
 use alm_core::confirmation::ConfirmationFixture;
 use alm_core::confirmation::manual_cashbook::ManualCashBook;
 use alm_core::confirmation::owner_billing::BillingDirectory;
@@ -49,6 +50,8 @@ pub struct LocalAuthority {
     journal: Option<PathBuf>,
     clock: fn() -> u64,
     lose_next: bool,
+    /// The role the authority currently grants this device's account (`None`: revoked).
+    granted: Option<Role>,
 }
 
 fn system_clock() -> u64 {
@@ -76,6 +79,7 @@ impl LocalAuthority {
             journal: None,
             clock: system_clock,
             lose_next: false,
+            granted: Some(Role::Owner),
         }
     }
 
@@ -131,6 +135,12 @@ impl LocalAuthority {
     pub fn with_clock(mut self, clock: fn() -> u64) -> Self {
         self.clock = clock;
         self
+    }
+
+    /// Simulates the account's role changing at the authority (`None` revokes it); devices see
+    /// it on their next pull. Not journaled.
+    pub const fn set_granted(&mut self, role: Option<Role>) {
+        self.granted = role;
     }
 
     /// Simulates a lost response: the next command commits but its reply is dropped.

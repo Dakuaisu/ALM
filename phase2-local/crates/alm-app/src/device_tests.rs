@@ -237,3 +237,107 @@ fn an_unknown_outcome_is_never_sent_under_a_new_request() {
     assert_eq!(trial.authority.posted_count(), 1);
     assert!(!trial.render("review").unwrap().contains("Outcome unknown"));
 }
+
+/// Every file under `dir`, read whole.
+fn files(dir: &std::path::Path) -> Vec<(std::path::PathBuf, Vec<u8>)> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            out.extend(files(&path));
+        } else {
+            out.push((path.clone(), std::fs::read(&path).unwrap()));
+        }
+    }
+    out
+}
+
+/// Device files holding `needle`; the simulated authority's journal stands in for the server.
+fn holds(dir: &std::path::Path, needle: &str) -> Vec<std::path::PathBuf> {
+    files(dir)
+        .into_iter()
+        .filter(|(path, _)| !path.to_string_lossy().contains("simulated-authority"))
+        .filter(|(_, bytes)| bytes.windows(needle.len()).any(|w| w == needle.as_bytes()))
+        .map(|(path, _)| path)
+        .collect()
+}
+
+/// An Owner device with a posted bill, its outbox entry and an output file.
+fn owner_with_history(name: &str) -> (Root, Trial) {
+    let root = Root::new(name);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    saved_draft(&mut trial, 1);
+    let serial = review(&mut trial);
+    trial.sale_confirm(serial).unwrap();
+    trial.render("sales").unwrap();
+    trial
+        .save_output("bill-1.png", b"synthetic output")
+        .unwrap();
+    assert!(!holds(&root.0.join("projections"), "Synthetic Customer").is_empty());
+    assert!(!holds(&root.0, "sale draft=1").is_empty());
+    (root, trial)
+}
+
+#[test]
+fn a_downgrade_seen_on_pull_purges_owner_data_and_blocks_owner_commands() {
+    let (root, mut trial) = owner_with_history("device-downgrade");
+    trial.authority.set_granted(Some(Role::Manager));
+    let page = trial.render("sales").unwrap();
+    assert_eq!(trial.role(), Role::Manager);
+    assert!(page.contains("no longer an Owner"), "{page}");
+    assert!(trial.send(&Intent::CancelSale { draft: 1 }).is_err());
+    let projections = root.0.join("projections");
+    assert!(
+        files(&projections)
+            .iter()
+            .all(|(path, _)| !path.to_string_lossy().contains("-owner.sqlite3")),
+        "the Owner projection file is gone"
+    );
+    assert!(holds(&projections, "Synthetic Customer").is_empty());
+    assert!(
+        !holds(&projections, "Synthetic Lime").is_empty(),
+        "the Manager catalog"
+    );
+    assert!(
+        holds(&root.0, "sale draft=1").is_empty(),
+        "queued intents gone"
+    );
+    assert!(!root.0.join("outputs").exists(), "output files gone");
+    assert!(trial.outbox.entries().unwrap().is_empty());
+    // Request numbering continues: a purged ID is never minted again.
+    assert_eq!(trial.outbox.next_request_id("trial").unwrap(), "trial-2");
+}
+
+#[test]
+fn a_revocation_seen_on_pull_purges_the_account_and_blocks_every_command() {
+    let (root, mut trial) = owner_with_history("device-revoke");
+    trial.authority.set_granted(None);
+    let page = trial.render("sales").unwrap();
+    assert!(page.contains("revoked"), "{page}");
+    assert!(!page.contains('₹'), "{page}");
+    assert!(trial.require_owner().is_err());
+    assert!(trial.send(&Intent::CancelSale { draft: 1 }).is_err());
+    assert!(
+        trial
+            .bill_add(
+                alm_core::ProductId::new(1),
+                crate::bill_entry::quantity("1").unwrap()
+            )
+            .is_err()
+    );
+    for needle in ["Synthetic Customer", "Synthetic Lime", "sale draft=1"] {
+        assert!(
+            holds(&root.0.join("projections"), needle).is_empty(),
+            "{needle}"
+        );
+    }
+    assert!(holds(&root.0, "sale draft=1").is_empty());
+    assert!(!root.0.join("outputs").exists());
+    // Choosing another account is still possible; the revocation applies on its next pull too.
+    trial.authority.set_granted(Some(Role::Owner));
+    trial.switch_account("trial-b").unwrap();
+    assert!(!trial.revoked);
+}

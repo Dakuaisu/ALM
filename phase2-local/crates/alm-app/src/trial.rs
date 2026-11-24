@@ -65,6 +65,8 @@ pub(crate) struct Trial {
     pub(crate) reviewed: Option<SaleIntent>,
     pub(crate) current: Option<(ProvisionalDraft, bool)>,
     pub(crate) owner: bool,
+    /// The authority revoked this account: every command is blocked.
+    pub(crate) revoked: bool,
     pub(crate) message: String,
     pub(crate) posting: OwnerPosting,
     pub(crate) sales_filter: views::Filter,
@@ -97,6 +99,8 @@ pub(crate) struct Trial {
 }
 
 pub(crate) type AppState = Mutex<Trial>;
+
+pub(crate) const REVOKED: &str = "Access to this account was revoked by the authority.";
 
 impl Trial {
     pub(crate) fn open(device_root: &Path, today: Option<BillDate>) -> Result<Self, String> {
@@ -157,6 +161,7 @@ impl Trial {
             reviewed: None,
             current: None,
             owner: true,
+            revoked: false,
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),
@@ -221,6 +226,9 @@ impl Trial {
     }
 
     pub(crate) fn require_owner(&self) -> Result<Role, String> {
+        if self.revoked {
+            return Err(REVOKED.into());
+        }
         match self.role() {
             Role::Owner => Ok(Role::Owner),
             Role::Manager => Err("Access denied: Owner only.".into()),

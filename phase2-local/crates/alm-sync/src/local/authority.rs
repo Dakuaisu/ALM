@@ -12,7 +12,7 @@ impl SalesAuthority for LocalAuthority {
         request: &RequestId,
         intent: &Intent,
     ) -> Result<Outcome, AuthorityError> {
-        if role != Role::Owner {
+        if role != Role::Owner || self.granted != Some(Role::Owner) {
             return Err(AuthorityError::Denied);
         }
         let known = self.requests.contains_key(request.as_str());
@@ -32,7 +32,7 @@ impl SalesAuthority for LocalAuthority {
     }
 
     fn status(&self, role: Role, request: &RequestId) -> Result<Option<Outcome>, AuthorityError> {
-        if role != Role::Owner {
+        if role != Role::Owner || self.granted != Some(Role::Owner) {
             return Err(AuthorityError::Denied);
         }
         Ok(self
@@ -47,7 +47,7 @@ impl SalesAuthority for LocalAuthority {
         request: &RequestId,
         intent: &Intent,
     ) -> Result<Lookup, AuthorityError> {
-        if role != Role::Owner {
+        if role != Role::Owner || self.granted != Some(Role::Owner) {
             return Err(AuthorityError::Denied);
         }
         Ok(match self.requests.get(request.as_str()) {
@@ -60,7 +60,7 @@ impl SalesAuthority for LocalAuthority {
     }
 
     fn allocate_gst_number(&mut self, role: Role, bill_id: &str) -> Result<u64, AuthorityError> {
-        if role != Role::Owner {
+        if role != Role::Owner || self.granted != Some(Role::Owner) {
             return Err(AuthorityError::Denied);
         }
         if bill_id.is_empty() || bill_id.len() > 64 || bill_id.contains(['\t', '\n']) {
@@ -88,6 +88,12 @@ impl SalesAuthority for LocalAuthority {
     }
 
     fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
+        // The authority answers with the role it grants now, never more than asked for.
+        let role = match (self.granted, role) {
+            (None, _) => return Err(AuthorityError::Denied),
+            (Some(Role::Manager), _) | (_, Role::Manager) => Role::Manager,
+            (Some(Role::Owner), Role::Owner) => Role::Owner,
+        };
         let snapshot = if checkpoint == Some(self.checkpoint) {
             None
         } else {

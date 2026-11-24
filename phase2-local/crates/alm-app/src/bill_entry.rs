@@ -112,6 +112,9 @@ impl Trial {
         &mut self,
         edit: impl FnOnce(&mut ProvisionalDraft) -> Result<bool, String>,
     ) -> Result<(), String> {
+        if self.revoked {
+            return Err(crate::trial::REVOKED.into());
+        }
         let (draft, saved) = self.current.as_mut().ok_or("No draft is open.")?;
         if edit(draft)? {
             *saved = false;
@@ -121,6 +124,9 @@ impl Trial {
     }
 
     pub(crate) fn bill_header(&mut self, header: Header) -> Result<(), String> {
+        if self.revoked {
+            return Err(crate::trial::REVOKED.into());
+        }
         let customer = self
             .directory
             .select_customer(self.drafting(), &header.customer)
