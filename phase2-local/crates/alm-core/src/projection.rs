@@ -441,7 +441,38 @@ pub fn as_of_text(ms: u64) -> String {
     let seconds = ms / 1000;
     let days = i64::try_from(seconds / 86_400).unwrap_or(0);
     let minute = seconds % 86_400 / 60;
-    // Civil date from days since 1970-01-01 (proleptic Gregorian).
+    let date = civil_date(days).map_or_else(|| "?".to_owned(), BillDate::display);
+    format!("as of {date} {:02}:{:02} UTC", minute / 60, minute % 60)
+}
+
+/// The activity log's "When" at the device's offset from UTC, as the HTML shows it:
+/// `toLocaleString("en-IN", {day: "2-digit", month: "short", hour: "2-digit",
+/// minute: "2-digit"})`, e.g. "24 Nov, 03:15 pm".
+pub fn activity_time(ms: u64, utc_offset_minutes: i32) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let local = i64::try_from(ms / 1000).unwrap_or(0) + i64::from(utc_offset_minutes) * 60;
+    let Some(date) = civil_date(local.div_euclid(86_400)) else {
+        return "?".to_owned();
+    };
+    let minute = local.rem_euclid(86_400) / 60;
+    let (hour, period) = match minute / 60 {
+        0 => (12, "am"),
+        h @ 1..=11 => (h, "am"),
+        12 => (12, "pm"),
+        h => (h - 12, "pm"),
+    };
+    let (_, month, day) = date.parts();
+    format!(
+        "{day:02} {}, {hour:02}:{:02} {period}",
+        MONTHS[usize::from(month) - 1],
+        minute % 60
+    )
+}
+
+/// The civil date `days` after 1970-01-01 (proleptic Gregorian).
+fn civil_date(days: i64) -> Option<BillDate> {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
@@ -451,13 +482,11 @@ pub fn as_of_text(ms: u64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    let date = u16::try_from(year)
+    u16::try_from(year)
         .ok()
         .zip(u8::try_from(month).ok())
         .zip(u8::try_from(day).ok())
         .and_then(|((y, m), d)| BillDate::new(y, m, d).ok())
-        .map_or_else(|| "?".to_owned(), BillDate::display);
-    format!("as of {date} {:02}:{:02} UTC", minute / 60, minute % 60)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -499,5 +528,14 @@ mod tests {
             super::as_of_text(1_795_999_320_000),
             "as of 30-Nov-2026 00:42 UTC"
         );
+    }
+
+    #[test]
+    fn activity_time_is_device_local_en_in() {
+        let t = 1_795_999_320_000;
+        assert_eq!(super::activity_time(t, 330), "30 Nov, 06:12 am");
+        assert_eq!(super::activity_time(t, -300), "29 Nov, 07:42 pm");
+        assert_eq!(super::activity_time(0, 0), "01 Jan, 12:00 am");
+        assert_eq!(super::activity_time(t + 40_680_000, 0), "30 Nov, 12:00 pm");
     }
 }

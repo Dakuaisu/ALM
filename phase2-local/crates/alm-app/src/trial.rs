@@ -51,6 +51,8 @@ pub(crate) struct Trial {
     pub(crate) directory: BillingDirectory,
     /// The device's local date, sent by the page at start; tests pass a fixed date.
     pub(crate) today: Option<BillDate>,
+    /// The device's offset from UTC in minutes (east positive), sent by the page at start.
+    pub(crate) utc_offset_minutes: i32,
     /// DEVELOPMENT SIMULATION of the sales authority (journaled); screens not yet projected
     /// read its fixture directly.
     pub(crate) authority: LocalAuthority,
@@ -158,6 +160,7 @@ impl Trial {
             drafts,
             directory,
             today,
+            utc_offset_minutes: 0,
             authority,
             account: ACCOUNT.to_owned(),
             outbox,

@@ -64,6 +64,7 @@ pub fn data_safety_card() -> String {
 pub fn activity_card(
     role: alm_core::Role,
     rows: &[alm_core::projection::book::ActivityRow],
+    utc_offset_minutes: i32,
 ) -> String {
     use std::fmt::Write as _;
     if role != alm_core::Role::Owner {
@@ -78,11 +79,11 @@ pub fn activity_card(
         html += r#"<tr><td colspan="4"><div class="empty">No actions logged yet</div></td></tr>"#;
     }
     for row in shown {
-        let when = alm_core::projection::as_of_text(row.at_ms);
+        let when = alm_core::projection::activity_time(row.at_ms, utc_offset_minutes);
         let _ = write!(
             html,
             r#"<tr><td class="muted">{}</td><td class="muted" title="account {}">{}</td><td>{}</td><td>{}</td></tr>"#,
-            esc(when.trim_start_matches("as of ")),
+            esc(&when),
             esc(&row.account),
             esc(&row.device),
             esc(&row.kind),

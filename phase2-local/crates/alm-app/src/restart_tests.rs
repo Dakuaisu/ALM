@@ -857,6 +857,15 @@ fn the_activity_log_is_recorded_by_the_authority_with_device_and_account() {
         rows.iter()
             .all(|row| row.device == device && row.account == "trial")
     );
+    // "When" in the device's local time, as the HTML's en-IN `toLocaleString`.
+    trial.utc_offset_minutes = 330;
+    let html = trial.render("settings").unwrap();
+    let when = alm_core::projection::activity_time(rows[0].at_ms, 330);
+    assert!(
+        html.contains(&format!(r#"<td class="muted">{when}</td>"#)),
+        "{when}: {html}"
+    );
+    assert!(when.ends_with(" am") || when.ends_with(" pm"));
     trial.set_owner(false).unwrap();
     let html = trial.render("settings").unwrap();
     assert!(!html.contains("Synthetic Customer ₹11") && !html.contains("Synthetic Soda: 40"));

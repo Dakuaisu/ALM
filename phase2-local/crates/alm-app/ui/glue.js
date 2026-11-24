@@ -268,7 +268,11 @@ if (overlay) {
   });
 }
 
-// The device's local calendar date; Rust parses it and owns every date rule.
+// The device's local calendar date and its offset from UTC in minutes; Rust parses them and
+// owns every date and time rule.
 const now = new Date();
 const pad = (n) => String(n).padStart(2, "0");
-run("start", { today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` });
+run("start", {
+  today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+  offset: -now.getTimezoneOffset(),
+});

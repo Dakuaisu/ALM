@@ -126,6 +126,7 @@ impl Trial {
                     reorder_default: reorder,
                     backup: &backup,
                     activity: &activity,
+                    utc_offset_minutes: self.utc_offset_minutes,
                 })
             }
             "counter" => {

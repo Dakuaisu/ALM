@@ -71,12 +71,21 @@ pub fn rate_toggle(state: State<'_, AppState>, id: ipc::IpcId) -> Result<String,
 
 /// The page sends the device's local calendar date once at start.
 #[tauri::command(async)]
-pub fn start(state: State<'_, AppState>, today: String) -> Result<String, String> {
+pub fn start(
+    state: State<'_, AppState>,
+    today: String,
+    offset: Option<i32>,
+) -> Result<String, String> {
     let today = today
         .parse()
         .map_err(|_| "The device date is not a valid date.".to_owned())?;
+    let offset = offset.unwrap_or(0);
+    if !(-14 * 60..=14 * 60).contains(&offset) {
+        return Err("The device time zone is not valid.".into());
+    }
     with(&state, "bill", |trial| {
         trial.today = Some(today);
+        trial.utc_offset_minutes = offset;
         Ok(())
     })
 }

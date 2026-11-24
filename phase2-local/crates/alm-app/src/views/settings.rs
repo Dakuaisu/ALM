@@ -23,6 +23,8 @@ pub struct SettingsView<'a> {
     pub backup: &'a str,
     /// The authority's activity log (Owner rows only).
     pub activity: &'a [alm_core::projection::book::ActivityRow],
+    /// The device's offset from UTC in minutes, for the log's local times.
+    pub utc_offset_minutes: i32,
 }
 
 fn scope_note(scope: SettingScope) -> &'static str {
@@ -152,7 +154,7 @@ pub fn settings_screen(view: &SettingsView<'_>) -> String {
     html += &hosted::sheets_card();
     html += &hosted::data_safety_card();
     html += view.backup;
-    html += &hosted::activity_card(view.role, view.activity);
+    html += &hosted::activity_card(view.role, view.activity, view.utc_offset_minutes);
     html += &hosted::danger_card();
     html
 }
