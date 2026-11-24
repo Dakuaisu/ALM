@@ -126,8 +126,10 @@ impl ProjectionStore {
                 return Err(DraftStorageError::AccountStoreMismatch);
             }
         }
+        // The newest table: a file without it predates the book rows (its Owner sections are
+        // the simulation's old state) or the customer contacts.
         let current: i64 = conn.query_row(
-            "SELECT count(*) FROM sqlite_master WHERE name = 'projected_products'",
+            "SELECT count(*) FROM sqlite_master WHERE name = 'projected_customer_contacts'",
             [],
             |row| row.get(0),
         )?;

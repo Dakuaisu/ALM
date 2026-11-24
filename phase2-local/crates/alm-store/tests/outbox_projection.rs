@@ -267,3 +267,34 @@ fn a_manager_projection_file_holds_no_costs_margins_or_fifo_values() {
     }
     assert!(text.contains("synthetic lime"));
 }
+
+/// A file written before the book rows and customer contacts (its Owner sections are the
+/// simulation's old state) opens, gains the new tables and is rebuilt on the next pull.
+#[test]
+fn an_older_projection_file_is_upgraded_and_rebuilt() {
+    let root = Root::new("older-file");
+    let mut store = ProjectionStore::open_scoped(&root.0, "trial", Role::Owner).unwrap();
+    store
+        .apply(&batch(Role::Owner, 3, Some(owner_snapshot())))
+        .unwrap();
+    drop(store);
+    let file = std::fs::read_dir(root.0.join("projections"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.to_string_lossy().ends_with("-owner.sqlite3"))
+        .unwrap();
+    let conn = rusqlite::Connection::open(&file).unwrap();
+    conn.execute_batch(
+        "DROP TABLE projected_customer_contacts;
+         DELETE FROM owner_state_sections;
+         INSERT INTO owner_state_sections VALUES ('catalog', '{\"products\": {}}');",
+    )
+    .unwrap();
+    drop(conn);
+    let mut store = ProjectionStore::open_scoped(&root.0, "trial", Role::Owner).unwrap();
+    assert_eq!(store.load().unwrap(), None, "rebuilt from the authority");
+    store
+        .apply(&batch(Role::Owner, 4, Some(owner_snapshot())))
+        .unwrap();
+    assert_eq!(store.load().unwrap().unwrap().snapshot, owner_snapshot());
+}
