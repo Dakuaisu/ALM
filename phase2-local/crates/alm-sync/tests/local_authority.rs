@@ -223,7 +223,7 @@ fn the_manager_pull_holds_only_the_catalog() {
 }
 
 /// The simulation's pull carries the `pull_projection` rows: the same sections, and only the
-/// catalog for a Manager; its read state travels only as the Owner's `dev_state`.
+/// catalog for a Manager; the Owner's other screens are computed from its `book` rows.
 #[test]
 fn pull_uses_the_hosted_row_format() {
     let authority = LocalAuthority::new(fixture().unwrap(), directory());
@@ -250,5 +250,6 @@ fn pull_uses_the_hosted_row_format() {
         ["catalog", "customers", "owner", "products", "stock"]
     );
     let owner_keys: Vec<&String> = wire["rows"]["owner"].as_object().unwrap().keys().collect();
-    assert!(owner_keys.iter().any(|k| *k == "dev_state"));
+    assert!(owner_keys.iter().any(|k| *k == "book"));
+    assert!(!wire.to_string().contains("dev_state"));
 }

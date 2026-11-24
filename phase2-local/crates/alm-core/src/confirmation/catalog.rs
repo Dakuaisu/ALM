@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
 
+mod book;
 mod cancellation;
 mod daily_movement;
 mod edit;
@@ -88,14 +89,14 @@ struct Lot {
 struct AllocationState {
     #[cfg_attr(
         feature = "demo-fixture",
-        serde(with = "crate::confirmation::state_sections::pairs")
+        serde(with = "crate::confirmation::serde_pairs::pairs")
     )]
     records: BTreeMap<(u64, usize, u64, usize), Allocation>,
     sale_costs: BTreeMap<u64, Option<i64>>,
     /// Per-line unit cost frozen by the first in-place edit (`costAtSale`), in paise.
     #[cfg_attr(
         feature = "demo-fixture",
-        serde(with = "crate::confirmation::state_sections::pairs")
+        serde(with = "crate::confirmation::serde_pairs::pairs")
     )]
     line_units: BTreeMap<(u64, usize), Option<i64>>,
 }

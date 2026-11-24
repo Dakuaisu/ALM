@@ -123,7 +123,14 @@ fn owner_snapshot() -> ProjectionSnapshot {
                     rate: money(6_900),
                 }],
             }],
-            state: vec![("catalog".into(), "{}".into())],
+            book: alm_core::projection::book::OwnerBook {
+                settings: alm_core::projection::book::BookSettings {
+                    reorder_default: 7,
+                    ..Default::default()
+                },
+                gst_deleted: vec![3],
+                ..Default::default()
+            },
         }),
     }
 }

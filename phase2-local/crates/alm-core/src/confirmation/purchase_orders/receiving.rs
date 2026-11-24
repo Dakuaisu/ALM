@@ -40,8 +40,8 @@ impl ReceiveResult {
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
 #[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PurchaseCost {
-    product: ProductId,
-    average: Money,
+    pub(super) product: ProductId,
+    pub(super) average: Money,
 }
 
 impl PurchaseCost {

@@ -103,6 +103,7 @@ fn draft_post_lost_response_restart_receipt_cash_close_backup_restore_and_image(
     assert_eq!(projected.cash_days[0].amounts.cash.minor_units(), 3_000);
     let customers = trial.render("customers").unwrap();
     assert!(customers.contains("Synthetic Customer"));
+    crate::device::assert_book_view(&mut trial);
     // Archive regeneration is defined for the Latest balance (closing balance), as in batch 3.
     trial
         .settings_preference(alm_core::preferences::Preference::Balance(

@@ -52,9 +52,11 @@ pub(super) fn decode_owner(o: &Value) -> Result<OwnerValues, AuthorityError> {
                 })
             })
             .collect::<Result<_, AuthorityError>>()?,
-        state: list(&o["dev_state"])
-            .iter()
-            .map(|r| (text(&r[0]), text(&r[1])))
-            .collect(),
+        book: if o["book"].is_object() {
+            alm_core::projection::book::from_json(&o["book"])
+                .map_err(|_| AuthorityError::Invalid)?
+        } else {
+            alm_core::projection::book::OwnerBook::default()
+        },
     })
 }

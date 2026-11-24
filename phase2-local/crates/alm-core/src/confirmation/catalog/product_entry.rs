@@ -114,7 +114,7 @@ pub(super) struct ProductDetails {
     pub(super) item: String,
     pub(super) brand: String,
     pub(super) reorder_level: u32,
-    tax: ProductTaxOverrides,
+    pub(super) tax: ProductTaxOverrides,
 }
 
 impl super::Catalog {

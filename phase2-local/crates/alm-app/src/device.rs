@@ -25,9 +25,9 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
     }
 }
 
-/// The posted data screens read: rebuilt from this account's stored projection (the Owner's
-/// state sections), never from the authority. A Manager projection carries no state, so the
-/// Manager view is empty and the core denies its screens before reading.
+/// The posted data screens read: rebuilt by the core from this account's stored projection
+/// (the Owner's book rows), never from the authority. A Manager projection carries no book, so
+/// the Manager view is empty and the core denies its screens before reading.
 pub(crate) struct Posted {
     pub(crate) fixture: ConfirmationFixture,
     cashbook: ManualCashBook,
@@ -80,22 +80,17 @@ impl Trial {
         if self.posted.built == Some((role, stored.checkpoint)) {
             return Ok(());
         }
-        let state = stored
-            .snapshot
-            .owner
-            .as_ref()
-            .map(|owner| owner.state.as_slice())
-            .unwrap_or_default();
-        self.posted = if state.is_empty() {
-            Posted::empty()?
-        } else {
-            let (fixture, cashbook) =
-                ConfirmationFixture::from_state_sections(state).map_err(debug)?;
-            Posted {
-                fixture,
-                cashbook,
-                built: None,
+        self.posted = match stored.snapshot.owner.as_ref() {
+            Some(owner) if role == Role::Owner => {
+                let (fixture, cashbook) =
+                    ConfirmationFixture::from_owner_book(&owner.book).map_err(debug)?;
+                Posted {
+                    fixture,
+                    cashbook,
+                    built: None,
+                }
             }
+            _ => Posted::empty()?,
         };
         self.posted.built = Some((role, stored.checkpoint));
         Ok(())
@@ -247,3 +242,51 @@ impl Trial {
 
 pub mod account;
 mod revoke;
+
+/// Every Owner screen rendered from the book rows equals the same screen rendered from the
+/// simulation's own state.
+#[cfg(test)]
+pub(crate) fn assert_book_view(trial: &mut Trial) {
+    const SCREENS: [&str; 17] = [
+        "customers",
+        "expenses",
+        "dashboard",
+        "reorder",
+        "stock",
+        "godown",
+        "gstsales",
+        "products",
+        "suppliers",
+        "order",
+        "purchases",
+        "crates",
+        "ratelist",
+        "reports",
+        "counter",
+        "receipt",
+        "sales",
+    ];
+    trial.set_owner(true).unwrap();
+    // A screen the core cannot build fails the same way from both.
+    let render = |trial: &mut Trial, screen: &str| {
+        trial.message.clear();
+        trial.render(screen)
+    };
+    let from_book: Vec<Result<String, String>> = SCREENS.iter().map(|s| render(trial, s)).collect();
+    trial.posted.fixture = trial.authority.fixture().clone();
+    trial.posted.cashbook = trial.authority.cashbook().clone();
+    for (screen, book) in SCREENS.iter().zip(from_book) {
+        let sim = render(trial, screen);
+        if sim != book {
+            let (a, b) = (format!("{book:?}"), format!("{sim:?}"));
+            let at = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();
+            let (a, b): (String, String) = (
+                a.chars().skip(at.saturating_sub(200)).take(500).collect(),
+                b.chars().skip(at.saturating_sub(200)).take(500).collect(),
+            );
+            panic!("{screen} differs:\nbook {a}\nsim  {b}");
+        }
+    }
+    trial.posted = Posted::empty().unwrap();
+    trial.refresh().unwrap();
+}

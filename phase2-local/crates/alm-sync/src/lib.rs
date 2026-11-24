@@ -24,26 +24,14 @@ pub fn gst_bill_key(id: u64) -> String {
     format!("gst-{id}")
 }
 
-const REASONS: [(StockCountReason, &str); 6] = [
-    (StockCountReason::CountCorrection, "count"),
-    (StockCountReason::DamageOrLeakage, "damage"),
-    (StockCountReason::Expired, "expired"),
-    (StockCountReason::TheftOrUnknown, "theft"),
-    (StockCountReason::OwnUseOrSample, "own-use"),
-    (StockCountReason::Other, "other"),
-];
-
 /// The intent code of a stock count reason.
 pub fn stock_count_code(reason: StockCountReason) -> &'static str {
-    REASONS
-        .iter()
-        .find(|(r, _)| *r == reason)
-        .map_or("other", |(_, code)| code)
+    alm_core::projection::book::reason_code(reason)
 }
 
 /// Reads [`stock_count_code`] back.
 pub fn stock_count_reason(code: &str) -> Option<StockCountReason> {
-    REASONS.iter().find(|(_, c)| *c == code).map(|(r, _)| *r)
+    alm_core::projection::book::reason_from_code(code)
 }
 #[cfg(feature = "local-authority")]
 pub use local::{LocalAuthority, LocalAuthorityError};

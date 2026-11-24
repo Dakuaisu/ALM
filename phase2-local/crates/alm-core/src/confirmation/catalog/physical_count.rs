@@ -65,7 +65,7 @@ pub enum PhysicalCountError {
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
 #[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PhysicalCountState {
-    fridge: u32,
+    pub(super) fridge: u32,
     pub(super) movements: Vec<StockCountMovement>,
 }
 

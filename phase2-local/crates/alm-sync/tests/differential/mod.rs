@@ -37,15 +37,10 @@ fn kind(result: &Result<Outcome, AuthorityError>) -> String {
 }
 
 fn snapshot<A: SalesAuthority>(a: &A, role: Role) -> ProjectionSnapshot {
-    let mut s = a
-        .pull(role, None)
+    a.pull(role, None)
         .expect("pull")
         .snapshot
-        .expect("a full snapshot");
-    if let Some(owner) = s.owner.as_mut() {
-        owner.state.clear();
-    }
-    s
+        .expect("a full snapshot")
 }
 
 fn products(s: &ProjectionSnapshot) -> Vec<u64> {

@@ -62,9 +62,7 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
                     "ordered": l.ordered, "received": l.received, "remaining": l.remaining,
                     "rate": m(l.rate)})).collect::<Vec<_>>()})).collect::<Vec<_>>(),
         });
-        if !o.state.is_empty() {
-            rows["owner"]["dev_state"] = json!(o.state);
-        }
+        rows["owner"]["book"] = alm_core::projection::book::to_json(&o.book);
     }
     rows
 }

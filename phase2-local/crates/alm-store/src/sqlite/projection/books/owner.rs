@@ -1,4 +1,5 @@
-//! The Owner-only buy rates, supplier quotes, purchase orders and state sections.
+//! The Owner-only buy rates, supplier quotes, purchase orders and book rows (one JSON body
+//! per book section).
 use rusqlite::{Connection, Transaction};
 
 use alm_core::Money;
@@ -52,7 +53,7 @@ pub(in crate::sqlite::projection) fn write_owner_books(
             )?;
         }
     }
-    for (section, body) in &owner.state {
+    for (section, body) in alm_core::projection::book::to_sections(&owner.book) {
         tx.execute(
             "INSERT INTO owner_state_sections VALUES (?1, ?2)",
             (section, body),
@@ -116,16 +117,18 @@ pub(in crate::sqlite::projection) fn read_owner_books(
             .lines
             .push(line);
     }
-    let state = rows(
+    let sections: Vec<(String, String)> = rows(
         conn,
         "SELECT section, body FROM owner_state_sections ORDER BY section",
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
+    let book = alm_core::projection::book::from_sections(&sections)
+        .map_err(|_| DraftStorageError::InvalidOutput)?;
     Ok(OwnerValues {
         buy_rates,
         supplier_prices,
         purchase_orders,
-        state,
+        book,
         ..owner
     })
 }

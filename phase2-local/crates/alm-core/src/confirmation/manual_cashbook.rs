@@ -371,3 +371,39 @@ mod listing_tests {
         );
     }
 }
+
+impl ManualCashBook {
+    /// The rows in number order and the next row number.
+    pub(crate) fn book(&self) -> (Vec<crate::projection::book::BookCashDay>, u64) {
+        let rows = self
+            .rows
+            .values()
+            .map(|row| crate::projection::book::BookCashDay {
+                id: row.id.0,
+                date: row.date,
+                amounts: row.amounts,
+            })
+            .collect();
+        (rows, self.next_id)
+    }
+
+    pub(crate) fn from_book(rows: &[crate::projection::book::BookCashDay], next_id: u64) -> Self {
+        Self {
+            rows: rows
+                .iter()
+                .map(|row| {
+                    let id = ManualCashBookId(row.id);
+                    (
+                        id,
+                        ManualCashBookRow {
+                            id,
+                            date: row.date,
+                            amounts: row.amounts,
+                        },
+                    )
+                })
+                .collect(),
+            next_id,
+        }
+    }
+}

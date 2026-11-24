@@ -16,6 +16,10 @@ pub struct ProductPricing {
 }
 
 impl ProductPricing {
+    pub(super) const fn from_parts(buy: Money, margin: Money, sell: Money) -> Self {
+        Self { buy, margin, sell }
+    }
+
     pub(super) const fn at_sell(sell: Money) -> Self {
         Self {
             buy: Money::from_minor_units(0),

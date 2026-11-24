@@ -336,6 +336,8 @@ fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
             .contains(r#"<span class="tag ok">Completed</span></td><td class="num">11 / 16</td>"#)
     );
 
+    crate::device::assert_book_view(&mut trial);
+
     // The Manager sees no cost, buy rate or FIFO value on any batch 2 screen.
     trial.set_owner(false).unwrap();
     for tab in [

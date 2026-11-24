@@ -285,6 +285,7 @@ fn every_write_goes_through_the_outbox_and_survives_a_restart() {
     assert_eq!((stock.fridge, stock.movements.len()), (2, 1));
     // Nothing is re-sent on reopen: the outbox is unchanged.
     assert_eq!(trial.outbox.entries().unwrap().len(), 16);
+    crate::device::assert_book_view(&mut trial);
 }
 
 #[test]

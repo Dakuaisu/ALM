@@ -154,6 +154,8 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
     assert_eq!(again.rate_list, rate);
     assert!(store.backup(Role::Owner).unwrap() == bytes);
 
+    crate::device::assert_book_view(&mut other);
+
     // The Manager is denied exports and the reopened archive.
     assert!(matches!(
         Store::open(&restored_path, Role::Manager),

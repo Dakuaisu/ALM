@@ -148,9 +148,8 @@ impl ConfirmationFixture {
             ..ProjectionSnapshot::default()
         };
         self.project_books(&mut snapshot)?;
-        #[cfg(feature = "demo-fixture")]
         if let Some(owner) = snapshot.owner.as_mut() {
-            owner.state = self.state_sections(role, cashbook)?;
+            owner.book = self.owner_book(role, cashbook)?;
         }
         Ok(snapshot)
     }

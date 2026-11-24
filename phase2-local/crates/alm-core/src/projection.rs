@@ -8,6 +8,8 @@ use crate::confirmation::{
 };
 use crate::{BillDate, DraftCustomer, Money, Role};
 
+pub mod book;
+
 /// A posted bill as the Sales screen lists it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectedSale {
@@ -148,9 +150,8 @@ pub struct OwnerValues {
     /// `(product, supplier, quoted rate)`.
     pub supplier_prices: Vec<(u64, u64, Money)>,
     pub purchase_orders: Vec<ProjectedPurchaseOrder>,
-    /// DEVELOPMENT SIMULATION: the simulated authority's read state as `(section, JSON)`, from
-    /// which the Owner device rebuilds every other Owner screen. Empty from other authorities.
-    pub state: Vec<(String, String)>,
+    /// The book rows every other Owner screen is computed from.
+    pub book: book::OwnerBook,
 }
 
 /// Everything one account may see, as of one authority checkpoint.

@@ -197,3 +197,69 @@ impl ConfirmationFixture {
             .map_err(|_| CrateTemplateError::DraftHasRows)
     }
 }
+
+impl CrateTemplateBook {
+    pub(super) fn book(&self) -> crate::projection::book::BookCrates {
+        use crate::projection::book::{BookCrate, BookCrates};
+        BookCrates {
+            last_id: self.last_id,
+            templates: self
+                .saved
+                .iter()
+                .map(|(id, t)| BookCrate {
+                    id: id.0,
+                    name: t.name.clone(),
+                    price: t.price,
+                    components: t
+                        .components
+                        .iter()
+                        .map(|c| {
+                            (
+                                c.product.value(),
+                                c.quantity.get(),
+                                c.unit == SaleUnit::Piece,
+                            )
+                        })
+                        .collect(),
+                })
+                .collect(),
+            piece_mrps: self.piece_mrps.iter().map(|(p, m)| (*p, *m)).collect(),
+        }
+    }
+
+    pub(super) fn from_book(
+        book: &crate::projection::book::BookCrates,
+    ) -> Result<Self, ConfirmationError> {
+        let mut saved = BTreeMap::new();
+        for t in &book.templates {
+            let components = t
+                .components
+                .iter()
+                .map(|&(product, quantity, piece)| {
+                    Ok(CrateComponent::new(
+                        ProductId::new(product),
+                        NonZeroU32::new(quantity).ok_or(ConfirmationError::InvalidDraft)?,
+                        if piece {
+                            SaleUnit::Piece
+                        } else {
+                            SaleUnit::Case
+                        },
+                    ))
+                })
+                .collect::<Result<_, ConfirmationError>>()?;
+            saved.insert(
+                CrateTemplateId(t.id),
+                CrateTemplate {
+                    name: t.name.clone(),
+                    components,
+                    price: t.price,
+                },
+            );
+        }
+        Ok(Self {
+            last_id: book.last_id,
+            saved,
+            piece_mrps: book.piece_mrps.iter().copied().collect(),
+        })
+    }
+}

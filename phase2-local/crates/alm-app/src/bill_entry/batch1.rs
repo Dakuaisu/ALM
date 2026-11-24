@@ -205,6 +205,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     ));
     let counter = trial.render("counter").unwrap();
     assert!(counter.contains("Nothing needs attention right now"));
+    crate::device::assert_book_view(&mut trial);
 
     // The Manager is denied every book screen after the same timeline.
     trial.set_owner(false).unwrap();
