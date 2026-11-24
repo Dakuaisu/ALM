@@ -4,12 +4,14 @@
 #![forbid(unsafe_code)]
 
 mod intent;
+#[cfg(feature = "local-authority")]
 mod local;
 
 use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
 pub use intent::{Intent, Outcome, SaleIntent, SaleReceipt};
+#[cfg(feature = "local-authority")]
 pub use local::{LocalAuthority, LocalAuthorityError};
 
 /// A client-minted request identity, persisted with its intent before sending: 1–64 ASCII
