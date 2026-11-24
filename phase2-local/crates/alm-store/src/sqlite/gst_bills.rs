@@ -1,69 +1,17 @@
 //! Standalone GST bills in the device database: the local half of the HTML's `persist()`.
 use std::collections::BTreeMap;
-use std::num::NonZeroU32;
 use std::path::Path;
 
-use rusqlite::Row;
-
-use alm_core::confirmation::{
-    GstBill, GstBillId, GstBillLedger, GstBillLine, GstBillStore, GstUnit,
-};
-use alm_core::{BillDate, Money, ProductId};
+use alm_core::confirmation::{GstBill, GstBillId, GstBillLedger, GstBillStore};
 
 use crate::DraftStorageError;
 
-use super::{SqliteDraftStore, integer, text};
+use super::SqliteDraftStore;
 
-// Created only when the GST store is opened, so draft-only files keep their schema.
-const GST_TABLES: &str = "
-CREATE TABLE IF NOT EXISTS standalone_gst_schema (
-    version INTEGER PRIMARY KEY NOT NULL
-) STRICT;
-INSERT OR IGNORE INTO standalone_gst_schema (version) VALUES (1);
-CREATE TABLE IF NOT EXISTS standalone_gst_bills (
-    id TEXT PRIMARY KEY NOT NULL CHECK (id NOT GLOB '*[^0-9]*' AND length(id) BETWEEN 1 AND 20),
-    number TEXT NOT NULL CHECK (number NOT GLOB '*[^0-9]*' AND length(number) BETWEEN 1 AND 20),
-    date TEXT NOT NULL,
-    customer_id TEXT,
-    customer TEXT NOT NULL,
-    gstin TEXT,
-    cust_addr TEXT NOT NULL,
-    cust_phone TEXT NOT NULL,
-    cust_email TEXT NOT NULL,
-    cust_state TEXT NOT NULL,
-    cust_state_code TEXT NOT NULL,
-    pos_state TEXT NOT NULL,
-    pos_code TEXT NOT NULL,
-    pay_mode TEXT NOT NULL,
-    pay_terms TEXT NOT NULL,
-    reverse_charge TEXT NOT NULL,
-    transporter TEXT NOT NULL,
-    vehicle_no TEXT NOT NULL,
-    lr_no TEXT NOT NULL,
-    eway_number TEXT,
-    terms_delivery TEXT NOT NULL,
-    dispatch TEXT NOT NULL,
-    cancelled INTEGER NOT NULL CHECK (cancelled IN (0, 1)),
-    created TEXT NOT NULL CHECK (created NOT GLOB '*[^0-9]*' AND length(created) BETWEEN 1 AND 20)
-) STRICT;
-CREATE TABLE IF NOT EXISTS standalone_gst_bill_lines (
-    bill_id TEXT NOT NULL REFERENCES standalone_gst_bills(id),
-    position INTEGER NOT NULL CHECK (position >= 0),
-    item TEXT NOT NULL CHECK (length(item) > 0),
-    product_id TEXT CHECK (product_id IS NULL OR product_id NOT GLOB '*[^0-9]*'),
-    hsn TEXT NOT NULL,
-    unit TEXT NOT NULL CHECK (unit IN ('Case', 'Piece')),
-    quantity INTEGER NOT NULL CHECK (quantity BETWEEN 1 AND 4294967295),
-    inclusive_rate INTEGER NOT NULL,
-    gst_basis_points INTEGER NOT NULL CHECK (gst_basis_points BETWEEN 0 AND 4294967295),
-    packet_qty INTEGER NOT NULL CHECK (packet_qty BETWEEN 1 AND 4294967295),
-    amount INTEGER NOT NULL,
-    PRIMARY KEY (bill_id, position)
-) STRICT;
-CREATE TABLE IF NOT EXISTS standalone_gst_deleted (
-    bill_id TEXT PRIMARY KEY NOT NULL CHECK (bill_id NOT GLOB '*[^0-9]*')
-) STRICT;
-";
+mod rows;
+mod schema;
+use rows::{decimal, read_bill, read_line, unit_text};
+use schema::GST_TABLES;
 
 const SCHEMA_VERSION: i64 = 1;
 
@@ -104,101 +52,6 @@ impl GstBillDatabase {
         tx.commit()?;
         Ok(Self { store })
     }
-}
-
-fn unit_text(unit: GstUnit) -> &'static str {
-    match unit {
-        GstUnit::Case => "Case",
-        GstUnit::Piece => "Piece",
-    }
-}
-
-fn required(row: &Row<'_>, index: usize) -> Result<String, DraftStorageError> {
-    text(row, index)?.ok_or(DraftStorageError::InvalidOutput)
-}
-
-fn decimal(row: &Row<'_>, index: usize) -> Result<u64, DraftStorageError> {
-    required(row, index)?
-        .parse()
-        .map_err(|_| DraftStorageError::InvalidOutput)
-}
-
-fn small(row: &Row<'_>, index: usize) -> Result<u32, DraftStorageError> {
-    integer(row, index)?
-        .and_then(|value| u32::try_from(value).ok())
-        .ok_or(DraftStorageError::InvalidOutput)
-}
-
-fn money_at(row: &Row<'_>, index: usize) -> Result<Money, DraftStorageError> {
-    integer(row, index)?
-        .map(Money::from_minor_units)
-        .ok_or(DraftStorageError::InvalidOutput)
-}
-
-fn read_bill(row: &Row<'_>) -> Result<GstBill, DraftStorageError> {
-    let date: BillDate = required(row, 2)?
-        .parse()
-        .map_err(|_| DraftStorageError::InvalidOutput)?;
-    Ok(GstBill {
-        id: GstBillId(decimal(row, 0)?),
-        number: alm_core::confirmation::GstBillNumber(decimal(row, 1)?),
-        date,
-        customer_id: text(row, 3)?,
-        customer: required(row, 4)?,
-        gstin: text(row, 5)?,
-        cust_addr: required(row, 6)?,
-        cust_phone: required(row, 7)?,
-        cust_email: required(row, 8)?,
-        cust_state: required(row, 9)?,
-        cust_state_code: required(row, 10)?,
-        pos_state: required(row, 11)?,
-        pos_code: required(row, 12)?,
-        pay_mode: required(row, 13)?,
-        pay_terms: required(row, 14)?,
-        reverse_charge: required(row, 15)?,
-        transporter: required(row, 16)?,
-        vehicle_no: required(row, 17)?,
-        lr_no: required(row, 18)?,
-        eway_number: text(row, 19)?,
-        terms_delivery: required(row, 20)?,
-        dispatch: required(row, 21)?,
-        cancelled: match integer(row, 22)? {
-            Some(0) => false,
-            Some(1) => true,
-            _ => return Err(DraftStorageError::InvalidOutput),
-        },
-        created: decimal(row, 23)?,
-        lines: Vec::new(),
-    })
-}
-
-fn read_line(row: &Row<'_>) -> Result<(u64, i64, GstBillLine), DraftStorageError> {
-    let nonzero =
-        |index| NonZeroU32::new(small(row, index)?).ok_or(DraftStorageError::InvalidOutput);
-    let product = text(row, 3)?
-        .map(|id| id.parse().map(ProductId::new))
-        .transpose()
-        .map_err(|_| DraftStorageError::InvalidOutput)?;
-    let unit = match required(row, 5)?.as_str() {
-        "Case" => GstUnit::Case,
-        "Piece" => GstUnit::Piece,
-        _ => return Err(DraftStorageError::InvalidOutput),
-    };
-    Ok((
-        decimal(row, 0)?,
-        integer(row, 1)?.ok_or(DraftStorageError::InvalidOutput)?,
-        GstBillLine {
-            item: required(row, 2)?,
-            product,
-            hsn: required(row, 4)?,
-            unit,
-            quantity: nonzero(6)?,
-            inclusive_rate: money_at(row, 7)?,
-            gst_basis_points: small(row, 8)?,
-            packet_qty: nonzero(9)?,
-            amount: money_at(row, 10)?,
-        },
-    ))
 }
 
 impl GstBillStore for GstBillDatabase {

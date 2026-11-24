@@ -83,49 +83,6 @@ impl Trial {
             role: self.role(),
         }))
     }
-
-    pub(crate) fn bill_customer_search(&self, q: &str) -> String {
-        let found = self.directory.search_customers(self.drafting(), q);
-        let options: Vec<_> = found
-            .iter()
-            .map(|c| [("customer", c.id), ("customer_q", c.name)])
-            .collect();
-        views::search_options(
-            &found
-                .iter()
-                .zip(&options)
-                .map(|(c, fill)| views::SearchOption {
-                    fill,
-                    label: c.name,
-                    sub: "",
-                    submit: Some("select"),
-                })
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    pub(crate) fn bill_item_search(&self, q: &str) -> String {
-        let found = self.directory.search_products(self.drafting(), q);
-        let ids: Vec<String> = found.iter().map(|(id, _)| id.to_string()).collect();
-        let fills: Vec<_> = found
-            .iter()
-            .zip(&ids)
-            .map(|((_, name), id)| [("product", id.as_str()), ("product_q", *name)])
-            .collect();
-        views::search_options(
-            &found
-                .iter()
-                .zip(&fills)
-                .map(|((_, name), fill)| views::SearchOption {
-                    fill,
-                    label: name,
-                    sub: "",
-                    submit: None,
-                })
-                .collect::<Vec<_>>(),
-        )
-    }
-
     pub(super) fn fresh_bill(&mut self, saved_ids: &[u64]) -> Result<(), String> {
         let id = saved_ids
             .last()
@@ -247,5 +204,6 @@ mod batch1;
 #[cfg(test)]
 mod batch1_edit;
 pub mod commands;
+mod search;
 #[cfg(test)]
 mod tests;

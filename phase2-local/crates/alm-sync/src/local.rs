@@ -7,17 +7,11 @@ use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use alm_core::confirmation::manual_cashbook::{
-    CashBookDeletion, ManualCashBook, ManualCashBookDraft,
-};
-use alm_core::confirmation::owner_billing::{
-    BillingDirectory, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft, save_receipt_at,
-};
-use alm_core::confirmation::{ConfirmationFixture, LineEdit, ReceiptMode};
-use alm_core::projection::ProjectionBatch;
-use alm_core::{DraftId, Role};
+use alm_core::confirmation::ConfirmationFixture;
+use alm_core::confirmation::manual_cashbook::ManualCashBook;
+use alm_core::confirmation::owner_billing::BillingDirectory;
 
-use crate::{AuthorityError, Intent, Outcome, RequestId, SaleReceipt, SalesAuthority};
+use crate::{AuthorityError, Intent, Outcome, RequestId};
 
 #[derive(Debug)]
 pub enum LocalAuthorityError {
@@ -41,7 +35,10 @@ struct State {
     gst: BTreeMap<String, u64>,
 }
 
+mod apply;
+mod authority;
 mod commands;
+use apply::apply;
 
 pub struct LocalAuthority {
     state: State,
@@ -204,208 +201,6 @@ impl LocalAuthority {
         );
         self.checkpoint += 1;
         Ok(outcome)
-    }
-}
-
-fn apply(
-    state: &mut State,
-    directory: &BillingDirectory,
-    intent: &Intent,
-    stamp: u64,
-) -> Result<Outcome, AuthorityError> {
-    let role = Role::Owner;
-    let fixture = &mut state.fixture;
-    match intent {
-        Intent::PostSale(sale) => {
-            let id = sale.draft.id();
-            if fixture.current_sale(role, id).is_ok() {
-                return Err(AuthorityError::AlreadyPosted);
-            }
-            let priced = priced_draft(fixture, role, &sale.draft).map_err(rejected)?;
-            let current: Vec<_> = priced.lines.iter().map(|line| line.unit_price).collect();
-            if current != sale.prices {
-                return Err(AuthorityError::StaleReview);
-            }
-            let mut posting = OwnerPosting::default();
-            posting
-                .prepare(
-                    fixture,
-                    directory,
-                    role,
-                    Some(&sale.draft),
-                    SaleTerms {
-                        date: &sale.date.to_string(),
-                        paid: &sale.paid.to_rupee_text(),
-                    },
-                )
-                .map_err(rejected)?;
-            let serial = posting
-                .pending(role)
-                .map(|p| p.serial())
-                .ok_or(AuthorityError::Invalid)?;
-            let receipt = posting.confirm(fixture, role, serial).map_err(rejected)?;
-            Ok(Outcome::Sale(SaleReceipt {
-                draft: id.value(),
-                invoice: receipt.invoice,
-                quantity: receipt.quantity,
-                total: receipt.total,
-            }))
-        }
-        Intent::CancelSale { draft } => fixture
-            .cancel_sale(role, DraftId::new(*draft))
-            .map(|()| Outcome::Done)
-            .map_err(rejected),
-        Intent::RestoreSale { draft } => fixture
-            .undo_cancel_sale(role, DraftId::new(*draft))
-            .map(|()| Outcome::Done)
-            .map_err(rejected),
-        Intent::EditSale { draft, lines } => {
-            let edits = lines
-                .iter()
-                .map(|(quantity, rate)| {
-                    Some(LineEdit {
-                        quantity: std::num::NonZeroU32::new(*quantity)?,
-                        price: alm_core::Money::from_minor_units(*rate),
-                    })
-                })
-                .collect::<Option<Vec<_>>>()
-                .ok_or(AuthorityError::Invalid)?;
-            let receipt = fixture
-                .edit_posted_lines(role, DraftId::new(*draft), &edits)
-                .map_err(rejected)?;
-            Ok(Outcome::Sale(SaleReceipt {
-                draft: *draft,
-                invoice: receipt.invoice,
-                quantity: receipt.quantity,
-                total: receipt.total,
-            }))
-        }
-        Intent::RecordReceipt {
-            customer,
-            date,
-            amount,
-            online,
-        } => save_receipt_at(
-            fixture,
-            directory,
-            role,
-            customer,
-            ReceiptTerms {
-                date: &date.to_string(),
-                amount: &amount.to_rupee_text(),
-                mode: if *online {
-                    ReceiptMode::Online
-                } else {
-                    ReceiptMode::Cash
-                },
-            },
-            stamp,
-        )
-        .map(|()| Outcome::Done)
-        .map_err(rejected),
-        Intent::SaveCashDay { id, date, amounts } => {
-            let mut draft = match id {
-                Some(id) => state.cashbook.find(role, *id).map_err(rejected)?.draft(),
-                None => ManualCashBookDraft::new(None, *amounts),
-            };
-            draft.date = Some(*date);
-            draft.amounts = *amounts;
-            state.cashbook.save(role, &draft).map_err(rejected)?;
-            Ok(Outcome::Done)
-        }
-        Intent::DeleteCashDay { id } => {
-            let row = state.cashbook.find(role, *id).map_err(rejected)?;
-            state
-                .cashbook
-                .delete(role, CashBookDeletion::Confirm(row.id))
-                .map_err(rejected)?;
-            Ok(Outcome::Done)
-        }
-        other => commands::apply(state, other),
-    }
-}
-
-impl SalesAuthority for LocalAuthority {
-    fn submit(
-        &mut self,
-        role: Role,
-        request: &RequestId,
-        intent: &Intent,
-    ) -> Result<Outcome, AuthorityError> {
-        if role != Role::Owner {
-            return Err(AuthorityError::Denied);
-        }
-        let known = self.requests.contains_key(request.as_str());
-        let stamp = (self.clock)();
-        let outcome = self.commit(request, intent, stamp)?;
-        if !known {
-            self.append(&format!(
-                "R\t{}\t{}\t{stamp}",
-                request.as_str(),
-                intent.canonical()
-            ))?;
-        }
-        if std::mem::take(&mut self.lose_next) {
-            return Err(AuthorityError::Unavailable);
-        }
-        Ok(outcome)
-    }
-
-    fn status(&self, role: Role, request: &RequestId) -> Result<Option<Outcome>, AuthorityError> {
-        if role != Role::Owner {
-            return Err(AuthorityError::Denied);
-        }
-        Ok(self
-            .requests
-            .get(request.as_str())
-            .and_then(|(_, outcome)| Outcome::parse(outcome)))
-    }
-
-    fn allocate_gst_number(&mut self, role: Role, bill_id: &str) -> Result<u64, AuthorityError> {
-        if role != Role::Owner {
-            return Err(AuthorityError::Denied);
-        }
-        if bill_id.is_empty() || bill_id.len() > 64 || bill_id.contains(['\t', '\n']) {
-            return Err(AuthorityError::Invalid);
-        }
-        if let Some(number) = self.state.gst.get(bill_id) {
-            return Ok(*number);
-        }
-        let stored = self
-            .state
-            .fixture
-            .next_gst_bill_number(role)
-            .map_err(rejected)?
-            .0;
-        let number = self
-            .state
-            .gst
-            .values()
-            .max()
-            .map_or(stored, |max| stored.max(max + 1));
-        self.append(&format!("G\t{bill_id}\t{number}"))?;
-        self.state.gst.insert(bill_id.to_owned(), number);
-        self.checkpoint += 1;
-        Ok(number)
-    }
-
-    fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
-        let snapshot = if checkpoint == Some(self.checkpoint) {
-            None
-        } else {
-            Some(
-                self.state
-                    .fixture
-                    .projection(role, &self.directory, &self.state.cashbook)
-                    .map_err(rejected)?,
-            )
-        };
-        Ok(ProjectionBatch {
-            role,
-            checkpoint: self.checkpoint,
-            as_of_ms: (self.clock)(),
-            snapshot,
-        })
     }
 }
 
