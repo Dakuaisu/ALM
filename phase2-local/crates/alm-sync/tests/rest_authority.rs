@@ -184,6 +184,66 @@ fn manager_is_denied_and_receives_no_owner_fields() {
     }
 }
 
+/// Two devices of one account (one Owner token, own device IDs) post at the same moment from
+/// two threads: both commit with distinct invoices, and each device's identical retry returns its
+/// own receipt.
+#[test]
+fn two_devices_of_one_account_post_at_the_same_time() {
+    let Some(a) = rest() else { return };
+    let w = conformance::world(&a);
+    let (owner, _) = tokens().unwrap();
+    let url = env("ALM_REST_URL").unwrap();
+    let post = |device: &str, draft: u64| {
+        let mut client = RestAuthority::new(&url, &env("ALM_REST_APIKEY").unwrap_or_default())
+            .with_token(Role::Owner, &owner)
+            .with_device(device);
+        let request = RequestId::new(&format!(
+            "{}-1",
+            alm_sync::request_prefix("rest-shop", device)
+        ))
+        .unwrap();
+        let intent = conformance::sale(&w, draft, 1, w.sell);
+        let first = client.submit(Role::Owner, &request, &intent);
+        let retry = client.submit(Role::Owner, &request, &intent);
+        (first, retry)
+    };
+    let barrier = std::sync::Barrier::new(2);
+    let (one, two) = std::thread::scope(|scope| {
+        let one = scope.spawn(|| {
+            barrier.wait();
+            post("dev-00000000000000c1", 171)
+        });
+        let two = scope.spawn(|| {
+            barrier.wait();
+            post("dev-00000000000000d2", 172)
+        });
+        (one.join().unwrap(), two.join().unwrap())
+    });
+    let (Ok(Outcome::Sale(a1)), Ok(Outcome::Sale(b1))) = (&one.0, &two.0) else {
+        panic!("both devices post: {one:?} {two:?}")
+    };
+    assert_ne!(a1.invoice, b1.invoice);
+    assert_eq!(one.1, one.0, "identical retry, original receipt");
+    assert_eq!(two.1, two.0, "identical retry, original receipt");
+    let book = a.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    let devices: Vec<_> = book
+        .owner
+        .unwrap()
+        .book
+        .activity
+        .iter()
+        .map(|row| row.device.clone())
+        .collect();
+    assert!(
+        devices.contains(&"dev-00000000000000c1".to_owned()),
+        "{devices:?}"
+    );
+    assert!(
+        devices.contains(&"dev-00000000000000d2".to_owned()),
+        "{devices:?}"
+    );
+}
+
 /// Leaves the database reset and seeded with the app's shop, for the app's opt-in REST end to
 /// end test. Runs only with `ALM_RESET_ONLY` set.
 #[test]

@@ -972,6 +972,54 @@ pub fn manager_pull<A: SalesAuthority>(a: &mut A) {
     assert_eq!(a.pull(Role::Owner, Some(current)).unwrap().snapshot, None);
 }
 
+/// Two devices of one account each mint their first request ID: both post, with no conflict.
+/// An identical retry from either returns its original receipt; reusing the other device's ID
+/// with another intent is refused, as is one `account-n` ID minted by both (the earlier form).
+pub fn two_devices<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let mint = |device: &str| {
+        RequestId::new(&format!(
+            "{}-1",
+            alm_sync::request_prefix("conf-shop", device)
+        ))
+        .unwrap()
+    };
+    let (first, second) = (mint("dev-00000000000000a1"), mint("dev-00000000000000b2"));
+    assert_ne!(first, second);
+    let (sale_a, sale_b) = (sale(&w, 161, 1, w.sell), sale(&w, 162, 1, w.sell));
+    let Ok(Outcome::Sale(receipt_a)) = a.submit(Role::Owner, &first, &sale_a) else {
+        panic!("device A posts")
+    };
+    let Ok(Outcome::Sale(receipt_b)) = a.submit(Role::Owner, &second, &sale_b) else {
+        panic!("device B's first command posts too")
+    };
+    assert_ne!(receipt_a.invoice, receipt_b.invoice);
+    let after = state(a);
+    assert_eq!(
+        a.submit(Role::Owner, &second, &sale_b),
+        Ok(Outcome::Sale(receipt_b))
+    );
+    assert_eq!(
+        a.submit(Role::Owner, &first, &sale_a),
+        Ok(Outcome::Sale(receipt_a))
+    );
+    assert_eq!(
+        a.submit(Role::Owner, &first, &sale(&w, 163, 1, w.sell)),
+        Err(AuthorityError::Conflict)
+    );
+    let shared = RequestId::new("conf-shop-1").unwrap();
+    a.submit(Role::Owner, &shared, &sale(&w, 164, 1, w.sell))
+        .unwrap();
+    let before = state(a);
+    assert_eq!(
+        a.submit(Role::Owner, &shared, &sale(&w, 165, 1, w.sell)),
+        Err(AuthorityError::Conflict),
+        "one ID from two devices is a conflict"
+    );
+    assert_eq!(state(a), before);
+    assert_ne!(after, before);
+}
+
 /// One `#[test]` per case for an authority built by `$make`.
 #[macro_export]
 macro_rules! conformance_tests {
@@ -983,7 +1031,7 @@ macro_rules! conformance_tests {
             set_supplier_prices, save_purchase_order, receive_purchase_order,
             close_purchase_order, save_crate, sell_crate, delete_crate, set_reorder_default, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
-            import_gst_bill, manager_pull, lookup
+            import_gst_bill, manager_pull, lookup, two_devices
         );
     };
     ($make:expr; $($case:ident),+ $(,)?) => {

@@ -398,6 +398,57 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         );
     }
 
+    // Both devices of the account send a command at the same moment: device B's first request
+    // does not collide with device A's, and an identical retry returns B's original outcome.
+    let pay = |amount: &str| crate::receipts::Terms {
+        customer: "batch1-customer".into(),
+        date: "2025-04-30".into(),
+        amount: amount.into(),
+        mode: crate::receipts::Mode::Online,
+    };
+    let (paid_a, paid_b) = std::thread::scope(|scope| {
+        let a = scope.spawn(|| trial.receipt_save(pay("7")));
+        let b = scope.spawn(|| other.receipt_save(pay("8")));
+        (a.join().unwrap(), b.join().unwrap())
+    });
+    paid_a.unwrap();
+    paid_b.unwrap();
+    let sent = other.outbox.entries().unwrap();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].status, OutboxStatus::Confirmed);
+    assert_eq!(
+        sent[0].request_id,
+        format!("trial:{}-1", other.device_id),
+        "device B's first request"
+    );
+    assert_ne!(other.device_id, device);
+    let request = alm_sync::RequestId::new(&sent[0].request_id).unwrap();
+    let intent = alm_sync::Intent::parse(&sent[0].intent).unwrap();
+    assert_eq!(
+        alm_sync::SalesAuthority::submit(other.sales_authority(), Role::Owner, &request, &intent)
+            .map(|o| o.canonical()),
+        Ok(sent[0].outcome.clone().unwrap())
+    );
+    other.refresh().unwrap();
+    let log = other
+        .projected()
+        .unwrap()
+        .snapshot
+        .owner
+        .unwrap()
+        .book
+        .activity;
+    let payments: Vec<_> = log
+        .iter()
+        .filter(|row| row.kind == "payment")
+        .map(|row| (row.device.as_str(), row.message()))
+        .collect();
+    assert!(payments.contains(&(device.as_str(), "Synthetic Customer ₹7 (Online)".into())));
+    assert!(payments.contains(&(
+        other.device_id.as_str(),
+        "Synthetic Customer ₹8 (Online)".into()
+    )));
+
     // The Manager: denied, and its projection file holds no cost field or value.
     trial.set_owner(false).unwrap();
     assert!(
