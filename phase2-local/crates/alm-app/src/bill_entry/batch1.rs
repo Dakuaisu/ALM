@@ -195,8 +195,9 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     assert_eq!(after.current.collected.minor_units(), 3_050);
     let dashboard = trial.render("dashboard").unwrap();
     assert!(dashboard.contains(
-        "0 bills · 01-May-2025 to 02-May-2025 · last month <span class=\"priv\">₹0</span>"
+        "0 bills · 0 pkt · avg <span class=\"priv\">₹0</span> per bill · last month <span class=\"priv\">₹0</span>"
     ));
+    assert!(dashboard.contains(r#"<div class="help">01-May-2025 to 02-May-2025</div>"#));
     assert!(dashboard.contains("bills ₹0 · receipts ₹31"));
     assert!(dashboard.contains(
         r#"<div class="sl">Receivables</div><div class="sv"><span class="priv">₹0</span>"#

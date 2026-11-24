@@ -69,6 +69,9 @@ pub use customer_accounts::{
 pub use customer_ageing::{AgeingBucket, AgeingReport, AgeingRow};
 pub use customer_opening::{OpeningBalance, OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};
 pub use dashboard::{
+    ChartPoint, DashboardInsights, Delta, Donut, DonutSlice, LineChart, TopProduct,
+};
+pub use dashboard::{
     Dashboard, DashboardDetail, DashboardError, DashboardPeriod, DashboardReceiptId,
     DashboardSource, DashboardSummary, DashboardWindow,
 };

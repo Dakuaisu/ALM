@@ -1,7 +1,12 @@
 //! Read-only synthetic dashboard; role selection is not authentication.
+mod insights;
 #[cfg(test)]
 mod tests;
 pub(super) mod windows;
+
+pub use insights::{
+    ChartPoint, DashboardInsights, Delta, Donut, DonutSlice, LineChart, TopProduct,
+};
 
 use super::{ConfirmationFixture, ProposedPayment, ReceiptMode};
 use crate::{BillDate, DraftId, Money, Role};

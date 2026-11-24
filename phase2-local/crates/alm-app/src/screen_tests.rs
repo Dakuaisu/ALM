@@ -239,8 +239,9 @@ fn dashboard_renders_core_window_totals_profit_receivables_and_ageing() {
         r#"<div class="hl">Sales · this month</div><div class="hv"><span class="priv">₹121</span>"#
     ));
     assert!(html.contains(
-        "1 bill · 01-Apr-2025 to 30-Apr-2025 · last month <span class=\"priv\">₹0</span>"
+        "1 bill · 1 pkt · avg <span class=\"priv\">₹121</span> per bill · last month <span class=\"priv\">₹0</span>"
     ));
+    assert!(html.contains(r#"<div class="help">01-Apr-2025 to 30-Apr-2025</div>"#));
     assert!(html.contains(&format!(
         r#"<div class="sl">Profit</div><div class="sv"><span class="priv">{}</span>"#,
         money_r(profit)
@@ -1131,4 +1132,66 @@ fn structured_exports_follow_the_read_model_and_deny_the_manager() {
     trial.owner = false;
     assert!(trial.export(Export::SalesCsv).is_err());
     assert!(trial.export(Export::Workbook).is_err());
+}
+
+#[test]
+fn dashboard_ports_deltas_rates_packets_top_lists_and_svg_charts() {
+    use alm_core::confirmation::{DashboardPeriod, Delta};
+    let fixture = books();
+    let insights = fixture
+        .dashboard_insights(Role::Owner, day(), DashboardPeriod::Month)
+        .unwrap();
+    assert_eq!(insights.sales_delta, Delta::New);
+    assert_eq!(insights.packets, 1);
+    assert_eq!(insights.average.minor_units(), 12_100);
+    // ₹20 collected of ₹120.50 billed: 16.6% → 17%.
+    assert_eq!(insights.collection_rate, 17);
+    let (profit, _, margin) = insights.profit.clone().unwrap();
+    assert_eq!(profit.minor_units(), 5_050);
+    assert_eq!(margin, "41.9");
+    assert_eq!(insights.top_products[0].item, "Synthetic Lime");
+    assert_eq!(insights.top_products[0].bar_percent, 100);
+    assert_eq!(insights.top_customers[0].0, "Synthetic Customer");
+    assert_eq!(insights.trend.points.len(), 14);
+    assert_eq!(insights.trend.x_labels.last().unwrap().1, "30-Apr");
+    let mix = insights.pay_mix.as_ref().unwrap();
+    let labels: Vec<_> = mix.slices.iter().map(|s| s.label.as_str()).collect();
+    assert_eq!(labels, ["Cash  17%", "Credit  83%"]);
+    let html = views::dashboard_screen(
+        &fixture,
+        &directory(),
+        Role::Owner,
+        day(),
+        DashboardPeriod::Month,
+    )
+    .unwrap();
+    for part in [
+        r#"<span class="delta flat">new</span>"#,
+        "41.9% margin",
+        "17% of what you billed",
+        r#"<div class="sl">Packets Sold</div><div class="sv"><span class="">1 pkt</span>"#,
+        "Top products · this month",
+        "Top customers · this month",
+        r#"<svg class="chart" viewBox="0 0 560 230""#,
+        "<polyline points=",
+        r#"<path d="M121.0,115.0 L"#,
+        "Credit  83%",
+    ] {
+        assert!(html.contains(part), "{part}");
+    }
+    assert!(!html.contains("<canvas") && !html.contains("<script"));
+    let manager = views::dashboard_screen(
+        &fixture,
+        &directory(),
+        Role::Manager,
+        day(),
+        DashboardPeriod::Month,
+    )
+    .unwrap();
+    assert!(!manager.contains("margin") && !manager.contains("<svg"));
+    assert!(
+        fixture
+            .dashboard_insights(Role::Manager, day(), DashboardPeriod::Month)
+            .is_err()
+    );
 }
