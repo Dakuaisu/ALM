@@ -159,7 +159,7 @@ impl ManualCashBookRow {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ManualCashBook {
     rows: BTreeMap<ManualCashBookId, ManualCashBookRow>,
     next_id: u64,

@@ -1,0 +1,223 @@
+//! The development authority simulation against the `SalesAuthority` contract.
+use std::num::NonZeroU32;
+
+use alm_core::confirmation::demo_fixture::{customer_id, directory, fixture};
+use alm_core::confirmation::owner_billing::priced_draft;
+use alm_core::{
+    BillDate, DraftCustomer, DraftId, DraftLine, Money, ProductId, ProvisionalDraft, Role,
+};
+use alm_sync::{
+    AuthorityError, Intent, LocalAuthority, Outcome, RequestId, SaleIntent, SalesAuthority,
+};
+
+fn day() -> BillDate {
+    BillDate::new(2025, 4, 30).unwrap()
+}
+
+fn draft(id: u64, qty: u32) -> ProvisionalDraft {
+    ProvisionalDraft::new(
+        DraftId::new(id),
+        vec![DraftLine::new(
+            ProductId::new(1),
+            NonZeroU32::new(qty).unwrap(),
+        )],
+    )
+    .with_customer(DraftCustomer::Selected {
+        id: customer_id(),
+        name: "Synthetic Customer".into(),
+    })
+    .with_bill_date(Some(day()))
+}
+
+fn sale(authority: &LocalAuthority, id: u64, qty: u32) -> SaleIntent {
+    let draft = draft(id, qty);
+    let prices = priced_draft(authority.fixture(), Role::Owner, &draft)
+        .unwrap()
+        .lines
+        .iter()
+        .map(|line| line.unit_price)
+        .collect();
+    SaleIntent {
+        draft,
+        date: day(),
+        paid: Money::from_minor_units(2_000),
+        prices,
+    }
+}
+
+fn request(text: &str) -> RequestId {
+    RequestId::new(text).unwrap()
+}
+
+fn seeded() -> LocalAuthority {
+    LocalAuthority::new(fixture().unwrap(), directory()).with_clock(|| 1_700_000_000_000)
+}
+
+#[test]
+fn identical_retry_returns_the_original_receipt_and_reuse_conflicts() {
+    let mut authority = seeded();
+    let intent = sale(&authority, 1, 2);
+    let first = authority
+        .post_sale(Role::Owner, &request("trial-1"), &intent)
+        .unwrap();
+    assert_eq!((first.invoice, first.total.minor_units()), (1, 24_100));
+    let checkpoint = authority.checkpoint();
+    let again = authority
+        .post_sale(Role::Owner, &request("trial-1"), &intent)
+        .unwrap();
+    assert_eq!(again, first);
+    assert_eq!(authority.checkpoint(), checkpoint, "no second effect");
+    let other = sale(&authority, 1, 3);
+    assert_eq!(
+        authority.post_sale(Role::Owner, &request("trial-1"), &other),
+        Err(AuthorityError::Conflict)
+    );
+    assert_eq!(
+        authority.post_sale(Role::Owner, &request("trial-2"), &intent),
+        Err(AuthorityError::AlreadyPosted)
+    );
+    assert_eq!(
+        authority.post_sale(Role::Manager, &request("trial-3"), &sale(&authority, 2, 1)),
+        Err(AuthorityError::Denied)
+    );
+}
+
+#[test]
+fn stale_terms_and_failures_leave_no_effect() {
+    let mut authority = seeded();
+    let mut intent = sale(&authority, 1, 2);
+    intent.prices = vec![Money::from_minor_units(1)];
+    assert_eq!(
+        authority.post_sale(Role::Owner, &request("trial-1"), &intent),
+        Err(AuthorityError::StaleReview)
+    );
+    let too_many = sale(&authority, 1, 500);
+    assert!(matches!(
+        authority.post_sale(Role::Owner, &request("trial-1"), &too_many),
+        Err(AuthorityError::Rejected(_))
+    ));
+    assert_eq!(authority.checkpoint(), 0);
+    assert_eq!(authority.status(Role::Owner, &request("trial-1")), Ok(None));
+    let ok = sale(&authority, 1, 2);
+    assert!(
+        authority
+            .post_sale(Role::Owner, &request("trial-1"), &ok)
+            .is_ok()
+    );
+}
+
+#[test]
+fn lost_response_commits_once_and_status_or_retry_resolves_it() {
+    let mut authority = seeded();
+    let intent = sale(&authority, 1, 2);
+    authority.lose_next_response();
+    assert_eq!(
+        authority.post_sale(Role::Owner, &request("trial-1"), &intent),
+        Err(AuthorityError::Unavailable)
+    );
+    let status = authority.status(Role::Owner, &request("trial-1")).unwrap();
+    let Some(Outcome::Sale(receipt)) = status else {
+        panic!("committed")
+    };
+    assert_eq!(
+        authority.post_sale(Role::Owner, &request("trial-1"), &intent),
+        Ok(receipt)
+    );
+    assert_eq!(authority.checkpoint(), 1);
+    assert_eq!(
+        authority.status(Role::Manager, &request("trial-1")),
+        Err(AuthorityError::Denied)
+    );
+}
+
+#[test]
+fn journal_replay_restores_state_requests_and_gst_numbers() {
+    let dir = std::env::temp_dir().join(format!("alm-sync-journal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("journal.txt");
+    let _ = std::fs::remove_file(&path);
+    let mut authority = LocalAuthority::open(&path, fixture().unwrap(), directory()).unwrap();
+    let intent = sale(&authority, 1, 2);
+    let receipt = authority
+        .post_sale(Role::Owner, &request("trial-1"), &intent)
+        .unwrap();
+    authority
+        .record_receipt(
+            Role::Owner,
+            &request("trial-2"),
+            "batch1-customer",
+            day(),
+            Money::from_minor_units(1_000),
+            true,
+        )
+        .unwrap();
+    authority
+        .set_cancelled(Role::Owner, &request("trial-3"), 1, true)
+        .unwrap();
+    authority
+        .set_cancelled(Role::Owner, &request("trial-4"), 1, false)
+        .unwrap();
+    let edited = authority
+        .edit_sale(Role::Owner, &request("trial-5"), 1, vec![(3, 11_800)])
+        .unwrap();
+    assert_eq!(edited.total.minor_units(), 35_400);
+    let gst = authority
+        .allocate_gst_number(Role::Owner, "bill-a")
+        .unwrap();
+    assert_eq!(
+        authority.allocate_gst_number(Role::Owner, "bill-a"),
+        Ok(gst)
+    );
+    assert_eq!(
+        authority.allocate_gst_number(Role::Owner, "bill-b"),
+        Ok(gst + 1)
+    );
+    assert_eq!(
+        authority.allocate_gst_number(Role::Manager, "bill-c"),
+        Err(AuthorityError::Denied)
+    );
+    let before = authority.pull(Role::Owner, None).unwrap();
+    drop(authority);
+
+    let mut reopened = LocalAuthority::open(&path, fixture().unwrap(), directory()).unwrap();
+    let after = reopened.pull(Role::Owner, None).unwrap();
+    assert_eq!(after.checkpoint, before.checkpoint);
+    assert_eq!(after.snapshot, before.snapshot);
+    assert_eq!(
+        reopened.post_sale(Role::Owner, &request("trial-1"), &intent),
+        Ok(receipt)
+    );
+    assert_eq!(
+        reopened.allocate_gst_number(Role::Owner, "bill-b"),
+        Ok(gst + 1)
+    );
+    assert_eq!(
+        reopened
+            .pull(Role::Owner, Some(after.checkpoint))
+            .unwrap()
+            .snapshot,
+        None
+    );
+    std::fs::write(&path, "R\ttrial-9\tcancel draft=99\n").unwrap();
+    assert!(LocalAuthority::open(&path, fixture().unwrap(), directory()).is_err());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn the_manager_pull_holds_only_the_catalog() {
+    let mut authority = seeded();
+    let intent = sale(&authority, 1, 2);
+    authority
+        .post_sale(Role::Owner, &request("trial-1"), &intent)
+        .unwrap();
+    let owner = authority.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    assert_eq!(owner.sales.len(), 1);
+    assert!(owner.owner.is_some());
+    let manager = authority.pull(Role::Manager, None).unwrap();
+    assert_eq!(manager.role, Role::Manager);
+    let manager = manager.snapshot.unwrap();
+    assert!(manager.owner.is_none());
+    assert!(manager.sales.is_empty() && manager.customers.is_empty() && manager.stock.is_empty());
+    assert_eq!(manager.catalog.len(), 2);
+    let _ = Intent::CancelSale { draft: 1 };
+}

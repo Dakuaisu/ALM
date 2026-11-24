@@ -9,6 +9,7 @@ pub mod draft_entry;
 mod draft_store;
 mod drafts;
 pub mod preferences;
+pub mod projection;
 pub mod provisional_preview;
 pub mod receive_payment;
 pub mod synthetic_read_model;

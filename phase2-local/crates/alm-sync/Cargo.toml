@@ -3,6 +3,11 @@ name = "alm-sync"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+# The development authority simulation runs over the synthetic seeded fixture.
+alm-core = { workspace = true, features = ["demo-fixture"] }
+
 [dev-dependencies]
+alm-core = { workspace = true, features = ["demo-fixture"] }
 postgres.workspace = true
 serde_json.workspace = true

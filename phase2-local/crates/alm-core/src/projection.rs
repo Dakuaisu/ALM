@@ -1,0 +1,348 @@
+//! Read-only projections the sales authority sends to a device: the posted rows each screen
+//! shows, filtered by role before they leave the authority. The device stores them and builds
+//! screen models from them with the functions here; it never posts from them.
+use crate::confirmation::manual_cashbook::{CashBookAmounts, ManualCashBook};
+use crate::confirmation::owner_billing::{BalanceSide, BillingDirectory, CustomerFilter};
+use crate::confirmation::{
+    ConfirmationError, ConfirmationFixture, ReceiptMode, SalesPeriod, StockStatus,
+};
+use crate::{BillDate, DraftCustomer, Money, Role};
+
+/// A posted bill as the Sales screen lists it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedSale {
+    pub draft_id: u64,
+    pub invoice: u64,
+    pub date: BillDate,
+    pub customer: String,
+    /// Item names, for the Sales search.
+    pub items: Vec<String>,
+    pub lines: u32,
+    pub packets: u32,
+    pub total: Money,
+    pub paid: Money,
+    pub online: bool,
+    pub cancelled: bool,
+    /// The customer's balance shown on the row (zero when cancelled).
+    pub balance: Money,
+}
+
+impl ProjectedSale {
+    /// The legacy Credit tag: any unpaid remainder.
+    pub const fn is_credit(&self) -> bool {
+        self.total.minor_units() > self.paid.minor_units()
+    }
+}
+
+/// A separately dated customer receipt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedReceipt {
+    pub slot: u64,
+    pub date: BillDate,
+    pub customer: String,
+    pub amount: Money,
+    pub online: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedCustomer {
+    pub id: String,
+    pub name: String,
+    pub balance: Money,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedStock {
+    pub product: u64,
+    pub item: String,
+    pub brand: String,
+    pub on_hand: u32,
+    pub reorder_level: u32,
+}
+
+/// A product a bill may select, with its provisional (Manager-visible) rate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedProduct {
+    pub id: u64,
+    pub name: String,
+    pub rate: Money,
+}
+
+/// A saved Cash Book day (the manual day-close figures).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProjectedCashDay {
+    pub id: u64,
+    pub date: BillDate,
+    pub amounts: CashBookAmounts,
+}
+
+/// Owner-only values: never sent to a Manager device.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct OwnerValues {
+    /// Per active bill: its revenue and frozen FIFO cost; `None` when a cost is unknown.
+    pub sale_costs: Vec<(u64, Money, Option<Money>)>,
+    /// Total FIFO stock value; `None` when any lot cost is unknown.
+    pub stock_value: Option<Money>,
+}
+
+/// Everything one account may see, as of one authority checkpoint.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ProjectionSnapshot {
+    pub sales: Vec<ProjectedSale>,
+    pub receipts: Vec<ProjectedReceipt>,
+    pub customers: Vec<ProjectedCustomer>,
+    pub stock: Vec<ProjectedStock>,
+    pub catalog: Vec<ProjectedProduct>,
+    pub cash_days: Vec<ProjectedCashDay>,
+    pub owner: Option<OwnerValues>,
+}
+
+/// What the device applies in one transaction: the checkpoint reached and, when anything
+/// changed since the device's checkpoint, the full replacement for its projection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectionBatch {
+    pub role: Role,
+    pub checkpoint: u64,
+    /// Milliseconds since the Unix epoch at the authority when the checkpoint was read.
+    pub as_of_ms: u64,
+    pub snapshot: Option<ProjectionSnapshot>,
+}
+
+impl ConfirmationFixture {
+    /// The role-filtered snapshot for a device: the Owner gets every projected screen and the
+    /// owner values; a Manager gets only the catalog and customer names it drafts with.
+    ///
+    /// # Errors
+    /// Propagates read failures from the underlying screens.
+    pub fn projection(
+        &self,
+        role: Role,
+        directory: &BillingDirectory,
+        cashbook: &ManualCashBook,
+    ) -> Result<ProjectionSnapshot, ConfirmationError> {
+        self.projection_snapshot(role, directory, cashbook)
+    }
+}
+
+/// The Sales screen model over projected rows (`sales_history` semantics).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SalesView<'a> {
+    pub rows: Vec<&'a ProjectedSale>,
+    pub bills: usize,
+    pub cancelled: usize,
+    pub sales: Money,
+    pub packets: u32,
+    pub bill_paid: Money,
+    pub receipt_paid: Money,
+    pub total_collected: Money,
+    /// Owner-only estimated profit; `None` without owner values or with an unknown cost.
+    pub profit: Option<Money>,
+}
+
+fn add(a: Money, b: Money) -> Result<Money, ConfirmationError> {
+    a.minor_units()
+        .checked_add(b.minor_units())
+        .map(Money::from_minor_units)
+        .ok_or(ConfirmationError::Overflow)
+}
+
+impl ProjectionSnapshot {
+    /// Filters the projected sales by period and customer/item search and totals them.
+    ///
+    /// # Errors
+    /// Rejects an invalid month start and total overflow.
+    pub fn sales_view(
+        &self,
+        today: BillDate,
+        period: SalesPeriod,
+        search: &str,
+    ) -> Result<SalesView<'_>, ConfirmationError> {
+        let bounds = match period {
+            SalesPeriod::Today => (Some(today), Some(today)),
+            SalesPeriod::ThisMonth => (Some(today.first_of_month()), None),
+            SalesPeriod::All => (None, None),
+            SalesPeriod::Custom(bounds) => bounds,
+        };
+        let in_range = |d: BillDate| {
+            bounds.0.is_none_or(|a| d.parts() >= a.parts())
+                && bounds.1.is_none_or(|b| d.parts() <= b.parts())
+        };
+        let query = search.to_lowercase();
+        let matches = |s: &str| s.to_lowercase().contains(&query);
+        let zero = Money::from_minor_units(0);
+        let mut view = SalesView {
+            rows: Vec::new(),
+            bills: 0,
+            cancelled: 0,
+            sales: zero,
+            packets: 0,
+            bill_paid: zero,
+            receipt_paid: zero,
+            total_collected: zero,
+            profit: None,
+        };
+        let (mut revenue, mut cost, mut known) = (zero, zero, true);
+        for sale in &self.sales {
+            if !in_range(sale.date)
+                || !(matches(&sale.customer) || sale.items.iter().any(|i| matches(i)))
+            {
+                continue;
+            }
+            view.rows.push(sale);
+            if sale.cancelled {
+                view.cancelled += 1;
+                continue;
+            }
+            view.bills += 1;
+            view.sales = add(view.sales, sale.total)?;
+            view.bill_paid = add(view.bill_paid, sale.paid)?;
+            view.packets = view
+                .packets
+                .checked_add(sale.packets)
+                .ok_or(ConfirmationError::Overflow)?;
+            match self.owner.as_ref().and_then(|owner| {
+                owner
+                    .sale_costs
+                    .iter()
+                    .find(|(id, _, _)| *id == sale.draft_id)
+            }) {
+                Some((_, sale_revenue, Some(sale_cost))) => {
+                    revenue = add(revenue, *sale_revenue)?;
+                    cost = add(cost, *sale_cost)?;
+                }
+                _ => known = false,
+            }
+        }
+        for receipt in &self.receipts {
+            let party = self
+                .sales
+                .iter()
+                .any(|sale| sale.customer == receipt.customer && matches(&sale.customer))
+                || matches(&receipt.customer);
+            if in_range(receipt.date) && (query.is_empty() || party) {
+                view.receipt_paid = add(view.receipt_paid, receipt.amount)?;
+            }
+        }
+        view.total_collected = add(view.bill_paid, view.receipt_paid)?;
+        if self.owner.is_some() && known {
+            view.profit = Some(Money::from_minor_units(
+                revenue
+                    .minor_units()
+                    .checked_sub(cost.minor_units())
+                    .ok_or(ConfirmationError::Overflow)?,
+            ));
+        }
+        Ok(view)
+    }
+
+    /// The Customers screen over projected balances (`customer_book` semantics).
+    ///
+    /// # Errors
+    /// Rejects total overflow.
+    pub fn customer_view(
+        &self,
+        filter: &CustomerFilter,
+    ) -> Result<CustomerView<'_>, ConfirmationError> {
+        let needle = match filter {
+            CustomerFilter::Name(text) => text.trim().to_lowercase(),
+            CustomerFilter::All | CustomerFilter::Due => String::new(),
+        };
+        let zero = Money::from_minor_units(0);
+        let mut view = CustomerView {
+            rows: Vec::new(),
+            receivable: zero,
+            advances: zero,
+            debtors: 0,
+            customers: self.customers.len(),
+        };
+        for customer in &self.customers {
+            let side = BalanceSide::of(customer.balance)?;
+            match side {
+                BalanceSide::Due(amount) => view.receivable = add(view.receivable, amount)?,
+                BalanceSide::Advance(amount) => view.advances = add(view.advances, amount)?,
+                BalanceSide::Settled => {}
+            }
+            if crate::confirmation::owner_billing::is_debtor(customer.balance) {
+                view.debtors += 1;
+            }
+            let keep = match filter {
+                CustomerFilter::All => true,
+                CustomerFilter::Due => customer.balance.minor_units() > 0,
+                CustomerFilter::Name(_) => customer.name.to_lowercase().contains(&needle),
+            };
+            if keep {
+                view.rows.push((customer, side));
+            }
+        }
+        view.rows.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        Ok(view)
+    }
+
+    /// The Stock screen over projected quantities (`stock_list` semantics); the value is
+    /// the owner value, absent for a Manager.
+    pub fn stock_view(&self, query: &str, low_only: bool) -> StockView<'_> {
+        let needle = query.trim().to_lowercase();
+        let mut view = StockView {
+            rows: Vec::new(),
+            skus: self.stock.len(),
+            in_stock: 0,
+            low: 0,
+            out: 0,
+            value: self.owner.as_ref().and_then(|owner| owner.stock_value),
+        };
+        for row in &self.stock {
+            let status = if row.on_hand == 0 {
+                StockStatus::Out
+            } else if row.on_hand <= row.reorder_level {
+                StockStatus::Low
+            } else {
+                StockStatus::Ok
+            };
+            match status {
+                StockStatus::Out => view.out += 1,
+                StockStatus::Low => view.low += 1,
+                StockStatus::Ok => {}
+            }
+            if row.on_hand > 0 {
+                view.in_stock += 1;
+            }
+            if row.item.to_lowercase().contains(&needle)
+                && !(low_only && row.on_hand > row.reorder_level)
+            {
+                view.rows.push((row, status));
+            }
+        }
+        view.rows.sort_by_key(|(row, _)| row.on_hand);
+        view
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CustomerView<'a> {
+    pub rows: Vec<(&'a ProjectedCustomer, BalanceSide)>,
+    pub receivable: Money,
+    pub advances: Money,
+    pub debtors: usize,
+    pub customers: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StockView<'a> {
+    pub rows: Vec<(&'a ProjectedStock, StockStatus)>,
+    pub skus: usize,
+    pub in_stock: usize,
+    pub low: usize,
+    pub out: usize,
+    pub value: Option<Money>,
+}
+
+pub(crate) fn customer_name(customer: &DraftCustomer) -> String {
+    match customer {
+        DraftCustomer::Selected { name, .. } | DraftCustomer::Typed(name) => name.clone(),
+        DraftCustomer::Unassigned => String::new(),
+    }
+}
+
+pub(crate) const fn online(mode: ReceiptMode) -> bool {
+    matches!(mode, ReceiptMode::Online)
+}

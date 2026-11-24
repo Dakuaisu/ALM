@@ -40,6 +40,7 @@ mod pending;
 pub mod pending;
 mod posting;
 mod preview;
+mod projection_snapshot;
 pub(crate) mod purchase_orders;
 pub mod rate_list;
 mod reporting;
@@ -196,6 +197,11 @@ pub struct ConfirmationAck {
 #[cfg_attr(
     any(test, feature = "test-support"),
     derive(Clone, Debug, Eq, PartialEq)
+)]
+// The development authority simulation rolls back a failed command by restoring a copy.
+#[cfg_attr(
+    all(feature = "demo-fixture", not(any(test, feature = "test-support"))),
+    derive(Clone)
 )]
 pub struct ConfirmationFixture {
     product: ProductId,

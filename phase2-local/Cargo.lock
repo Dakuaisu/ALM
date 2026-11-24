@@ -92,6 +92,7 @@ dependencies = [
 name = "alm-sync"
 version = "0.1.0"
 dependencies = [
+ "alm-core",
  "postgres",
  "serde_json",
 ]
