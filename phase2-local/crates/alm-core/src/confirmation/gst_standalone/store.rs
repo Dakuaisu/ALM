@@ -139,6 +139,12 @@ impl ConfirmationFixture {
         if bill.cancelled {
             return Err(GstBillError::Cancelled);
         }
+        if bill.customer.is_empty() {
+            return Err(GstBillError::MissingCustomer);
+        }
+        if bill.lines.is_empty() {
+            return Err(GstBillError::MissingItems);
+        }
         self.gst_invoice(&bill)?;
         self.gst_bills.insert(bill.id, bill);
         Ok(())
