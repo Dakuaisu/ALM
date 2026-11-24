@@ -35,7 +35,7 @@ pub fn crates_screen(
         r#"<div class="help" style="margin-bottom:12px">Build once, bill fast: a crate sells as ONE line at its price; stock still reduces item-by-item.</div>"#,
     );
     if let Some(form) = form {
-        html += &builder(fixture, directory, form);
+        html += &builder(fixture, role, form);
     }
     html += r#"<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>Name</th><th>Contents</th><th class="num">Items</th><th class="num">Price ₹</th><th class="num">Contents value</th><th class="num">Actions</th></tr></thead><tbody>"#;
     if rows.is_empty() {
@@ -74,11 +74,18 @@ fn sell_form(directory: &BillingDirectory, id: u64, today: alm_core::BillDate) -
     )
 }
 
-fn builder(
-    fixture: &ConfirmationFixture,
-    directory: &BillingDirectory,
-    form: &CrateForm,
-) -> String {
+/// The component picker lists every product in the catalog, as the HTML's autocomplete over
+/// `DB.products` does (a product added on Products can be a component at once).
+fn builder(fixture: &ConfirmationFixture, role: Role, form: &CrateForm) -> String {
+    let products: Vec<(String, String)> = fixture
+        .product_list(role, "", None)
+        .map(|list| {
+            list.rows
+                .into_iter()
+                .map(|row| (row.product.value().to_string(), row.item))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut html = format!(
         r#"<div class="card" style="margin-bottom:14px"><h3>📦 Crate template</h3><form data-action="crate_submit" data-payload="terms"><div class="f2"><div><label>Crate name <input class="inp" name="name" value="{}"></label></div><div><label>Crate price ₹ <input class="inp num" name="price" inputmode="decimal" value="{}"></label></div></div>"#,
         esc(&form.name),
@@ -90,12 +97,8 @@ fn builder(
             r#"<div class="row" style="gap:8px;margin-top:6px"><select class="inp" name="product_{i}" aria-label="Component {n}"><option value="">Choose item…</option>"#,
             n = i + 1
         );
-        for (id, name) in directory.products(fixture) {
-            let selected = if id.to_string() == *product {
-                " selected"
-            } else {
-                ""
-            };
+        for (id, name) in &products {
+            let selected = if id == product { " selected" } else { "" };
             let _ = write!(
                 html,
                 r#"<option value="{id}"{selected}>{}</option>"#,

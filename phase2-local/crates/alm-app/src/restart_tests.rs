@@ -574,3 +574,41 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
         Some(2)
     );
 }
+
+#[test]
+fn the_crate_picker_lists_every_product_including_new_ones() {
+    let root = Root::new("crate-picker");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let orange = add_product(&mut trial, "Synthetic Orange", "30", "45");
+    trial.crate_form = Some(crate::views::CrateForm {
+        rows: vec![(String::new(), "1".into(), "Case".into())],
+        ..Default::default()
+    });
+    let html = trial.render("crates").unwrap();
+    for (id, item) in [
+        (1, "Synthetic Lime"),
+        (2, "Synthetic Soda"),
+        (orange.value(), "Synthetic Orange"),
+    ] {
+        assert!(
+            html.contains(&format!(r#"<option value="{id}">{item}</option>"#)),
+            "{item}: {html}"
+        );
+    }
+    trial
+        .crate_submit(map(&[
+            ("name", "Orange Box"),
+            ("price", "90"),
+            ("product_0", &orange.value().to_string()),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("intent", "save"),
+        ]))
+        .unwrap();
+    let crates = trial.projected().unwrap().snapshot.crates;
+    assert!(
+        crates
+            .iter()
+            .any(|c| c.name == "Orange Box" && c.components == 1)
+    );
+}
