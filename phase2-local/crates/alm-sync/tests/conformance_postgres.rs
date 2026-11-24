@@ -7,21 +7,15 @@
 mod conformance;
 mod pg_authority;
 
-use alm_core::Role;
 use alm_core::confirmation::demo_fixture::{directory, fixture, seed_purchasing};
-use alm_sync::{LocalAuthority, SalesAuthority as _};
+use alm_sync::LocalAuthority;
 use pg_authority::PgAuthority;
 
 /// Seeded with the same shop as the local authority's.
 fn postgres() -> Option<PgAuthority> {
     let mut shop = fixture().unwrap();
     seed_purchasing(&mut shop).unwrap();
-    let seed = LocalAuthority::new(shop, directory())
-        .pull(Role::Owner, None)
-        .unwrap()
-        .snapshot
-        .unwrap();
-    PgAuthority::connect(&seed)
+    PgAuthority::connect(&LocalAuthority::new(shop, directory()))
 }
 
 conformance_tests!(postgres());

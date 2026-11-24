@@ -6,6 +6,7 @@
 mod intent;
 #[cfg(feature = "local-authority")]
 mod local;
+pub mod wire;
 
 use alm_core::Role;
 use alm_core::projection::ProjectionBatch;

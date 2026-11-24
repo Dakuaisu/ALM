@@ -1,0 +1,490 @@
+//! Opt-in differential suite: every scenario runs the same commands through the core's
+//! `LocalAuthority` and the dev Postgres authority and fails on any difference in outcome or
+//! effect. Set `ALM_PG_URL` (as for `conformance_postgres`); without it every test returns early.
+#![forbid(unsafe_code)]
+
+mod conformance;
+mod differential;
+mod pg_authority;
+
+use alm_core::Role;
+use alm_sync::{Intent, Outcome};
+use differential::Pair;
+use differential::script::{
+    Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_terms, on_hand, product,
+    purchase, receipt, receive, sale,
+};
+
+fn created(outcome: Option<Outcome>) -> u64 {
+    match outcome {
+        Some(Outcome::Created(id)) => id,
+        other => panic!("expected a created ID, got {other:?}"),
+    }
+}
+
+/// Batch 1: one customer, a part-paid bill, a separately dated online receipt, Cash Book
+/// closes, cancellation (the receipt survives), restore and cancel again.
+#[test]
+fn batch1() {
+    let Some(mut p) = Pair::new("batch1") else {
+        return;
+    };
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 2)],
+        date: "2025-04-30",
+        paid: 5_000,
+        loading: 0,
+    };
+    p.owner("post", &sale(&core, &bill));
+    p.owner("receipt", &receipt(CUSTOMER.0, "2025-05-02", 3_050, true));
+    p.owner("close 30 Apr", &cash_day(None, "2025-04-30", 5_000, 0, 0));
+    p.owner("close 2 May", &cash_day(None, "2025-05-02", 0, 3_100, 0));
+    p.owner("cancel", &Intent::CancelSale { draft: 1 });
+    p.owner("restore", &Intent::RestoreSale { draft: 1 });
+    p.owner("cancel again", &Intent::CancelSale { draft: 1 });
+    p.owner("restore twice", &Intent::RestoreSale { draft: 1 });
+    p.owner("restore again refused", &Intent::RestoreSale { draft: 1 });
+    p.finish();
+}
+
+/// Batch 2: products, quotes, a purchase order received in parts at changed rates, close
+/// remaining, crates, godown rows, stock counts and a bill spanning received lots.
+#[test]
+fn batch2() {
+    let Some(mut p) = Pair::new("batch2") else {
+        return;
+    };
+    p.owner(
+        "new product",
+        &product(3, true, "Synthetic Orange", 3_000, 4_500, None),
+    );
+    p.owner(
+        "edit lime",
+        &product(
+            LIME,
+            false,
+            "Synthetic Lime",
+            7_000,
+            12_550,
+            Some((7_000, 12_050)),
+        ),
+    );
+    p.owner(
+        "stale edit",
+        &product(
+            LIME,
+            false,
+            "Synthetic Lime",
+            7_000,
+            12_650,
+            Some((7_000, 12_050)),
+        ),
+    );
+    let supplier = created(p.owner(
+        "supplier",
+        &Intent::AddSupplier {
+            name: "Batch Two Traders".into(),
+        },
+    ));
+    p.owner(
+        "quotes",
+        &Intent::SetSupplierPrices {
+            product: 3,
+            rates: vec![
+                (0, Some(alm_core::Money::from_minor_units(2_950))),
+                (supplier, None),
+            ],
+        },
+    );
+    let po = created(p.owner(
+        "po",
+        &purchase(
+            "Synthetic Wholesale",
+            "2025-05-03",
+            &[
+                ("Synthetic Orange", Some(3), 12, 2_900),
+                ("Synthetic Soda", Some(SODA), 6, 3_700),
+            ],
+        ),
+    ));
+    let core = p.core();
+    p.owner(
+        "receive part",
+        &receive(
+            &core,
+            po,
+            Some("2025-05-04"),
+            "2025-05-05",
+            &[(5, 0), (6, 3_650)],
+        ),
+    );
+    let core = p.core();
+    p.owner(
+        "receive more",
+        &receive(&core, po, None, "2025-05-06", &[(4, 2_800), (0, 0)]),
+    );
+    let core = p.core();
+    p.owner(
+        "close remaining",
+        &Intent::ClosePurchaseOrder {
+            po,
+            remaining: differential::script::remaining(&core, po),
+        },
+    );
+    let id = created(p.owner(
+        "crate",
+        &crate_terms(
+            None,
+            "Party Crate",
+            40_000,
+            &[(LIME, 2, false), (3, 1, true)],
+        ),
+    ));
+    p.owner(
+        "crate edit",
+        &crate_terms(Some(id), "Party Crate", 41_000, &[(LIME, 1, false)]),
+    );
+    p.owner("crate delete", &Intent::DeleteCrate { id });
+    p.owner(
+        "godown",
+        &Intent::SaveGodown {
+            item: "Soda".into(),
+            cases: "9".into(),
+            note: "back room".into(),
+        },
+    );
+    p.owner(
+        "godown again",
+        &Intent::SaveGodown {
+            item: "soda".into(),
+            cases: "12".into(),
+            note: String::new(),
+        },
+    );
+    let core = p.core();
+    let orange = on_hand(&core, 3);
+    p.owner(
+        "count down",
+        &count(&core, 3, orange - 2, Some(3), "2025-05-07"),
+    );
+    let core = p.core();
+    let lime = on_hand(&core, LIME);
+    p.owner(
+        "count up",
+        &count(&core, LIME, lime + 3, None, "2025-05-07"),
+    );
+    let core = p.core();
+    let bill = Bill {
+        draft: 2,
+        to: For::Typed("Walk In Buyer"),
+        lines: &[(3, 6), (SODA, 2)],
+        date: "2025-05-08",
+        paid: 39_500,
+        loading: 0,
+    };
+    p.owner("sale across lots", &sale(&core, &bill));
+    p.owner("delete sold product", &Intent::DeleteProduct { id: 3 });
+    p.finish();
+}
+
+/// Batch 4: a posted bill with a loading charge, a receipt, a Cash Book close edited and
+/// deleted, and a walk-in bill.
+#[test]
+fn batch4() {
+    let Some(mut p) = Pair::new("batch4") else {
+        return;
+    };
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(MARKET),
+        lines: &[(LIME, 3), (SODA, 1)],
+        date: "2025-06-01",
+        paid: 0,
+        loading: 150,
+    };
+    p.owner("post with loading", &sale(&core, &bill));
+    p.owner("receipt", &receipt(MARKET.0, "2025-06-01", 20_000, false));
+    p.owner("close", &cash_day(None, "2025-06-01", 20_000, 0, 1_050));
+    let id = p.core().cash_days.last().map_or(0, |d| d.id);
+    p.owner(
+        "close edit",
+        &cash_day(Some(id), "2025-06-01", 19_950, 50, 1_050),
+    );
+    p.owner("close delete", &Intent::DeleteCashDay { id });
+    let core = p.core();
+    let walkin = Bill {
+        draft: 2,
+        to: For::Walkin,
+        lines: &[(SODA, 4)],
+        date: "2025-06-02",
+        paid: 25_000,
+        loading: 0,
+    };
+    p.owner("walk-in", &sale(&core, &walkin));
+    p.finish();
+}
+
+/// Milestone C: a Manager is denied every command and sees only the catalog; the Owner posts.
+#[test]
+fn milestone_c() {
+    let Some(mut p) = Pair::new("milestone_c") else {
+        return;
+    };
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 1)],
+        date: "2025-04-30",
+        paid: 12_050,
+        loading: 0,
+    };
+    p.run(Role::Manager, "manager post", &sale(&core, &bill));
+    p.owner("owner post", &sale(&core, &bill));
+    p.owner("post again", &sale(&core, &bill));
+    p.run(
+        Role::Manager,
+        "manager cancel",
+        &Intent::CancelSale { draft: 1 },
+    );
+    p.finish();
+}
+
+/// L14: opening balances (dated, advance, cleared), receipts with half rupees, a part-paid
+/// bill edited down, and a cancelled fully paid bill.
+#[test]
+fn l14_ledger() {
+    let Some(mut p) = Pair::new("l14") else {
+        return;
+    };
+    let opening = |customer: &str, amount: Option<i64>, date: Option<&str>| Intent::SaveOpening {
+        customer: customer.into(),
+        amount: amount.map(alm_core::Money::from_minor_units),
+        date: date.map(differential::script::day),
+    };
+    p.owner(
+        "opening",
+        &opening(CUSTOMER.0, Some(15_050), Some("2025-04-01")),
+    );
+    p.owner("advance", &opening(MARKET.0, Some(-2_550), None));
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 1)],
+        date: "2025-04-10",
+        paid: 2_050,
+        loading: 0,
+    };
+    p.owner("part paid", &sale(&core, &bill));
+    p.owner(
+        "cash receipt",
+        &receipt(CUSTOMER.0, "2025-04-11", 4_550, false),
+    );
+    p.owner("half rupee", &receipt(MARKET.0, "2025-04-11", 50, true));
+    p.owner(
+        "edit down",
+        &Intent::EditSale {
+            draft: 1,
+            lines: vec![(1, 11_050)],
+        },
+    );
+    let core = p.core();
+    let paid = Bill {
+        draft: 2,
+        to: For::Customer(MARKET),
+        lines: &[(SODA, 3)],
+        date: "2025-04-12",
+        paid: 18_750,
+        loading: 0,
+    };
+    p.owner("fully paid", &sale(&core, &paid));
+    p.owner("cancel paid", &Intent::CancelSale { draft: 2 });
+    p.owner("clear opening", &opening(CUSTOMER.0, None, None));
+    p.owner(
+        "unknown customer",
+        &receipt("nobody", "2025-04-12", 100, false),
+    );
+    p.finish();
+}
+
+/// L15: Cash Book day closes with paise, an edit, a delete and an unknown row.
+#[test]
+fn l15_cashbook() {
+    let Some(mut p) = Pair::new("l15") else {
+        return;
+    };
+    p.owner("close", &cash_day(None, "2025-04-30", 12_345, 50, 1_999));
+    p.owner("second", &cash_day(None, "2025-04-29", 100, 0, 0));
+    let id = p.core().cash_days.first().map_or(0, |d| d.id);
+    p.owner("edit", &cash_day(Some(id), "2025-04-28", 1, 2, 3));
+    p.owner("delete", &Intent::DeleteCashDay { id });
+    p.owner("unknown", &cash_day(Some(999), "2025-04-30", 1, 0, 0));
+    p.finish();
+}
+
+/// L10: repeated-product FIFO layers at different costs and dates, a bill spanning layers,
+/// edits up and down, cancel and restore, a count down, and a crate repeating a product.
+#[test]
+fn l10_crate_fifo() {
+    let Some(mut p) = Pair::new("l10") else {
+        return;
+    };
+    let po = created(p.owner(
+        "po",
+        &purchase(
+            "Synthetic Depot",
+            "2025-02-01",
+            &[("Synthetic Lime", Some(LIME), 10, 6_500)],
+        ),
+    ));
+    let core = p.core();
+    p.owner(
+        "receive dated",
+        &receive(&core, po, Some("2025-02-02"), "2025-02-03", &[(4, 0)]),
+    );
+    let core = p.core();
+    p.owner(
+        "receive backdated",
+        &receive(&core, po, Some("2025-02-01"), "2025-02-03", &[(6, 6_800)]),
+    );
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 55)],
+        date: "2025-02-05",
+        paid: 10_000,
+        loading: 0,
+    };
+    p.owner("sale across layers", &sale(&core, &bill));
+    p.owner(
+        "edit down",
+        &Intent::EditSale {
+            draft: 1,
+            lines: vec![(52, 12_050)],
+        },
+    );
+    p.owner(
+        "edit up",
+        &Intent::EditSale {
+            draft: 1,
+            lines: vec![(58, 12_050)],
+        },
+    );
+    p.owner("cancel", &Intent::CancelSale { draft: 1 });
+    p.owner("restore", &Intent::RestoreSale { draft: 1 });
+    let core = p.core();
+    let lime = on_hand(&core, LIME);
+    p.owner(
+        "count down",
+        &count(&core, LIME, lime - 1, Some(1), "2025-02-06"),
+    );
+    p.owner(
+        "repeated crate",
+        &crate_terms(
+            None,
+            "Lime Twins",
+            30_000,
+            &[(LIME, 1, false), (LIME, 2, true)],
+        ),
+    );
+    p.finish();
+}
+
+/// Partial PO: two lines received in parts with a backdated date and a kept rate, a stale
+/// receipt, an over-receipt, close remaining and a receipt after closing.
+#[test]
+fn partial_po() {
+    let Some(mut p) = Pair::new("partial_po") else {
+        return;
+    };
+    let po = created(p.owner(
+        "po",
+        &purchase(
+            "Synthetic Wholesale",
+            "2025-03-01",
+            &[
+                ("Synthetic Lime", Some(LIME), 12, 6_900),
+                ("Synthetic Soda", Some(SODA), 9, 3_700),
+            ],
+        ),
+    ));
+    let core = p.core();
+    p.owner(
+        "receive backdated",
+        &receive(
+            &core,
+            po,
+            Some("2025-02-27"),
+            "2025-03-02",
+            &[(8, 0), (5, 3_650)],
+        ),
+    );
+    p.owner(
+        "stale",
+        &Intent::ReceivePurchaseOrder {
+            po,
+            date: None,
+            today: differential::script::day("2025-03-02"),
+            lines: vec![(1, alm_core::Money::from_minor_units(0)); 2],
+            remaining: vec![12, 9],
+        },
+    );
+    let core = p.core();
+    p.owner(
+        "over-receive",
+        &receive(&core, po, None, "2025-03-03", &[(10, 0), (0, 0)]),
+    );
+    let core = p.core();
+    p.owner(
+        "close",
+        &Intent::ClosePurchaseOrder {
+            po,
+            remaining: differential::script::remaining(&core, po),
+        },
+    );
+    let core = p.core();
+    p.owner(
+        "after close",
+        &receive(&core, po, None, "2025-03-04", &[(1, 0), (1, 0)]),
+    );
+    p.finish();
+}
+
+/// Standalone GST bills: numbers, save, cancel, delete (frees the top number) and import.
+#[test]
+fn gst_bills() {
+    let Some(mut p) = Pair::new("gst") else {
+        return;
+    };
+    let first = p.gst_number("allocate", 50).unwrap();
+    p.owner(
+        "save",
+        &Intent::SaveGstBill {
+            bill: conformance::gst_bill(50, first, "GST Buyer"),
+        },
+    );
+    let second = p.gst_number("allocate second", 51).unwrap();
+    p.owner(
+        "save second",
+        &Intent::SaveGstBill {
+            bill: conformance::gst_bill(51, second, "GST Buyer Two"),
+        },
+    );
+    p.owner("cancel", &Intent::CancelGstBill { id: 50 });
+    p.owner("delete top", &Intent::DeleteGstBill { id: 51 });
+    p.gst_number("reuse freed", 52);
+    p.owner(
+        "import",
+        &Intent::ImportGstBill {
+            bill: Some(conformance::gst_bill(70, 70, "Moved Buyer")),
+            deleted: Some(71),
+        },
+    );
+    p.finish();
+}

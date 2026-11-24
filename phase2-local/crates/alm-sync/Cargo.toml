@@ -9,9 +9,9 @@ local-authority = ["alm-core/demo-fixture"]
 
 [dependencies]
 alm-core = { workspace = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 alm-core = { workspace = true, features = ["demo-fixture"] }
 alm-sync = { path = ".", features = ["local-authority"] }
 postgres.workspace = true
-serde_json.workspace = true
