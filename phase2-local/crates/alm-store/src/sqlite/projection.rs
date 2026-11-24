@@ -17,6 +17,9 @@ use alm_core::{BillDate, Money, Role};
 
 use super::{DraftStorageError, connect, scoped::account_key};
 
+mod books;
+use books::{read_books, read_owner_books, write_books, write_owner_books};
+
 const DIRECTORY: &str = "projections";
 
 const SHARED_TABLES: &str = "
@@ -56,6 +59,46 @@ CREATE TABLE projected_cash_days (
 ) STRICT;
 ";
 
+/// Added with the catalog, purchasing, crate, godown and GST screens; created on older files.
+const BOOK_TABLES: &str = "
+CREATE TABLE IF NOT EXISTS projected_products (
+    position INTEGER PRIMARY KEY, id INTEGER NOT NULL, item TEXT NOT NULL, brand TEXT NOT NULL,
+    sell INTEGER NOT NULL, reorder_level INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS projected_suppliers (
+    position INTEGER PRIMARY KEY, id INTEGER NOT NULL, name TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS projected_crates (
+    position INTEGER PRIMARY KEY, id INTEGER NOT NULL, name TEXT NOT NULL,
+    price INTEGER NOT NULL, components INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS projected_godown (
+    position INTEGER PRIMARY KEY, item TEXT NOT NULL, cases INTEGER NOT NULL, note TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS projected_gst_bills (
+    position INTEGER PRIMARY KEY, id INTEGER NOT NULL, number INTEGER NOT NULL,
+    date TEXT NOT NULL, customer TEXT NOT NULL, cancelled INTEGER NOT NULL
+) STRICT;
+";
+
+const OWNER_BOOK_TABLES: &str = "
+CREATE TABLE IF NOT EXISTS owner_buy_rates (product INTEGER PRIMARY KEY, buy INTEGER NOT NULL) STRICT;
+CREATE TABLE IF NOT EXISTS owner_supplier_prices (
+    product INTEGER NOT NULL, supplier INTEGER NOT NULL, rate INTEGER NOT NULL,
+    PRIMARY KEY (product, supplier)
+) STRICT;
+CREATE TABLE IF NOT EXISTS owner_purchase_orders (
+    position INTEGER PRIMARY KEY, id INTEGER NOT NULL, supplier TEXT NOT NULL,
+    date TEXT NOT NULL, status TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS owner_purchase_lines (
+    order_position INTEGER NOT NULL, position INTEGER NOT NULL, item TEXT NOT NULL,
+    product INTEGER, ordered INTEGER NOT NULL, received INTEGER NOT NULL,
+    remaining INTEGER NOT NULL, rate INTEGER NOT NULL, PRIMARY KEY (order_position, position)
+) STRICT;
+CREATE TABLE IF NOT EXISTS owner_state_sections (section TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+";
+
 const OWNER_TABLES: &str = "
 CREATE TABLE owner_sale_costs (
     draft_id INTEGER PRIMARY KEY, revenue INTEGER NOT NULL, cost INTEGER
@@ -63,7 +106,7 @@ CREATE TABLE owner_sale_costs (
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
 
-const PROJECTED: [&str; 7] = [
+const PROJECTED: [&str; 12] = [
     "projected_notes",
     "projected_sales",
     "projected_receipts",
@@ -71,6 +114,21 @@ const PROJECTED: [&str; 7] = [
     "projected_stock",
     "projected_catalog",
     "projected_cash_days",
+    "projected_products",
+    "projected_suppliers",
+    "projected_crates",
+    "projected_godown",
+    "projected_gst_bills",
+];
+
+const OWNER_PROJECTED: [&str; 7] = [
+    "owner_sale_costs",
+    "owner_stock_value",
+    "owner_buy_rates",
+    "owner_supplier_prices",
+    "owner_purchase_orders",
+    "owner_purchase_lines",
+    "owner_state_sections",
 ];
 
 const fn role_text(role: Role) -> &'static str {
@@ -152,8 +210,10 @@ impl ProjectionStore {
         if created {
             let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
             tx.execute_batch(SHARED_TABLES)?;
+            tx.execute_batch(BOOK_TABLES)?;
             if role == Role::Owner {
                 tx.execute_batch(OWNER_TABLES)?;
+                tx.execute_batch(OWNER_BOOK_TABLES)?;
             }
             tx.execute(
                 "INSERT INTO projection_scope VALUES (?1, ?2)",
@@ -172,6 +232,22 @@ impl ProjectionStore {
             if bound != Some((key, role_text(role).to_owned())) {
                 return Err(DraftStorageError::AccountStoreMismatch);
             }
+        }
+        let current: i64 = conn.query_row(
+            "SELECT count(*) FROM sqlite_master WHERE name = 'projected_products'",
+            [],
+            |row| row.get(0),
+        )?;
+        if current == 0 {
+            // An older file: add the new tables and rebuild from the authority on next pull.
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            tx.execute_batch(BOOK_TABLES)?;
+            if role == Role::Owner {
+                tx.execute_batch(OWNER_BOOK_TABLES)?;
+            }
+            clear_rows(&tx, role)?;
+            tx.execute("DELETE FROM projection_checkpoint", [])?;
+            tx.commit()?;
         }
         conn.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self { conn, role })
@@ -273,13 +349,27 @@ fn unsigned(value: i64) -> Result<u64, DraftStorageError> {
 
 fn clear_rows(tx: &Transaction<'_>, role: Role) -> rusqlite::Result<()> {
     for table in PROJECTED {
-        tx.execute(&format!("DELETE FROM {table}"), [])?;
+        if table_exists(tx, table)? {
+            tx.execute(&format!("DELETE FROM {table}"), [])?;
+        }
     }
     if role == Role::Owner {
-        tx.execute("DELETE FROM owner_sale_costs", [])?;
-        tx.execute("DELETE FROM owner_stock_value", [])?;
+        for table in OWNER_PROJECTED {
+            if table_exists(tx, table)? {
+                tx.execute(&format!("DELETE FROM {table}"), [])?;
+            }
+        }
     }
     Ok(())
+}
+
+fn table_exists(conn: &Connection, table: &str) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        [table],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|count| count > 0)
 }
 
 fn write_snapshot(
@@ -367,6 +457,7 @@ fn write_snapshot(
             ],
         )?;
     }
+    write_books(tx, s)?;
     match (&s.owner, role) {
         (Some(owner), Role::Owner) => {
             for (draft, revenue, cost) in &owner.sale_costs {
@@ -379,6 +470,7 @@ fn write_snapshot(
                 "INSERT INTO owner_stock_value VALUES (1, ?1)",
                 [owner.stock_value.map(m)],
             )?;
+            write_owner_books(tx, owner)?;
         }
         (None, _) => {}
         (Some(_), Role::Manager) => return Err(ProjectionError::Rejected),
@@ -522,9 +614,15 @@ fn read_snapshot(conn: &Connection, role: Role) -> Result<ProjectionSnapshot, Dr
         Some(OwnerValues {
             sale_costs,
             stock_value: value.flatten().map(Money::from_minor_units),
+            ..OwnerValues::default()
         })
     } else {
         None
+    };
+    let books = read_books(conn)?;
+    let owner = match owner {
+        Some(owner) => Some(read_owner_books(conn, owner)?),
+        None => None,
     };
     let unsupported: Option<Option<i64>> = conn
         .query_row("SELECT sales_unsupported FROM projected_notes", [], |r| {
@@ -540,5 +638,6 @@ fn read_snapshot(conn: &Connection, role: Role) -> Result<ProjectionSnapshot, Dr
         catalog,
         cash_days,
         owner,
+        ..books
     })
 }

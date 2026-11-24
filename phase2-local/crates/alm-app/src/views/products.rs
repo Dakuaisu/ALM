@@ -82,8 +82,17 @@ fn edit_form(form: &ProductEntry) -> String {
     let reorder = form
         .reorder_level
         .map_or_else(String::new, |r| r.to_string());
+    // The HTML asks "Delete <item>?" before removing; the second press confirms.
+    let delete = if form.target().1 {
+        String::new()
+    } else {
+        format!(
+            r#"<button class="btn danger" type="button" style="margin-right:auto" data-action="product_delete" data-q="ask" aria-label="Delete {0}">Delete</button><span class="help" data-delete-ask hidden>Delete {0}? <button class="btn sm danger" type="button" data-action="product_delete" data-q="confirm">Yes, delete</button></span>"#,
+            esc(&form.item)
+        )
+    };
     format!(
-        r#"<div class="card" id="product-form" style="margin-bottom:14px"><h3>🥤 Product</h3><form data-action="product_save" data-payload="terms" data-live="product_preview" data-target="product-form"><div class="f2"><div><label>Item name * <input class="inp" name="item" value="{}"></label></div><div><label>Company / Brand <input class="inp" name="brand" value="{}"></label></div></div><div class="f3"><div><label>Buy Rate ₹ <input class="inp num" name="buy" inputmode="decimal" value="{}"></label></div><div><label>Margin ₹ <input class="inp num" name="margin" inputmode="decimal" value="{}"></label></div><div><label>Sell Rate ₹ <input class="inp num" name="sell" inputmode="decimal" value="{}"></label></div></div><div class="field"><label>Reorder level (pkt) <input class="inp num" name="reorder" inputmode="numeric" value="{reorder}"></label></div><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-action="product_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form></div>"#,
+        r#"<div class="card" id="product-form" style="margin-bottom:14px"><h3>🥤 Product</h3><form data-action="product_save" data-payload="terms" data-live="product_preview" data-target="product-form"><div class="f2"><div><label>Item name * <input class="inp" name="item" value="{}"></label></div><div><label>Company / Brand <input class="inp" name="brand" value="{}"></label></div></div><div class="f3"><div><label>Buy Rate ₹ <input class="inp num" name="buy" inputmode="decimal" value="{}"></label></div><div><label>Margin ₹ <input class="inp num" name="margin" inputmode="decimal" value="{}"></label></div><div><label>Sell Rate ₹ <input class="inp num" name="sell" inputmode="decimal" value="{}"></label></div></div><div class="field"><label>Reorder level (pkt) <input class="inp num" name="reorder" inputmode="numeric" value="{reorder}"></label></div><div class="row" style="justify-content:flex-end">{delete}<button class="btn" type="button" data-action="product_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form></div>"#,
         esc(&form.item),
         esc(&form.brand),
         pricing.buy().to_rupee_text(),

@@ -38,9 +38,16 @@ impl ReceiveResult {
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PurchaseCost {
     product: ProductId,
     average: Money,
+}
+
+impl PurchaseCost {
+    pub(super) const fn product(&self) -> ProductId {
+        self.product
+    }
 }
 
 impl ConfirmationFixture {

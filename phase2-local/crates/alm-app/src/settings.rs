@@ -62,6 +62,7 @@ impl Trial {
         self.shop
             .apply_product_settings(role, &mut self.authority)
             .map_err(debug)?;
+        self.refresh()?;
         self.message = "Profile saved ✓".into();
         Ok(())
     }

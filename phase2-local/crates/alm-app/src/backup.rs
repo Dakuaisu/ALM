@@ -60,10 +60,10 @@ impl Trial {
     pub(crate) fn backup_create(&mut self) -> Result<String, String> {
         let role = self.require_owner()?;
         let records = self
-            .authority
+            .posted
             .archive_records(role, &self.directory)
             .map_err(debug)?;
-        let ledger = self.authority.gst_bill_ledger(role).map_err(debug)?;
+        let ledger = self.posted.gst_bill_ledger(role).map_err(debug)?;
         let bytes = self
             .shop
             .backup_with(role, records, Some(ledger), Some(self.archived_orders()?))

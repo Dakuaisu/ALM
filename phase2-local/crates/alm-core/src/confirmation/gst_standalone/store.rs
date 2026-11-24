@@ -82,37 +82,100 @@ impl ConfirmationFixture {
         store: &mut S,
         sink: &mut impl FnMut(&GstBillInvoice),
     ) -> Result<(), GstBillStoreError<S::Error>> {
-        owner(role).map_err(Bill)?;
+        let bill = self.gst_bill_record(role, draft).map_err(Bill)?;
+        let projection = self.gst_invoice(&bill).map_err(Bill)?;
+        store.put_gst_bill(&bill).map_err(Store)?;
+        self.gst_bills.insert(draft.id, bill);
+        sink(&projection);
+        Ok(())
+    }
+
+    /// The record `save_gst_bill` would store for `draft`, validated, without saving it.
+    ///
+    /// # Errors
+    /// As [`Self::save_gst_bill`].
+    pub fn gst_bill_record(
+        &self,
+        role: Role,
+        draft: &GstBillDraft<'_>,
+    ) -> Result<GstBill, GstBillError> {
+        owner(role)?;
         if !draft
             .lines
             .iter()
             .any(|line| !line.item.is_empty() && line.quantity != 0)
         {
-            return Err(Bill(GstBillError::MissingItems));
+            return Err(GstBillError::MissingItems);
         }
         if draft.customer.is_empty() {
-            return Err(Bill(GstBillError::MissingCustomer));
+            return Err(GstBillError::MissingCustomer);
         }
-        let date = draft.date.ok_or(Bill(GstBillError::MissingDate))?;
-        super::validate_references(draft.gstin, draft.eway_number).map_err(Bill)?;
-        if self
-            .gst_bills
-            .get(&draft.id)
-            .is_some_and(|bill| bill.cancelled)
-        {
-            return Err(Bill(GstBillError::Cancelled));
-        }
-        if self.gst_deleted.contains(&draft.id) {
-            return Err(Bill(GstBillError::Deleted));
-        }
-        let bill = GstBill::from_draft(draft, date, |item| {
+        let date = draft.date.ok_or(GstBillError::MissingDate)?;
+        super::validate_references(draft.gstin, draft.eway_number)?;
+        self.check_gst_writable(draft.id)?;
+        GstBill::from_draft(draft, date, |item| {
             self.catalog.product_id_by_exact_name(item)
         })
-        .map_err(Bill)?;
-        let projection = self.gst_invoice(&bill).map_err(Bill)?;
-        store.put_gst_bill(&bill).map_err(Store)?;
-        self.gst_bills.insert(draft.id, bill);
-        sink(&projection);
+    }
+
+    fn check_gst_writable(&self, id: GstBillId) -> Result<(), GstBillError> {
+        if self.gst_bills.get(&id).is_some_and(|bill| bill.cancelled) {
+            return Err(GstBillError::Cancelled);
+        }
+        if self.gst_deleted.contains(&id) {
+            return Err(GstBillError::Deleted);
+        }
+        Ok(())
+    }
+
+    /// Stores an already built record (the authority path): re-checks that the bill is
+    /// writable and printable, then inserts or replaces it.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects cancelled, deleted or unprintable bills.
+    pub fn put_gst_bill_record(&mut self, role: Role, bill: GstBill) -> Result<(), GstBillError> {
+        owner(role)?;
+        self.check_gst_writable(bill.id)?;
+        if bill.cancelled {
+            return Err(GstBillError::Cancelled);
+        }
+        self.gst_invoice(&bill)?;
+        self.gst_bills.insert(bill.id, bill);
+        Ok(())
+    }
+
+    /// Imports a bill or deletion marker exactly as a device stored it (one-time migration of
+    /// device GST tables into the authority). An identical bill already present is a no-op.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects a different bill under the same ID or a duplicate number.
+    pub fn import_gst_bill_record(
+        &mut self,
+        role: Role,
+        bill: Option<GstBill>,
+        deleted: Option<GstBillId>,
+    ) -> Result<(), GstBillError> {
+        owner(role)?;
+        if let Some(bill) = bill {
+            match self.gst_bills.get(&bill.id) {
+                Some(existing) if *existing == bill => return Ok(()),
+                Some(_) => return Err(GstBillError::Conflict),
+                None => {}
+            }
+            if self.gst_deleted.contains(&bill.id)
+                || self.gst_bills.values().any(|b| b.number == bill.number)
+            {
+                return Err(GstBillError::Conflict);
+            }
+            self.gst_invoice(&bill)?;
+            self.gst_bills.insert(bill.id, bill);
+        }
+        if let Some(id) = deleted {
+            if self.gst_bills.contains_key(&id) {
+                return Err(GstBillError::Conflict);
+            }
+            self.gst_deleted.insert(id);
+        }
         Ok(())
     }
 

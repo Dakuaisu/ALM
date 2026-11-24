@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alm_core::ProductId;
-use alm_core::confirmation::{SupplierPriceEdit, parse_quote};
+use alm_core::confirmation::parse_quote;
 use tauri::State;
 
 use crate::{AppState, Trial, debug, with};
@@ -24,11 +24,11 @@ impl Trial {
             .map(ProductId::new)
             .ok_or("Unknown product.")?;
         let suppliers = self
-            .authority
+            .posted
             .purchase_suppliers(role)
             .map_err(debug)?
             .to_vec();
-        let mut edits = Vec::new();
+        let mut rates = Vec::new();
         for supplier in suppliers {
             let Some(text) = terms.remove(&format!("s{}", supplier.id.index())) else {
                 continue;
@@ -39,17 +39,12 @@ impl Trial {
                     supplier.name
                 )
             })?;
-            edits.push(SupplierPriceEdit {
-                product,
-                supplier: supplier.id,
-                rate,
-            });
+            rates.push((u64::try_from(supplier.id.index()).map_err(debug)?, rate));
         }
-        for edit in edits {
-            self.authority
-                .edit_comparison_price(role, edit)
-                .map_err(debug)?;
-        }
+        self.send(&alm_sync::Intent::SetSupplierPrices {
+            product: product.value(),
+            rates,
+        })?;
         self.message = "Supplier prices saved ✓".into();
         Ok(())
     }
@@ -58,12 +53,8 @@ impl Trial {
 #[tauri::command(async)]
 pub fn supplier_add(state: State<'_, AppState>, terms: NewSupplier) -> Result<String, String> {
     with(&state, "suppliers", |trial| {
-        let role = trial.require_owner()?;
-        trial
-            .authority
-            .add_comparison_supplier(role, &terms.name)
-            .map_err(debug)?
-            .ok_or("Enter a new supplier name.")?;
+        trial.require_owner()?;
+        trial.send(&alm_sync::Intent::AddSupplier { name: terms.name })?;
         Ok(())
     })
 }

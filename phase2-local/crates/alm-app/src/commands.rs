@@ -40,7 +40,7 @@ pub fn rate_group(state: State<'_, AppState>, q: String) -> Result<String, Strin
     with(&state, "ratelist", |trial| {
         let role = trial.require_owner()?;
         trial
-            .authority
+            .posted
             .rate_list_group_toggle(role, &mut trial.rates, &q)
             .map_err(debug)
     })
@@ -87,8 +87,7 @@ pub fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, St
         if trial.owner != owner {
             trial.posting.invalidate();
         }
-        trial.owner = owner;
-        Ok(())
+        trial.set_owner(owner)
     })
 }
 
@@ -111,7 +110,7 @@ pub fn share_text(state: State<'_, AppState>) -> Result<String, String> {
     let role = trial.require_owner()?;
     let mut summary = Err("GST bill missing".to_owned());
     trial
-        .authority
+        .posted
         .emit_gst_bill(role, trial.gst_view, &mut |invoice| {
             summary = Ok(format!(
                 "GST Invoice {} dated {} for {}: ₹{}",

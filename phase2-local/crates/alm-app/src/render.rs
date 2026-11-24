@@ -6,6 +6,7 @@ use crate::{SELLER, Trial, backup, debug, gst_print, views};
 
 impl Trial {
     pub(crate) fn render(&mut self, tab: &str) -> Result<String, String> {
+        self.refresh()?;
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
             "customers" => {
@@ -13,7 +14,7 @@ impl Trial {
                 self.freshness(&stored)?
                     + &views::customers_screen(
                         &stored.snapshot,
-                        &self.authority,
+                        &self.posted,
                         &self.directory,
                         self.role(),
                         &self.customers,
@@ -21,8 +22,8 @@ impl Trial {
                     .map_err(debug)?
             }
             "expenses" => views::cashbook_screen(&views::CashBookView {
-                fixture: &self.authority,
-                book: self.authority.cashbook(),
+                fixture: &self.posted,
+                book: self.posted.cashbook(),
                 entry: self.cash_form.as_ref().map(|(draft, _)| draft),
                 editing: self.cash_form.as_ref().and_then(|(_, id)| *id),
                 role: self.role(),
@@ -30,44 +31,37 @@ impl Trial {
             })
             .map_err(debug)?,
             "dashboard" => views::dashboard_screen(
-                &self.authority,
+                &self.posted,
                 &self.directory,
                 self.role(),
                 self.today()?,
                 self.dash_period,
             )?,
-            "reorder" => views::reorder_screen(&self.authority, self.role()).map_err(debug)?,
+            "reorder" => views::reorder_screen(&self.posted, self.role()).map_err(debug)?,
             "stock" => {
                 let stored = self.projected()?;
                 self.freshness(&stored)?
-                    + &views::stock_screen(
-                        &stored.snapshot,
-                        &self.authority,
-                        self.role(),
-                        &self.stock,
-                    )
-                    .map_err(debug)?
+                    + &views::stock_screen(&stored.snapshot, &self.posted, self.role(), &self.stock)
+                        .map_err(debug)?
             }
-            "godown" => views::godown_screen(&self.authority, self.role(), &self.godown_query)
+            "godown" => views::godown_screen(&self.posted, self.role(), &self.godown_query)
                 .map_err(debug)?,
             "gstsales" => {
-                views::gst_sales_screen(&self.authority, self.role(), self.gst_form.as_ref())
+                views::gst_sales_screen(&self.posted, self.role(), self.gst_form.as_ref())
                     .map_err(debug)?
             }
-            "products" => views::products_screen(&self.authority, self.role(), &self.products)
-                .map_err(debug)?,
-            "suppliers" => views::suppliers_screen(&self.authority, self.role())?,
-            "order" => {
-                views::order_screen(&self.authority, self.role(), &self.order).map_err(debug)?
+            "products" => {
+                views::products_screen(&self.posted, self.role(), &self.products).map_err(debug)?
             }
-            "purchases" => views::purchases_screen(
-                &self.authority,
-                self.role(),
-                self.receiving,
-                self.today()?,
-            )?,
+            "suppliers" => views::suppliers_screen(&self.posted, self.role())?,
+            "order" => {
+                views::order_screen(&self.posted, self.role(), &self.order).map_err(debug)?
+            }
+            "purchases" => {
+                views::purchases_screen(&self.posted, self.role(), self.receiving, self.today()?)?
+            }
             "crates" => views::crates_screen(
-                &self.authority,
+                &self.posted,
                 &self.directory,
                 self.role(),
                 self.crate_form.as_ref(),
@@ -76,7 +70,7 @@ impl Trial {
             "ratelist" => {
                 let today = self.today()?;
                 views::ratelist_screen(
-                    &self.authority,
+                    &self.posted,
                     self.role(),
                     &mut self.rates,
                     SELLER.name,
@@ -85,8 +79,8 @@ impl Trial {
                 .map_err(debug)?
             }
             "reports" => views::reports_screen(
-                &self.authority,
-                self.authority.cashbook(),
+                &self.posted,
+                self.posted.cashbook(),
                 self.role(),
                 self.today()?,
             )?,
@@ -123,19 +117,18 @@ impl Trial {
                 })
             }
             "counter" => {
-                views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
+                views::counter_screen(&self.posted, self.role(), self.today()?).map_err(debug)?
             }
             "receipt" => {
-                views::receipt_screen(&self.authority, &self.directory, self.role(), self.today()?)
+                views::receipt_screen(&self.posted, &self.directory, self.role(), self.today()?)
                     .map_err(debug)?
             }
             "sales" => {
                 let stored = self.projected()?;
                 let mut html = self.freshness(&stored)?;
                 if let (Some(id), Role::Owner) = (self.sale_edit, self.role()) {
-                    html +=
-                        &views::sale_edit_form(&self.authority, &self.directory, Role::Owner, id)
-                            .map_err(debug)?;
+                    html += &views::sale_edit_form(&self.posted, &self.directory, Role::Owner, id)
+                        .map_err(debug)?;
                 }
                 html + &views::sales_screen(
                     &stored.snapshot,
@@ -149,7 +142,7 @@ impl Trial {
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
                 let priced = match draft {
-                    Some(draft) => owner_billing::priced_draft(&self.authority, role, draft),
+                    Some(draft) => owner_billing::priced_draft(&self.posted, role, draft),
                     None => Err(alm_core::confirmation::ConfirmationError::DraftNotFound),
                 };
                 let mut html = views::review_screen(&views::ReviewView {
@@ -185,7 +178,7 @@ impl Trial {
                 let role = self.require_owner()?;
                 let today = self.today()?;
                 let html = self
-                    .authority
+                    .posted
                     .rate_list_html(
                         role,
                         &mut self.rates,
@@ -202,7 +195,7 @@ impl Trial {
             "gst" if !self.owner => views::denied("GST invoice"),
             "gst" => {
                 let mut page = Err("GST bill missing".to_owned());
-                self.authority
+                self.posted
                     .emit_gst_bill(Role::Owner, self.gst_view, &mut |invoice| {
                         // printHTML's title: "GST-Invoice-" + fyStr(date) + "-" + no.
                         let number = invoice.invoice_number();

@@ -194,9 +194,20 @@ impl ConfirmationFixture {
         draft: &PurchaseDraft,
     ) -> Result<PurchaseOrderId, PurchaseError> {
         let id = self.save_purchase_order(role, draft)?;
-        let saved = &self.purchases.orders[id.0];
-        plan.cart
-            .retain(|entry| !saved.items.iter().any(|line| line.line.item == entry.item));
+        plan.remove_saved(&self.purchases.orders[id.0].items);
         Ok(id)
+    }
+}
+
+impl OrderPlanner {
+    fn remove_saved(&mut self, saved: &[super::SavedPurchaseLine]) {
+        self.cart
+            .retain(|entry| !saved.iter().any(|line| line.line.item == entry.item));
+    }
+
+    /// After the authority saved `draft` as a PO: removes only its item names from the cart.
+    pub fn remove_saved_draft(&mut self, draft: &PurchaseDraft) {
+        self.cart
+            .retain(|entry| !draft.items.iter().any(|line| line.item == entry.item));
     }
 }

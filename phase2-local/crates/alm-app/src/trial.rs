@@ -59,6 +59,8 @@ pub(crate) struct Trial {
     pub(crate) outbox: Outbox,
     /// Read-only posted data for this account and role, received from the authority.
     pub(crate) projection: ProjectionStore,
+    /// The screens' view of the stored projection.
+    pub(crate) posted: crate::device::Posted,
     /// The sale as reviewed by `sale_prepare`, sent on confirm.
     pub(crate) reviewed: Option<SaleIntent>,
     pub(crate) current: Option<(ProvisionalDraft, bool)>,
@@ -99,34 +101,29 @@ pub(crate) type AppState = Mutex<Trial>;
 impl Trial {
     pub(crate) fn open(device_root: &Path, today: Option<BillDate>) -> Result<Self, String> {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
-        let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
+        let gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
         let outbox = Outbox::open_scoped(device_root, ACCOUNT).map_err(text)?;
         let projection =
             ProjectionStore::open_scoped(device_root, ACCOUNT, Role::Owner).map_err(text)?;
         let mut authority = demo_fixture::fixture().map_err(debug)?;
         demo_fixture::seed_purchasing(&mut authority).map_err(debug)?;
+        // The simulated authority's sample GST bill (seed data, like the demo customers).
+        let draft = GstBillDraft {
+            customer: "Synthetic GST Buyer",
+            cust_addr: "12 Synthetic Lane, Kanpur",
+            transporter: "Synthetic Roadways",
+            lines: &GST_LINES,
+            ..authority
+                .new_gst_bill_draft(
+                    Role::Owner,
+                    TRIAL_BILL,
+                    BillDate::new(2025, 4, 2).map_err(debug)?,
+                )
+                .map_err(debug)?
+        };
         authority
-            .load_gst_bills_from(Role::Owner, &gst)
+            .save_gst_bill(Role::Owner, &draft, &mut |_| {})
             .map_err(debug)?;
-        let ledger = authority.gst_bill_ledger(Role::Owner).map_err(debug)?;
-        if ledger.bills.is_empty() && ledger.deleted.is_empty() {
-            let draft = GstBillDraft {
-                customer: "Synthetic GST Buyer",
-                cust_addr: "12 Synthetic Lane, Kanpur",
-                transporter: "Synthetic Roadways",
-                lines: &GST_LINES,
-                ..authority
-                    .new_gst_bill_draft(
-                        Role::Owner,
-                        TRIAL_BILL,
-                        BillDate::new(2025, 4, 2).map_err(debug)?,
-                    )
-                    .map_err(debug)?
-            };
-            authority
-                .save_gst_bill_to(Role::Owner, &draft, &mut gst, &mut |_| {})
-                .map_err(debug)?;
-        }
         let directory = demo_fixture::directory();
         let prefs_dir = device_root.join("preferences");
         std::fs::create_dir_all(&prefs_dir).map_err(text)?;
@@ -156,6 +153,7 @@ impl Trial {
             account: ACCOUNT.to_owned(),
             outbox,
             projection,
+            posted: crate::device::Posted::empty()?,
             reviewed: None,
             current: None,
             owner: true,
@@ -184,6 +182,7 @@ impl Trial {
             print_view: None,
         };
         trial.reconnect()?;
+        trial.migrate_gst_tables()?;
         Ok(trial)
     }
 
@@ -213,6 +212,12 @@ impl Trial {
         } else {
             Role::Manager
         }
+    }
+
+    /// Switches the reviewing role and opens that role's projection.
+    pub(crate) fn set_owner(&mut self, owner: bool) -> Result<(), String> {
+        self.owner = owner;
+        self.refresh()
     }
 
     pub(crate) fn require_owner(&self) -> Result<Role, String> {

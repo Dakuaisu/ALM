@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alm_core::confirmation::{CrateTemplate, crate_component_from_text};
+use alm_core::confirmation::crate_component_from_text;
 use alm_core::{Money, ProductId};
 use tauri::State;
 
@@ -53,27 +53,24 @@ impl Trial {
             .collect::<Result<Vec<_>, _>>()?;
         let price = Money::parse_rupees(&form.price)
             .map_err(|_| "Enter the crate price in rupees.".to_owned())?;
-        let template = CrateTemplate {
-            name: form.name.trim().to_owned(),
-            components,
-            price,
-        };
-        match form.id {
-            Some(value) => {
-                let id = self
-                    .authority
-                    .crate_template_id(role, value)
-                    .map_err(debug)?;
-                self.authority
-                    .edit_crate_template(role, id, template)
-                    .map_err(debug)?;
-            }
-            None => {
-                self.authority
-                    .save_crate_template(role, template)
-                    .map_err(debug)?;
-            }
+        if let Some(value) = form.id {
+            self.posted.crate_template_id(role, value).map_err(debug)?;
         }
+        self.send(&alm_sync::Intent::SaveCrate(alm_sync::CrateTerms {
+            id: form.id,
+            name: form.name.trim().to_owned(),
+            price,
+            components: components
+                .iter()
+                .map(|c| {
+                    (
+                        c.product.value(),
+                        c.quantity.get(),
+                        c.unit == alm_core::SaleUnit::Piece,
+                    )
+                })
+                .collect(),
+        }))?;
         self.message = "Crate template saved ✓".into();
         Ok(())
     }
@@ -96,10 +93,10 @@ pub fn crate_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, Strin
     with(&state, "crates", |trial| {
         let role = trial.require_owner()?;
         let id = trial
-            .authority
+            .posted
             .crate_template_id(role, id.value())
             .map_err(debug)?;
-        let template = trial.authority.crate_template(role, id).map_err(debug)?;
+        let template = trial.posted.crate_template(role, id).map_err(debug)?;
         trial.crate_form = Some(CrateForm {
             id: Some(id.value()),
             name: template.name.clone(),
@@ -145,12 +142,11 @@ pub fn crate_delete(state: State<'_, AppState>, id: IpcId) -> Result<String, Str
     with(&state, "crates", |trial| {
         let role = trial.require_owner()?;
         let id = trial
-            .authority
+            .posted
             .crate_template_id(role, id.value())
             .map_err(debug)?;
         trial
-            .authority
-            .delete_crate_template(role, id)
-            .map_err(debug)
+            .send(&alm_sync::Intent::DeleteCrate { id: id.value() })
+            .map(drop)
     })
 }

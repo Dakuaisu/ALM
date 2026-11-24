@@ -41,7 +41,7 @@ impl Trial {
     ) -> Result<&mut alm_core::confirmation::order_planner::OrderPlanner, String> {
         let role = self.require_owner()?;
         if self.order.planner.is_none() {
-            self.order.planner = Some(self.authority.open_order_planner(role).map_err(debug)?);
+            self.order.planner = Some(self.posted.open_order_planner(role).map_err(debug)?);
         }
         self.order
             .planner
@@ -84,7 +84,7 @@ impl Trial {
         draft.note.clone_from(&po.note);
         if po.intent == "paste" {
             let warnings = self
-                .authority
+                .posted
                 .parse_purchase_paste(role, &mut draft, &po.paste)
                 .map_err(|error| error.to_string())?;
             self.order.warnings = [
@@ -97,10 +97,37 @@ impl Trial {
             self.order.draft = Some(draft);
             return Ok(());
         }
-        let mut planner = self.order.planner.take().ok_or("Planner unavailable.")?;
-        let saved = self.authority.save_order_plan(role, &mut planner, &draft);
-        self.order.planner = Some(planner);
-        saved.map_err(|error| error.to_string())?;
+        self.send(&alm_sync::Intent::SavePurchaseOrder(
+            alm_sync::PurchaseOrderTerms {
+                supplier: draft
+                    .supplier
+                    .as_ref()
+                    .map(|s| -> Result<_, String> {
+                        Ok((
+                            s.id.map(|id| u64::try_from(id.index()))
+                                .transpose()
+                                .map_err(debug)?,
+                            s.name.clone(),
+                        ))
+                    })
+                    .transpose()?,
+                date: draft.date,
+                note: draft.note.clone(),
+                lines: draft
+                    .items
+                    .iter()
+                    .map(|line| alm_sync::PurchaseLineTerms {
+                        item: line.item.clone(),
+                        product: line.product_id.map(ProductId::value),
+                        ordered: line.ordered.get(),
+                        rate: line.rate,
+                    })
+                    .collect(),
+            },
+        ))?;
+        if let Some(planner) = self.order.planner.as_mut() {
+            planner.remove_saved_draft(&draft);
+        }
         self.order.draft = None;
         self.order.warnings.clear();
         self.message = "Purchase order saved ✓ (no stock until received)".into();

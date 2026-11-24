@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alm_core::confirmation::{PurchaseOrderId, ReceiveRequest};
+use alm_core::confirmation::PurchaseOrderId;
 use tauri::State;
 
 use crate::{AppState, Trial, debug, ipc::IpcId, with};
@@ -8,7 +8,7 @@ use crate::{AppState, Trial, debug, ipc::IpcId, with};
 impl Trial {
     pub(crate) fn purchase_id(&self, index: u64) -> Result<PurchaseOrderId, String> {
         let role = self.require_owner()?;
-        self.authority
+        self.posted
             .purchase_orders(role)
             .map_err(debug)?
             .iter()
@@ -30,7 +30,7 @@ impl Trial {
         let id = self.purchase_id(index)?;
         let date = terms.remove("date").and_then(|text| text.parse().ok());
         let form = self
-            .authority
+            .posted
             .open_purchase_receive_form(role, id, today)
             .map_err(|error| error.to_string())?;
         let lines = form
@@ -44,19 +44,13 @@ impl Trial {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
-        let result = self
-            .authority
-            .receive_purchase_order(ReceiveRequest {
-                role,
-                id,
-                date,
-                today,
-                lines: &lines,
-            })
-            .map_err(|error| error.to_string())?;
-        if let Some(warning) = result.warning() {
-            return Err(warning.into());
-        }
+        self.send(&alm_sync::Intent::ReceivePurchaseOrder {
+            po: index,
+            date,
+            today,
+            lines: lines.iter().map(|l| (l.quantity, l.rate)).collect(),
+            remaining: form.rows.iter().map(|row| row.remaining).collect(),
+        })?;
         self.receiving = None;
         self.message = "Goods received ✓ — stock and lots updated".into();
         Ok(())
@@ -91,10 +85,21 @@ pub fn po_receive_save(
 pub fn po_close(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     with(&state, "purchases", |trial| {
         let role = trial.require_owner()?;
-        let id = trial.purchase_id(id.value())?;
+        let po = id.value();
+        let id = trial.purchase_id(po)?;
+        let remaining = trial
+            .posted
+            .purchase_orders(role)
+            .map_err(debug)?
+            .iter()
+            .find(|order| order.id == id)
+            .ok_or("Purchase order not found")?
+            .items
+            .iter()
+            .map(alm_core::confirmation::SavedPurchaseLine::remaining)
+            .collect();
         trial
-            .authority
-            .close_remaining(role, id, true)
-            .map_err(|error| error.to_string())
+            .send(&alm_sync::Intent::ClosePurchaseOrder { po, remaining })
+            .map(drop)
     })
 }

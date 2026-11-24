@@ -31,7 +31,7 @@ impl Trial {
     pub(crate) fn cash_live(&self, entry: &Entry) -> Result<String, String> {
         let role = self.require_owner()?;
         let (draft, _) = self.cash_draft(role, entry)?;
-        crate::views::cash_system_card(&self.authority, role, &draft).map_err(debug)
+        crate::views::cash_system_card(&self.posted, role, &draft).map_err(debug)
     }
 
     fn cash_draft(
@@ -65,7 +65,7 @@ impl Trial {
         };
         let mut draft = match editing {
             Some(id) => self
-                .authority
+                .posted
                 .cashbook()
                 .find(role, id)
                 .map_err(debug)?
@@ -84,7 +84,7 @@ impl Trial {
                 .id
                 .parse::<u64>()
                 .map_err(|_| "Unknown entry.".to_owned())?;
-            self.authority.cashbook().find(role, id).map_err(debug)?;
+            self.posted.cashbook().find(role, id).map_err(debug)?;
             self.send(&alm_sync::Intent::DeleteCashDay { id })?;
             self.cash_form = None;
             return Ok(());
@@ -93,7 +93,7 @@ impl Trial {
         match entry.intent.as_str() {
             "system" => {
                 draft
-                    .use_system_figures(&self.authority, role)
+                    .use_system_figures(&self.posted, role)
                     .map_err(debug)?;
             }
             "save" => {
@@ -122,7 +122,7 @@ impl Trial {
     /// Opens a saved row in the form, as the ✎ button does.
     pub(crate) fn cash_edit_for_test(&mut self, id: u64) {
         let row = self
-            .authority
+            .posted
             .cashbook()
             .find(alm_core::Role::Owner, id)
             .unwrap();
@@ -158,7 +158,7 @@ pub fn cash_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String
     let id = id.value();
     with(&state, "expenses", |trial| {
         let role = trial.require_owner()?;
-        let row = trial.authority.cashbook().find(role, id).map_err(debug)?;
+        let row = trial.posted.cashbook().find(role, id).map_err(debug)?;
         trial.cash_form = Some((row.draft(), Some(id)));
         Ok(())
     })

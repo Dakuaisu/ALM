@@ -2,6 +2,9 @@
 //! stores before sending and what the authority compares on a retry: equal text, equal intent.
 use std::num::NonZeroU32;
 
+mod codec;
+use codec::{escape, unescape};
+
 use alm_core::confirmation::manual_cashbook::CashBookAmounts;
 use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
@@ -47,6 +50,112 @@ pub enum Intent {
     DeleteCashDay {
         id: u64,
     },
+    /// Products add or edit (`new` for add) with the reviewed buy and sell of an edit.
+    SaveProduct(ProductTerms),
+    DeleteProduct {
+        id: u64,
+    },
+    AddSupplier {
+        name: String,
+    },
+    /// One product row of supplier quotes: `(supplier index, rate or clear)`.
+    SetSupplierPrices {
+        product: u64,
+        rates: Vec<(u64, Option<Money>)>,
+    },
+    SavePurchaseOrder(PurchaseOrderTerms),
+    /// `(quantity, rate)` per PO line, with each line's remaining quantity as reviewed.
+    ReceivePurchaseOrder {
+        po: u64,
+        date: Option<BillDate>,
+        today: BillDate,
+        lines: Vec<(u32, Money)>,
+        remaining: Vec<u32>,
+    },
+    /// "Close remaining", with each line's remaining quantity as reviewed.
+    ClosePurchaseOrder {
+        po: u64,
+        remaining: Vec<u32>,
+    },
+    SaveCrate(CrateTerms),
+    DeleteCrate {
+        id: u64,
+    },
+    SaveOpening {
+        customer: String,
+        amount: Option<Money>,
+        date: Option<BillDate>,
+    },
+    /// A manual godown row as typed (cases are validated by the authority).
+    SaveGodown {
+        item: String,
+        cases: String,
+        note: String,
+    },
+    /// A physical count against the on-hand quantity the form showed.
+    CountStock {
+        product: u64,
+        counted: u32,
+        fridge: Option<u32>,
+        date: BillDate,
+        reason: Option<String>,
+        note: Option<String>,
+        on_hand: u32,
+    },
+    /// A standalone GST bill record (`GstBill::to_record_text`), numbered by the authority.
+    SaveGstBill {
+        bill: String,
+    },
+    CancelGstBill {
+        id: u64,
+    },
+    DeleteGstBill {
+        id: u64,
+    },
+    /// Moves a bill or deletion marker from the device GST tables into the authority.
+    ImportGstBill {
+        bill: Option<String>,
+        deleted: Option<u64>,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProductTerms {
+    pub id: u64,
+    pub new: bool,
+    pub item: String,
+    pub brand: String,
+    pub buy: Money,
+    pub sell: Money,
+    pub reorder: Option<u32>,
+    /// For an edit: the buy and sell rates the form was opened with.
+    pub reviewed: Option<(Money, Money)>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PurchaseLineTerms {
+    pub item: String,
+    pub product: Option<u64>,
+    pub ordered: u32,
+    pub rate: Money,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PurchaseOrderTerms {
+    /// `(saved supplier index, name)`.
+    pub supplier: Option<(Option<u64>, String)>,
+    pub date: Option<BillDate>,
+    pub note: String,
+    pub lines: Vec<PurchaseLineTerms>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrateTerms {
+    pub id: Option<u64>,
+    pub name: String,
+    pub price: Money,
+    /// `(product, quantity, piece)`.
+    pub components: Vec<(u64, u32, bool)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,35 +171,8 @@ pub enum Outcome {
     Sale(SaleReceipt),
     Done,
     GstNumber(u64),
-}
-
-fn escape(text: &str) -> String {
-    let mut out = String::new();
-    for byte in text.bytes() {
-        if byte.is_ascii_alphanumeric() || b"-_.".contains(&byte) {
-            out.push(char::from(byte));
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
-fn unescape(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            let hex = text.get(i + 1..i + 3)?;
-            out.push(u8::from_str_radix(hex, 16).ok()?);
-            i += 3;
-        } else {
-            out.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(out).ok()
+    /// The authority's identity for a created record (supplier, PO, crate template).
+    Created(u64),
 }
 
 fn amounts_text(a: &CashBookAmounts) -> String {
@@ -167,6 +249,7 @@ impl Intent {
                 amounts_text(amounts)
             ),
             Self::DeleteCashDay { id } => format!("cashdel id={id}"),
+            other => codec::encode(other).unwrap_or_default(),
         }
     }
 
@@ -266,7 +349,7 @@ impl Intent {
                 }
             }
             "cashdel" => Self::DeleteCashDay { id: num("id")? },
-            _ => return None,
+            other => codec::parse(other, fields)?,
         };
         (intent.canonical() == text).then_some(intent)
     }
@@ -311,6 +394,7 @@ impl Outcome {
             ),
             Self::Done => "done".into(),
             Self::GstNumber(n) => format!("gst number={n}"),
+            Self::Created(id) => format!("created id={id}"),
         }
     }
 
@@ -333,6 +417,7 @@ impl Outcome {
             }),
             "done" => Self::Done,
             "gst" => Self::GstNumber(u64::try_from(num("number")?).ok()?),
+            "created" => Self::Created(u64::try_from(num("id")?).ok()?),
             _ => return None,
         };
         (outcome.canonical() == text).then_some(outcome)
@@ -393,6 +478,88 @@ mod tests {
         ] {
             assert_eq!(Intent::parse(&intent.canonical()), Some(intent));
         }
+        let day = BillDate::new(2025, 4, 30).unwrap();
+        for intent in [
+            Intent::SaveProduct(ProductTerms {
+                id: 3,
+                new: false,
+                item: "Orange: 1,5 L".into(),
+                brand: String::new(),
+                buy: Money::from_minor_units(3_000),
+                sell: Money::from_minor_units(4_700),
+                reorder: None,
+                reviewed: Some((
+                    Money::from_minor_units(3_000),
+                    Money::from_minor_units(4_500),
+                )),
+            }),
+            Intent::SetSupplierPrices {
+                product: 3,
+                rates: vec![(0, None), (2, Some(Money::from_minor_units(2_950)))],
+            },
+            Intent::SavePurchaseOrder(PurchaseOrderTerms {
+                supplier: Some((None, "~".into())),
+                date: None,
+                note: "a=b c".into(),
+                lines: vec![PurchaseLineTerms {
+                    item: "Soda, 1:2".into(),
+                    product: None,
+                    ordered: 10,
+                    rate: Money::from_minor_units(3_600),
+                }],
+            }),
+            Intent::ReceivePurchaseOrder {
+                po: 0,
+                date: Some(day),
+                today: day,
+                lines: vec![(4, Money::from_minor_units(2_950))],
+                remaining: vec![10],
+            },
+            Intent::ClosePurchaseOrder {
+                po: 0,
+                remaining: Vec::new(),
+            },
+            Intent::SaveCrate(CrateTerms {
+                id: Some(1),
+                name: "Party".into(),
+                price: Money::from_minor_units(40_000),
+                components: vec![(1, 2, false), (2, 1, true)],
+            }),
+            Intent::SaveOpening {
+                customer: "batch1-market".into(),
+                amount: Some(Money::from_minor_units(-500)),
+                date: None,
+            },
+            Intent::SaveGodown {
+                item: "Soda".into(),
+                cases: " 9".into(),
+                note: String::new(),
+            },
+            Intent::CountStock {
+                product: 2,
+                counted: 37,
+                fridge: None,
+                date: day,
+                reason: Some("damage".into()),
+                note: None,
+                on_hand: 40,
+            },
+            Intent::SaveGstBill {
+                bill: r#"{"id":2}"#.into(),
+            },
+            Intent::ImportGstBill {
+                bill: None,
+                deleted: Some(6),
+            },
+            Intent::DeleteProduct { id: 4 },
+            Intent::AddSupplier { name: "X Y".into() },
+            Intent::DeleteCrate { id: 1 },
+            Intent::CancelGstBill { id: 2 },
+            Intent::DeleteGstBill { id: 2 },
+        ] {
+            assert_eq!(Intent::parse(&intent.canonical()), Some(intent));
+        }
+        assert_eq!(Outcome::parse("created id=2"), Some(Outcome::Created(2)));
         assert_eq!(Intent::parse("cancel draft=7 extra=1"), None);
         assert_eq!(Intent::parse("cancel draft=07"), None);
         let outcome = Outcome::Sale(SaleReceipt {

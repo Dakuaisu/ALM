@@ -2,8 +2,10 @@
 //! account and role, applied with checkpoint progress, and cost-free on a Manager device.
 use alm_core::confirmation::manual_cashbook::CashBookAmounts;
 use alm_core::projection::{
-    OwnerValues, ProjectedCashDay, ProjectedCustomer, ProjectedProduct, ProjectedSale,
-    ProjectedStock, ProjectionBatch, ProjectionSnapshot,
+    OwnerValues, ProjectedCashDay, ProjectedCrate, ProjectedCustomer, ProjectedGodownRow,
+    ProjectedGstBill, ProjectedProduct, ProjectedProductTerms, ProjectedPurchaseLine,
+    ProjectedPurchaseOrder, ProjectedSale, ProjectedStock, ProjectedSupplier, ProjectionBatch,
+    ProjectionSnapshot,
 };
 use alm_core::{BillDate, Money, Role};
 use alm_store::{Outbox, OutboxError, OutboxStatus, ProjectionError, ProjectionStore};
@@ -73,9 +75,55 @@ fn owner_snapshot() -> ProjectionSnapshot {
                 ..CashBookAmounts::ZERO
             },
         }],
+        products: vec![ProjectedProductTerms {
+            id: 1,
+            item: "Synthetic Lime".into(),
+            brand: "Synthetic".into(),
+            sell: money(12_050),
+            reorder_level: 5,
+        }],
+        suppliers: vec![ProjectedSupplier {
+            id: 0,
+            name: "Synthetic Wholesale".into(),
+        }],
+        crates: vec![ProjectedCrate {
+            id: 1,
+            name: "Party crate".into(),
+            price: money(50_000),
+            components: 2,
+        }],
+        godown: vec![ProjectedGodownRow {
+            item: "Synthetic Soda".into(),
+            cases: 4,
+            note: "back room".into(),
+        }],
+        gst_bills: vec![ProjectedGstBill {
+            id: 1,
+            number: 1,
+            date: day,
+            customer: "Synthetic GST Buyer".into(),
+            cancelled: false,
+        }],
         owner: Some(OwnerValues {
             sale_costs: vec![(1, money(30_350), Some(money(17_777)))],
             stock_value: Some(money(333_333)),
+            buy_rates: vec![(1, money(7_000))],
+            supplier_prices: vec![(1, 0, money(6_900))],
+            purchase_orders: vec![ProjectedPurchaseOrder {
+                id: 0,
+                supplier: "Synthetic Wholesale".into(),
+                date: day,
+                status: "PartiallyReceived".into(),
+                lines: vec![ProjectedPurchaseLine {
+                    item: "Synthetic Lime".into(),
+                    product: Some(1),
+                    ordered: 10,
+                    received: 4,
+                    remaining: 6,
+                    rate: money(6_900),
+                }],
+            }],
+            state: vec![("catalog".into(), "{}".into())],
         }),
     }
 }

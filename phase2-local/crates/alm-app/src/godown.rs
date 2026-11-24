@@ -1,7 +1,6 @@
-use alm_core::confirmation::{ManualGodownError, ManualGodownInput};
 use tauri::State;
 
-use crate::{AppState, Trial, debug, with};
+use crate::{AppState, Trial, with};
 
 #[derive(serde::Deserialize)]
 pub struct Row {
@@ -16,22 +15,12 @@ pub struct Filter {
 }
 
 pub fn save(trial: &mut Trial, row: &Row) -> Result<(), String> {
-    let role = trial.require_owner()?;
-    trial
-        .authority
-        .save_manual_godown(
-            role,
-            ManualGodownInput {
-                item: &row.item,
-                cases: &row.cases,
-                note: &row.note,
-            },
-        )
-        .map_err(|error| match error {
-            ManualGodownError::ItemNameRequired => "Type an item name".to_owned(),
-            ManualGodownError::InvalidCases => "Enter quantity (whole cases)".to_owned(),
-            other => debug(other),
-        })?;
+    trial.require_owner()?;
+    trial.send(&alm_sync::Intent::SaveGodown {
+        item: row.item.clone(),
+        cases: row.cases.clone(),
+        note: row.note.clone(),
+    })?;
     trial.message = format!("{} saved ✓", row.item.trim());
     Ok(())
 }

@@ -9,6 +9,7 @@ use supplier_prices::SupplierPriceDraft;
 
 /// Overrides in basis points; `None` means automatic, not zero.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProductTaxOverrides {
     pub gst_rate: Option<u32>,
     pub cess: Option<u32>,
@@ -33,8 +34,12 @@ pub enum ProductEntryError {
     AccessDenied,
     ProductNotFound,
     ProductIdInUse,
+    /// The product is on a posted bill and cannot be deleted.
+    ProductInUse,
     ItemNameRequired,
-    DuplicateName { existing: String },
+    DuplicateName {
+        existing: String,
+    },
     Catalog(ConfirmationError),
 }
 
@@ -47,6 +52,7 @@ impl ProductEntryError {
             Self::AccessDenied
             | Self::ProductNotFound
             | Self::ProductIdInUse
+            | Self::ProductInUse
             | Self::ItemNameRequired
             | Self::Catalog(_) => None,
         }
@@ -73,6 +79,14 @@ pub struct ProductEntry {
 }
 
 impl ProductEntry {
+    /// The product this form edits, and whether it is new.
+    pub const fn target(&self) -> (ProductId, bool) {
+        match self.target {
+            Target::New(id) => (id, true),
+            Target::Existing(id) => (id, false),
+        }
+    }
+
     pub const fn pricing(&self) -> ProductPricing {
         self.pricing
     }
@@ -95,6 +109,7 @@ impl ProductEntry {
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct ProductDetails {
     pub(super) item: String,
     pub(super) brand: String,
@@ -240,6 +255,13 @@ impl ConfirmationFixture {
                         ..Product::new(0, form.pricing)
                     },
                 )
+                .map_err(ProductEntryError::Catalog)?;
+                // A new product can be ordered and received like the seeded ones.
+                self.register_purchase_product(crate::confirmation::PurchaseProduct {
+                    id,
+                    item: item.to_owned(),
+                    buy_rate: form.pricing.buy(),
+                })
                 .map_err(ProductEntryError::Catalog)
             }
             Target::Existing(id) => {

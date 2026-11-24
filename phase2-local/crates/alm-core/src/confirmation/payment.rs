@@ -35,6 +35,7 @@ impl Review {
 
 /// Legacy approvals carry no proposed payment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProposedPayment {
     Legacy,
     Named(Money),

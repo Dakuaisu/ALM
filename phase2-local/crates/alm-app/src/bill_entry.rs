@@ -32,7 +32,7 @@ impl Trial {
         }
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_screen(&views::BillView {
-            authority: &self.authority,
+            authority: self.drafting(),
             directory: &self.directory,
             draft,
             saved: *saved,
@@ -57,7 +57,7 @@ impl Trial {
         })?;
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_body(&views::BillView {
-            authority: &self.authority,
+            authority: self.drafting(),
             directory: &self.directory,
             draft,
             saved: *saved,
@@ -67,7 +67,7 @@ impl Trial {
     }
 
     pub(crate) fn bill_customer_search(&self, q: &str) -> String {
-        let found = self.directory.search_customers(&self.authority, q);
+        let found = self.directory.search_customers(self.drafting(), q);
         let options: Vec<_> = found
             .iter()
             .map(|c| [("customer", c.id), ("customer_q", c.name)])
@@ -87,7 +87,7 @@ impl Trial {
     }
 
     pub(crate) fn bill_item_search(&self, q: &str) -> String {
-        let found = self.directory.search_products(&self.authority, q);
+        let found = self.directory.search_products(self.drafting(), q);
         let ids: Vec<String> = found.iter().map(|(id, _)| id.to_string()).collect();
         let fills: Vec<_> = found
             .iter()
@@ -137,7 +137,7 @@ impl Trial {
     pub(super) fn bill_header(&mut self, header: Header) -> Result<(), String> {
         let customer = self
             .directory
-            .select_customer(&self.authority, &header.customer)
+            .select_customer(self.drafting(), &header.customer)
             .map_err(|_| "Select a connected customer.".to_owned())?;
         let date = header
             .date
@@ -156,7 +156,7 @@ impl Trial {
                     return Err("Add at least one item before saving.".into());
                 }
                 self.directory
-                    .preview(&self.authority, &draft)
+                    .preview(self.drafting(), &draft)
                     .map_err(debug)?;
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(
@@ -180,7 +180,7 @@ impl Trial {
     ) -> Result<(), String> {
         let line = self
             .directory
-            .select_line(&self.authority, product, quantity)
+            .select_line(self.drafting(), product, quantity)
             .map_err(|_| "Select a connected product.".to_owned())?;
         self.edit_bill(|draft| {
             draft.add_line(line);

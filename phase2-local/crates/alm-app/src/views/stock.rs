@@ -105,6 +105,12 @@ pub fn stock_screen(
             lots.total_value
                 .map_or_else(|| "Unknown".to_owned(), money_r)
         );
+        let _ = write!(
+            body,
+            r#"<form class="card" style="margin-top:10px" data-action="stock_count" data-payload="terms"><div class="sectit">Physical count</div><input type="hidden" name="product" value="{id}"><input type="hidden" name="on_hand" value="{on_hand}"><div class="f2"><div><label>Actual count (pkt) <input class="inp num" name="counted" inputmode="numeric"></label></div><div><label>Fridge (pkt, optional) <input class="inp num" name="fridge" inputmode="numeric"></label></div></div><div class="f2"><div><label>Reason <select class="inp" name="reason"><option value="count">Count correction</option><option value="damage">Damage / leakage</option><option value="expired">Expired</option><option value="theft">Theft / unknown</option><option value="own-use">Own use / sample</option><option value="other">Other</option></select></label></div><div><label>Note <input class="inp" name="note"></label></div></div><div class="row" style="justify-content:flex-end"><button class="btn primary" type="submit">Save count</button></div></form>"#,
+            id = id.value(),
+            on_hand = lots.on_hand
+        );
         html += &super::modal(
             "📅",
             &format!("{name} — stock lots"),

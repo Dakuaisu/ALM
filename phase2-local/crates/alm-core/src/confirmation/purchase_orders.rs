@@ -34,13 +34,16 @@ pub use supplier_prices::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseSupplierId(usize);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseOrderId(usize);
 
 /// Fixture metadata for a product already present in inventory.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseProduct {
     pub id: ProductId,
     pub item: String,
@@ -54,6 +57,7 @@ pub struct PurchaseSupplier {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseLine {
     pub item: String,
     pub product_id: Option<ProductId>,
@@ -70,12 +74,14 @@ pub struct PurchaseDraft {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedPurchaseSupplier {
     pub id: PurchaseSupplierId,
     pub name: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedPurchaseLine {
     pub line: PurchaseLine,
     pub received: u32,
@@ -88,7 +94,7 @@ impl SavedPurchaseLine {
         self.receipts.as_slice()
     }
 
-    pub(crate) const fn remaining(&self) -> u32 {
+    pub const fn remaining(&self) -> u32 {
         self.line
             .ordered
             .get()
@@ -98,6 +104,7 @@ impl SavedPurchaseLine {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseReceipt {
     pub date: BillDate,
     pub quantity: NonZeroU32,
@@ -105,6 +112,7 @@ pub struct PurchaseReceipt {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PurchaseOrder {
     pub id: PurchaseOrderId,
     pub supplier_id: PurchaseSupplierId,
@@ -150,6 +158,7 @@ impl std::error::Error for PurchaseError {}
 
 #[derive(Clone, Default)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PurchaseBook {
     products: Vec<PurchaseProduct>,
     suppliers: Vec<SavedPurchaseSupplier>,
@@ -230,6 +239,13 @@ impl ConfirmationFixture {
 }
 
 impl PurchaseBook {
+    /// Drops a deleted product's purchase metadata and quotes; saved orders keep their lines.
+    pub(super) fn forget_product(&mut self, id: ProductId) {
+        self.products.retain(|product| product.id != id);
+        self.costs.retain(|cost| cost.product() != id);
+        self.quotes.remove(&id.value());
+    }
+
     pub(super) fn receivable_count(&self) -> usize {
         self.orders
             .iter()

@@ -22,6 +22,7 @@ mod device;
 #[cfg(test)]
 mod device_tests;
 mod godown;
+mod gst_migration;
 mod gst_print;
 mod gst_sales;
 mod image;
@@ -32,6 +33,8 @@ mod products;
 mod purchases;
 mod receipts;
 mod render;
+#[cfg(test)]
+mod restart_tests;
 #[cfg(test)]
 mod screen_tests;
 mod settings;
@@ -146,6 +149,7 @@ pub fn run() {
             stock::stock_filter,
             stock::stock_lots,
             stock::stock_lots_close,
+            stock::stock_count,
             godown::godown_save,
             godown::godown_filter,
             gst_sales::gst_new,
@@ -161,6 +165,7 @@ pub fn run() {
             products::product_edit,
             products::product_save,
             products::product_close,
+            products::product_delete,
             products::product_preview,
             suppliers::supplier_add,
             suppliers::supplier_quotes,

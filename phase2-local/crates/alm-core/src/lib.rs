@@ -27,6 +27,7 @@ pub use drafts::{
 
 /// Amount in minor currency units; a profit may be negative.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct Money(i64);
 
 impl Money {

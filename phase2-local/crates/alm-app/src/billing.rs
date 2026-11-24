@@ -35,7 +35,7 @@ impl crate::Trial {
             .current
             .as_ref()
             .and_then(|(draft, saved)| saved.then_some(draft));
-        let mut scratch = self.authority.fixture().clone();
+        let mut scratch = self.posted.fixture.clone();
         self.posting
             .prepare(
                 &mut scratch,
@@ -87,7 +87,9 @@ impl crate::Trial {
         self.reviewed = None;
         match outcome {
             Outcome::Sale(receipt) => Ok(receipt.invoice),
-            Outcome::Done | Outcome::GstNumber(_) => Err("Unexpected outcome.".into()),
+            Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_) => {
+                Err("Unexpected outcome.".into())
+            }
         }
     }
 }
@@ -140,7 +142,7 @@ impl crate::Trial {
             .map(alm_core::DraftId::new)
             .ok_or("Unknown bill.")?;
         let lines = self
-            .authority
+            .posted
             .current_sale(role, id)
             .map_err(debug)?
             .0
@@ -186,7 +188,7 @@ pub fn sale_edit_open(state: State<'_, AppState>, id: IpcId) -> Result<String, S
     let id = alm_core::DraftId::new(id.value());
     with(&state, "sales", |trial| {
         let role = trial.require_owner()?;
-        trial.authority.current_sale(role, id).map_err(debug)?;
+        trial.posted.current_sale(role, id).map_err(debug)?;
         trial.sale_edit = Some(id);
         Ok(())
     })

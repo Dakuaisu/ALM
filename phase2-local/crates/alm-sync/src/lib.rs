@@ -10,7 +10,39 @@ mod local;
 use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
-pub use intent::{Intent, Outcome, SaleIntent, SaleReceipt};
+pub use intent::{
+    CrateTerms, Intent, Outcome, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms, SaleIntent,
+    SaleReceipt,
+};
+
+use alm_core::confirmation::StockCountReason;
+
+/// The authority's key for a standalone GST bill's number allocation.
+pub fn gst_bill_key(id: u64) -> String {
+    format!("gst-{id}")
+}
+
+const REASONS: [(StockCountReason, &str); 6] = [
+    (StockCountReason::CountCorrection, "count"),
+    (StockCountReason::DamageOrLeakage, "damage"),
+    (StockCountReason::Expired, "expired"),
+    (StockCountReason::TheftOrUnknown, "theft"),
+    (StockCountReason::OwnUseOrSample, "own-use"),
+    (StockCountReason::Other, "other"),
+];
+
+/// The intent code of a stock count reason.
+pub fn stock_count_code(reason: StockCountReason) -> &'static str {
+    REASONS
+        .iter()
+        .find(|(r, _)| *r == reason)
+        .map_or("other", |(_, code)| code)
+}
+
+/// Reads [`stock_count_code`] back.
+pub fn stock_count_reason(code: &str) -> Option<StockCountReason> {
+    REASONS.iter().find(|(_, c)| *c == code).map(|(r, _)| *r)
+}
 #[cfg(feature = "local-authority")]
 pub use local::{LocalAuthority, LocalAuthorityError};
 
@@ -110,7 +142,9 @@ pub trait SalesAuthority {
     ) -> Result<SaleReceipt, AuthorityError> {
         match self.submit(role, request, &Intent::PostSale(sale.clone()))? {
             Outcome::Sale(receipt) => Ok(receipt),
-            Outcome::Done | Outcome::GstNumber(_) => Err(AuthorityError::Invalid),
+            Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_) => {
+                Err(AuthorityError::Invalid)
+            }
         }
     }
 
@@ -146,7 +180,9 @@ pub trait SalesAuthority {
     ) -> Result<SaleReceipt, AuthorityError> {
         match self.submit(role, request, &Intent::EditSale { draft, lines })? {
             Outcome::Sale(receipt) => Ok(receipt),
-            Outcome::Done | Outcome::GstNumber(_) => Err(AuthorityError::Invalid),
+            Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_) => {
+                Err(AuthorityError::Invalid)
+            }
         }
     }
 

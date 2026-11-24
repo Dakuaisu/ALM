@@ -1,4 +1,3 @@
-use alm_core::DraftCustomerId;
 use alm_core::confirmation::OpeningBalance;
 use tauri::State;
 
@@ -37,7 +36,7 @@ pub fn customer_open(state: State<'_, AppState>, id: String) -> Result<String, S
         trial.require_owner()?;
         trial
             .directory
-            .customer(&trial.authority, &id)
+            .customer(&trial.posted, &id)
             .map_err(debug)?;
         trial.customers.open = Some(id);
         Ok(())
@@ -53,10 +52,10 @@ pub fn customer_close(state: State<'_, AppState>) -> Result<String, String> {
 }
 
 pub fn save_opening(trial: &mut crate::Trial, terms: Opening) -> Result<(), String> {
-    let role = trial.require_owner()?;
+    trial.require_owner()?;
     let customer = trial
         .directory
-        .customer(&trial.authority, &terms.customer)
+        .customer(&trial.posted, &terms.customer)
         .map_err(debug)?;
     let amount = OpeningBalance::parse_amount(&terms.amount).map_err(|_| {
         "Enter an amount with up to two decimal places (negative for an advance).".to_owned()
@@ -66,19 +65,14 @@ pub fn save_opening(trial: &mut crate::Trial, terms: Opening) -> Result<(), Stri
     } else {
         Some(terms.date.parse().map_err(debug)?)
     };
-    trial
-        .authority
-        .save_customer_opening(
-            role,
-            &DraftCustomerId::new(customer.id.into()),
-            OpeningBalance { amount, date },
-        )
-        .map_err(debug)?;
-    trial.customers.open = Some(customer.id.into());
-    trial.message = format!(
-        "Opening balance saved for {} (local simulation).",
-        customer.name
-    );
+    let (id, name) = (customer.id.to_owned(), customer.name.to_owned());
+    trial.send(&alm_sync::Intent::SaveOpening {
+        customer: id.clone(),
+        amount,
+        date,
+    })?;
+    trial.customers.open = Some(id);
+    trial.message = format!("Opening balance saved for {name}.");
     Ok(())
 }
 

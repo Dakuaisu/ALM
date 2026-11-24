@@ -12,6 +12,7 @@ use crate::confirmation::ConfirmationFixture;
 use crate::{BillDate, ProductId, Role};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub enum StockCountReason {
     CountCorrection,
     DamageOrLeakage,
@@ -34,6 +35,7 @@ pub struct PhysicalCountInput<'a> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct StockCountMovement {
     pub date: BillDate,
     pub from: u32,
@@ -61,6 +63,7 @@ pub enum PhysicalCountError {
 
 #[derive(Clone, Default)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PhysicalCountState {
     fridge: u32,
     pub(super) movements: Vec<StockCountMovement>,

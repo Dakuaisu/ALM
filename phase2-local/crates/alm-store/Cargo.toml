@@ -8,6 +8,6 @@ alm-core = { workspace = true }
 rusqlite = { workspace = true }
 
 [dev-dependencies]
-alm-core = { workspace = true, features = ["test-support"] }
+alm-core = { workspace = true, features = ["demo-fixture", "test-support"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

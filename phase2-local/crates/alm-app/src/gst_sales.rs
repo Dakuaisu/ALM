@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use alm_core::confirmation::{GstBillError, GstBillId, GstLineFields};
+use alm_sync::SalesAuthority as _;
+
+use alm_core::confirmation::{GstBillDraft, GstBillError, GstBillId, GstBillNumber, GstLineFields};
 use tauri::State;
 
 use crate::{AppState, Trial, debug, ipc::IpcId, with};
@@ -17,7 +19,7 @@ impl Trial {
     /// GST Sales "Pick customer" options: saved customers by name, filling `pick`.
     pub(crate) fn gst_customer_options(&self, q: &str) -> Result<String, String> {
         self.require_owner()?;
-        let found = self.directory.search_customers(&self.authority, q);
+        let found = self.directory.search_customers(&self.posted, q);
         let fills: Vec<_> = found
             .iter()
             .map(|c| [("pick", c.id), ("pick_q", c.name)])
@@ -88,27 +90,51 @@ impl Trial {
             "add" => form.lines.push(GstLineFields::blank()),
             "pick" => self
                 .directory
-                .fill_gst_customer(&self.authority, form, &pick)
+                .fill_gst_customer(&self.posted, form, &pick)
                 .map_err(|_| "Select a saved customer.".to_owned())?,
-            "fill" => self.authority.fill_gst_lines(role, form).map_err(warn)?,
+            "fill" => self.posted.fill_gst_lines(role, form).map_err(warn)?,
             "save" => {
                 let lines = form
                     .lines
                     .iter()
-                    .map(|line| self.authority.gst_line_input(role, line))
+                    .map(|line| self.posted.gst_line_input(role, line))
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(warn)?;
                 let draft = self
-                    .authority
+                    .posted
                     .gst_bill_draft(role, form, &lines, now)
                     .map_err(warn)?;
-                let mut number = String::new();
-                self.authority
-                    .save_gst_bill_to(role, &draft, &mut self.gst_db, &mut |invoice| {
-                        number = invoice.invoice_number();
-                    })
+                let id = draft.id;
+                let saved = self
+                    .posted
+                    .gst_bill_ledger(role)
+                    .map_err(warn)?
+                    .bills
+                    .iter()
+                    .find(|bill| bill.id == id)
+                    .map(|bill| bill.number);
+                let number = match saved {
+                    Some(number) => number,
+                    // The authority numbers a new bill, as the hosted function will.
+                    None => GstBillNumber(
+                        self.authority
+                            .allocate_gst_number(role, &alm_sync::gst_bill_key(id.0))
+                            .map_err(|e| crate::device::refused(&e))?,
+                    ),
+                };
+                let draft = GstBillDraft { number, ..draft };
+                let record = self
+                    .posted
+                    .gst_bill_record(role, &draft)
+                    .map_err(warn)?
+                    .to_record_text()
                     .map_err(debug)?;
-                self.message = format!("GST invoice {number} saved ✓");
+                self.send(&alm_sync::Intent::SaveGstBill { bill: record })?;
+                let mut text = String::new();
+                self.posted
+                    .emit_gst_bill(role, id, &mut |invoice| text = invoice.invoice_number())
+                    .map_err(warn)?;
+                self.message = format!("GST invoice {text} saved ✓");
                 self.gst_form = None;
             }
             remove => {
@@ -128,6 +154,20 @@ impl Trial {
     }
 }
 
+impl Trial {
+    pub(crate) fn gst_cancel_bill(&mut self, id: GstBillId) -> Result<(), String> {
+        self.require_owner()?;
+        self.send(&alm_sync::Intent::CancelGstBill { id: id.0 })
+            .map(drop)
+    }
+
+    pub(crate) fn gst_delete_bill(&mut self, id: GstBillId) -> Result<(), String> {
+        self.require_owner()?;
+        self.send(&alm_sync::Intent::DeleteGstBill { id: id.0 })
+            .map(drop)
+    }
+}
+
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -143,7 +183,7 @@ pub fn gst_new(state: State<'_, AppState>) -> Result<String, String> {
         let today = trial.today()?;
         trial.gst_form = Some(
             trial
-                .authority
+                .posted
                 .new_gst_bill_fields(role, today)
                 .map_err(warn)?,
         );
@@ -156,12 +196,7 @@ pub fn gst_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String>
     let id = GstBillId(id.value());
     with(&state, "gstsales", |trial| {
         let role = trial.require_owner()?;
-        trial.gst_form = Some(
-            trial
-                .authority
-                .edit_gst_bill_fields(role, id)
-                .map_err(warn)?,
-        );
+        trial.gst_form = Some(trial.posted.edit_gst_bill_fields(role, id).map_err(warn)?);
         Ok(())
     })
 }
@@ -185,25 +220,13 @@ pub fn gst_back(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command(async)]
 pub fn gst_cancel(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = GstBillId(id.value());
-    with(&state, "gstsales", |trial| {
-        let role = trial.require_owner()?;
-        trial
-            .authority
-            .cancel_gst_bill_to(role, id, &mut trial.gst_db)
-            .map_err(debug)
-    })
+    with(&state, "gstsales", |trial| trial.gst_cancel_bill(id))
 }
 
 #[tauri::command(async)]
 pub fn gst_delete(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = GstBillId(id.value());
-    with(&state, "gstsales", |trial| {
-        let role = trial.require_owner()?;
-        trial
-            .authority
-            .delete_gst_bill_to(role, id, &mut trial.gst_db)
-            .map_err(debug)
-    })
+    with(&state, "gstsales", |trial| trial.gst_delete_bill(id))
 }
 
 #[tauri::command(async)]
@@ -212,7 +235,7 @@ pub fn gst_view(state: State<'_, AppState>, id: IpcId) -> Result<String, String>
     with(&state, "gst", |trial| {
         let role = trial.require_owner()?;
         trial
-            .authority
+            .posted
             .emit_gst_bill(role, id, &mut |_| {})
             .map_err(warn)?;
         trial.gst_view = id;

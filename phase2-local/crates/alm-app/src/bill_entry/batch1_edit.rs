@@ -295,7 +295,7 @@ fn in_place_line_edit_flows_through_sales_customers_cash_book_and_dashboard() {
         ),
         (35_400, 5_001)
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.sale_edit_save(terms("2", "118")).is_err());
     assert_eq!(effects(&trial), edited);
 }

@@ -45,6 +45,7 @@ pub struct BillPreview {
 
 /// Synthetic separate receipt, placed after an invoice in fixture posting order.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct PreviewPayment {
     pub(super) customer_id: String,
     pub(super) amount: Money,

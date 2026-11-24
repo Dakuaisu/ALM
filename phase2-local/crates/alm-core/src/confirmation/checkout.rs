@@ -11,6 +11,7 @@ use crate::SaleUnit;
 mod crate_checkout;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProductTerms {
     pub pack: NonZeroU32,
     pub piece_price: Money,
@@ -18,12 +19,14 @@ pub struct ProductTerms {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct LineTerms {
     pub unit: SaleUnit,
     pub product: ProductTerms,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CheckoutTerms {
     pub lines: Vec<LineTerms>,
     pub loading_rate: Money,

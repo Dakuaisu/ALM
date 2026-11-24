@@ -4,6 +4,7 @@ use crate::{BillDate, Money};
 
 /// Identity of a draft; not an invoice number.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct DraftId(u64);
 
 impl DraftId {
@@ -73,6 +74,7 @@ impl std::fmt::Display for ProductId {
 
 /// A requested quantity, not a stock reservation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct DraftLine {
     product_id: ProductId,
     quantity: NonZeroU32,
@@ -100,12 +102,14 @@ impl DraftLine {
 
 /// Case corresponds to the legacy Packet unit, not a multiple of the pack size.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub enum SaleUnit {
     Piece,
     Case,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrateComponent {
     pub product: ProductId,
     pub quantity: NonZeroU32,
@@ -124,6 +128,7 @@ impl CrateComponent {
 
 /// Editable crate row. Order and repeated products are preserved until review.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrateRow {
     quantity: NonZeroU32,
     components: Vec<CrateComponent>,
@@ -131,6 +136,7 @@ pub struct CrateRow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 struct CrateRowPrice {
     name: String,
     rate: Money,
@@ -168,6 +174,7 @@ impl CrateRow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct DraftCustomerId(String);
 
 impl DraftCustomerId {
@@ -182,6 +189,7 @@ impl DraftCustomerId {
 
 /// Customer input owned by a provisional draft.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub enum DraftCustomer {
     Unassigned,
     Typed(String),
@@ -190,6 +198,7 @@ pub enum DraftCustomer {
 
 /// Editable local draft with no payment, stock, or final invoice state.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProvisionalDraft {
     id: DraftId,
     lines: Vec<DraftLine>,

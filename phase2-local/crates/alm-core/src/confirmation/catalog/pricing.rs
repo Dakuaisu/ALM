@@ -8,6 +8,7 @@ pub enum ProductPriceInput {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProductPricing {
     buy: Money,
     margin: Money,

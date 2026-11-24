@@ -58,6 +58,22 @@ fn non_empty(value: &str) -> Option<String> {
 }
 
 impl GstBill {
+    /// The stored record as one line of JSON, as the authority path carries it.
+    ///
+    /// # Errors
+    /// Fails only if the record does not serialize.
+    pub fn to_record_text(&self) -> Result<String, GstBillError> {
+        serde_json::to_string(self).map_err(|_| GstBillError::InvalidAmount)
+    }
+
+    /// Reads [`Self::to_record_text`] back.
+    ///
+    /// # Errors
+    /// Rejects text that is not a stored record.
+    pub fn from_record_text(text: &str) -> Result<Self, GstBillError> {
+        serde_json::from_str(text).map_err(|_| GstBillError::InvalidAmount)
+    }
+
     /// Builds the saved record; `product_named` resolves `prodByItem` for an unset `pid`.
     pub(super) fn from_draft(
         draft: &GstBillDraft<'_>,

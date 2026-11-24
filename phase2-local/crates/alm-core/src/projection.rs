@@ -76,6 +76,66 @@ pub struct ProjectedCashDay {
     pub amounts: CashBookAmounts,
 }
 
+/// A product's selling terms as the Products and Rate List screens show them (no buy rate).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedProductTerms {
+    pub id: u64,
+    pub item: String,
+    pub brand: String,
+    pub sell: Money,
+    pub reorder_level: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedSupplier {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedCrate {
+    pub id: u64,
+    pub name: String,
+    pub price: Money,
+    pub components: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedGodownRow {
+    pub item: String,
+    pub cases: u32,
+    pub note: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedGstBill {
+    pub id: u64,
+    pub number: u64,
+    pub date: BillDate,
+    pub customer: String,
+    pub cancelled: bool,
+}
+
+/// A purchase order line; its rate is a buy rate, so orders are owner values.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedPurchaseLine {
+    pub item: String,
+    pub product: Option<u64>,
+    pub ordered: u32,
+    pub received: u32,
+    pub remaining: u32,
+    pub rate: Money,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedPurchaseOrder {
+    pub id: u64,
+    pub supplier: String,
+    pub date: BillDate,
+    pub status: String,
+    pub lines: Vec<ProjectedPurchaseLine>,
+}
+
 /// Owner-only values: never sent to a Manager device.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct OwnerValues {
@@ -83,6 +143,14 @@ pub struct OwnerValues {
     pub sale_costs: Vec<(u64, Money, Option<Money>)>,
     /// Total FIFO stock value; `None` when any lot cost is unknown.
     pub stock_value: Option<Money>,
+    /// `(product, buy rate)`.
+    pub buy_rates: Vec<(u64, Money)>,
+    /// `(product, supplier, quoted rate)`.
+    pub supplier_prices: Vec<(u64, u64, Money)>,
+    pub purchase_orders: Vec<ProjectedPurchaseOrder>,
+    /// DEVELOPMENT SIMULATION: the simulated authority's read state as `(section, JSON)`, from
+    /// which the Owner device rebuilds every other Owner screen. Empty from other authorities.
+    pub state: Vec<(String, String)>,
 }
 
 /// Everything one account may see, as of one authority checkpoint.
@@ -97,6 +165,11 @@ pub struct ProjectionSnapshot {
     pub stock: Vec<ProjectedStock>,
     pub catalog: Vec<ProjectedProduct>,
     pub cash_days: Vec<ProjectedCashDay>,
+    pub products: Vec<ProjectedProductTerms>,
+    pub suppliers: Vec<ProjectedSupplier>,
+    pub crates: Vec<ProjectedCrate>,
+    pub godown: Vec<ProjectedGodownRow>,
+    pub gst_bills: Vec<ProjectedGstBill>,
     pub owner: Option<OwnerValues>,
 }
 

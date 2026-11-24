@@ -10,6 +10,7 @@ mod physical_count;
 mod receiving;
 
 mod pricing;
+mod product_delete;
 mod product_entry;
 mod product_list;
 mod reorder;
@@ -34,6 +35,7 @@ pub use stock_lots::{StockLotRow, StockLots, StockLotsError};
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 struct Product {
     stock: u32,
     seeded_opening: u32,
@@ -73,6 +75,7 @@ impl Product {
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 struct Lot {
     remaining: u32,
     unit_cost: Option<i64>,
@@ -81,10 +84,19 @@ struct Lot {
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 struct AllocationState {
+    #[cfg_attr(
+        feature = "demo-fixture",
+        serde(with = "crate::confirmation::state_sections::pairs")
+    )]
     records: BTreeMap<(u64, usize, u64, usize), Allocation>,
     sale_costs: BTreeMap<u64, Option<i64>>,
     /// Per-line unit cost frozen by the first in-place edit (`costAtSale`), in paise.
+    #[cfg_attr(
+        feature = "demo-fixture",
+        serde(with = "crate::confirmation::state_sections::pairs")
+    )]
     line_units: BTreeMap<(u64, usize), Option<i64>>,
 }
 
@@ -92,6 +104,7 @@ type Allocation = (u32, Option<i64>);
 
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct Catalog {
     products: BTreeMap<u64, Product>,
     product_order: Vec<ProductId>,

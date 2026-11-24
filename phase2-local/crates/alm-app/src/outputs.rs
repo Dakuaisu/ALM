@@ -25,13 +25,13 @@ impl Trial {
     pub(crate) fn bill_image_png(&self, id: DraftId) -> Result<(String, Vec<u8>), String> {
         let role = self.require_owner()?;
         let mode = self.prefs.balance_mode();
-        let bill = self.authority.bill_preview(role, id, mode).map_err(debug)?;
+        let bill = self.posted.bill_preview(role, id, mode).map_err(debug)?;
         let labels: Vec<String> = bill
             .lines
             .iter()
             .map(|line| {
                 self.directory
-                    .products(&self.authority)
+                    .products(&self.posted)
                     .find(|(product, _)| *product == line.product)
                     .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned())
             })
@@ -62,7 +62,7 @@ impl Trial {
             &details,
         );
         let image = self
-            .authority
+            .posted
             .bill_image(request, &party, &crate::image::measure)
             .map_err(debug)?;
         let png = crate::image::render_png(&image)?;
@@ -91,7 +91,7 @@ impl Trial {
         };
         let profile = self.shop.business_profile(role).map_err(debug)?;
         let mut html = None;
-        self.authority
+        self.posted
             .print_estimate_with_business(request, profile, &mut |doc| html = Some(doc.html))
             .map_err(debug)?;
         html.ok_or_else(|| "Estimate unavailable.".into())
@@ -100,7 +100,7 @@ impl Trial {
     fn line_labels(&self, id: DraftId) -> Result<Vec<(alm_core::ProductId, String)>, String> {
         let role = self.require_owner()?;
         let bill = self
-            .authority
+            .posted
             .bill_preview(role, id, alm_core::confirmation::BalanceMode::AsOnBillDate)
             .map_err(debug)?;
         Ok(bill
@@ -109,7 +109,7 @@ impl Trial {
             .map(|line| {
                 let name = self
                     .directory
-                    .products(&self.authority)
+                    .products(&self.posted)
                     .find(|(product, _)| *product == line.product)
                     .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned());
                 (line.product, name)
@@ -125,7 +125,7 @@ impl Trial {
     ) -> Result<String, String> {
         let role = self.require_owner()?;
         let mut page = Err("GST bill missing".to_owned());
-        self.authority
+        self.posted
             .emit_gst_bill(role, id, &mut |invoice| {
                 page = crate::gst_print::invoice_html(invoice, &crate::SELLER);
             })

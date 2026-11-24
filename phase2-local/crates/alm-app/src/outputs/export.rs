@@ -14,7 +14,7 @@ impl Trial {
     pub(crate) fn export(&self, kind: Export) -> Result<(String, String), String> {
         let role = self.require_owner()?;
         let records = self
-            .authority
+            .posted
             .archive_records(role, &self.directory)
             .map_err(debug)?;
         let model = alm_core::synthetic_read_model::ReadModel::create(role, records, |_| Ok(()))

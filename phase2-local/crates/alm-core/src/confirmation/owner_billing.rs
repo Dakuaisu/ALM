@@ -189,6 +189,40 @@ pub fn save_receipt(
     customer: &str,
     terms: ReceiptTerms<'_>,
 ) -> Result<(), OwnerBillingError> {
+    save_receipt_with(authority, directory, role, customer, terms, None)
+}
+
+/// [`save_receipt`] stamped with the authority's `creation_key` (milliseconds) instead of the
+/// wall clock, so a journaled authority replays the same receipt order.
+///
+/// # Errors
+/// As [`save_receipt`].
+pub fn save_receipt_at(
+    authority: &mut ConfirmationFixture,
+    directory: &BillingDirectory,
+    role: Role,
+    customer: &str,
+    terms: ReceiptTerms<'_>,
+    creation_key: u64,
+) -> Result<(), OwnerBillingError> {
+    save_receipt_with(
+        authority,
+        directory,
+        role,
+        customer,
+        terms,
+        Some(creation_key),
+    )
+}
+
+fn save_receipt_with(
+    authority: &mut ConfirmationFixture,
+    directory: &BillingDirectory,
+    role: Role,
+    customer: &str,
+    terms: ReceiptTerms<'_>,
+    creation_key: Option<u64>,
+) -> Result<(), OwnerBillingError> {
     require_owner(role)?;
     let date: BillDate = terms.date.parse().map_err(OwnerBillingError::Date)?;
     let amount = parse_rupees(terms.amount)?;
@@ -197,7 +231,10 @@ pub fn save_receipt(
         id: DraftCustomerId::new(chosen.id.into()),
         name: chosen.name.into(),
     }];
-    let mut payment = ReceivePayment::default();
+    let mut payment = match creation_key {
+        Some(key) => ReceivePayment::with_clock(move || Ok(super::CreationKey::new(key))),
+        None => ReceivePayment::default(),
+    };
     payment.input(chosen.name, &customers);
     payment
         .save(role, authority, date, amount, terms.mode)

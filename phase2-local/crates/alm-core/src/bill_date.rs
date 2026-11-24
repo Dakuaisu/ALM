@@ -2,6 +2,7 @@ use std::{fmt, str::FromStr};
 
 /// A Gregorian calendar date, without a time or time zone.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct BillDate {
     year: u16,
     month: u8,

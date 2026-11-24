@@ -6,9 +6,11 @@ use crate::{CrateComponent, CrateRow, Money, ProductId, ProvisionalDraft, Role, 
 use super::{ConfirmationError, ConfirmationFixture};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrateTemplateId(u64);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrateTemplate {
     pub name: String,
     pub components: Vec<CrateComponent>,
@@ -27,6 +29,7 @@ pub enum CrateTemplateError {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct CrateTemplateBook {
     last_id: u64,
     saved: BTreeMap<CrateTemplateId, CrateTemplate>,

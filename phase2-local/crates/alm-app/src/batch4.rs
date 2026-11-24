@@ -21,7 +21,7 @@ fn draft_post_lost_response_restart_receipt_cash_close_backup_restore_and_image(
     let mut trial = Trial::open(&device_a.0, Some(day())).unwrap();
 
     // Manager: a provisional draft only; posted screens and costs stay denied.
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
     trial.drafts.save_draft(draft.clone()).unwrap();
     for tab in ["sales", "customers", "stock"] {
@@ -31,7 +31,7 @@ fn draft_post_lost_response_restart_receipt_cash_close_backup_restore_and_image(
     assert!(trial.sale_prepare(&terms("20")).is_err());
 
     // Owner: review, then confirm with the response lost; the retry keeps the request ID.
-    trial.owner = true;
+    trial.set_owner(true).unwrap();
     trial.current = Some((
         trial.drafts.reopen_draft(DraftId::new(1)).unwrap().unwrap(),
         true,
@@ -114,7 +114,7 @@ fn draft_post_lost_response_restart_receipt_cash_close_backup_restore_and_image(
     // Backup, then restore on a fresh device at a fresh path.
     let backup = trial.backup_create().unwrap();
     let bytes = std::fs::read(device_a.0.join("backups").join(&backup)).unwrap();
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     trial.render("review").unwrap();
     drop(trial);
     let device_b = Root::new("batch4-b");

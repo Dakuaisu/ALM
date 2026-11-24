@@ -7,7 +7,7 @@ use crate::{Trial, debug};
 impl Trial {
     fn purchase_displays(&self) -> Vec<PurchaseProductDisplay<'_>> {
         self.directory
-            .products(&self.authority)
+            .products(&self.posted)
             .map(|(id, item)| PurchaseProductDisplay {
                 id,
                 item,
@@ -22,20 +22,15 @@ impl Trial {
     pub(crate) fn archived_orders(&self) -> Result<Vec<ArchivedPurchaseOrder>, String> {
         let role = self.require_owner()?;
         let displays = self.purchase_displays();
-        let orders = self.authority.purchase_orders(role).map_err(debug)?;
+        let orders = self.posted.purchase_orders(role).map_err(debug)?;
         let mut archived = Vec::new();
-        for row in self
-            .authority
-            .purchase_order_list(role)
-            .map_err(debug)?
-            .rows
-        {
+        for row in self.posted.purchase_order_list(role).map_err(debug)?.rows {
             let order = orders
                 .iter()
                 .find(|order| order.id == row.id)
                 .ok_or("Purchase order not found")?;
             let view = self
-                .authority
+                .posted
                 .view_purchase_order(row.selection, &displays)
                 .map_err(debug)?;
             archived.push(
@@ -61,7 +56,7 @@ impl Trial {
         let role = self.require_owner()?;
         let displays = self.purchase_displays();
         let row = self
-            .authority
+            .posted
             .purchase_order_list(role)
             .map_err(debug)?
             .rows
@@ -69,7 +64,7 @@ impl Trial {
             .find(|row| row.selection.number == number)
             .ok_or("Purchase order not found")?;
         let mut html = None;
-        self.authority
+        self.posted
             .print_purchase_order(
                 PurchaseOutputRequest {
                     selection: row.selection,

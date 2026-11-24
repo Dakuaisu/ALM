@@ -85,7 +85,7 @@ impl PurchaseOrderStatus {
 }
 
 impl PurchaseOrder {
-    pub(super) fn status(&self) -> PurchaseOrderStatus {
+    pub fn status(&self) -> PurchaseOrderStatus {
         if self.cancelled {
             PurchaseOrderStatus::Cancelled
         } else if self.items.iter().all(|line| line.remaining() == 0) {

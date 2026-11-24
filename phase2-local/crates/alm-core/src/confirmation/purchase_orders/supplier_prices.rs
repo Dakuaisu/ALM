@@ -60,6 +60,7 @@ pub(super) type ProductQuotes = BTreeMap<u64, SupplierQuotes>;
 
 // Insertion order breaks equal-price ties in the same order as the stored quotes.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub(in crate::confirmation) struct SupplierQuotes(Vec<(String, Money)>);
 
 impl SupplierQuotes {

@@ -46,6 +46,8 @@ pub mod rate_list;
 mod reporting;
 mod sales_history;
 mod sales_output;
+#[cfg(feature = "demo-fixture")]
+pub(crate) mod state_sections;
 #[cfg(feature = "test-support")]
 mod test_support;
 pub use crate::SaleUnit;
@@ -122,6 +124,7 @@ pub use sales_history::{
 pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestId(pub(crate) u64);
 
 impl RequestId {
@@ -155,6 +158,7 @@ pub enum ConfirmationError {
 
 /// A review can only be produced by the fixture and cannot be altered by its caller.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct Review {
     draft: ProvisionalDraft,
     draft_revision: u64,
@@ -167,6 +171,7 @@ pub struct Review {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct Receipt {
     pub draft_id: DraftId,
     pub invoice: u64,
@@ -179,6 +184,7 @@ pub struct Receipt {
 
 /// The product identity and catalog text recorded when a line becomes part of a posted bill.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct PostedLineItem {
     pub product_id: ProductId,
     /// Anonymous catalog products have no item text.
@@ -203,6 +209,7 @@ pub struct ConfirmationAck {
     all(feature = "demo-fixture", not(any(test, feature = "test-support"))),
     derive(Clone)
 )]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConfirmationFixture {
     product: ProductId,
     catalog: Catalog,

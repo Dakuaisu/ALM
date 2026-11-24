@@ -56,7 +56,7 @@ impl crate::Trial {
     /// Validates the receipt on a copy of the authority's state, then sends it as an intent.
     pub(crate) fn receipt_save(&mut self, terms: Terms) -> Result<(), String> {
         let role = self.require_owner()?;
-        let mut scratch = self.authority.fixture().clone();
+        let mut scratch = self.posted.fixture.clone();
         let intent = alm_sync::Intent::RecordReceipt {
             customer: terms.customer.clone(),
             date: terms.date.parse().map_err(debug)?,

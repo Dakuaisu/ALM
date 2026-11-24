@@ -122,9 +122,9 @@ fn opening_balance_input_uses_the_core_parser_and_owner_gate() {
         trial.authority.customer_due("batch1-market").minor_units(),
         -500
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(crate::customers::save_opening(&mut trial, terms("5")).is_err());
-    trial.owner = true;
+    trial.set_owner(true).unwrap();
     crate::customers::save_opening(&mut trial, terms("250.50")).unwrap();
     let due = trial.authority.customer_due("batch1-market");
     drop(trial);
@@ -219,7 +219,7 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
             .is_empty()
     );
 
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(
         trial
             .cash_entry(entry("", "2025-04-30", "1", "save"))
@@ -381,7 +381,7 @@ fn godown_renders_the_core_manual_list_and_leaves_billing_stock_alone() {
     assert!(html.contains("2 items · 1,012 cases"));
     assert!(html.contains(r#"<td><b>Synthetic Lime</b></td><td class="num" style="font-weight:800">1,000</td><td class="muted">back rack</td>"#));
     assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(40));
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(crate::godown::save(&mut trial, &row("X", "1")).is_err());
     let html = trial.render("godown").unwrap();
     assert!(html.contains("role=\"alert\""));
@@ -449,10 +449,7 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
         r#"<td>Synthetic GST Buyer B</td><td class="num">1</td><td class="num">₹125</td>"#
     ));
 
-    trial
-        .authority
-        .cancel_gst_bill_to(Role::Owner, GstBillId(2), &mut trial.gst_db)
-        .unwrap();
+    trial.gst_cancel_bill(GstBillId(2)).unwrap();
     let list = trial.render("gstsales").unwrap();
     assert!(list.contains(
         r#"<tr style="opacity:.5"><td>30-Apr-2025</td><td><b>ALM/25-26/2</b><span class="tag""#
@@ -461,10 +458,7 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
         trial.authority.next_gst_bill_number(Role::Owner).unwrap(),
         GstBillNumber(3)
     );
-    trial
-        .authority
-        .delete_gst_bill_to(Role::Owner, GstBillId(2), &mut trial.gst_db)
-        .unwrap();
+    trial.gst_delete_bill(GstBillId(2)).unwrap();
     assert_eq!(trial.authority.without_gst_bills(), ordinary);
     drop(trial);
 
@@ -475,10 +469,7 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
         trial.authority.next_gst_bill_id(Role::Owner).unwrap(),
         GstBillId(3)
     );
-    trial
-        .authority
-        .delete_gst_bill_to(Role::Owner, GstBillId(1), &mut trial.gst_db)
-        .unwrap();
+    trial.gst_delete_bill(GstBillId(1)).unwrap();
     drop(trial);
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
     assert!(
@@ -488,7 +479,7 @@ fn gst_sales_list_form_cancel_delete_persist_and_deny_the_manager() {
             .unwrap()
             .is_empty()
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("gstsales").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
@@ -546,7 +537,7 @@ fn products_render_core_prices_margins_and_hide_them_from_the_manager() {
             .unwrap_err()
             .contains("already exists")
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     trial.products.form = None;
     let html = trial.render("products").unwrap();
     assert!(html.contains("role=\"alert\""));
@@ -597,7 +588,7 @@ fn suppliers_render_core_quotes_best_and_hide_buy_rates_from_the_manager() {
     ]
     .into();
     assert!(trial.supplier_quotes(bad).is_err());
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("suppliers").unwrap();
     assert!(html.contains("role=\"alert\""));
     for hidden in ["₹", "68.50", "Synthetic Depot"] {
@@ -667,7 +658,7 @@ fn order_planner_cart_po_and_paste_follow_core_without_stock() {
         ),
         stock
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("order").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
@@ -747,7 +738,7 @@ fn purchases_receive_dated_partials_close_remaining_and_deny_the_manager() {
         html.contains(r#"<span class="tag ok">Completed</span></td><td class="num">7 / 10</td>"#)
     );
     assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(47));
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("purchases").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
@@ -797,7 +788,7 @@ fn crates_render_core_contents_and_value_and_deny_the_manager() {
         ..Default::default()
     });
     assert!(trial.crate_submit(bad).is_err());
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("crates").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
@@ -832,7 +823,7 @@ fn rate_list_renders_core_rows_ticks_and_text_and_denies_the_manager() {
             .unwrap()
             .contains("Synthetic Soda — ₹")
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("ratelist").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
@@ -909,7 +900,7 @@ fn products_margin_preview_comes_from_core() {
         .unwrap();
     assert!(html.contains(r#"name="margin" inputmode="decimal" value="-10.00""#));
     assert!(trial.product_preview(&form("x", "", "", "buy")).is_err());
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.product_preview(&form("40", "", "", "buy")).is_err());
 }
 
@@ -967,7 +958,7 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
             .unwrap()
             .starts_with("*ALM Reorder List* (30-Apr-2025)")
     );
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.godown_copy_text().is_err());
     assert!(trial.rate_copy_text().is_err());
     assert!(trial.reorder_copy_text().is_err());
@@ -981,6 +972,7 @@ fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
     let root = Root::new("bill-image");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
     crate::billing_tests::posted(&mut trial.authority);
+    trial.refresh().unwrap();
     let (name, png) = trial.bill_image_png(DraftId::new(1)).unwrap();
     assert_eq!(name, "Bill-1.png");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
@@ -1001,7 +993,7 @@ fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
     );
     let path = trial.save_output(&name, &png).unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), png);
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.bill_image_png(DraftId::new(1)).is_err());
 }
 
@@ -1075,7 +1067,7 @@ fn settings_split_device_local_preferences_from_the_shared_archive_profile() {
     ));
     assert!(html.contains(r#"name="reorder" inputmode="numeric" value="9""#));
     assert_eq!(trial.prefs.balance_mode(), BalanceMode::Latest);
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     let html = trial.render("settings").unwrap();
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("09ABCDE1234F1Z5"));
@@ -1087,6 +1079,7 @@ fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
     let root = Root::new("backup");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
     crate::billing_tests::posted(&mut trial.authority);
+    trial.refresh().unwrap();
     let name = trial.backup_create().unwrap();
     assert_eq!(name, "ALM-backup-2025-04-30-1.json");
     assert_eq!(
@@ -1131,7 +1124,7 @@ fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
     assert_eq!(trial.restored.as_ref().unwrap().0, name);
     assert!(trial.backup_restore("../shop.json").is_err());
 
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.backup_create().is_err());
     assert!(trial.backup_restore(&name).is_err());
     assert!(!trial.render("settings").unwrap().contains("Full Backup"));
@@ -1143,6 +1136,7 @@ fn structured_exports_follow_the_read_model_and_deny_the_manager() {
     let root = Root::new("exports");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
     crate::billing_tests::posted(&mut trial.authority);
+    trial.refresh().unwrap();
     let (name, csv) = trial.export(Export::SalesCsv).unwrap();
     assert_eq!(name, "ALM-sales-2025-04-30.csv");
     let mut lines = csv.lines();
@@ -1160,7 +1154,7 @@ fn structured_exports_follow_the_read_model_and_deny_the_manager() {
     assert!(xls.starts_with("<?xml version=\"1.0\"?>") && xls.contains("Synthetic Lime"));
     let path = trial.save_output(&name, xls.as_bytes()).unwrap();
     assert_eq!(std::fs::read_to_string(path).unwrap(), xls);
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.export(Export::SalesCsv).is_err());
     assert!(trial.export(Export::Workbook).is_err());
 }
@@ -1278,6 +1272,6 @@ fn gst_sales_pick_customer_fills_the_saved_contact_through_data_search() {
     let mut unknown = terms;
     unknown.insert("pick".into(), "nobody".into());
     assert!(trial.gst_submit(unknown, 2).is_err());
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     assert!(trial.gst_customer_options("").is_err());
 }

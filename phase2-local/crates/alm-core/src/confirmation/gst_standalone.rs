@@ -222,6 +222,8 @@ pub enum GstBillError {
     Cancelled,
     /// The ID has a deletion marker; a deleted bill cannot be saved again.
     Deleted,
+    /// An imported bill differs from the stored one with its ID or number.
+    Conflict,
 }
 
 impl GstBillError {
@@ -238,7 +240,8 @@ impl GstBillError {
             | Self::Overflow
             | Self::NotFound
             | Self::Cancelled
-            | Self::Deleted => None,
+            | Self::Deleted
+            | Self::Conflict => None,
         }
     }
 }

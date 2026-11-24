@@ -45,7 +45,7 @@ fn effects(trial: &Trial) -> (usize, Option<u32>, Option<u32>, Money, Money, Mon
 fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts() {
     let root = Root::new();
     let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     trial.render("bill").unwrap();
     let before = effects(&trial);
     trial
@@ -69,7 +69,7 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
     drop(trial);
 
     let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     trial.bill_open(DraftId::new(1)).unwrap();
     let html = trial.render("bill").unwrap();
     for markup in [
@@ -118,6 +118,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
         )
         .unwrap(),
     );
+    trial.refresh().unwrap();
     let disconnected = effects(&trial);
     assert!(
         trial
@@ -127,6 +128,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
     assert!(trial.bill_add(ProductId::new(2), NonZeroU32::MIN).is_err());
     assert_eq!(effects(&trial), disconnected);
     *trial.authority = connected;
+    trial.refresh().unwrap();
     assert_eq!(trial.current, before);
     assert_eq!(effects(&trial), ordinary);
     trial.bill_open(DraftId::new(1)).unwrap();

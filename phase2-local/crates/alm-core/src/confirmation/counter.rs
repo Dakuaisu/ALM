@@ -12,6 +12,7 @@ mod recents_tests;
 
 /// Caller-supplied creation order for the in-memory fixture, independent of document date and invoice.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CreationKey(u64);
 
 impl CreationKey {

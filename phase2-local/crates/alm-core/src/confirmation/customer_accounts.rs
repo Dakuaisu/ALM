@@ -5,6 +5,7 @@ use super::{OpeningLedger, OpeningLedgerEntry, OpeningLedgerKind};
 use crate::{BillDate, DraftCustomer, DraftCustomerId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub enum ReceiptMode {
     Cash,
     Online,
@@ -20,6 +21,7 @@ pub struct CustomerReceiptInput {
 
 /// Saved selected label and caller-supplied creation order for a receipt.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CustomerReceiptMetadata {
     pub selected_name: String,
     pub creation_key: super::CreationKey,

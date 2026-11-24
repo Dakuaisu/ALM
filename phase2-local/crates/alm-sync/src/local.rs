@@ -11,7 +11,7 @@ use alm_core::confirmation::manual_cashbook::{
     CashBookDeletion, ManualCashBook, ManualCashBookDraft,
 };
 use alm_core::confirmation::owner_billing::{
-    BillingDirectory, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft, save_receipt,
+    BillingDirectory, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft, save_receipt_at,
 };
 use alm_core::confirmation::{ConfirmationFixture, LineEdit, ReceiptMode};
 use alm_core::projection::ProjectionBatch;
@@ -37,14 +37,17 @@ impl From<std::io::Error> for LocalAuthorityError {
 struct State {
     fixture: ConfirmationFixture,
     cashbook: ManualCashBook,
+    /// GST bill key → allocated number.
+    gst: BTreeMap<String, u64>,
 }
+
+mod commands;
 
 pub struct LocalAuthority {
     state: State,
     directory: BillingDirectory,
     /// request ID → (canonical intent, canonical outcome).
     requests: BTreeMap<String, (String, String)>,
-    gst: BTreeMap<String, u64>,
     checkpoint: u64,
     journal: Option<PathBuf>,
     clock: fn() -> u64,
@@ -68,10 +71,10 @@ impl LocalAuthority {
             state: State {
                 fixture,
                 cashbook: ManualCashBook::default(),
+                gst: BTreeMap::new(),
             },
             directory,
             requests: BTreeMap::new(),
-            gst: BTreeMap::new(),
             checkpoint: 0,
             journal: None,
             clock: system_clock,
@@ -98,14 +101,25 @@ impl LocalAuthority {
         for (index, line) in text.lines().enumerate() {
             let corrupt = || LocalAuthorityError::Corrupt(index + 1);
             match line.split('\t').collect::<Vec<_>>().as_slice() {
+                ["R", request, intent, stamp] => {
+                    let request = RequestId::new(request).map_err(|_| corrupt())?;
+                    let intent = Intent::parse(intent).ok_or_else(corrupt)?;
+                    let stamp = stamp.parse().map_err(|_| corrupt())?;
+                    authority
+                        .commit(&request, &intent, stamp)
+                        .map_err(|_| corrupt())?;
+                }
+                // Journals written before commands were time-stamped.
                 ["R", request, intent] => {
                     let request = RequestId::new(request).map_err(|_| corrupt())?;
                     let intent = Intent::parse(intent).ok_or_else(corrupt)?;
-                    authority.commit(&request, &intent).map_err(|_| corrupt())?;
+                    authority
+                        .commit(&request, &intent, system_clock())
+                        .map_err(|_| corrupt())?;
                 }
                 ["G", bill, number] => {
                     let number = number.parse().map_err(|_| corrupt())?;
-                    authority.gst.insert((*bill).to_owned(), number);
+                    authority.state.gst.insert((*bill).to_owned(), number);
                     authority.checkpoint += 1;
                 }
                 _ => return Err(corrupt()),
@@ -166,7 +180,13 @@ impl LocalAuthority {
     }
 
     /// Validates and applies one intent atomically: a failure leaves no effect.
-    fn commit(&mut self, request: &RequestId, intent: &Intent) -> Result<Outcome, AuthorityError> {
+    /// `stamp` is the authority's time for the command (journaled, so a replay repeats it).
+    fn commit(
+        &mut self,
+        request: &RequestId,
+        intent: &Intent,
+        stamp: u64,
+    ) -> Result<Outcome, AuthorityError> {
         let canonical = intent.canonical();
         if let Some((stored, outcome)) = self.requests.get(request.as_str()) {
             return if *stored == canonical {
@@ -176,7 +196,7 @@ impl LocalAuthority {
             };
         }
         let mut next = self.state.clone();
-        let outcome = apply(&mut next, &self.directory, intent)?;
+        let outcome = apply(&mut next, &self.directory, intent, stamp)?;
         self.state = next;
         self.requests.insert(
             request.as_str().to_owned(),
@@ -191,6 +211,7 @@ fn apply(
     state: &mut State,
     directory: &BillingDirectory,
     intent: &Intent,
+    stamp: u64,
 ) -> Result<Outcome, AuthorityError> {
     let role = Role::Owner;
     let fixture = &mut state.fixture;
@@ -264,7 +285,7 @@ fn apply(
             date,
             amount,
             online,
-        } => save_receipt(
+        } => save_receipt_at(
             fixture,
             directory,
             role,
@@ -278,6 +299,7 @@ fn apply(
                     ReceiptMode::Cash
                 },
             },
+            stamp,
         )
         .map(|()| Outcome::Done)
         .map_err(rejected),
@@ -299,6 +321,7 @@ fn apply(
                 .map_err(rejected)?;
             Ok(Outcome::Done)
         }
+        other => commands::apply(state, other),
     }
 }
 
@@ -313,9 +336,14 @@ impl SalesAuthority for LocalAuthority {
             return Err(AuthorityError::Denied);
         }
         let known = self.requests.contains_key(request.as_str());
-        let outcome = self.commit(request, intent)?;
+        let stamp = (self.clock)();
+        let outcome = self.commit(request, intent, stamp)?;
         if !known {
-            self.append(&format!("R\t{}\t{}", request.as_str(), intent.canonical()))?;
+            self.append(&format!(
+                "R\t{}\t{}\t{stamp}",
+                request.as_str(),
+                intent.canonical()
+            ))?;
         }
         if std::mem::take(&mut self.lose_next) {
             return Err(AuthorityError::Unavailable);
@@ -340,7 +368,7 @@ impl SalesAuthority for LocalAuthority {
         if bill_id.is_empty() || bill_id.len() > 64 || bill_id.contains(['\t', '\n']) {
             return Err(AuthorityError::Invalid);
         }
-        if let Some(number) = self.gst.get(bill_id) {
+        if let Some(number) = self.state.gst.get(bill_id) {
             return Ok(*number);
         }
         let stored = self
@@ -350,12 +378,13 @@ impl SalesAuthority for LocalAuthority {
             .map_err(rejected)?
             .0;
         let number = self
+            .state
             .gst
             .values()
             .max()
             .map_or(stored, |max| stored.max(max + 1));
         self.append(&format!("G\t{bill_id}\t{number}"))?;
-        self.gst.insert(bill_id.to_owned(), number);
+        self.state.gst.insert(bill_id.to_owned(), number);
         self.checkpoint += 1;
         Ok(number)
     }

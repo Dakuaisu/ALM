@@ -337,7 +337,7 @@ fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
     );
 
     // The Manager sees no cost, buy rate or FIFO value on any batch 2 screen.
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     for tab in [
         "products",
         "suppliers",

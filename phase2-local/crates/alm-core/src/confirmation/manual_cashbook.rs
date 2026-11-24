@@ -9,6 +9,7 @@ use crate::{BillDate, Money, Role};
 const ZERO: Money = Money::from_minor_units(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct CashBookAmounts {
     pub cash: Money,
     pub paytm: Money,
@@ -42,6 +43,7 @@ pub fn parse_cash_book_amount(text: &str) -> Result<Money, crate::RupeesError> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ManualCashBookId(u64);
 
 impl ManualCashBookId {
@@ -59,6 +61,7 @@ pub struct ManualCashBookDraft {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ManualCashBookRow {
     pub id: ManualCashBookId,
     pub date: BillDate,
@@ -160,6 +163,7 @@ impl ManualCashBookRow {
 }
 
 #[derive(Clone, Default)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ManualCashBook {
     rows: BTreeMap<ManualCashBookId, ManualCashBookRow>,
     next_id: u64,

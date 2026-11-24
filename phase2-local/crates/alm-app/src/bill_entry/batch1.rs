@@ -43,7 +43,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     let root = Root::new("batch1");
     // Manager saves a provisional draft; nothing is posted.
     let mut trial = Trial::open(&root.0, Some(date(BILL_DAY))).unwrap();
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     trial.render("bill").unwrap();
     trial
         .bill_add(ProductId::new(1), quantity("2").unwrap())
@@ -206,7 +206,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     assert!(counter.contains("Nothing needs attention right now"));
 
     // The Manager is denied every book screen after the same timeline.
-    trial.owner = false;
+    trial.set_owner(false).unwrap();
     for tab in ["sales", "customers", "expenses", "dashboard", "counter"] {
         let html = trial.render(tab).unwrap();
         assert!(html.contains("role=\"alert\""), "{tab}");

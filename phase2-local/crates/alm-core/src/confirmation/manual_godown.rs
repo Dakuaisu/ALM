@@ -5,6 +5,7 @@ use crate::Role;
 
 /// A whole-case count for this synthetic fixture, not a production quantity restriction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct GodownCases(u32);
 
 impl GodownCases {
@@ -18,6 +19,7 @@ impl GodownCases {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
 pub struct ManualGodownRow {
     pub item: String,
     pub cases: GodownCases,

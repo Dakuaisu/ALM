@@ -31,6 +31,7 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
     let device_a = Root::new("batch3-a");
     let mut trial = Trial::open(&device_a.0, Some(day())).unwrap();
     crate::billing_tests::posted(&mut trial.authority);
+    trial.refresh().unwrap();
     let directory = trial.directory.clone();
     save_receipt(
         &mut trial.authority,
@@ -160,9 +161,9 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
     ));
     assert!(store.backup(Role::Manager).is_err() && store.records(Role::Manager).is_err());
     assert!(regenerate(&store, Role::Manager, "sale-1", crate::TRIAL_BILL, 1, day()).is_err());
-    other.owner = false;
+    other.set_owner(false).unwrap();
     assert!(other.export(crate::outputs::Export::SalesCsv).is_err());
-    other.owner = true;
+    other.set_owner(true).unwrap();
 
     // An invalid archive is rejected without touching the restored data or the shop archive.
     let shop_before = std::fs::read(device_b.0.join("shop.json")).unwrap();
