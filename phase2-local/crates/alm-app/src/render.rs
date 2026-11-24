@@ -116,9 +116,11 @@ impl Trial {
                                 crate::legacy_import::Stage::DryRun(r) => {
                                     views::LegacyStage::DryRun(r)
                                 }
-                                crate::legacy_import::Stage::Imported { manifest, report } => {
-                                    views::LegacyStage::Imported(manifest, report)
-                                }
+                                crate::legacy_import::Stage::Imported {
+                                    manifest,
+                                    report,
+                                    open,
+                                } => views::LegacyStage::Imported(manifest, report, open),
                             },
                         )
                     });

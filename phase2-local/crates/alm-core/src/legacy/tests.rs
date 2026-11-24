@@ -489,3 +489,120 @@ fn the_verifier_rebuilds_the_plan_from_the_stored_file_and_compares_the_manifest
     assert_eq!(findings.len(), 1);
     assert!(findings[0].problem.contains("SHA-256"));
 }
+
+#[test]
+fn the_owner_decides_each_quarantined_record_and_the_report_separates_them() {
+    use super::import::{LegacyImports, apply, plan_file};
+    use super::resolve::{Decision, QuarantineDecision, ResolveError, map_corrected, resolve};
+    let (backup, plan) = plan_file(A).unwrap();
+    let mut imports = LegacyImports::default();
+    let id = apply(&mut imports, &plan);
+    let manifest = imports.manifests[0].clone();
+    let at = |legacy: &str| {
+        let n = manifest
+            .entries
+            .iter()
+            .position(|e| e.legacy_id == legacy)
+            .unwrap();
+        (n as u64, &manifest.entries[n])
+    };
+    let raw: Value = serde_json::from_slice(A).unwrap();
+    let decision = |legacy: &str, decision, body: Option<Value>, reason: &str| {
+        let (entry, e) = at(legacy);
+        QuarantineDecision {
+            manifest: id,
+            entry,
+            kind: e.kind.clone(),
+            legacy_id: legacy.into(),
+            decision,
+            body,
+            reason: reason.into(),
+        }
+    };
+    // pay_4 (₹10.005) corrected to ₹10.01 from its place in the stored file.
+    let (_, pay_4) = at("pay_4");
+    let mut corrected = raw.pointer(&pay_4.source).unwrap().clone();
+    corrected["amount"] = json!(10.01);
+    let body = map_corrected("payment", &corrected).unwrap();
+    assert!(map_corrected("payment", raw.pointer(&pay_4.source).unwrap()).is_err());
+    let before = imports.clone();
+    for (bad, error) in [
+        (
+            decision("pay_4", Decision::ImportCorrected, Some(body.clone()), " "),
+            ResolveError::NoReason,
+        ),
+        (
+            decision("pay_4", Decision::KeepExcluded, Some(body.clone()), "x"),
+            ResolveError::Body,
+        ),
+        (
+            decision("pay_4", Decision::ImportCorrected, None, "x"),
+            ResolveError::Body,
+        ),
+        (
+            QuarantineDecision {
+                legacy_id: "pay_1".into(),
+                ..decision("pay_4", Decision::KeepExcluded, None, "x")
+            },
+            ResolveError::NotQuarantined,
+        ),
+    ] {
+        assert_eq!(resolve(&mut imports, &bad), Err(error));
+        assert_eq!(imports, before, "no effect");
+    }
+    assert_eq!(
+        resolve(
+            &mut imports,
+            &decision(
+                "pay_4",
+                Decision::ImportCorrected,
+                Some(body),
+                "paise rounded by the shop"
+            )
+        ),
+        Ok(Some("payment-4".into()))
+    );
+    assert_eq!(
+        resolve(
+            &mut imports,
+            &decision("pay_4", Decision::KeepExcluded, None, "again")
+        ),
+        Err(ResolveError::AlreadyResolved)
+    );
+    assert_eq!(
+        resolve(
+            &mut imports,
+            &decision("pay_9", Decision::KeepExcluded, None, "deleted in the shop")
+        ),
+        Ok(None)
+    );
+    // b_7 still refers to a customer no import placed.
+    let (_, b_7) = at("b_7");
+    let sale = map_corrected("sale", raw.pointer(&b_7.source).unwrap()).unwrap();
+    assert_eq!(
+        resolve(
+            &mut imports,
+            &decision("b_7", Decision::ImportCorrected, Some(sale), "x")
+        ),
+        Err(ResolveError::Unresolved("customer".into(), "c_gone".into()))
+    );
+    let report = super::reconcile(&backup, &imports, id, (1, 1)).unwrap();
+    let resolved: Vec<_> = report
+        .resolved
+        .iter()
+        .map(|(e, r)| (e.legacy_id.as_str(), r.decision))
+        .collect();
+    assert_eq!(
+        resolved,
+        [
+            ("pay_4", Decision::ImportCorrected),
+            ("pay_9", Decision::KeepExcluded)
+        ]
+    );
+    let open: Vec<_> = report
+        .quarantined
+        .iter()
+        .map(|e| e.legacy_id.as_str())
+        .collect();
+    assert_eq!(open, ["adj_2", "b_7"]);
+}

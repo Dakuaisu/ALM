@@ -157,6 +157,15 @@ fn canonical_text_round_trips_and_rejects_other_text() {
             }],
             source: "{\"products\": [1]}".into(),
         })),
+        Intent::ResolveLegacyQuarantine(Box::new(alm_core::legacy::resolve::QuarantineDecision {
+            manifest: 1,
+            entry: 3,
+            kind: "payment".into(),
+            legacy_id: "pay 4,%".into(),
+            decision: alm_core::legacy::resolve::Decision::ImportCorrected,
+            body: Some(serde_json::json!({"amount": 1001})),
+            reason: "rounded = ok".into(),
+        })),
         Intent::CancelGstBill { id: 2 },
         Intent::DeleteGstBill { id: 2 },
     ] {

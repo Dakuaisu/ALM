@@ -9,10 +9,19 @@ use crate::gst_print::{esc, indian_digits};
 
 pub enum LegacyStage<'a> {
     DryRun(&'a Reconciliation),
-    Imported(&'a ImportManifest, &'a Reconciliation),
+    /// The manifest, its report and its undecided quarantine (position, stored record).
+    Imported(
+        &'a ImportManifest,
+        &'a Reconciliation,
+        &'a [(usize, String)],
+    ),
 }
 
-fn report(html: &mut String, r: &Reconciliation) {
+fn report(
+    html: &mut String,
+    r: &Reconciliation,
+    open: Option<(&ImportManifest, &[(usize, String)])>,
+) {
     let _ = write!(
         html,
         r#"<div class="help">Source SHA-256 <code>{}</code> · mapping {} · {} to import · {} already imported · {} quarantined · {} differences explained by quarantine · <b>{} unexplained</b></div>"#,
@@ -47,19 +56,59 @@ fn report(html: &mut String, r: &Reconciliation) {
         }
         html.push_str("</tbody></table></div>");
     }
-    html.push_str(r#"<div class="sectit" style="margin-top:10px">Quarantine</div><div class="tbl-wrap" style="max-height:30vh"><table aria-label="Quarantine"><thead><tr><th>Kind</th><th>Legacy ID</th><th>Reason</th></tr></thead><tbody>"#);
+    html.push_str(r#"<div class="sectit" style="margin-top:10px">Quarantine — unresolved</div><div class="tbl-wrap" style="max-height:40vh"><table aria-label="Quarantine"><thead><tr><th>Kind</th><th>Legacy ID</th><th>Reason</th><th>Owner decision</th></tr></thead><tbody>"#);
     if r.quarantined.is_empty() {
         html.push_str(
-            r#"<tr><td colspan="3"><div class="empty">Nothing quarantined</div></td></tr>"#,
+            r#"<tr><td colspan="4"><div class="empty">Nothing unresolved</div></td></tr>"#,
         );
     }
-    for q in &r.quarantined {
+    match open {
+        None => {
+            for q in &r.quarantined {
+                let _ = write!(
+                    html,
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td class=\"muted\">after the import</td></tr>",
+                    esc(&q.kind),
+                    esc(&q.legacy_id),
+                    esc(&q.reason)
+                );
+            }
+        }
+        Some((manifest, open)) => {
+            for (entry, record) in open {
+                let Some(q) = manifest.entries.get(*entry) else {
+                    continue;
+                };
+                let _ = write!(
+                    html,
+                    r#"<tr><td>{}</td><td>{}</td><td>{}</td><td><form data-action="legacy_resolve" data-payload="terms"><input type="hidden" name="entry" value="{entry}"><select class="inp" name="decision" aria-label="Decision for {1}"><option value="exclude">Keep excluded</option><option value="import">Import as corrected</option></select><input class="inp" name="reason" required placeholder="Reason" aria-label="Reason for {1}"><textarea class="inp" name="record" rows="4" aria-label="Corrected record for {1}" style="font-family:monospace;font-size:11px">{}</textarea><button class="btn sm" type="submit">Record decision</button></form></td></tr>"#,
+                    esc(&q.kind),
+                    esc(&q.legacy_id),
+                    esc(&q.reason),
+                    esc(record)
+                );
+            }
+        }
+    }
+    html.push_str("</tbody></table></div>");
+    html.push_str(r#"<div class="sectit" style="margin-top:10px">Quarantine — resolved</div><div class="tbl-wrap" style="max-height:30vh"><table aria-label="Resolved quarantine"><thead><tr><th>Kind</th><th>Legacy ID</th><th>Decision</th><th>Reason</th><th>Staged record</th></tr></thead><tbody>"#);
+    if r.resolved.is_empty() {
+        html.push_str(
+            r#"<tr><td colspan="5"><div class="empty">No decision recorded</div></td></tr>"#,
+        );
+    }
+    for (q, decided) in &r.resolved {
         let _ = write!(
             html,
-            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             esc(&q.kind),
             esc(&q.legacy_id),
-            esc(&q.reason)
+            match decided.decision {
+                alm_core::legacy::resolve::Decision::ImportCorrected => "imported as corrected",
+                alm_core::legacy::resolve::Decision::KeepExcluded => "kept excluded",
+            },
+            esc(&decided.reason),
+            esc(decided.authority_id.as_deref().unwrap_or("—"))
         );
     }
     html.push_str("</tbody></table></div>");
@@ -89,10 +138,10 @@ pub fn legacy_card(files: &[(String, u64)], review: Option<(&str, LegacyStage<'_
                 r#"<div class="card" style="margin-top:10px;border-left:3px solid var(--warn)"><b>Dry run: {} (nothing imported)</b>"#,
                 esc(name)
             );
-            report(&mut html, r);
+            report(&mut html, r, None);
             html.push_str(r#"<div class="row" style="justify-content:flex-end;margin-top:10px;gap:8px"><button class="btn" type="button" data-action="legacy_close">Cancel</button><details style="display:inline-block"><summary class="btn primary">Import into the authority…</summary><button class="btn sm danger" type="button" data-action="legacy_import_confirm">Confirm import of this file</button></details></div></div>"#);
         }
-        Some((name, LegacyStage::Imported(manifest, r))) => {
+        Some((name, LegacyStage::Imported(manifest, r, open))) => {
             let _ = write!(
                 html,
                 r#"<div class="card" style="margin-top:10px;border-left:3px solid var(--good)"><b>Imported: {} — manifest {}</b><div class="help">{} imported · {} already imported · {} quarantined</div><div class="sectit" style="margin-top:10px">Manifest</div><div class="tbl-wrap" style="max-height:30vh"><table aria-label="Import manifest"><thead><tr><th>Kind</th><th>Legacy ID</th><th>Authority ID</th><th>Status</th></tr></thead><tbody>"#,
@@ -117,7 +166,7 @@ pub fn legacy_card(files: &[(String, u64)], review: Option<(&str, LegacyStage<'_
                 );
             }
             html.push_str("</tbody></table></div>");
-            report(&mut html, r);
+            report(&mut html, r, Some((manifest, open)));
             html.push_str(r#"<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" type="button" data-action="legacy_close">Close</button></div></div>"#);
         }
     }

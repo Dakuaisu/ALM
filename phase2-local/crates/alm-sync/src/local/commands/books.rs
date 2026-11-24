@@ -52,6 +52,10 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
             }
         }
         Intent::RecordRestore => Ok(Outcome::Done),
+        Intent::ResolveLegacyQuarantine(decision) => {
+            alm_core::legacy::resolve::resolve(&mut state.legacy, decision).map_err(rejected)?;
+            Ok(Outcome::Done)
+        }
         Intent::ImportLegacy(plan) => Ok(Outcome::Created(import_legacy(
             &mut state.legacy,
             &mut state.legacy_sources,

@@ -13,6 +13,7 @@ mod js;
 mod migrate;
 mod reconcile;
 mod records;
+pub mod resolve;
 pub mod verify;
 
 pub use controls::{ControlLine, ControlSection, controls};

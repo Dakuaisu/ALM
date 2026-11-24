@@ -90,6 +90,9 @@ pub enum Intent {
     /// Imports a legacy backup file as the core mapped it (`legacy::import::plan`): the
     /// authority places each record by its legacy ID and records a manifest and quarantine.
     ImportLegacy(Box<alm_core::legacy::import::ImportPlan>),
+    /// The Owner's decision on one quarantined legacy record (import as corrected, or keep it
+    /// excluded), with a reason. Never sent automatically.
+    ResolveLegacyQuarantine(Box<alm_core::legacy::resolve::QuarantineDecision>),
     SaveOpening {
         customer: String,
         amount: Option<Money>,

@@ -6,7 +6,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use alm_core::legacy::import::{ImportManifest, ImportPlan, plan_file};
+use alm_core::legacy::import::{EntryStatus, ImportManifest, ImportPlan, plan_file};
+use alm_core::legacy::resolve::{Decision, QuarantineDecision, map_corrected_text, source_record};
 use alm_core::legacy::{
     LegacyBackup, LegacyError, Reconciliation, dry_run, live_numbers, reconcile,
 };
@@ -20,6 +21,9 @@ pub(crate) enum Stage {
     Imported {
         manifest: ImportManifest,
         report: Reconciliation,
+        /// Quarantined entries without a decision: position, and the record as the stored file
+        /// holds it (for the Owner to correct).
+        open: Vec<(usize, String)>,
     },
 }
 
@@ -114,6 +118,25 @@ impl Trial {
                 return Err(error);
             }
         };
+        let stage = self.imported_stage(&review, id)?;
+        if let Stage::Imported {
+            manifest, report, ..
+        } = &stage
+        {
+            self.message = format!(
+                "Imported {} {}: manifest {id}, {} records, {} quarantined.",
+                review.name,
+                self.authority_name(),
+                manifest.entries.len() - report.quarantined.len(),
+                report.quarantined.len()
+            );
+        }
+        self.legacy = Some(Review { stage, ..review });
+        Ok(())
+    }
+
+    /// The manifest, its reconciliation and its undecided quarantine, from the authority's rows.
+    fn imported_stage(&mut self, review: &Review, id: u64) -> Result<Stage, String> {
         let book = self.owner_book()?;
         let manifest = book
             .legacy
@@ -124,18 +147,91 @@ impl Trial {
             .ok_or("The authority holds no such manifest.")?;
         let report = reconcile(&review.backup, &book.legacy, id, live_numbers(&book))
             .ok_or("The authority holds no such manifest.")?;
-        self.message = format!(
-            "Imported {} {}: manifest {id}, {} records, {} quarantined.",
-            review.name,
-            self.authority_name(),
-            manifest.entries.len() - report.quarantined.len(),
-            report.quarantined.len()
-        );
-        self.legacy = Some(Review {
-            stage: Stage::Imported { manifest, report },
-            ..review
+        let open = manifest
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(n, e)| {
+                e.status == EntryStatus::Quarantined
+                    && !book
+                        .legacy
+                        .resolutions
+                        .iter()
+                        .any(|r| r.manifest == id && usize::try_from(r.entry) == Ok(*n))
+            })
+            .map(|(n, e)| {
+                (
+                    n,
+                    source_record(&review.plan.source, &e.source).unwrap_or_default(),
+                )
+            })
+            .collect();
+        Ok(Stage::Imported {
+            manifest,
+            report,
+            open,
+        })
+    }
+
+    /// The Owner's decision on one quarantined entry of the imported file: keep it excluded,
+    /// or import the corrected record (mapped by the core), with a reason. Never automatic.
+    pub(crate) fn legacy_resolve(&mut self, terms: &ResolveTerms) -> Result<(), String> {
+        self.require_owner()?;
+        let review = self.legacy.take().ok_or("Import a legacy file first.")?;
+        let result = self.resolve_in(&review, terms);
+        let stage = match &result {
+            Ok(id) => self.imported_stage(&review, *id),
+            Err(_) => Err(String::new()),
+        };
+        self.legacy = Some(match stage {
+            Ok(stage) => Review { stage, ..review },
+            Err(_) => review,
         });
-        Ok(())
+        result.map(|_| ())
+    }
+
+    fn resolve_in(&mut self, review: &Review, terms: &ResolveTerms) -> Result<u64, String> {
+        let Stage::Imported { manifest, .. } = &review.stage else {
+            return Err("Import the file before deciding its quarantine.".into());
+        };
+        let entry: usize = terms.entry.trim().parse().map_err(|_| "Unknown entry.")?;
+        let quarantined = manifest
+            .entries
+            .get(entry)
+            .filter(|e| e.status == EntryStatus::Quarantined)
+            .ok_or("Not a quarantined entry.")?;
+        let (decision, body) = match terms.decision.as_str() {
+            "exclude" => (Decision::KeepExcluded, None),
+            "import" => (
+                Decision::ImportCorrected,
+                Some(map_corrected_text(&quarantined.kind, &terms.record)?),
+            ),
+            _ => return Err("Choose a decision.".into()),
+        };
+        if terms.reason.trim().is_empty() {
+            return Err("Give a reason for the decision.".into());
+        }
+        self.send(&Intent::ResolveLegacyQuarantine(Box::new(
+            QuarantineDecision {
+                manifest: manifest.id,
+                entry: entry as u64,
+                kind: quarantined.kind.clone(),
+                legacy_id: quarantined.legacy_id.clone(),
+                decision,
+                body,
+                reason: terms.reason.trim().to_owned(),
+            },
+        )))?;
+        self.message = format!(
+            "Recorded: {} {} {}.",
+            quarantined.kind,
+            quarantined.legacy_id,
+            match decision {
+                Decision::KeepExcluded => "kept excluded",
+                Decision::ImportCorrected => "imported as corrected",
+            }
+        );
+        Ok(manifest.id)
     }
 
     pub(crate) fn legacy_close(&mut self) {
@@ -151,6 +247,21 @@ pub fn legacy_dry_run(state: State<'_, AppState>, q: String) -> Result<String, S
 #[tauri::command(async)]
 pub fn legacy_import_confirm(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "settings", Trial::legacy_import_confirm)
+}
+
+#[derive(serde::Deserialize)]
+pub struct ResolveTerms {
+    pub(crate) entry: String,
+    pub(crate) decision: String,
+    #[serde(default)]
+    pub(crate) reason: String,
+    #[serde(default)]
+    pub(crate) record: String,
+}
+
+#[tauri::command(async)]
+pub fn legacy_resolve(state: State<'_, AppState>, terms: ResolveTerms) -> Result<String, String> {
+    with(&state, "settings", |trial| trial.legacy_resolve(&terms))
 }
 
 #[tauri::command(async)]

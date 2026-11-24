@@ -119,6 +119,10 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
         Intent::SetReorderDefault { level } => format!("reorderdefault level={level}"),
         Intent::RecordRestore => "restorelog".into(),
         Intent::ImportLegacy(plan) => format!("legacyimport plan={}", escape(&plan.to_json())),
+        Intent::ResolveLegacyQuarantine(d) => format!(
+            "legacyresolve decision={}",
+            escape(&serde_json::to_string(d.as_ref()).unwrap_or_default())
+        ),
         Intent::SellCrate(c) => format!(
             "cratesale draft={} template={} qty={} customer={} name={} date={} paid={} rate={} items={}",
             c.draft,

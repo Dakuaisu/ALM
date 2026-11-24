@@ -89,6 +89,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         | Intent::SetReorderDefault { .. }
         | Intent::RecordRestore
         | Intent::ImportLegacy(_)
+        | Intent::ResolveLegacyQuarantine(_)
         | Intent::SaveOpening { .. }
         | Intent::SaveGodown { .. }
         | Intent::CountStock { .. }

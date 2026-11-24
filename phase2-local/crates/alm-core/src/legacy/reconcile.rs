@@ -36,7 +36,10 @@ pub struct Reconciliation {
     pub manifest: u64,
     pub imported: usize,
     pub already: usize,
+    /// Quarantined entries without an Owner decision.
     pub quarantined: Vec<ManifestEntry>,
+    /// Quarantined entries the Owner decided, with the decision.
+    pub resolved: Vec<(ManifestEntry, super::resolve::Resolution)>,
     pub sections: Vec<ReconciledSection>,
 }
 
@@ -155,17 +158,33 @@ pub fn reconcile(
         name: "Numbering (shown, not issued)",
         lines: numbering,
     });
+    let quarantined: Vec<_> = manifest
+        .entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.status == EntryStatus::Quarantined)
+        .map(|(n, e)| {
+            let decided = imports
+                .resolutions
+                .iter()
+                .find(|r| r.manifest == id && usize::try_from(r.entry) == Ok(n));
+            (e, decided)
+        })
+        .collect();
     Some(Reconciliation {
         digest: manifest.digest.clone(),
         version: manifest.version.clone(),
         manifest: id,
         imported: manifest.count(EntryStatus::Imported),
         already: manifest.count(EntryStatus::Already),
-        quarantined: manifest
-            .entries
+        quarantined: quarantined
             .iter()
-            .filter(|e| e.status == EntryStatus::Quarantined)
-            .cloned()
+            .filter(|(_, r)| r.is_none())
+            .map(|(e, _)| (*e).clone())
+            .collect(),
+        resolved: quarantined
+            .into_iter()
+            .filter_map(|(e, r)| Some((e.clone(), r?.clone())))
             .collect(),
         sections,
     })
@@ -192,6 +211,7 @@ pub fn dry_run(backup: &LegacyBackup, imports: &LegacyImports, live: (u64, u64))
         imported: 0,
         already: 0,
         quarantined: Vec::new(),
+        resolved: Vec::new(),
         sections: Vec::new(),
     })
 }

@@ -799,6 +799,83 @@ pub fn import_legacy_source<A: SalesAuthority>(a: &mut A) {
     }
 }
 
+/// The Owner's decision on a quarantined legacy record: kept excluded or imported as
+/// corrected, with a reason, once; the book lists the decisions.
+pub fn resolve_legacy_quarantine<A: SalesAuthority>(a: &mut A) {
+    use alm_core::legacy::resolve::{Decision, QuarantineDecision, map_corrected};
+    let (_, plan) = alm_core::legacy::import::plan_file(LEGACY_A).unwrap();
+    setup(
+        a,
+        "legacyres",
+        "import",
+        &Intent::ImportLegacy(Box::new(plan)),
+    );
+    let manifest = legacy(&state(a).1).manifests.remove(0);
+    let decide = |legacy: &str, decision, body, reason: &str| {
+        let entry = manifest
+            .entries
+            .iter()
+            .position(|e| e.legacy_id == legacy)
+            .unwrap();
+        Intent::ResolveLegacyQuarantine(Box::new(QuarantineDecision {
+            manifest: manifest.id,
+            entry: entry as u64,
+            kind: manifest.entries[entry].kind.clone(),
+            legacy_id: legacy.into(),
+            decision,
+            body,
+            reason: reason.into(),
+        }))
+    };
+    exercise(
+        a,
+        "legacyres",
+        &decide("pay_9", Decision::KeepExcluded, None, "deleted in the shop"),
+        &decide("pay_9", Decision::KeepExcluded, None, "another reason"),
+        None,
+        Some(&decide(
+            "pay_1",
+            Decision::KeepExcluded,
+            None,
+            "not quarantined",
+        )),
+        |s| !legacy(s).resolutions.is_empty(),
+    );
+    let raw: serde_json::Value = serde_json::from_slice(LEGACY_A).unwrap();
+    let source = &manifest
+        .entries
+        .iter()
+        .find(|e| e.legacy_id == "pay_4")
+        .unwrap()
+        .source;
+    let mut corrected = raw.pointer(source).unwrap().clone();
+    corrected["amount"] = serde_json::json!(10.01);
+    let body = map_corrected("payment", &corrected).unwrap();
+    setup(
+        a,
+        "legacyres",
+        "corrected",
+        &decide("pay_4", Decision::ImportCorrected, Some(body), "rounded"),
+    );
+    let after = legacy(&state(a).1);
+    assert_eq!(after.resolutions.len(), 2);
+    let staged = after.resolutions[1].authority_id.clone().unwrap();
+    assert!(
+        after
+            .records
+            .iter()
+            .any(|r| r.authority_id == staged && r.legacy_id == "pay_4")
+    );
+    assert!(
+        a.submit(
+            Role::Owner,
+            &req("legacyres", "twice"),
+            &decide("pay_4", Decision::KeepExcluded, None, "again")
+        )
+        .is_err()
+    );
+}
+
 /// A restored backup is logged by the authority as the HTML's `restore` entry.
 pub fn record_restore<A: SalesAuthority>(a: &mut A) {
     exercise(
@@ -1322,7 +1399,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

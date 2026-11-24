@@ -165,6 +165,10 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
             "import_legacy",
             serde_json::to_value(plan.as_ref()).unwrap_or(Value::Null),
         ),
+        Intent::ResolveLegacyQuarantine(decision) => (
+            "resolve_legacy_quarantine",
+            serde_json::to_value(decision.as_ref()).unwrap_or(Value::Null),
+        ),
         Intent::SaveOpening {
             customer,
             amount,

@@ -888,5 +888,83 @@ fn legacy_import() {
         let from_sql = reconcile(backup, &sql.legacy, id, live_numbers(&sql)).unwrap();
         assert_eq!(from_core, from_sql, "manifest {id}");
     }
+    // Quarantine decisions: refusals first, then one kept excluded and one corrected import.
+    {
+        use alm_core::legacy::resolve::{Decision, QuarantineDecision, map_corrected};
+        let book = p.core().owner.unwrap().book.legacy;
+        let manifest = book.manifests.iter().find(|m| m.id == 1).unwrap().clone();
+        let decide = |legacy: &str, decision, body, reason: &str| {
+            let entry = manifest
+                .entries
+                .iter()
+                .position(|e| e.legacy_id == legacy)
+                .unwrap();
+            Intent::ResolveLegacyQuarantine(Box::new(QuarantineDecision {
+                manifest: 1,
+                entry: entry as u64,
+                kind: manifest.entries[entry].kind.clone(),
+                legacy_id: legacy.into(),
+                decision,
+                body,
+                reason: reason.into(),
+            }))
+        };
+        let raw: serde_json::Value = serde_json::from_slice(conformance::LEGACY_A).unwrap();
+        let mut pay_4 = raw["payments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == "pay_4")
+            .unwrap()
+            .clone();
+        pay_4["amount"] = serde_json::json!(10.01);
+        let corrected = map_corrected("payment", &pay_4).unwrap();
+        let b_7 = raw["sales"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == "b_7")
+            .unwrap();
+        let sale = map_corrected("sale", b_7).unwrap();
+        p.owner(
+            "resolve no reason",
+            &decide("pay_9", Decision::KeepExcluded, None, " "),
+        );
+        p.owner(
+            "resolve not quarantined",
+            &decide("pay_1", Decision::KeepExcluded, None, "x"),
+        );
+        p.owner(
+            "resolve body with exclude",
+            &decide(
+                "pay_9",
+                Decision::KeepExcluded,
+                Some(corrected.clone()),
+                "x",
+            ),
+        );
+        p.owner(
+            "resolve unresolved reference",
+            &decide("b_7", Decision::ImportCorrected, Some(sale), "x"),
+        );
+        p.owner(
+            "resolve exclude",
+            &decide("pay_9", Decision::KeepExcluded, None, "deleted in the shop"),
+        );
+        p.owner(
+            "resolve twice",
+            &decide("pay_9", Decision::KeepExcluded, None, "again"),
+        );
+        p.owner(
+            "resolve corrected",
+            &decide(
+                "pay_4",
+                Decision::ImportCorrected,
+                Some(corrected),
+                "rounded to paise",
+            ),
+        );
+        assert_eq!(p.core().owner.unwrap().book.legacy.resolutions.len(), 2);
+    }
     p.finish();
 }

@@ -16,7 +16,7 @@ use super::js::{num, string, truthy};
 pub const MAPPING_VERSION: &str = "legacy-map-1";
 
 #[derive(Clone, Copy)]
-enum F {
+pub(super) enum F {
     Text,
     OptText,
     Money,
@@ -72,10 +72,10 @@ const GST_LINE: &[(&str, F)] = &[
     ("amount", F::Money),
 ];
 
-type Fields = &'static [(&'static str, F)];
+pub(super) type Fields = &'static [(&'static str, F)];
 
 /// `(kind, collection, fields)` in import order: referenced kinds first.
-const KINDS: &[(&str, &str, Fields)] = &[
+pub(super) const KINDS: &[(&str, &str, Fields)] = &[
     (
         "meta",
         "meta",
@@ -263,7 +263,7 @@ fn whole(x: f64) -> bool {
     x.is_finite() && x.fract() == 0.0 && x.abs() < 9.0e15
 }
 
-fn encode(record: &Value, fields: &[(&str, F)], issues: &mut Vec<String>) -> Value {
+pub(super) fn encode(record: &Value, fields: &[(&str, F)], issues: &mut Vec<String>) -> Value {
     let mut out = Map::new();
     for &(name, f) in fields {
         let raw = record.get(name).filter(|v| !v.is_null());
@@ -330,7 +330,7 @@ fn decode(body: &Value, fields: &[(&str, F)]) -> Value {
     Value::Object(out)
 }
 
-fn refs_of(kind: &str, body: &Value) -> Vec<(String, String)> {
+pub(super) fn refs_of(kind: &str, body: &Value) -> Vec<(String, String)> {
     let mut refs: Vec<(String, String)> = Vec::new();
     let mut add = |k: &str, id: &str| {
         let pair = (k.to_owned(), id.to_owned());
@@ -361,6 +361,15 @@ fn refs_of(kind: &str, body: &Value) -> Vec<(String, String)> {
         for c in line["components"].as_array().into_iter().flatten() {
             add("product", &text(&c["pid"]));
         }
+    }
+    refs
+}
+
+/// The records a mapped record refers to; a stock entry also refers to its product.
+pub(super) fn record_refs(kind: &str, legacy_id: &str, body: &Value) -> Vec<(String, String)> {
+    let mut refs = refs_of(kind, body);
+    if kind == "stock" && !legacy_id.starts_with("n:") {
+        refs.insert(0, ("product".into(), legacy_id.to_owned()));
     }
     refs
 }
@@ -607,11 +616,7 @@ pub fn plan(backup: &LegacyBackup) -> ImportPlan {
                 quarantine.push(quarantine_as(issues.join("; ")));
                 continue;
             }
-            let refs = refs_of(kind, &body);
-            let mut refs = refs;
-            if kind == "stock" && !legacy_id.starts_with("n:") {
-                refs.insert(0, ("product".into(), legacy_id.clone()));
-            }
+            let refs = record_refs(kind, &legacy_id, &body);
             records.push(PlannedRecord {
                 kind: kind.into(),
                 legacy_id,
@@ -681,6 +686,9 @@ pub struct ImportedRecord {
 pub struct LegacyImports {
     pub manifests: Vec<ImportManifest>,
     pub records: Vec<ImportedRecord>,
+    /// The Owner's decision on each quarantined entry that has one (never automatic).
+    #[serde(default)]
+    pub resolutions: Vec<super::resolve::Resolution>,
 }
 
 /// The authority's import rule. Returns the manifest's ID (an existing one when the same file

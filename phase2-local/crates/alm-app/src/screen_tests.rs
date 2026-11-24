@@ -1525,6 +1525,72 @@ fn an_owner_imports_a_legacy_backup_only_after_a_dry_run_and_a_confirmation() {
         "a confirmation sends once"
     );
 
+    // Quarantine decisions (Owner only, never automatic): pay_9 kept excluded, pay_4 imported
+    // as corrected from its record in the stored file.
+    let entry = |legacy: &str| {
+        imported.manifests[0]
+            .entries
+            .iter()
+            .position(|e| e.legacy_id == legacy)
+            .unwrap()
+            .to_string()
+    };
+    assert!(html.contains(r#"data-action="legacy_resolve""#), "{html}");
+    assert!(
+        html.contains("typed with three decimals"),
+        "the stored record is shown: {html}"
+    );
+    let terms = |entry: String, decision: &str, reason: &str, record: &str| {
+        crate::legacy_import::ResolveTerms {
+            entry,
+            decision: decision.into(),
+            reason: reason.into(),
+            record: record.into(),
+        }
+    };
+    assert!(
+        trial
+            .legacy_resolve(&terms(entry("pay_9"), "exclude", " ", ""))
+            .is_err()
+    );
+    trial
+        .legacy_resolve(&terms(entry("pay_9"), "exclude", "deleted in the shop", ""))
+        .unwrap();
+    let record = r#"{"id": "pay_4", "customerId": "c_cust", "amount": 10.005, "mode": "Online", "date": "2026-01-07"}"#;
+    assert!(
+        trial
+            .legacy_resolve(&terms(entry("pay_4"), "import", "rounded", record))
+            .unwrap_err()
+            .contains("paisa"),
+        "still below a paisa"
+    );
+    trial
+        .legacy_resolve(&terms(
+            entry("pay_4"),
+            "import",
+            "rounded to paise",
+            &record.replace("10.005", "10.01"),
+        ))
+        .unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(
+        html.contains(
+            "<td>payment</td><td>pay_4</td><td>imported as corrected</td><td>rounded to paise</td>"
+        ),
+        "{html}"
+    );
+    assert!(html.contains("<td>payment</td><td>pay_9</td><td>kept excluded</td>"));
+    let decided = book(&mut trial).legacy;
+    assert_eq!(decided.resolutions.len(), 2);
+    trial.set_owner(false).unwrap();
+    assert!(
+        trial
+            .legacy_resolve(&terms(entry("adj_2"), "exclude", "x", ""))
+            .is_err()
+    );
+    trial.set_owner(true).unwrap();
+    let imported = decided;
+
     // The same file again: dry run shows everything already imported; importing changes
     // nothing. After a restart the rows are still there.
     trial.legacy_dry_run("ALM_backup_2026-01-08.json").unwrap();

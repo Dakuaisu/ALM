@@ -204,6 +204,7 @@ pub fn run() {
             legacy_import::legacy_dry_run,
             legacy_import::legacy_import_confirm,
             legacy_import::legacy_close,
+            legacy_import::legacy_resolve,
             commands::rate_brand,
             commands::rate_group,
             commands::rate_search,

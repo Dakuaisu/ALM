@@ -515,8 +515,9 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         "{}",
         trial.message
     );
-    let crate::legacy_import::Stage::Imported { manifest, report } =
-        &trial.legacy.as_ref().unwrap().stage
+    let crate::legacy_import::Stage::Imported {
+        manifest, report, ..
+    } = &trial.legacy.as_ref().unwrap().stage
     else {
         panic!("imported")
     };

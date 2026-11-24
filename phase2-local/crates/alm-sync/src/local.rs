@@ -175,9 +175,16 @@ impl LocalAuthority {
                 ["G", ..] => continue,
                 _ => return Err(corrupt()),
             };
-            if let Intent::ImportLegacy(plan) = &intent {
-                commands::import_legacy(&mut store.imports, &mut store.sources, plan)
-                    .map_err(|_| corrupt())?;
+            match &intent {
+                Intent::ImportLegacy(plan) => {
+                    commands::import_legacy(&mut store.imports, &mut store.sources, plan)
+                        .map_err(|_| corrupt())?;
+                }
+                Intent::ResolveLegacyQuarantine(decision) => {
+                    alm_core::legacy::resolve::resolve(&mut store.imports, decision)
+                        .map_err(|_| corrupt())?;
+                }
+                _ => {}
             }
         }
         Ok(store)
