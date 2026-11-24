@@ -221,3 +221,34 @@ fn the_manager_pull_holds_only_the_catalog() {
     assert_eq!(manager.catalog.len(), 2);
     let _ = Intent::CancelSale { draft: 1 };
 }
+
+/// The simulation's pull carries the `pull_projection` rows: the same sections, and only the
+/// catalog for a Manager; its read state travels only as the Owner's `dev_state`.
+#[test]
+fn pull_uses_the_hosted_row_format() {
+    let authority = LocalAuthority::new(fixture().unwrap(), directory());
+    let keys = |role: Role| {
+        let batch = authority.pull(role, None).unwrap();
+        let wire = alm_sync::wire::encode_batch(&batch);
+        assert_eq!(alm_sync::wire::decode_batch(&wire, role), Ok(batch));
+        let mut keys: Vec<String> = wire["rows"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter(|(_, v)| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()))
+            .map(|(k, _)| k.clone())
+            .collect();
+        keys.sort();
+        (keys, wire)
+    };
+    let (manager, wire) = keys(Role::Manager);
+    assert_eq!(manager, ["catalog"]);
+    assert!(!wire.to_string().contains("dev_state"));
+    let (owner, wire) = keys(Role::Owner);
+    assert_eq!(
+        owner,
+        ["catalog", "customers", "owner", "products", "stock"]
+    );
+    let owner_keys: Vec<&String> = wire["rows"]["owner"].as_object().unwrap().keys().collect();
+    assert!(owner_keys.iter().any(|k| *k == "dev_state"));
+}

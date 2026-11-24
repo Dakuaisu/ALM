@@ -3,7 +3,7 @@ use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
 use super::{LocalAuthority, rejected};
-use crate::{AuthorityError, Intent, Outcome, RequestId, SalesAuthority};
+use crate::{AuthorityError, Intent, Outcome, RequestId, SalesAuthority, wire};
 
 impl SalesAuthority for LocalAuthority {
     fn submit(
@@ -80,11 +80,14 @@ impl SalesAuthority for LocalAuthority {
                     .map_err(rejected)?,
             )
         };
-        Ok(ProjectionBatch {
+        // The same per-screen rows `pull_projection` sends, read back through the one decoder
+        // every transport uses; the simulation's read state travels only as its `dev_state`.
+        let batch = ProjectionBatch {
             role,
             checkpoint: self.checkpoint,
             as_of_ms: (self.clock)(),
             snapshot,
-        })
+        };
+        wire::decode_batch(&wire::encode_batch(&batch), role)
     }
 }
