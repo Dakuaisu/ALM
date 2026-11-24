@@ -26,9 +26,12 @@ class MainActivity : TauriActivity() {
       val safeArea = insets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
       )
-      view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
-      // Pass the remaining insets (including IME) in the WebView's smaller viewport.
-      insets.inset(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+      // The WebView does not shrink for the on-screen keyboard by itself: pad by the IME
+      // height too, so the page's visible viewport ends at the keyboard's top edge.
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+      val bottom = maxOf(safeArea.bottom, ime.bottom)
+      view.setPadding(safeArea.left, safeArea.top, safeArea.right, bottom)
+      insets.inset(safeArea.left, safeArea.top, safeArea.right, bottom)
     }
     ViewCompat.requestApplyInsets(content)
   }

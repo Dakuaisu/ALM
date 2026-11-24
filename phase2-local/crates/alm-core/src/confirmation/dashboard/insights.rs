@@ -397,7 +397,8 @@ fn donut(mix: [i64; 3]) -> Option<Donut> {
     if total <= 0 {
         return None;
     }
-    let (width, height) = (560_u32, 230_u32);
+    // Ring plus legend, so the chart is not shrunk into a wide, mostly empty canvas.
+    let (width, height) = (360_u32, 230_u32);
     let h = f64::from(height);
     let center = ChartPoint {
         x: h / 2.0 + 6.0,

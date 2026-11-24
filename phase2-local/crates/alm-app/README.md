@@ -22,8 +22,8 @@ command's text to the clipboard. Tests: `node --test tests/*.test.cjs`.
 
 - **Android safe area.** The system-bar and display-cutout padding is applied natively in
   `gen/android/app/src/main/java/in/alm/trial/MainActivity.kt` (a
-  `setOnApplyWindowInsetsListener` on the content view that pads it and passes the remaining
-  insets, including the IME, to the WebView). `tauri android init` regenerates `gen/android`
+  `setOnApplyWindowInsetsListener` on the content view that pads it by the system bars, cutout
+  and on-screen keyboard (IME), so the WebView ends at the keyboard and search lists stay visible). `tauri android init` regenerates `gen/android`
   and overwrites this file: reapply the listener after any regeneration and re-check that the
   header clears the status bar and the footer clears the navigation bar.
 - **Android printing and sharing** go through the same `MainActivity.kt` (`AlmAndroid.print`

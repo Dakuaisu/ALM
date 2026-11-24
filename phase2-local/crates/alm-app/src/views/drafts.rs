@@ -80,7 +80,7 @@ pub fn posting_review(
     saved: Option<&ProvisionalDraft>,
 ) -> String {
     let mut html = String::from(
-        r#"<div class="card"><h3>Local Owner simulation</h3><p class="help">Development only. Owner prices can differ from the provisional draft. Sales are not saved across restarts.</p>"#,
+        r#"<div class="card"><h3>Local Owner simulation</h3><p class="help">Development only. Owner prices can differ from the provisional draft. Confirming sends the sale through this device's outbox to the authority simulation; posted sales are kept by that simulation and shown from this device's projection.</p>"#,
     );
     let Some(saved) = saved else {
         return html + "<p>Save or reopen the Manager draft first.</p></div>";
