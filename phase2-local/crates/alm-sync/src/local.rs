@@ -134,7 +134,8 @@ impl LocalAuthority {
 
     /// Unjournaled access for actions not yet routed through the trait; such changes are not
     /// replayed after a restart.
-    pub const fn fixture_mut(&mut self) -> &mut ConfirmationFixture {
+    pub fn fixture_mut(&mut self) -> &mut ConfirmationFixture {
+        self.checkpoint += 1;
         &mut self.state.fixture
     }
 
@@ -376,5 +377,23 @@ impl SalesAuthority for LocalAuthority {
             as_of_ms: (self.clock)(),
             snapshot,
         })
+    }
+}
+
+/// Reads (and, for actions not yet routed through [`SalesAuthority`], unjournaled writes) go to
+/// the simulation's fixture.
+impl std::ops::Deref for LocalAuthority {
+    type Target = ConfirmationFixture;
+
+    fn deref(&self) -> &ConfirmationFixture {
+        &self.state.fixture
+    }
+}
+
+/// Any unjournaled write counts as a new authority revision, so devices pull it.
+impl std::ops::DerefMut for LocalAuthority {
+    fn deref_mut(&mut self) -> &mut ConfirmationFixture {
+        self.checkpoint += 1;
+        &mut self.state.fixture
     }
 }

@@ -88,7 +88,7 @@ fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
     let root = Root::new("batch2");
     let mut trial = Trial::open(&root.0, Some(may(1))).unwrap();
-    trial.authority = zero_opening();
+    *trial.authority = zero_opening();
     let empty = (0, vec![], Some(0));
 
     // Quote change: Wholesale drops Soda to ₹35, overtaking Depot's ₹36; no stock moves.

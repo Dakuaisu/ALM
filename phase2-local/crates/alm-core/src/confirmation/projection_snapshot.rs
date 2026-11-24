@@ -33,11 +33,18 @@ impl ConfirmationFixture {
         }
         // The sales list's own period filter needs a date; `All` ignores it.
         let any_day = BillDate::new(2000, 1, 1).map_err(|_| ConfirmationError::InvalidDraft)?;
-        let history = self.sales_history(role, any_day, SalesPeriod::All, "")?;
+        let (history, sales_unsupported) =
+            match self.sales_history(role, any_day, SalesPeriod::All, "") {
+                Ok(history) => (history.rows, None),
+                Err(ConfirmationError::UnsupportedSalesRecord(id)) => {
+                    (Vec::new(), Some(id.value()))
+                }
+                Err(error) => return Err(error),
+            };
         let zero = Money::from_minor_units(0);
         let mut sales = Vec::new();
         let mut sale_costs = Vec::new();
-        for row in &history.rows {
+        for row in &history {
             let id = row.bill.draft_id;
             let (review, _, _) = self
                 .current_sales
@@ -124,6 +131,7 @@ impl ConfirmationFixture {
             })
             .collect();
         Ok(ProjectionSnapshot {
+            sales_unsupported,
             sales,
             receipts,
             customers,

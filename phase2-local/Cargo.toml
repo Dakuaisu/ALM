@@ -12,6 +12,7 @@ resolver = "3"
 ab_glyph = "=0.2.32"
 alm-core = { path = "crates/alm-core" }
 alm-store = { path = "crates/alm-store" }
+alm-sync = { path = "crates/alm-sync" }
 postgres = { version = "=0.19.14", features = ["with-serde_json-1"] }
 rusqlite = { version = "=0.43.0", features = ["bundled"] }
 serde = { version = "=1.0.229", features = ["derive"] }

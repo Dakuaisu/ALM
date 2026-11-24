@@ -88,6 +88,9 @@ pub struct OwnerValues {
 /// Everything one account may see, as of one authority checkpoint.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ProjectionSnapshot {
+    /// A posted bill the sales list cannot represent yet (crate or checkout bills); the
+    /// Sales screen reports it instead of listing a partial history.
+    pub sales_unsupported: Option<u64>,
     pub sales: Vec<ProjectedSale>,
     pub receipts: Vec<ProjectedReceipt>,
     pub customers: Vec<ProjectedCustomer>,
@@ -150,13 +153,22 @@ impl ProjectionSnapshot {
     /// Filters the projected sales by period and customer/item search and totals them.
     ///
     /// # Errors
-    /// Rejects an invalid month start and total overflow.
+    /// Denies Managers (OPEN-004); rejects total overflow.
     pub fn sales_view(
         &self,
+        role: Role,
         today: BillDate,
         period: SalesPeriod,
         search: &str,
     ) -> Result<SalesView<'_>, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        if let Some(id) = self.sales_unsupported {
+            return Err(ConfirmationError::UnsupportedSalesRecord(
+                crate::DraftId::new(id),
+            ));
+        }
         let bounds = match period {
             SalesPeriod::Today => (Some(today), Some(today)),
             SalesPeriod::ThisMonth => (Some(today.first_of_month()), None),
@@ -238,11 +250,15 @@ impl ProjectionSnapshot {
     /// The Customers screen over projected balances (`customer_book` semantics).
     ///
     /// # Errors
-    /// Rejects total overflow.
+    /// Denies Managers (OPEN-004); rejects total overflow.
     pub fn customer_view(
         &self,
+        role: Role,
         filter: &CustomerFilter,
     ) -> Result<CustomerView<'_>, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
         let needle = match filter {
             CustomerFilter::Name(text) => text.trim().to_lowercase(),
             CustomerFilter::All | CustomerFilter::Due => String::new(),
@@ -278,9 +294,20 @@ impl ProjectionSnapshot {
         Ok(view)
     }
 
-    /// The Stock screen over projected quantities (`stock_list` semantics); the value is
-    /// the owner value, absent for a Manager.
-    pub fn stock_view(&self, query: &str, low_only: bool) -> StockView<'_> {
+    /// The Stock screen over projected quantities (`stock_list` semantics) with the owner
+    /// FIFO value.
+    ///
+    /// # Errors
+    /// Denies Managers (OPEN-004: stock quantities without values are undecided).
+    pub fn stock_view(
+        &self,
+        role: Role,
+        query: &str,
+        low_only: bool,
+    ) -> Result<StockView<'_>, ConfirmationError> {
+        if role != Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
         let needle = query.trim().to_lowercase();
         let mut view = StockView {
             rows: Vec::new(),
@@ -313,8 +340,32 @@ impl ProjectionSnapshot {
             }
         }
         view.rows.sort_by_key(|(row, _)| row.on_hand);
-        view
+        Ok(view)
     }
+}
+
+/// The freshness label for projected screens: "as of 24-Nov-2026 10:42 UTC".
+pub fn as_of_text(ms: u64) -> String {
+    let seconds = ms / 1000;
+    let days = i64::try_from(seconds / 86_400).unwrap_or(0);
+    let minute = seconds % 86_400 / 60;
+    // Civil date from days since 1970-01-01 (proleptic Gregorian).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    let date = u16::try_from(year)
+        .ok()
+        .zip(u8::try_from(month).ok())
+        .zip(u8::try_from(day).ok())
+        .and_then(|((y, m), d)| BillDate::new(y, m, d).ok())
+        .map_or_else(|| "?".to_owned(), BillDate::display);
+    format!("as of {date} {:02}:{:02} UTC", minute / 60, minute % 60)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -345,4 +396,16 @@ pub(crate) fn customer_name(customer: &DraftCustomer) -> String {
 
 pub(crate) const fn online(mode: ReceiptMode) -> bool {
     matches!(mode, ReceiptMode::Online)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn as_of_text_reads_utc_wall_time() {
+        assert_eq!(super::as_of_text(0), "as of 01-Jan-1970 00:00 UTC");
+        assert_eq!(
+            super::as_of_text(1_795_999_320_000),
+            "as of 30-Nov-2026 00:42 UTC"
+        );
+    }
 }

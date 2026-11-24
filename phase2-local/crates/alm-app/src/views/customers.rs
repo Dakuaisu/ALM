@@ -1,12 +1,14 @@
 //! Customers: ALM_Business_Manager.html L7094–7207 (VIEWS.customers), L7209–7318 (editCustomer,
 //! opening balance only), L7320–7440 (openCustomer ledger, shown inline instead of a modal).
-//! Balances, totals, debtor rule and filter come from `BillingDirectory::customer_book`.
+//! Balances, totals, debtor rule and filter come from the account's projection
+//! (`ProjectionSnapshot::customer_view`); the ledger modal is read from the authority on demand.
 use std::fmt::Write as _;
 
 use alm_core::confirmation::owner_billing::{BalanceSide, BillingDirectory, CustomerFilter};
 use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, CustomerLedgerKind, OpeningLedgerKind, ReceiptMode,
 };
+use alm_core::projection::ProjectionSnapshot;
 use alm_core::{DraftCustomerId, Money, Role};
 
 use super::{denied, kpi, money_r};
@@ -48,12 +50,13 @@ fn shown(amount: Money) -> String {
 }
 
 pub fn customers_screen(
+    projected: &ProjectionSnapshot,
     fixture: &ConfirmationFixture,
     directory: &BillingDirectory,
     role: Role,
     state: &CustomersState,
 ) -> Result<String, ConfirmationError> {
-    let book = match directory.customer_book(fixture, role, &state.filter()) {
+    let book = match projected.customer_view(role, &state.filter()) {
         Ok(book) => book,
         Err(ConfirmationError::AccessDenied) => return Ok(denied("Customers")),
         Err(error) => return Err(error),
@@ -83,13 +86,13 @@ pub fn customers_screen(
     if book.rows.is_empty() {
         html += r#"<tr><td colspan="5"><div class="empty">👥<br>No customers</div></td></tr>"#;
     }
-    for row in &book.rows {
-        let (class, balance) = side(row.side);
+    for (customer, balance_side) in &book.rows {
+        let (class, balance) = side(*balance_side);
         let _ = write!(
             html,
             r#"<tr><td><button class="list-link" type="button" data-action="customer_open" data-id="{id}">{name}</button></td><td class="muted">—</td><td class="muted"></td><td class="num{class}">{balance}</td><td class="num"><button class="btn sm" data-action="customer_open" data-id="{id}">Ledger</button></td></tr>"#,
-            id = esc(row.customer.id),
-            name = esc(row.customer.name)
+            id = esc(&customer.id),
+            name = esc(&customer.name)
         );
     }
     html += "</tbody></table></div>";

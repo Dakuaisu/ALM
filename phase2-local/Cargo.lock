@@ -55,6 +55,7 @@ dependencies = [
  "ab_glyph",
  "alm-core",
  "alm-store",
+ "alm-sync",
  "serde",
  "tauri",
  "tauri-build",

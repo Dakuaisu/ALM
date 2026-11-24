@@ -26,6 +26,9 @@ CREATE TABLE projection_checkpoint (
     checkpoint INTEGER NOT NULL CHECK (checkpoint >= 0),
     as_of_ms INTEGER NOT NULL CHECK (as_of_ms >= 0)
 ) STRICT;
+CREATE TABLE projected_notes (
+    id INTEGER PRIMARY KEY CHECK (id = 1), sales_unsupported INTEGER
+) STRICT;
 CREATE TABLE projected_sales (
     position INTEGER PRIMARY KEY, draft_id INTEGER NOT NULL, invoice INTEGER NOT NULL,
     date TEXT NOT NULL, customer TEXT NOT NULL, items TEXT NOT NULL, lines INTEGER NOT NULL,
@@ -60,7 +63,8 @@ CREATE TABLE owner_sale_costs (
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
 
-const PROJECTED: [&str; 6] = [
+const PROJECTED: [&str; 7] = [
+    "projected_notes",
     "projected_sales",
     "projected_receipts",
     "projected_customers",
@@ -285,6 +289,8 @@ fn write_snapshot(
 ) -> Result<(), ProjectionError> {
     clear_rows(tx, role)?;
     let m = |money: Money| money.minor_units();
+    let unsupported = s.sales_unsupported.map(signed).transpose()?;
+    tx.execute("INSERT INTO projected_notes VALUES (1, ?1)", [unsupported])?;
     for (i, r) in s.sales.iter().enumerate() {
         tx.execute(
             "INSERT INTO projected_sales VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
@@ -520,7 +526,13 @@ fn read_snapshot(conn: &Connection, role: Role) -> Result<ProjectionSnapshot, Dr
     } else {
         None
     };
+    let unsupported: Option<Option<i64>> = conn
+        .query_row("SELECT sales_unsupported FROM projected_notes", [], |r| {
+            r.get(0)
+        })
+        .optional()?;
     Ok(ProjectionSnapshot {
+        sales_unsupported: unsupported.flatten().map(unsigned).transpose()?,
         sales,
         receipts,
         customers,

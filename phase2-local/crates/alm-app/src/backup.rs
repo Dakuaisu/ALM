@@ -1,6 +1,8 @@
 //! Backup & Restore (HTML L9273–9330 "💾 Backup & Restore"): backups are archive files in the
-//! app-data `backups` folder; a restore validates the archive and opens it at a fresh path in
-//! `restored`, never touching the live shop archive.
+//! app-data `backups` folder. A restore validates the archive at a fresh path in `restored`
+//! first; only a valid archive then replaces the live shop settings (staged and renamed into
+//! place) and the account's projection is rebuilt from the authority. Posted sales stay the
+//! authority's: a device backup never overwrites them. A rejected file changes nothing.
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -92,8 +94,21 @@ impl Trial {
         let path = fresh(&dir, &format!("{stem}-restored"));
         let store = Store::restore(&path, role, &bytes)
             .map_err(|_| "Not a valid ALM backup — nothing was changed.".to_owned())?;
+        let live = self.device_root.join("shop.json");
+        let staged = self.device_root.join("shop.json.restoring");
+        fs::copy(&path, &staged)
+            .and_then(|_| fs::File::open(&staged)?.sync_all())
+            .map_err(|e| e.to_string())?;
+        fs::rename(&staged, &live).map_err(|e| e.to_string())?;
+        self.shop = Store::open(&live, role).map_err(debug)?;
+        self.shop
+            .apply_product_settings(role, &mut self.authority)
+            .map_err(debug)?;
+        self.projection.clear().map_err(|e| e.to_string())?;
+        self.refresh()?;
         self.restored = Some((name.to_owned(), store));
-        self.message = format!("Restored {name} to a fresh archive ✓");
+        self.message =
+            format!("Restored {name}: settings replaced, posted data rebuilt from the authority ✓");
         Ok(())
     }
 }

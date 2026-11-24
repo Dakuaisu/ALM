@@ -110,7 +110,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
     );
     assert!(quantity("0").is_err());
     let connected = std::mem::replace(
-        &mut trial.authority,
+        &mut *trial.authority,
         alm_core::confirmation::ConfirmationFixture::new(
             ProductId::new(1),
             0,
@@ -126,7 +126,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
     );
     assert!(trial.bill_add(ProductId::new(2), NonZeroU32::MIN).is_err());
     assert_eq!(effects(&trial), disconnected);
-    trial.authority = connected;
+    *trial.authority = connected;
     assert_eq!(trial.current, before);
     assert_eq!(effects(&trial), ordinary);
     trial.bill_open(DraftId::new(1)).unwrap();

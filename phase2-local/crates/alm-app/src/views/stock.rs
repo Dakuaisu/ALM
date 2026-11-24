@@ -1,8 +1,10 @@
 //! Stock: ALM_Business_Manager.html L8046–8180 (VIEWS.stock) and L1339–1395 (showLots, inline).
-//! Status, counts and FIFO value come from `stock_list`; lots from `open_stock_lots`.
+//! Status, counts and FIFO value come from the account's projection (`stock_view`); lots are
+//! read from the authority on demand (`open_stock_lots`).
 use std::fmt::Write as _;
 
 use alm_core::confirmation::{ConfirmationFixture, StockLotsError, StockStatus};
+use alm_core::projection::ProjectionSnapshot;
 use alm_core::{ProductId, Role};
 
 use super::{denied, kpi, money_r};
@@ -16,14 +18,13 @@ pub struct StockState {
 }
 
 pub fn stock_screen(
+    projected: &ProjectionSnapshot,
     fixture: &ConfirmationFixture,
     role: Role,
     state: &StockState,
 ) -> Result<String, StockLotsError> {
-    let list = match fixture.stock_list(role, &state.query, state.low_only) {
-        Ok(list) => list,
-        Err(StockLotsError::AccessDenied) => return Ok(denied("Stock")),
-        Err(error) => return Err(error),
+    let Ok(list) = projected.stock_view(role, &state.query, state.low_only) else {
+        return Ok(denied("Stock"));
     };
     let value = list.value.map_or_else(|| "Unknown".to_owned(), money_r);
     let mut html = String::from(r#"<div class="kpis" style="margin-bottom:14px">"#);
@@ -59,8 +60,8 @@ pub fn stock_screen(
     if list.rows.is_empty() {
         html += r#"<tr><td colspan="5"><div class="empty">🏬<br>No items</div></td></tr>"#;
     }
-    for row in &list.rows {
-        let (class, label) = match row.status {
+    for (row, status) in &list.rows {
+        let (class, label) = match status {
             StockStatus::Out => ("out", "OUT"),
             StockStatus::Low => ("low", "LOW"),
             StockStatus::Ok => ("ok", "OK"),
@@ -81,8 +82,8 @@ pub fn stock_screen(
         let name = list
             .rows
             .iter()
-            .find(|row| row.product == id)
-            .map_or("Product", |row| row.item.as_str());
+            .find(|(row, _)| row.product == id.value())
+            .map_or("Product", |(row, _)| row.item.as_str());
         let mut body = format!(
             r#"<div class="help" style="margin-bottom:8px">Oldest stock sells first (FIFO). {} on hand.</div><div class="tbl-wrap"><table><thead><tr><th>Received</th><th class="num">Left</th><th class="num">Rate ₹</th><th class="num">Value</th></tr></thead><tbody>"#,
             indian_digits(u64::from(lots.on_hand))

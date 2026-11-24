@@ -16,6 +16,9 @@ mod commands;
 mod copy;
 mod crates;
 mod customers;
+mod device;
+#[cfg(test)]
+mod device_tests;
 mod godown;
 mod gst_print;
 mod gst_sales;
@@ -99,6 +102,9 @@ pub fn run() {
             bill_entry::commands::bill_customer_search,
             bill_entry::commands::bill_item_search,
             commands::review_role,
+            device::outbox_check,
+            device::outbox_retry,
+            device::account_switch,
             billing::sale_prepare,
             billing::sale_confirm,
             billing::sales_filter,

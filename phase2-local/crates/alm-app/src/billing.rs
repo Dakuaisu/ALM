@@ -1,4 +1,6 @@
-use alm_core::confirmation::owner_billing::{OwnerBillingError, SaleTerms};
+use alm_core::Money;
+use alm_core::confirmation::owner_billing::{self, OwnerBillingError, SaleTerms};
+use alm_sync::{Intent, Outcome, SaleIntent};
 use tauri::State;
 
 use crate::ipc::IpcId;
@@ -23,19 +25,21 @@ fn posting_error(error: OwnerBillingError) -> String {
     }
 }
 
-#[tauri::command(async)]
-pub fn sale_prepare(state: State<'_, AppState>, terms: Terms) -> Result<String, String> {
-    with(&state, "review", |trial| {
-        let role = trial.require_owner()?;
-        let saved = trial
+impl crate::Trial {
+    /// Reviews the saved draft on a copy of the authority's state (nothing is registered or
+    /// posted) and keeps the reviewed terms as the intent `sale_confirm` sends.
+    pub(crate) fn sale_prepare(&mut self, terms: &Terms) -> Result<(), String> {
+        let role = self.require_owner()?;
+        self.reviewed = None;
+        let saved = self
             .current
             .as_ref()
             .and_then(|(draft, saved)| saved.then_some(draft));
-        trial
-            .posting
+        let mut scratch = self.authority.fixture().clone();
+        self.posting
             .prepare(
-                &mut trial.authority,
-                &trial.directory,
+                &mut scratch,
+                &self.directory,
                 role,
                 saved,
                 SaleTerms {
@@ -43,23 +47,62 @@ pub fn sale_prepare(state: State<'_, AppState>, terms: Terms) -> Result<String, 
                     paid: &terms.paid,
                 },
             )
-            .map_err(posting_error)
-    })
+            .map_err(posting_error)?;
+        let draft = self
+            .posting
+            .pending(role)
+            .ok_or("Review the sale before confirming.")?
+            .review()
+            .draft()
+            .clone();
+        let prices = owner_billing::priced_draft(&scratch, role, &draft)
+            .map_err(debug)?
+            .lines
+            .iter()
+            .map(|line| line.unit_price)
+            .collect();
+        self.reviewed = Some(SaleIntent {
+            date: draft.bill_date().ok_or("Enter a valid bill date.")?,
+            paid: Money::parse_rupees(&terms.paid).map_err(debug)?,
+            draft,
+            prices,
+        });
+        Ok(())
+    }
+
+    /// Sends the reviewed sale through the outbox; `serial` must be the review on screen.
+    pub(crate) fn sale_confirm(&mut self, serial: u64) -> Result<u64, String> {
+        let role = self.require_owner()?;
+        if self.posting.pending(role).map(|p| p.serial()) != Some(serial) {
+            return Err(posting_error(OwnerBillingError::Confirmation(
+                alm_core::confirmation::ConfirmationError::StaleReview,
+            )));
+        }
+        let sale = self
+            .reviewed
+            .clone()
+            .ok_or("Review the sale before confirming.")?;
+        let outcome = self.send(&Intent::PostSale(sale))?;
+        self.posting.invalidate();
+        self.reviewed = None;
+        match outcome {
+            Outcome::Sale(receipt) => Ok(receipt.invoice),
+            Outcome::Done | Outcome::GstNumber(_) => Err("Unexpected outcome.".into()),
+        }
+    }
+}
+
+#[tauri::command(async)]
+pub fn sale_prepare(state: State<'_, AppState>, terms: Terms) -> Result<String, String> {
+    with(&state, "review", |trial| trial.sale_prepare(&terms))
 }
 
 #[tauri::command(async)]
 pub fn sale_confirm(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
-        let role = trial.require_owner()?;
-        let receipt = trial
-            .posting
-            .confirm(&mut trial.authority, role, id)
-            .map_err(posting_error)?;
-        trial.message = format!(
-            "Bill #{} confirmed in the local simulation.",
-            receipt.invoice
-        );
+        let invoice = trial.sale_confirm(id)?;
+        trial.message = format!("Bill #{invoice} confirmed in the local simulation.");
         Ok(())
     })
 }
@@ -81,11 +124,7 @@ pub fn sales_filter(
 pub fn sale_cancel(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
-        let role = trial.require_owner()?;
-        trial
-            .authority
-            .cancel_sale(role, alm_core::DraftId::new(id))
-            .map_err(debug)
+        trial.send(&Intent::CancelSale { draft: id }).map(drop)
     })
 }
 
@@ -118,17 +157,26 @@ impl crate::Trial {
             .map_err(|_| {
                 "Each line needs a whole quantity above zero and a rate in rupees.".to_owned()
             })?;
-        let receipt = self
-            .authority
-            .edit_posted_lines(role, id, &edits)
-            .map_err(|error| match error {
-                alm_core::confirmation::ConfirmationError::InvalidAmount => {
+        let lines = edits
+            .iter()
+            .map(|edit| (edit.quantity.get(), edit.price.minor_units()))
+            .collect();
+        let outcome = self
+            .send(&Intent::EditSale {
+                draft: id.value(),
+                lines,
+            })
+            .map_err(|error| {
+                if error.contains("InvalidAmount") {
                     "The new total is below the amount already paid.".to_owned()
+                } else {
+                    error
                 }
-                other => debug(other),
             })?;
         self.sale_edit = None;
-        self.message = format!("Bill #{} saved ✓", receipt.invoice);
+        if let Outcome::Sale(receipt) = outcome {
+            self.message = format!("Bill #{} saved ✓", receipt.invoice);
+        }
         Ok(())
     }
 }
@@ -164,10 +212,6 @@ pub fn sale_edit_save(
 pub fn sale_restore(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
-        let role = trial.require_owner()?;
-        trial
-            .authority
-            .undo_cancel_sale(role, alm_core::DraftId::new(id))
-            .map_err(debug)
+        trial.send(&Intent::RestoreSale { draft: id }).map(drop)
     })
 }

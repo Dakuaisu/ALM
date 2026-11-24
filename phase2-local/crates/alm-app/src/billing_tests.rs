@@ -52,8 +52,13 @@ fn sales_show_confirmed_owner_amount_not_provisional_amount() {
     assert_eq!(receipt.total.minor_units(), 12_050);
     assert_eq!(posting.confirm(&mut fixture, Role::Owner, 1), Ok(receipt));
     assert_eq!(fixture.posted_count(), 1);
-    let html =
-        views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).expect("sales");
+    let html = views::sales_screen(
+        &projected(&fixture),
+        Role::Owner,
+        &Default::default(),
+        day(),
+    )
+    .expect("sales");
     assert!(html.contains("<td class=\"num\">₹121</td>"));
     assert!(html.contains("₹20 bills"));
     assert!(html.contains("Synthetic Customer"));
@@ -65,8 +70,13 @@ fn manager_cannot_confirm_an_owner_review_or_read_sales() {
     let posting = review(&mut fixture);
     assert!(posting.confirm(&mut fixture, Role::Manager, 1).is_err());
     assert_eq!(fixture.posted_count(), 0);
-    let html =
-        views::sales_screen(&fixture, Role::Manager, &Default::default(), day()).expect("denial");
+    let html = views::sales_screen(
+        &projected(&fixture),
+        Role::Manager,
+        &Default::default(),
+        day(),
+    )
+    .expect("denial");
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains("tbl-wrap"));
     assert!(!html.contains('₹'));
@@ -91,8 +101,13 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
     fixture
         .cancel_sale(Role::Owner, DraftId::new(1))
         .expect("cancel");
-    let sales =
-        views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).expect("sales");
+    let sales = views::sales_screen(
+        &projected(&fixture),
+        Role::Owner,
+        &Default::default(),
+        day(),
+    )
+    .expect("sales");
     assert!(sales.contains("(₹0 bills · ₹31 received)"));
     assert!(sales.contains("CANCELLED"));
 }
@@ -202,7 +217,13 @@ fn sales_balance_column_shows_the_core_balance_side() {
     review(&mut fixture)
         .confirm(&mut fixture, Role::Owner, 1)
         .expect("post");
-    let html = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    let html = views::sales_screen(
+        &projected(&fixture),
+        Role::Owner,
+        &Default::default(),
+        day(),
+    )
+    .unwrap();
     assert!(html.contains(r#"<span class="tag credit">Credit</span></td><td class="num">₹121</td><td class="num neg">₹101</td>"#), "{html}");
     crate::receipts::save(
         &mut fixture,
@@ -220,7 +241,13 @@ fn sales_balance_column_shows_the_core_balance_side() {
         fixture.customer_due(customer_id().value()).minor_units(),
         -4_999
     );
-    let html = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    let html = views::sales_screen(
+        &projected(&fixture),
+        Role::Owner,
+        &Default::default(),
+        day(),
+    )
+    .unwrap();
     assert!(
         html.contains(r#"<td class="num pos">₹50 adv</td>"#),
         "{html}"
@@ -231,11 +258,28 @@ fn sales_balance_column_shows_the_core_balance_side() {
 fn screens_display_ddisp_dates_and_forms_keep_iso() {
     let mut fixture = fixture().expect("synthetic fixture");
     posted(&mut fixture);
-    let sales = views::sales_screen(&fixture, Role::Owner, &Default::default(), day()).unwrap();
+    let sales = views::sales_screen(
+        &projected(&fixture),
+        Role::Owner,
+        &Default::default(),
+        day(),
+    )
+    .unwrap();
     assert!(sales.contains("today: 30-Apr-2025"));
     assert!(sales.contains("<tr style=\"\"><td>30-Apr-2025</td>"));
     let receipt = views::receipt_screen(&fixture, &directory(), Role::Owner, day()).unwrap();
     assert!(receipt.contains(r#"type="date" name="date" value="2025-04-30""#));
     let counter = views::counter_screen(&fixture, Role::Owner, day()).unwrap();
     assert!(counter.contains("1 bill billed today · 30-Apr-2025"));
+}
+
+/// The Owner projection of `fixture`, as the device would store it.
+pub(crate) fn projected(fixture: &ConfirmationFixture) -> alm_core::projection::ProjectionSnapshot {
+    fixture
+        .projection(
+            Role::Owner,
+            &directory(),
+            &alm_core::confirmation::manual_cashbook::ManualCashBook::default(),
+        )
+        .expect("projection")
 }

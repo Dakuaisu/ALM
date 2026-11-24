@@ -32,6 +32,7 @@ fn money(paise: i64) -> Money {
 fn owner_snapshot() -> ProjectionSnapshot {
     let day = BillDate::new(2025, 4, 30).unwrap();
     ProjectionSnapshot {
+        sales_unsupported: None,
         sales: vec![ProjectedSale {
             draft_id: 1,
             invoice: 1,

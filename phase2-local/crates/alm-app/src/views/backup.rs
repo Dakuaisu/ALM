@@ -20,7 +20,7 @@ pub fn backup_section(
     restored: Option<(&str, &RestoredSummary)>,
 ) -> String {
     let mut html = String::from(
-        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">💾 Backup &amp; Restore</div><div class="help">A full backup holds every record, standalone GST bill and shared setting. Backups are saved in this app's data folder. Restoring opens the backup at a fresh place first, so a bad file cannot damage your data.</div><div class="row" style="margin:10px 0"><button class="btn primary" type="button" data-action="backup_create">⬇ Full Backup (.json)</button></div><div class="tbl-wrap"><table><thead><tr><th>Backup</th><th class="num">Size</th><th class="num">Actions</th></tr></thead><tbody>"#,
+        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">💾 Backup &amp; Restore</div><div class="help">A full backup holds every record, standalone GST bill and shared setting. Backups are saved in this app's data folder. Restoring checks the backup at a fresh place first, so a bad file cannot damage your data; a good one replaces the shop settings and the posted data is reloaded from the authority.</div><div class="row" style="margin:10px 0"><button class="btn primary" type="button" data-action="backup_create">⬇ Full Backup (.json)</button></div><div class="tbl-wrap"><table><thead><tr><th>Backup</th><th class="num">Size</th><th class="num">Actions</th></tr></thead><tbody>"#,
     );
     if backups.is_empty() {
         html += r#"<tr><td colspan="3"><div class="empty">No backups yet</div></td></tr>"#;
@@ -37,7 +37,7 @@ pub fn backup_section(
     if let Some((name, s)) = restored {
         let _ = write!(
             html,
-            r#"<div class="card" style="margin-top:10px;border-left:3px solid var(--good)"><b>Restored archive: {}</b><div class="help">{} products · {} customers · {} sales · {} receipts · {} GST bills · default reorder {} · profile v{} {}</div><div class="help">Opened read-only at a fresh path; today's billing on this device is unchanged.</div></div>"#,
+            r#"<div class="card" style="margin-top:10px;border-left:3px solid var(--good)"><b>Restored archive: {}</b><div class="help">{} products · {} customers · {} sales · {} receipts · {} GST bills · default reorder {} · profile v{} {}</div><div class="help">Settings replaced from this backup; posted data reloaded from the authority.</div></div>"#,
             esc(name),
             s.products,
             s.customers,

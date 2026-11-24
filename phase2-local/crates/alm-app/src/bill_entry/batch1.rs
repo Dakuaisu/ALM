@@ -136,7 +136,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
         save.paytm = draft.amounts.paytm.to_rupee_text();
         trial.cash_entry(save).unwrap();
     }
-    let rows = trial.cashbook.rows(Role::Owner).unwrap();
+    let rows = trial.authority.cashbook().rows(Role::Owner).unwrap();
     let saved: Vec<_> = rows
         .iter()
         .map(|row| {

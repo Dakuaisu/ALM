@@ -57,7 +57,7 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         .unwrap();
     for period in [SalesPeriod::All, SalesPeriod::Today, SalesPeriod::ThisMonth] {
         let core = f.sales_history(Role::Owner, day, period, "").unwrap();
-        let view = snapshot.sales_view(day, period, "").unwrap();
+        let view = snapshot.sales_view(Role::Owner, day, period, "").unwrap();
         assert_eq!(view.rows.len(), core.rows.len());
         assert_eq!(view.sales, core.sales);
         assert_eq!(view.total_collected, core.total_collected);
@@ -66,7 +66,7 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
     }
     assert!(
         snapshot
-            .sales_view(day, SalesPeriod::All, "lime")
+            .sales_view(Role::Owner, day, SalesPeriod::All, "lime")
             .unwrap()
             .rows
             .len()
@@ -74,7 +74,7 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
     );
     assert!(
         snapshot
-            .sales_view(day, SalesPeriod::All, "nobody")
+            .sales_view(Role::Owner, day, SalesPeriod::All, "nobody")
             .unwrap()
             .rows
             .is_empty()
@@ -85,7 +85,7 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         CustomerFilter::Name("market".into()),
     ] {
         let core = dir.customer_book(&f, Role::Owner, &filter).unwrap();
-        let view = snapshot.customer_view(&filter).unwrap();
+        let view = snapshot.customer_view(Role::Owner, &filter).unwrap();
         assert_eq!(view.rows.len(), core.rows.len());
         assert_eq!(
             (view.receivable, view.advances, view.debtors),
@@ -93,7 +93,7 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         );
     }
     let core = f.stock_list(Role::Owner, "", true).unwrap();
-    let view = snapshot.stock_view("", true);
+    let view = snapshot.stock_view(Role::Owner, "", true).unwrap();
     assert_eq!(
         (view.skus, view.low, view.out, view.value),
         (core.skus, core.low, core.out, core.value)
@@ -103,5 +103,15 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         .projection(Role::Manager, &dir, &ManualCashBook::default())
         .unwrap();
     assert!(manager.owner.is_none() && manager.sales.is_empty() && manager.receipts.is_empty());
-    assert_eq!(manager.stock_view("", false).value, None);
+    assert!(manager.stock_view(Role::Manager, "", false).is_err());
+    assert!(
+        snapshot
+            .sales_view(Role::Manager, day, SalesPeriod::All, "")
+            .is_err()
+    );
+    assert!(
+        snapshot
+            .customer_view(Role::Manager, &CustomerFilter::All)
+            .is_err()
+    );
 }

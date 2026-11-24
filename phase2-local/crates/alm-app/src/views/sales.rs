@@ -2,10 +2,11 @@
 use std::fmt::Write as _;
 
 use alm_core::confirmation::owner_billing::BalanceSide;
-use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, ReceiptMode, SalesPeriod};
+use alm_core::confirmation::{ConfirmationError, SalesPeriod};
+use alm_core::projection::ProjectionSnapshot;
 use alm_core::{BillDate, Role};
 
-use super::{customer, denied, money_r};
+use super::{denied, money_r};
 use crate::gst_print::{esc, indian_digits};
 
 #[derive(serde::Deserialize)]
@@ -58,19 +59,18 @@ impl Default for Filter {
 }
 
 pub fn sales_screen(
-    fixture: &ConfirmationFixture,
+    projected: &ProjectionSnapshot,
     role: Role,
     filter: &Filter,
     today: BillDate,
 ) -> Result<String, ConfirmationError> {
-    let history = match fixture.sales_history(role, today, filter.period, &filter.q) {
+    let history = match projected.sales_view(role, today, filter.period, &filter.q) {
         Ok(history) => history,
         Err(ConfirmationError::AccessDenied) => return Ok(denied("Sales")),
         Err(error) => return Err(error),
     };
     let mut html = filters(filter, today);
-    let bills = history.collected.bill_ids.len();
-    let cancelled = history.rows.len() - bills;
+    let (bills, cancelled) = (history.bills, history.cancelled);
     let note = if cancelled > 0 {
         format!("{cancelled} cancelled in view")
     } else {
@@ -81,9 +81,7 @@ pub fn sales_screen(
         money_r(history.bill_paid),
         money_r(history.receipt_paid)
     );
-    let profit = history
-        .profit
-        .map_or_else(|_| "Unavailable".into(), |p| money_r(p.profit));
+    let profit = history.profit.map_or_else(|| "Unavailable".into(), money_r);
     html += r#"<div class="kpis" style="margin-bottom:14px">"#;
     for (class, label, value, sub) in [
         ("b", "Bills", bills.to_string(), note.as_str()),
@@ -91,7 +89,7 @@ pub fn sales_screen(
         (
             "a",
             "Packets Sold",
-            format!("{} pkt", indian_digits(u64::from(history.active_packets))),
+            format!("{} pkt", indian_digits(u64::from(history.packets))),
             "in view",
         ),
         (
@@ -112,8 +110,7 @@ pub fn sales_screen(
         html += r#"<tr><td colspan="8"><div class="empty">No sales in this range</div></td></tr>"#;
     }
     for row in history.rows {
-        let (review, _) = fixture.current_sale(role, row.bill.draft_id)?;
-        let id = row.bill.draft_id.value();
+        let id = row.draft_id;
         let (style, tag, action) = if row.cancelled {
             (
                 "opacity:.55",
@@ -133,11 +130,10 @@ pub fn sales_screen(
         };
         let (mode, mode_class) = if row.is_credit() {
             ("Credit", "credit")
+        } else if row.online {
+            ("Online", "cash")
         } else {
-            match review.payment_mode() {
-                ReceiptMode::Cash => ("Cash", "cash"),
-                ReceiptMode::Online => ("Online", "cash"),
-            }
+            ("Cash", "cash")
         };
         let (balance_class, balance) = match BalanceSide::of(row.balance)? {
             BalanceSide::Advance(amount) => ("pos", format!("{} adv", money_r(amount))),
@@ -148,11 +144,11 @@ pub fn sales_screen(
             html,
             r#"<tr style="{style}"><td>{}</td><td><b>#{}</b>{tag}</td><td>{}</td><td class="muted">{} items · {} pkt</td><td><span class="tag {mode_class}">{mode}</span></td><td class="num">{}</td><td class="num {balance_class}">{balance}</td><td class="num">{action}</td></tr>"#,
             row.date.display(),
-            row.bill.invoice,
-            esc(customer(review.draft())),
-            review.draft().lines().len(),
-            row.bill.quantity,
-            money_r(row.bill.total)
+            row.invoice,
+            esc(&row.customer),
+            row.lines,
+            row.packets,
+            money_r(row.total)
         );
     }
     Ok(html + "</tbody></table></div>")
@@ -170,7 +166,7 @@ fn filters(filter: &Filter, today: BillDate) -> String {
     };
     format!(
         r#"<div class="row no-print"><button class="btn primary" data-action="screen" data-tab="draft">New Bill</button><button class="btn" data-action="screen" data-tab="review">Owner review</button></div>
-    <p class="help">Synthetic development records · in memory for this session · today: {}</p>
+    <p class="help">Synthetic development records · posted data from this device's projection · today: {}</p>
     <div class="card" style="margin-bottom:14px"><form class="row" data-action="sales_filter" data-payload="terms">
     <div class="search" style="flex:1;min-width:200px"><input class="inp" name="q" placeholder="Search customer or item…" aria-label="Search customer or item" value="{}"></div>
     <label class="muted">From <input class="inp" type="date" name="from" value="{from}"></label>

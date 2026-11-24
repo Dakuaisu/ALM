@@ -3,18 +3,22 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use alm_core::confirmation::demo_fixture;
-use alm_core::confirmation::manual_cashbook::{ManualCashBook, ManualCashBookDraft};
+use alm_core::confirmation::manual_cashbook::ManualCashBookDraft;
 use alm_core::confirmation::owner_billing::{BillingDirectory, OwnerPosting};
-use alm_core::confirmation::{
-    ConfirmationFixture, GstBillDraft, GstBillId, GstBillLineInput, GstUnit,
-};
+use alm_core::confirmation::{GstBillDraft, GstBillId, GstBillLineInput, GstUnit};
 use alm_core::{BillDate, DraftId, LocalSales, Money, ProvisionalDraft, Role};
-use alm_store::{GstBillDatabase, ManagerDraftStore, SqliteSales};
+use alm_store::{GstBillDatabase, ManagerDraftStore, Outbox, ProjectionStore, SqliteSales};
+use alm_sync::{LocalAuthority, SaleIntent};
 
 use crate::{debug, gst_print, text, views};
 
-/// One synthetic account per device for the trial.
+/// The synthetic account a fresh start uses; `switch_account` selects another.
 pub(crate) const ACCOUNT: &str = "trial";
+/// The synthetic accounts the development switcher offers.
+pub(crate) const ACCOUNTS: &[&str] = &[ACCOUNT, "trial-b"];
+/// The development authority simulation's journal, shared by every account on this device
+/// (it stands in for the hosted server, not for any account's device tables).
+const AUTHORITY_JOURNAL: &str = "simulated-authority/journal.txt";
 pub(crate) const SELLER: gst_print::Seller<'static> = gst_print::Seller {
     name: "ALM Enterprises (synthetic)",
     address: "Synthetic Market Road, Lucknow",
@@ -47,15 +51,22 @@ pub(crate) struct Trial {
     pub(crate) directory: BillingDirectory,
     /// The device's local date, sent by the page at start; tests pass a fixed date.
     pub(crate) today: Option<BillDate>,
-    pub(crate) authority: ConfirmationFixture,
+    /// DEVELOPMENT SIMULATION of the sales authority (journaled); screens not yet projected
+    /// read its fixture directly.
+    pub(crate) authority: LocalAuthority,
+    pub(crate) account: String,
+    /// Confirmation intents, written before sending (this account's device database).
+    pub(crate) outbox: Outbox,
+    /// Read-only posted data for this account and role, received from the authority.
+    pub(crate) projection: ProjectionStore,
+    /// The sale as reviewed by `sale_prepare`, sent on confirm.
+    pub(crate) reviewed: Option<SaleIntent>,
     pub(crate) current: Option<(ProvisionalDraft, bool)>,
     pub(crate) owner: bool,
     pub(crate) message: String,
     pub(crate) posting: OwnerPosting,
     pub(crate) sales_filter: views::Filter,
     pub(crate) customers: views::CustomersState,
-    /// In-memory manual Cash Book (no alm-store table; Supabase later).
-    pub(crate) cashbook: ManualCashBook,
     pub(crate) cash_form: Option<(ManualCashBookDraft, Option<u64>)>,
     pub(crate) dash_period: alm_core::confirmation::DashboardPeriod,
     pub(crate) stock: views::StockState,
@@ -89,6 +100,9 @@ impl Trial {
     pub(crate) fn open(device_root: &Path, today: Option<BillDate>) -> Result<Self, String> {
         let drafts = LocalSales::open_manager_account(device_root, ACCOUNT).map_err(text)?;
         let mut gst = GstBillDatabase::open_scoped(device_root, ACCOUNT).map_err(text)?;
+        let outbox = Outbox::open_scoped(device_root, ACCOUNT).map_err(text)?;
+        let projection =
+            ProjectionStore::open_scoped(device_root, ACCOUNT, Role::Owner).map_err(text)?;
         let mut authority = demo_fixture::fixture().map_err(debug)?;
         demo_fixture::seed_purchasing(&mut authority).map_err(debug)?;
         authority
@@ -128,18 +142,27 @@ impl Trial {
         };
         shop.apply_product_settings(Role::Owner, &mut authority)
             .map_err(debug)?;
-        Ok(Self {
+        let journal = device_root.join(AUTHORITY_JOURNAL);
+        if let Some(parent) = journal.parent() {
+            std::fs::create_dir_all(parent).map_err(text)?;
+        }
+        let authority =
+            LocalAuthority::open(&journal, authority, directory.clone()).map_err(debug)?;
+        let mut trial = Self {
             drafts,
             directory,
             today,
             authority,
+            account: ACCOUNT.to_owned(),
+            outbox,
+            projection,
+            reviewed: None,
             current: None,
             owner: true,
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),
             customers: views::CustomersState::default(),
-            cashbook: ManualCashBook::default(),
             cash_form: None,
             dash_period: alm_core::confirmation::DashboardPeriod::Month,
             stock: views::StockState::default(),
@@ -159,7 +182,9 @@ impl Trial {
             device_root: device_root.to_path_buf(),
             restored: None,
             print_view: None,
-        })
+        };
+        trial.reconnect()?;
+        Ok(trial)
     }
 
     pub(crate) fn saved_ids(&self) -> Result<Vec<u64>, String> {

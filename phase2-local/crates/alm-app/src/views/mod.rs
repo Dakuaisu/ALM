@@ -34,7 +34,7 @@ pub use counter::counter_screen;
 pub use crates::{CrateForm, crates_screen};
 pub use customers::{CustomersState, customers_screen};
 pub use dashboard::dashboard_screen;
-pub use drafts::{ReviewView, customer, posting_review, review_screen};
+pub use drafts::{ReviewView, posting_review, review_screen};
 pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;

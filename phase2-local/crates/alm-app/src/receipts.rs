@@ -52,12 +52,26 @@ pub fn save(
     })
 }
 
+impl crate::Trial {
+    /// Validates the receipt on a copy of the authority's state, then sends it as an intent.
+    pub(crate) fn receipt_save(&mut self, terms: Terms) -> Result<(), String> {
+        let role = self.require_owner()?;
+        let mut scratch = self.authority.fixture().clone();
+        let intent = alm_sync::Intent::RecordReceipt {
+            customer: terms.customer.clone(),
+            date: terms.date.parse().map_err(debug)?,
+            amount: alm_core::Money::parse_rupees(&terms.amount)
+                .map_err(|_| "Enter a positive amount with up to two decimal places.".to_owned())?,
+            online: matches!(terms.mode, Mode::Online),
+        };
+        save(&mut scratch, &self.directory, role, terms)?;
+        self.send(&intent)?;
+        self.message = "Standalone payment recorded in the local simulation.".into();
+        Ok(())
+    }
+}
+
 #[tauri::command(async)]
 pub fn receipt_save(state: State<'_, AppState>, terms: Terms) -> Result<String, String> {
-    with(&state, "receipt", |trial| {
-        let role = trial.require_owner()?;
-        save(&mut trial.authority, &trial.directory, role, terms)?;
-        trial.message = "Standalone payment recorded in the local simulation.".into();
-        Ok(())
-    })
+    with(&state, "receipt", |trial| trial.receipt_save(terms))
 }

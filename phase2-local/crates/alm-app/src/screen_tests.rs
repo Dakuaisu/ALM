@@ -4,7 +4,7 @@ use alm_core::confirmation::owner_billing::{CustomerFilter, ReceiptTerms, save_r
 use alm_core::confirmation::{ConfirmationFixture, OpeningBalance, ReceiptMode};
 use alm_core::{DraftCustomerId, Money, Role};
 
-use crate::billing_tests::{day, posted};
+use crate::billing_tests::{day, posted, projected};
 use crate::views::{self, CustomersState, money_r};
 
 pub(crate) fn books() -> ConfirmationFixture {
@@ -46,8 +46,14 @@ fn customers_render_core_balances_totals_and_ledger() {
         open: Some("batch1-customer".into()),
         ..CustomersState::default()
     };
-    let html =
-        views::customers_screen(&fixture, &directory(), Role::Owner, &state).expect("customers");
+    let html = views::customers_screen(
+        &projected(&fixture),
+        &fixture,
+        &directory(),
+        Role::Owner,
+        &state,
+    )
+    .expect("customers");
     assert!(html.contains(&format!(
         r#"<div class="label">Total Receivable</div><div class="val">{}</div><div class="sub">2 customers</div>"#,
         money_r(core.receivable)
@@ -63,7 +69,14 @@ fn customers_render_core_balances_totals_and_ledger() {
         due_only: true,
         ..CustomersState::default()
     };
-    let html = views::customers_screen(&fixture, &directory(), Role::Owner, &due).expect("due");
+    let html = views::customers_screen(
+        &projected(&fixture),
+        &fixture,
+        &directory(),
+        Role::Owner,
+        &due,
+    )
+    .expect("due");
     assert_eq!(html.matches("data-action=\"customer_open\"").count(), 4);
 }
 
@@ -74,8 +87,14 @@ fn manager_sees_no_customer_balances() {
         open: Some("batch1-customer".into()),
         ..CustomersState::default()
     };
-    let html =
-        views::customers_screen(&fixture, &directory(), Role::Manager, &state).expect("denial");
+    let html = views::customers_screen(
+        &projected(&fixture),
+        &fixture,
+        &directory(),
+        Role::Manager,
+        &state,
+    )
+    .expect("denial");
     assert!(html.contains("role=\"alert\""));
     assert!(!html.contains('₹'));
     assert!(!html.contains("Synthetic Customer"));
@@ -151,7 +170,7 @@ pub(crate) fn entry(id: &str, date: &str, cash: &str, intent: &str) -> crate::ca
 fn cash_book_renders_core_system_figures_differences_and_month_totals() {
     let root = Root::new("cashbook");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
-    trial.authority = books();
+    *trial.authority = books();
     trial
         .cash_entry(entry("", "2025-04-30", "18", "check"))
         .unwrap();
@@ -169,7 +188,11 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
     trial
         .cash_entry(entry("", "2025-04-30", "20.00", "save"))
         .unwrap();
-    let month = trial.cashbook.month(Role::Owner, day()).unwrap();
+    let month = trial
+        .authority
+        .cashbook()
+        .month(Role::Owner, day())
+        .unwrap();
     assert_eq!(
         (
             month.income.minor_units(),
@@ -187,7 +210,14 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
     trial
         .cash_entry(entry("0", "2025-04-30", "20", "delete"))
         .unwrap();
-    assert!(trial.cashbook.rows(Role::Owner).unwrap().is_empty());
+    assert!(
+        trial
+            .authority
+            .cashbook()
+            .rows(Role::Owner)
+            .unwrap()
+            .is_empty()
+    );
 
     trial.owner = false;
     assert!(
@@ -317,13 +347,14 @@ fn stock_renders_core_status_and_fifo_value_for_the_owner_only() {
         lots: Some(ProductId::new(1)),
         ..views::StockState::default()
     };
-    let html = views::stock_screen(&fixture, Role::Owner, &state).unwrap();
+    let html = views::stock_screen(&projected(&fixture), &fixture, Role::Owner, &state).unwrap();
     assert!(html.contains(&format!(
         r#"<div class="label">Stock Value</div><div class="val">{}</div>"#,
         money_r(value)
     )));
     assert!(html.contains(r#"<td class="num" style="font-weight:800">49</td><td class="num">₹70</td><td class="num">₹3,430</td>"#), "{html}");
-    let manager = views::stock_screen(&fixture, Role::Manager, &state).unwrap();
+    let manager =
+        views::stock_screen(&projected(&fixture), &fixture, Role::Manager, &state).unwrap();
     assert!(manager.contains("role=\"alert\""));
     for hidden in ['₹', '4'] {
         assert!(!manager.contains(hidden), "{hidden}");
@@ -887,7 +918,7 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
     use alm_core::ProductId;
     let root = Root::new("glue");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
-    trial.authority = books();
+    *trial.authority = books();
     trial.customers.open = Some("batch1-customer".into());
     let html = trial.render("customers").unwrap();
     assert!(html.contains(r#"<template id="screen-modal"><div class="modal lg" role="dialog" aria-modal="true" aria-label="Synthetic Customer"><h3>👤 Synthetic Customer<button class="x" type="button" aria-label="Close" data-action="customer_close""#));

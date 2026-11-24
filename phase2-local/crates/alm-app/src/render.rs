@@ -8,16 +8,21 @@ impl Trial {
     pub(crate) fn render(&mut self, tab: &str) -> Result<String, String> {
         let tab = if tab == "draft" { "bill" } else { tab };
         let body = match tab {
-            "customers" => views::customers_screen(
-                &self.authority,
-                &self.directory,
-                self.role(),
-                &self.customers,
-            )
-            .map_err(debug)?,
+            "customers" => {
+                let stored = self.projected()?;
+                self.freshness(&stored)?
+                    + &views::customers_screen(
+                        &stored.snapshot,
+                        &self.authority,
+                        &self.directory,
+                        self.role(),
+                        &self.customers,
+                    )
+                    .map_err(debug)?
+            }
             "expenses" => views::cashbook_screen(&views::CashBookView {
                 fixture: &self.authority,
-                book: &self.cashbook,
+                book: self.authority.cashbook(),
                 entry: self.cash_form.as_ref().map(|(draft, _)| draft),
                 editing: self.cash_form.as_ref().and_then(|(_, id)| *id),
                 role: self.role(),
@@ -33,7 +38,15 @@ impl Trial {
             )?,
             "reorder" => views::reorder_screen(&self.authority, self.role()).map_err(debug)?,
             "stock" => {
-                views::stock_screen(&self.authority, self.role(), &self.stock).map_err(debug)?
+                let stored = self.projected()?;
+                self.freshness(&stored)?
+                    + &views::stock_screen(
+                        &stored.snapshot,
+                        &self.authority,
+                        self.role(),
+                        &self.stock,
+                    )
+                    .map_err(debug)?
             }
             "godown" => views::godown_screen(&self.authority, self.role(), &self.godown_query)
                 .map_err(debug)?,
@@ -71,9 +84,12 @@ impl Trial {
                 )
                 .map_err(debug)?
             }
-            "reports" => {
-                views::reports_screen(&self.authority, &self.cashbook, self.role(), self.today()?)?
-            }
+            "reports" => views::reports_screen(
+                &self.authority,
+                self.authority.cashbook(),
+                self.role(),
+                self.today()?,
+            )?,
             "settings" => {
                 let role = self.role();
                 let profile = alm_core::synthetic_read_model::BusinessProfile::default();
@@ -114,14 +130,15 @@ impl Trial {
                     .map_err(debug)?
             }
             "sales" => {
-                let mut html = String::new();
+                let stored = self.projected()?;
+                let mut html = self.freshness(&stored)?;
                 if let (Some(id), Role::Owner) = (self.sale_edit, self.role()) {
                     html +=
                         &views::sale_edit_form(&self.authority, &self.directory, Role::Owner, id)
                             .map_err(debug)?;
                 }
                 html + &views::sales_screen(
-                    &self.authority,
+                    &stored.snapshot,
                     self.role(),
                     &self.sales_filter,
                     self.today()?,
@@ -149,7 +166,20 @@ impl Trial {
                             .and_then(|(draft, saved)| saved.then_some(draft)),
                     );
                 }
-                html
+                let stored = self.projected()?;
+                html += &self.freshness(&stored)?;
+                html += r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#;
+                for account in crate::trial::ACCOUNTS {
+                    let on = if *account == self.account {
+                        "pill on"
+                    } else {
+                        "pill"
+                    };
+                    html += &format!(
+                        r#"<button class="{on}" data-action="account_switch" data-q="{account}">{account}</button>"#
+                    );
+                }
+                html + "</div>"
             }
             "rateprint" => {
                 let role = self.require_owner()?;

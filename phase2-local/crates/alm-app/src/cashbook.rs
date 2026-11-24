@@ -1,6 +1,6 @@
 use alm_core::Money;
 use alm_core::confirmation::manual_cashbook::{
-    CashBookAmounts, CashBookDeletion, ManualCashBookDraft, parse_cash_book_amount,
+    CashBookAmounts, ManualCashBookDraft, parse_cash_book_amount,
 };
 use tauri::State;
 
@@ -64,7 +64,12 @@ impl Trial {
             misc: amount("Misc Expense", &entry.misc)?,
         };
         let mut draft = match editing {
-            Some(id) => self.cashbook.find(role, id).map_err(debug)?.draft(),
+            Some(id) => self
+                .authority
+                .cashbook()
+                .find(role, id)
+                .map_err(debug)?
+                .draft(),
             None => ManualCashBookDraft::new(None, amounts),
         };
         draft.date = date;
@@ -79,10 +84,8 @@ impl Trial {
                 .id
                 .parse::<u64>()
                 .map_err(|_| "Unknown entry.".to_owned())?;
-            let row = self.cashbook.find(role, id).map_err(debug)?;
-            self.cashbook
-                .delete(role, CashBookDeletion::Confirm(row.id))
-                .map_err(debug)?;
+            self.authority.cashbook().find(role, id).map_err(debug)?;
+            self.send(&alm_sync::Intent::DeleteCashDay { id })?;
             self.cash_form = None;
             return Ok(());
         }
@@ -97,7 +100,12 @@ impl Trial {
                 if draft.date.is_none() {
                     return Err("Pick the date".into());
                 }
-                self.cashbook.save(role, &draft).map_err(debug)?;
+                let date = draft.date.ok_or("Pick the date")?;
+                self.send(&alm_sync::Intent::SaveCashDay {
+                    id: editing,
+                    date,
+                    amounts: draft.amounts,
+                })?;
                 self.message = "Cash book updated ✓".into();
                 self.cash_form = None;
                 return Ok(());
@@ -113,7 +121,11 @@ impl Trial {
 impl Trial {
     /// Opens a saved row in the form, as the ✎ button does.
     pub(crate) fn cash_edit_for_test(&mut self, id: u64) {
-        let row = self.cashbook.find(alm_core::Role::Owner, id).unwrap();
+        let row = self
+            .authority
+            .cashbook()
+            .find(alm_core::Role::Owner, id)
+            .unwrap();
         self.cash_form = Some((row.draft(), Some(id)));
     }
 }
@@ -146,7 +158,7 @@ pub fn cash_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String
     let id = id.value();
     with(&state, "expenses", |trial| {
         let role = trial.require_owner()?;
-        let row = trial.cashbook.find(role, id).map_err(debug)?;
+        let row = trial.authority.cashbook().find(role, id).map_err(debug)?;
         trial.cash_form = Some((row.draft(), Some(id)));
         Ok(())
     })
