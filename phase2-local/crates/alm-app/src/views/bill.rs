@@ -17,6 +17,8 @@ pub struct BillView<'a> {
     pub role: Role,
     /// Saved crate templates the Owner may add (`(id, name)`); none for a Manager.
     pub crates: &'a [(u64, String)],
+    /// A Manager's pulled catalog (names and sale prices), which its preview prices from.
+    pub catalog: Option<&'a [alm_core::projection::ProjectedProduct]>,
 }
 
 pub fn bill_screen(view: &BillView<'_>) -> String {
@@ -38,7 +40,10 @@ pub fn bill_body(view: &BillView<'_>) -> String {
         return crate_body(view, row);
     }
     let mut html = String::from(r#"<div id="bill-body">"#);
-    let preview = view.directory.preview(view.authority, view.draft);
+    let preview = match view.catalog {
+        Some(catalog) => view.directory.catalog_preview(catalog, view.draft),
+        None => view.directory.preview(view.authority, view.draft),
+    };
     html += r#"<div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><button type="submit" form="bill-item" class="btn sm">＋ Add Item</button></div><div class="bill-items" style="margin-top:12px">"#;
     html += r#"<div class="bill-line bill-labels"><div>Item</div><div>Unit</div><div class="num">Rate ₹</div><div class="num">Qty</div><div class="num">Amount</div><div></div></div>"#;
     if let Ok(preview) = &preview {
@@ -179,7 +184,7 @@ fn item_row(html: &mut String, index: usize, line: &ProvisionalPreviewLine) {
         html,
         r#"<form class="bill-line" data-action="bill_quantity" data-line="{index}" data-product="{}" data-live="bill_live" data-target="bill-body"><input type="hidden" name="line" value="{index}"><b>{}</b><span class="muted">Packet</span><span class="num">₹{}</span><input class="inp num" id="bill-qty-{index}" name="qty" inputmode="numeric" value="{}" aria-label="Quantity for item {index}" required><span class="num"><b>₹{}</b></span><span class="row" style="gap:4px"><button class="btn sm" type="submit">Set</button><button class="x" type="button" data-action="bill_remove" data-id="{index}" aria-label="Remove item {index}">×</button></span></form>"#,
         line.product_id,
-        esc(line.name),
+        esc(&line.name),
         inr(line.inclusive_unit_price),
         line.quantity,
         inr(line.amounts.inclusive)

@@ -442,3 +442,58 @@ fn request_prefixes_fit_the_request_id_bound_for_any_account() {
         "short accounts are kept whole"
     );
 }
+
+#[test]
+fn a_manager_drafts_from_the_catalog_its_device_pulled() {
+    let root = Root::new("manager-catalog");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.set_owner(false).unwrap();
+    let stored = trial.projection.load().unwrap().unwrap();
+    assert!(stored.snapshot.owner.is_none());
+    let mut snapshot = stored.snapshot.clone();
+    let id = snapshot.catalog[0].id;
+    // The authority's catalog as pulled (here a name and sale price the built-in directory
+    // does not hold): New Bill searches, adds and prices from it.
+    snapshot.catalog[0].name = "Projected Lime".into();
+    snapshot.catalog[0].rate = alm_core::Money::from_minor_units(23_600);
+    trial
+        .projection
+        .apply(&alm_core::projection::ProjectionBatch {
+            role: Role::Manager,
+            checkpoint: stored.checkpoint + 1,
+            as_of_ms: stored.as_of_ms,
+            snapshot: Some(snapshot),
+        })
+        .unwrap();
+    assert!(
+        trial
+            .bill_item_search("projected")
+            .contains("Projected Lime")
+    );
+    assert!(
+        !trial
+            .bill_item_search("synthetic lime")
+            .contains("Synthetic Lime")
+    );
+    trial.current = Some((
+        alm_core::ProvisionalDraft::new(DraftId::new(1), Vec::new()).with_bill_date(Some(day())),
+        false,
+    ));
+    trial
+        .bill_add(
+            alm_core::ProductId::new(id),
+            std::num::NonZeroU32::new(2).unwrap(),
+        )
+        .unwrap();
+    let body = trial.bill_live("1", "2").unwrap();
+    assert!(
+        body.contains("Projected Lime") && body.contains("₹472.00"),
+        "{body}"
+    );
+    assert!(
+        trial
+            .bill_add(alm_core::ProductId::new(999), std::num::NonZeroU32::MIN)
+            .is_err(),
+        "a product outside the pulled catalog"
+    );
+}

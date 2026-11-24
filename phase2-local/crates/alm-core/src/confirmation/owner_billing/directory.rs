@@ -191,10 +191,66 @@ impl BillingDirectory {
         provisional_preview::with_catalog(draft, |id| {
             let record = self.product(authority, id)?;
             Some((
-                record.name,
+                record.name.to_owned(),
                 record.provisional_rate,
                 record.gst_basis_points,
             ))
+        })
+    }
+
+    /// A Manager's item autocomplete over the catalog its device pulled (names and sale
+    /// prices only): names containing `query` (case-insensitive), catalog order, at most 40.
+    pub fn search_catalog<'a>(
+        catalog: &'a [crate::projection::ProjectedProduct],
+        query: &str,
+    ) -> Vec<(ProductId, &'a str)> {
+        let query = query.trim().to_lowercase();
+        catalog
+            .iter()
+            .filter(|row| row.name.to_lowercase().contains(&query))
+            .take(40)
+            .map(|row| (ProductId::new(row.id), row.name.as_str()))
+            .collect()
+    }
+
+    /// A line for a product in the pulled catalog.
+    ///
+    /// # Errors
+    /// Rejects a product the catalog does not hold.
+    pub fn select_catalog_line(
+        catalog: &[crate::projection::ProjectedProduct],
+        id: ProductId,
+        qty: NonZeroU32,
+    ) -> Result<DraftLine, ProvisionalPreviewError> {
+        catalog
+            .iter()
+            .find(|row| row.id == id.value())
+            .ok_or(ProvisionalPreviewError::UnknownProduct(id))?;
+        Ok(DraftLine::new(id, qty))
+    }
+
+    /// New Bill's provisional preview at the pulled catalog's sale prices. The GST rate is the
+    /// directory's for a directory product, otherwise `gstInfo`'s keyword default for the name
+    /// (a Manager holds no product tax overrides; OPEN-012 keeps the HTML's rule).
+    ///
+    /// # Errors
+    /// Rejects products the catalog does not hold, crate rows and overflow.
+    pub fn catalog_preview(
+        &self,
+        catalog: &[crate::projection::ProjectedProduct],
+        draft: &ProvisionalDraft,
+    ) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
+        provisional_preview::with_catalog(draft, |id| {
+            let row = catalog.iter().find(|row| row.id == id.value())?;
+            let gst = self
+                .products
+                .iter()
+                .find(|record| record.id == id)
+                .map_or_else(
+                    || super::super::gst_defaults::defaults(&row.name).0,
+                    |record| record.gst_basis_points,
+                );
+            Some((row.name.clone(), row.rate, gst))
         })
     }
 }

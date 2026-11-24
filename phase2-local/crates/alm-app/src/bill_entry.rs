@@ -49,6 +49,7 @@ impl Trial {
             self.fresh_bill(&saved_ids)?;
         }
         let crates = self.bill_crates();
+        let catalog = self.manager_catalog();
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_screen(&views::BillView {
             authority: self.drafting(),
@@ -58,6 +59,7 @@ impl Trial {
             saved_ids: &saved_ids,
             role: self.role(),
             crates: &crates,
+            catalog: catalog.as_deref(),
         }))
     }
 
@@ -76,6 +78,7 @@ impl Trial {
             Ok(previous != qty)
         })?;
         let crates = self.bill_crates();
+        let catalog = self.manager_catalog();
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_body(&views::BillView {
             authority: self.drafting(),
@@ -85,6 +88,7 @@ impl Trial {
             saved_ids: &[],
             role: self.role(),
             crates: &crates,
+            catalog: catalog.as_deref(),
         }))
     }
     pub(super) fn fresh_bill(&mut self, saved_ids: &[u64]) -> Result<(), String> {
@@ -159,9 +163,11 @@ impl Trial {
                     return Err("Add at least one item before saving.".into());
                 }
                 if draft.crate_row().is_none() {
-                    self.directory
-                        .preview(self.drafting(), &draft)
-                        .map_err(debug)?;
+                    match self.manager_catalog() {
+                        Some(catalog) => self.directory.catalog_preview(&catalog, &draft),
+                        None => self.directory.preview(self.drafting(), &draft),
+                    }
+                    .map_err(debug)?;
                 }
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(
@@ -183,10 +189,17 @@ impl Trial {
         product: ProductId,
         quantity: NonZeroU32,
     ) -> Result<(), String> {
-        let line = self
-            .directory
-            .select_line(self.drafting(), product, quantity)
-            .map_err(|_| "Select a connected product.".to_owned())?;
+        let line = match self.manager_catalog() {
+            Some(catalog) => {
+                alm_core::confirmation::owner_billing::BillingDirectory::select_catalog_line(
+                    &catalog, product, quantity,
+                )
+            }
+            None => self
+                .directory
+                .select_line(self.drafting(), product, quantity),
+        }
+        .map_err(|_| "Select a connected product.".to_owned())?;
         self.edit_bill(|draft| {
             if draft.crate_row().is_some() {
                 return Err(crate_row::SOLE_ITEMS.into());

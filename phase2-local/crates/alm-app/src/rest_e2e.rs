@@ -152,6 +152,14 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
 
     // Manager: a provisional draft only; posting and posted screens are denied.
     trial.set_owner(false).unwrap();
+    // New Bill drafts from the catalog the Manager pulled from REST (names and sale prices).
+    let pulled = alm_sync::SalesAuthority::pull(trial.sales_authority(), Role::Manager, None)
+        .unwrap()
+        .snapshot
+        .unwrap()
+        .catalog;
+    assert_eq!(trial.manager_catalog(), Some(pulled));
+    assert!(trial.bill_item_search("lime").contains("Synthetic Lime"));
     let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
     trial.drafts.save_draft(draft).unwrap();
     assert!(trial.render("sales").unwrap().contains("role=\"alert\""));

@@ -61,6 +61,19 @@ impl std::ops::Deref for Posted {
 impl Trial {
     /// What New Bill drafts against: the Owner's projected view. A Manager projection holds
     /// only the catalog, so Manager drafting still reads the simulation's catalog (OPEN-004).
+    /// A Manager drafts from the catalog its device pulled (names and sale prices only), from
+    /// whichever authority it uses; `None` for the Owner, who drafts from the book rows.
+    pub(crate) fn manager_catalog(&self) -> Option<Vec<alm_core::projection::ProjectedProduct>> {
+        (self.role() == Role::Manager).then(|| {
+            self.projection
+                .load()
+                .ok()
+                .flatten()
+                .map(|stored| stored.snapshot.catalog)
+                .unwrap_or_default()
+        })
+    }
+
     pub(crate) fn drafting(&self) -> &ConfirmationFixture {
         match self.role() {
             Role::Owner => &self.posted.fixture,

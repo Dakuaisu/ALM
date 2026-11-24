@@ -18,10 +18,10 @@ pub struct PreviewAmounts {
     pub sgst: Money,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvisionalPreviewLine {
     pub product_id: ProductId,
-    pub name: &'static str,
+    pub name: String,
     pub quantity: NonZeroU32,
     pub inclusive_unit_price: Money,
     pub gst_basis_points: u32,
@@ -59,7 +59,13 @@ pub fn preview(
     draft: &ProvisionalDraft,
 ) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
     with_catalog(draft, |id| {
-        (id == LIME_ID).then_some((LIME_NAME, LIME_INCLUSIVE_PRICE, LIME_GST_BASIS_POINTS))
+        (id == LIME_ID).then(|| {
+            (
+                LIME_NAME.to_owned(),
+                LIME_INCLUSIVE_PRICE,
+                LIME_GST_BASIS_POINTS,
+            )
+        })
     })
 }
 
@@ -99,7 +105,7 @@ pub fn with_loading(
 
 pub(crate) fn with_catalog(
     draft: &ProvisionalDraft,
-    lookup: impl Fn(ProductId) -> Option<(&'static str, Money, u32)>,
+    lookup: impl Fn(ProductId) -> Option<(String, Money, u32)>,
 ) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
     if draft.crate_row().is_some() {
         return Err(ProvisionalPreviewError::UnsupportedCrateRow);
