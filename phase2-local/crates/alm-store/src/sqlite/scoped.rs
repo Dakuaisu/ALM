@@ -7,7 +7,7 @@ use super::{DraftStorageError, SqliteDraftStore, connect, schema, text};
 const DIRECTORY: &str = "manager-accounts";
 const SCOPE_TABLE: &str = "manager_account_scope";
 
-fn account_key(account: &str) -> Result<String, DraftStorageError> {
+pub(super) fn account_key(account: &str) -> Result<String, DraftStorageError> {
     let bytes = account.as_bytes();
     if !(1..=64).contains(&bytes.len())
         || !bytes

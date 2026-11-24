@@ -11,6 +11,9 @@ pub mod synthetic_read_model;
 
 pub use error::DraftStorageError;
 pub use manager_drafts::{ManagerDraftStore, SqliteSales};
-pub use sqlite::GstBillDatabase;
 #[doc(hidden)]
 pub use sqlite::SqliteDraftStore;
+pub use sqlite::{
+    GstBillDatabase, Outbox, OutboxEntry, OutboxError, OutboxStatus, ProjectionError,
+    ProjectionStore, StoredProjection,
+};

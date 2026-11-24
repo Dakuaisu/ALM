@@ -13,13 +13,17 @@ use crate::DraftStorageError;
 
 mod draft_rows;
 mod gst_bills;
+mod outbox;
 mod pending;
+mod projection;
 mod schema;
 mod scoped;
 #[cfg(test)]
 mod tests;
 
 pub use gst_bills::GstBillDatabase;
+pub use outbox::{Outbox, OutboxEntry, OutboxError, OutboxStatus};
+pub use projection::{ProjectionError, ProjectionStore, StoredProjection};
 
 pub struct SqliteDraftStore {
     conn: Connection,
