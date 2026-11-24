@@ -105,6 +105,8 @@ impl Trial {
         self.refresh()?;
         let level = self.shop.records(role).map_err(debug)?.reorder_default;
         self.send_reorder_default(level)?;
+        // `logAct("restore", "Backup file restored")`, recorded by the authority.
+        self.send(&alm_sync::Intent::RecordRestore)?;
         self.restored = Some((name.to_owned(), store));
         self.message =
             format!("Restored {name}: settings replaced, posted data rebuilt from the authority ✓");

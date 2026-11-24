@@ -51,6 +51,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
                 }
             }
         }
+        Intent::RecordRestore => Ok(Outcome::Done),
         Intent::SetReorderDefault { level } => {
             state
                 .fixture

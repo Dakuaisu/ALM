@@ -149,6 +149,7 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
         "reorderdefault" => Intent::SetReorderDefault {
             level: f.num("level")?,
         },
+        "restorelog" => Intent::RecordRestore,
         "cratesale" => Intent::SellCrate(CrateSale {
             draft: f.num("draft")?,
             template: f.num("template")?,

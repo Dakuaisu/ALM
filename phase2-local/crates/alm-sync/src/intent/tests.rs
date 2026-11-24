@@ -138,6 +138,7 @@ fn canonical_text_round_trips_and_rejects_other_text() {
         Intent::AddSupplier { name: "X Y".into() },
         Intent::DeleteCrate { id: 1 },
         Intent::SetReorderDefault { level: 7 },
+        Intent::RecordRestore,
         Intent::CancelGstBill { id: 2 },
         Intent::DeleteGstBill { id: 2 },
     ] {

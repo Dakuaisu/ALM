@@ -131,6 +131,7 @@ fn entry(
             None,
             none(),
         ),
+        (Intent::RecordRestore, _) => ("restore", "Backup file restored".into(), None, none()),
         (Intent::DeleteCrate { id }, _) => {
             let before = book(before)?;
             let template = before.crates.templates.iter().find(|t| t.id == *id)?;

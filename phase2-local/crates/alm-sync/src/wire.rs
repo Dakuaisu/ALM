@@ -144,6 +144,7 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
         ),
         Intent::DeleteCrate { id } => ("delete_crate", json!({"id": id})),
         Intent::SetReorderDefault { level } => ("set_reorder_default", json!({"level": level})),
+        Intent::RecordRestore => ("record_restore", json!({})),
         Intent::SaveOpening {
             customer,
             amount,

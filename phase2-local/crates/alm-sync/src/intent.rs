@@ -85,6 +85,8 @@ pub enum Intent {
     SetReorderDefault {
         level: u32,
     },
+    /// The device restored a backup file: the authority logs the HTML's `restore` entry.
+    RecordRestore,
     SaveOpening {
         customer: String,
         amount: Option<Money>,

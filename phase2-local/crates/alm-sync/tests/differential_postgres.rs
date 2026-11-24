@@ -78,6 +78,7 @@ fn batch2() {
         return;
     };
     p.owner("reorder default", &Intent::SetReorderDefault { level: 7 });
+    p.owner("restore log", &Intent::RecordRestore);
     p.owner(
         "new product",
         &product(3, true, "Synthetic Orange", 3_000, 4_500, None),

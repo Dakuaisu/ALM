@@ -86,6 +86,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         Intent::SaveCrate(_)
         | Intent::DeleteCrate { .. }
         | Intent::SetReorderDefault { .. }
+        | Intent::RecordRestore
         | Intent::SaveOpening { .. }
         | Intent::SaveGodown { .. }
         | Intent::CountStock { .. }

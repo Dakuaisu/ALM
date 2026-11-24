@@ -673,6 +673,26 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+/// A restored backup is logged by the authority as the HTML's `restore` entry.
+pub fn record_restore<A: SalesAuthority>(a: &mut A) {
+    exercise(
+        a,
+        "restorelog",
+        &Intent::RecordRestore,
+        &Intent::SetReorderDefault { level: 3 },
+        None,
+        None,
+        |s| {
+            s.owner.as_ref().is_some_and(|o| {
+                o.book
+                    .activity
+                    .iter()
+                    .any(|row| row.kind == "restore" && row.message() == "Backup file restored")
+            })
+        },
+    );
+}
+
 /// A crate bill is edited in place: crates and rate change, each component's packets follow.
 pub fn edit_crate_sale<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
@@ -1107,7 +1127,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, record_restore, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

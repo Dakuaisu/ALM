@@ -1111,6 +1111,10 @@ fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
         html.contains("2 products · 2 customers · 1 sales · 0 receipts · 1 GST bills"),
         "{html}"
     );
+    assert!(
+        html.contains("<td>restore</td><td>Backup file restored</td>"),
+        "the authority logs the HTML's restore entry: {html}"
+    );
 
     let shop_before = std::fs::read(root.0.join("shop.json")).unwrap();
     std::fs::write(root.0.join("backups/broken.json"), b"{\"version\":2}").unwrap();
@@ -1123,6 +1127,20 @@ fn backup_lists_restores_to_a_fresh_path_and_rejects_an_invalid_archive() {
     );
     assert_eq!(trial.restored.as_ref().unwrap().0, name);
     assert!(trial.backup_restore("../shop.json").is_err());
+    let restores = |trial: &mut crate::Trial| {
+        trial
+            .projected()
+            .unwrap()
+            .snapshot
+            .owner
+            .unwrap()
+            .book
+            .activity
+            .iter()
+            .filter(|row| row.kind == "restore")
+            .count()
+    };
+    assert_eq!(restores(&mut trial), 1, "a rejected file logs nothing");
 
     trial.set_owner(false).unwrap();
     assert!(trial.backup_create().is_err());

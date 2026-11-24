@@ -270,7 +270,7 @@ pub struct ActivityRow {
     pub account: String,
     /// `bill-save`, `bill-edit`, `bill-cancel`, `bill-restore`, `payment`, `grn`, `adjust`,
     /// `prod-delete`, `crate-save`, `crate-edit`, `crate-delete`, `gst-save`, `gst-edit`,
-    /// `gst-cancel` or `gst-delete`.
+    /// `gst-cancel`, `gst-delete` or `restore`.
     pub kind: String,
     pub subject: String,
     pub amount: Option<Money>,
