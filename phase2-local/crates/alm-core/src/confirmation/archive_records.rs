@@ -71,7 +71,7 @@ impl ConfirmationFixture {
         }
         let mut sales = Vec::new();
         for (id, (review, receipt, _)) in &self.current_sales {
-            if (review.checkout.is_some() || review.draft.crate_row().is_some())
+            if (review.checkout.is_some() || !review.draft.crate_rows().is_empty())
                 && !review.is_named_crate_sale()
             {
                 return Err(ConfirmationError::UnsupportedSalesRecord(*id));
@@ -112,7 +112,8 @@ impl ConfirmationFixture {
                     amount_minor: amount,
                 });
             }
-            if let (Some(row), [price]) = (review.draft.crate_row(), review.prices.as_slice()) {
+            for (index, row) in review.draft.crate_rows().iter().enumerate() {
+                let price = review.crate_rate(index)?;
                 let quantity = row.quantity().get();
                 lines.push(Line {
                     item: row.name().unwrap_or_default().to_owned(),

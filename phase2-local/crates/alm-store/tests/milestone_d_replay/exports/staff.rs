@@ -47,7 +47,7 @@ pub(super) fn exercise(fixture: &ConfirmationFixture) {
         (id.value(), name.as_str()),
         ("milestone-c-buyer", "Synthetic Buyer")
     );
-    assert_eq!(preview.crate_row(), None);
+    assert!(preview.crate_rows().is_empty());
     assert_eq!(state.preview(), None);
 
     let readback = format!("{preview:?}").to_ascii_lowercase();

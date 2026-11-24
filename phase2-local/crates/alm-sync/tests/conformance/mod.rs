@@ -840,6 +840,75 @@ pub fn cancel_crate_sale<A: SalesAuthority>(a: &mut A) {
     assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
 }
 
+/// A New Bill with an ordinary line and a crate row beside it (OPEN-013 mixed bill).
+fn mixed_sale(w: &World, draft: u64, quantity: u32, price: Money, crates: u32) -> Intent {
+    let Intent::PostSale(mut sale) = sale(w, draft, quantity, price) else {
+        unreachable!("a sale")
+    };
+    sale.draft.add_crate_row(
+        alm_core::CrateRow::new(
+            std::num::NonZeroU32::new(crates).unwrap(),
+            vec![alm_core::CrateComponent::new(
+                ProductId::new(w.product),
+                std::num::NonZeroU32::new(2).unwrap(),
+                alm_core::SaleUnit::Case,
+            )],
+        )
+        .with_price("Conformance Crate".into(), money(40_000)),
+    );
+    Intent::PostSale(sale)
+}
+
+/// A mixed bill posts its line and its crate's components from stock, lists one item per line
+/// and per crate, is edited (line and crate), cancelled and restored like any bill.
+pub fn mixed_sale_lifecycle<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let (product, on_hand) = (w.product, w.on_hand);
+    let outcome = exercise(
+        a,
+        "mixed",
+        &mixed_sale(&w, 171, 2, w.sell, 1),
+        &mixed_sale(&w, 171, 2, w.sell, 2),
+        Some(&mixed_sale(&w, 172, 2, money(w.sell.minor_units() + 1), 1)),
+        Some(&mixed_sale(&w, 173, 1, w.sell, on_hand)),
+        |s| sale_of(s, 171).is_some() && stock_of(s, product) == Some(on_hand - 4),
+    );
+    let Outcome::Sale(receipt) = outcome else {
+        panic!("a sale receipt")
+    };
+    assert_eq!(
+        (receipt.quantity, receipt.total),
+        (4, money(2 * w.sell.minor_units() + 40_000))
+    );
+    let bill = sale_of(&state(a).1, 171).unwrap().clone();
+    assert_eq!(
+        (bill.lines, bill.items.as_slice()),
+        (2, &[w.item.clone(), "Conformance Crate".to_owned()][..])
+    );
+    let edit = |line: u32, crates: u32| Intent::EditSale {
+        draft: 171,
+        lines: vec![(line, w.sell.minor_units()), (crates, 41_000)],
+    };
+    exercise(
+        a,
+        "mixededit",
+        &edit(3, 2),
+        &edit(1, 2),
+        None,
+        Some(&Intent::EditSale {
+            draft: 171,
+            lines: vec![(3, w.sell.minor_units())],
+        }),
+        |s| stock_of(s, product) == Some(on_hand - 7),
+    );
+    let total = money(3 * w.sell.minor_units() + 82_000);
+    assert_eq!(sale_of(&state(a).1, 171).map(|x| x.total), Some(total));
+    setup(a, "mixed", "cancel", &Intent::CancelSale { draft: 171 });
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
+    setup(a, "mixed", "restore", &Intent::RestoreSale { draft: 171 });
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 7));
+}
+
 /// The default reorder level: a later product saved with a blank level takes it.
 pub fn set_reorder_default<A: SalesAuthority>(a: &mut A) {
     exercise(
@@ -1196,7 +1265,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, record_restore, import_legacy, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

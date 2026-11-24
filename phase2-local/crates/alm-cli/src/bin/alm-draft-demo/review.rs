@@ -44,7 +44,7 @@ pub(super) fn render(output: &mut impl Write, current: &CurrentDraft) -> io::Res
                     line.quantity()
                 )?;
             }
-            if let Some(row) = current.draft.crate_row() {
+            for row in current.draft.crate_rows() {
                 writeln!(output, "Crate quantity: {}", row.quantity())?;
                 for component in row.components() {
                     let unit = match component.unit {

@@ -150,21 +150,26 @@ impl ConfirmationFixture {
                     })
                     .collect(),
                 prices: review.prices.clone(),
-                crate_row: review.draft.crate_row().map(|row| BookCrateRow {
-                    quantity: row.quantity().get(),
-                    components: row
-                        .components()
-                        .iter()
-                        .map(|c| {
-                            (
-                                c.product.value(),
-                                c.quantity.get(),
-                                c.unit == SaleUnit::Piece,
-                            )
-                        })
-                        .collect(),
-                    price: row.name().zip(row.rate()).map(|(n, r)| (n.to_owned(), r)),
-                }),
+                crate_rows: review
+                    .draft
+                    .crate_rows()
+                    .iter()
+                    .map(|row| BookCrateRow {
+                        quantity: row.quantity().get(),
+                        components: row
+                            .components()
+                            .iter()
+                            .map(|c| {
+                                (
+                                    c.product.value(),
+                                    c.quantity.get(),
+                                    c.unit == SaleUnit::Piece,
+                                )
+                            })
+                            .collect(),
+                        price: row.name().zip(row.rate()).map(|(n, r)| (n.to_owned(), r)),
+                    })
+                    .collect(),
                 checkout: review.checkout.as_ref().map(|c| BookCheckout {
                     lines: c
                         .lines
@@ -330,10 +335,8 @@ impl ConfirmationFixture {
                 .with_customer(draft_customer(&sale.customer))
                 .with_bill_date(sale.date)
                 .with_loading_rate(sale.loading_rate);
-            if let Some(row) = &sale.crate_row {
-                draft
-                    .add_crate_row(crate_row(row)?)
-                    .map_err(|_| ConfirmationError::InvalidDraft)?;
+            for row in &sale.crate_rows {
+                draft.add_crate_row(crate_row(row)?);
             }
             let review = Review {
                 draft,

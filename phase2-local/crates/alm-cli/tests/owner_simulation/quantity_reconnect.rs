@@ -80,7 +80,7 @@ fn persisted_quantity_edit_invalidates_retained_owner_review_on_reconnect() {
     assert_eq!(reopened.lines(), [DraftLine::new(PRODUCT, qty(4))]);
     assert_eq!(reopened.customer(), original.customer());
     assert_eq!(reopened.bill_date(), original.bill_date());
-    assert_eq!(reopened.crate_row(), original.crate_row());
+    assert_eq!(reopened.crate_rows(), original.crate_rows());
 
     assert_eq!(
         authority.reconnect_review(MANAGER, reopened.clone()),

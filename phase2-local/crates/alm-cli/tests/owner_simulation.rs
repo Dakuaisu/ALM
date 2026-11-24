@@ -154,7 +154,7 @@ fn owner_simulation_posts_cli_draft_once_after_response_loss() {
         [DraftLine::new(PRODUCT, NonZeroU32::new(3).unwrap())],
     );
     assert_eq!(saved.bill_date(), None);
-    assert_eq!(saved.crate_row(), None);
+    assert!(saved.crate_rows().is_empty());
     println!("Owner simulation | Manager reopened provisional SQLite draft: {saved:?}");
 
     let detached = saved

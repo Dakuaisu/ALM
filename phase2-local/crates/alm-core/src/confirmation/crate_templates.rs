@@ -24,7 +24,6 @@ pub enum CrateTemplateError {
     Empty,
     InvalidPrice,
     MissingPieceMrp(ProductId),
-    DraftHasRows,
     Overflow,
 }
 
@@ -178,7 +177,8 @@ impl ConfirmationFixture {
             .ok_or(CrateTemplateError::NotFound)
     }
 
-    /// Copies the template as the only row in a draft; does not retain a template reference.
+    /// Copies the template as a crate row after the draft's rows (`draft.items.push`); does not
+    /// retain a template reference.
     pub fn load_crate_template(
         &self,
         role: Role,
@@ -187,14 +187,10 @@ impl ConfirmationFixture {
         draft: &mut ProvisionalDraft,
     ) -> Result<(), CrateTemplateError> {
         let template = self.crate_template(role, id)?;
-        if !draft.lines().is_empty() {
-            return Err(CrateTemplateError::DraftHasRows);
-        }
         let row = CrateRow::new(quantity, template.components.clone())
             .with_price(template.name.clone(), template.price);
-        draft
-            .add_crate_row(row)
-            .map_err(|_| CrateTemplateError::DraftHasRows)
+        draft.add_crate_row(row);
+        Ok(())
     }
 }
 

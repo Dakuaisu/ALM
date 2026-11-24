@@ -69,7 +69,7 @@ impl ConfirmationFixture {
         mode: ReceiptMode,
     ) -> Result<Review, ConfirmationError> {
         let mut review = self.review_named(role, id, received)?;
-        if review.draft.crate_row().is_some() {
+        if !review.draft.crate_rows().is_empty() {
             return Err(ConfirmationError::InvalidDraft);
         }
         review.payment_mode = mode;

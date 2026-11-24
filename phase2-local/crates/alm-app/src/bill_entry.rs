@@ -159,14 +159,21 @@ impl Trial {
         let saved = match header.intent {
             Intent::Select => *saved && !changed,
             Intent::Save => {
-                if draft.lines().is_empty() && draft.crate_row().is_none() {
+                if draft.lines().is_empty() && draft.crate_rows().is_empty() {
                     return Err("Add at least one item before saving.".into());
                 }
-                if draft.crate_row().is_none() {
+                if draft.crate_rows().is_empty() {
                     match self.manager_catalog() {
                         Some(catalog) => self.directory.catalog_preview(&catalog, &draft),
                         None => self.directory.preview(self.drafting(), &draft),
                     }
+                    .map_err(debug)?;
+                } else if !draft.lines().is_empty() {
+                    alm_core::confirmation::owner_billing::priced_draft(
+                        self.drafting(),
+                        self.role(),
+                        &draft,
+                    )
                     .map_err(debug)?;
                 }
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
@@ -201,9 +208,6 @@ impl Trial {
         }
         .map_err(|_| "Select a connected product.".to_owned())?;
         self.edit_bill(|draft| {
-            if draft.crate_row().is_some() {
-                return Err(crate_row::SOLE_ITEMS.into());
-            }
             draft.add_line(line);
             Ok(true)
         })

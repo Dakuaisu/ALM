@@ -64,6 +64,16 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
                     rupees(line.amount)
                 );
             }
+            for line in &priced.crates {
+                let _ = write!(
+                    html,
+                    "<tr><td>📦 Crate: {}</td><td class=\"num\">{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
+                    esc(&line.name),
+                    line.quantity,
+                    rupees(line.rate),
+                    rupees(line.amount)
+                );
+            }
             if !priced.loading.is_zero() {
                 let _ = write!(
                     html,

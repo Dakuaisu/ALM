@@ -8,35 +8,49 @@ use super::{
 };
 
 impl Review {
-    /// Returns the packet demand of each component in its original order.
-    /// A crate dispatched to a named customer (`sell_crate`): an ordinary bill for ledgers, the
-    /// Cash Book, the Dashboard, the Sales list, edits (crates and rate), cancellation and the
-    /// bill image, as the HTML's crate line.
+    /// A bill with crate rows for a named customer (`sell_crate`, or New Bill's crate rows beside
+    /// ordinary lines): an ordinary bill for ledgers, the Cash Book, the Dashboard, the Sales
+    /// list, edits (lines, crates and rates), cancellation and the bill image, as the HTML's
+    /// crate lines.
     pub fn is_named_crate_sale(&self) -> bool {
-        self.draft.crate_row().is_some()
-            && self.draft.lines().is_empty()
+        !self.draft.crate_rows().is_empty()
             && matches!(self.payment, ProposedPayment::Named(_))
             && matches!(self.draft.customer(), crate::DraftCustomer::Selected { .. })
     }
 
+    /// The rate of crate row `index`, after the ordinary lines' prices.
+    pub(in crate::confirmation) fn crate_rate(
+        &self,
+        index: usize,
+    ) -> Result<Money, ConfirmationError> {
+        if self.prices.len() != self.draft.lines().len() + self.draft.crate_rows().len() {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        self.prices
+            .get(self.draft.lines().len() + index)
+            .copied()
+            .ok_or(ConfirmationError::InvalidDraft)
+    }
+
+    /// Returns the packet demand of every crate component, crate rows in order and each row's
+    /// components in their original order (`linePackets`), or `None` without crate rows.
     pub fn crate_packet_demands(&self) -> Result<Option<Vec<DraftLine>>, ConfirmationError> {
-        let Some(row) = self.draft.crate_row() else {
+        let rows = self.draft.crate_rows();
+        if rows.is_empty() {
             return Ok(None);
-        };
+        }
         let packs = self
             .crate_packs
             .as_deref()
             .ok_or(ConfirmationError::InvalidDraft)?;
-        if !self.draft.lines().is_empty()
-            || row.components().is_empty()
-            || row.components().len() != packs.len()
-        {
+        let components = rows.iter().map(|row| row.components().len()).sum::<usize>();
+        if rows.iter().any(|row| row.components().is_empty()) || components != packs.len() {
             return Err(ConfirmationError::InvalidDraft);
         }
-        row.components()
-            .iter()
+        rows.iter()
+            .flat_map(|row| row.components().iter().map(move |c| (row, c)))
             .zip(packs)
-            .map(|(component, pack)| {
+            .map(|((row, component), pack)| {
                 let quantity =
                     u64::from(component.quantity.get()) * u64::from(row.quantity().get());
                 let divisor = match component.unit {
@@ -56,26 +70,25 @@ impl Review {
             .map(Some)
     }
 
-    pub(super) fn crate_amounts(&self) -> Result<CheckoutAmounts, ConfirmationError> {
-        let demands = self
-            .crate_packet_demands()?
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        let row = self
-            .draft
-            .crate_row()
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        let [rate] = self.prices.as_slice() else {
-            return Err(ConfirmationError::InvalidDraft);
+    /// The crate rows' packets and amounts (`linePackets`, `lineAmt`): rate times crates.
+    pub(super) fn crate_totals(&self) -> Result<(u32, i64), ConfirmationError> {
+        let Some(demands) = self.crate_packet_demands()? else {
+            return Ok((0, 0));
         };
         let packets = demands.iter().try_fold(0_u32, |sum, demand| {
             sum.checked_add(demand.quantity().get())
                 .ok_or(ConfirmationError::Overflow)
         })?;
-        let subtotal = rate
-            .minor_units()
-            .checked_mul(i64::from(row.quantity().get()))
-            .ok_or(ConfirmationError::Overflow)?;
-        self.calculate_amounts(packets, subtotal)
+        let mut subtotal = 0_i64;
+        for (index, row) in self.draft.crate_rows().iter().enumerate() {
+            subtotal = self
+                .crate_rate(index)?
+                .minor_units()
+                .checked_mul(i64::from(row.quantity().get()))
+                .and_then(|amount| subtotal.checked_add(amount))
+                .ok_or(ConfirmationError::Overflow)?;
+        }
+        Ok((packets, subtotal))
     }
 }
 
@@ -93,6 +106,28 @@ impl ConfirmationFixture {
         Ok(())
     }
 
+    /// Each crate row's rate (its copied rate, else the authority's crate rate) and every
+    /// component's pack, crate rows in order; both empty without crate rows.
+    pub(in crate::confirmation) fn crate_terms(
+        &self,
+        draft: &crate::ProvisionalDraft,
+    ) -> Result<(Vec<Money>, Vec<NonZeroU32>), ConfirmationError> {
+        let mut rates = Vec::new();
+        let mut packs = Vec::new();
+        for row in draft.crate_rows() {
+            rates.push(
+                row.rate()
+                    .or(self.crate_rate)
+                    .ok_or(ConfirmationError::InvalidDraft)?,
+            );
+            for component in row.components() {
+                packs.push(self.component_pack(component.product, component.unit)?);
+            }
+        }
+        Ok((rates, packs))
+    }
+
+    /// Reviews a bill of crate rows only at the authority's loading charge (`sell_crate`).
     pub(super) fn build_crate_review(
         &self,
         id: DraftId,
@@ -102,21 +137,15 @@ impl ConfirmationFixture {
             .drafts
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
-        let row = draft.crate_row().ok_or(ConfirmationError::InvalidDraft)?;
-        let rate = row
-            .rate()
-            .or(self.crate_rate)
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        let packs = row
-            .components()
-            .iter()
-            .map(|component| self.component_pack(component.product, component.unit))
-            .collect::<Result<Vec<_>, _>>()?;
+        if draft.crate_rows().is_empty() || !draft.lines().is_empty() {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        let (prices, packs) = self.crate_terms(draft)?;
         Ok(Review {
             draft: draft.clone(),
             draft_revision: *revision,
             terms_revision: self.terms_revision,
-            prices: vec![rate],
+            prices,
             payment: ProposedPayment::Named(received),
             payment_mode: super::super::ReceiptMode::Cash,
             checkout: Some(CheckoutTerms {
@@ -141,24 +170,14 @@ impl ConfirmationFixture {
         if role != crate::Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
-        let packs = row
-            .components()
-            .iter()
-            .map(|component| self.component_pack(component.product, component.unit))
-            .collect::<Result<Vec<_>, _>>()?;
         let mut draft = crate::ProvisionalDraft::new(DraftId::new(0), Vec::new());
-        draft
-            .add_crate_row(row.clone())
-            .map_err(|_| ConfirmationError::InvalidDraft)?;
+        draft.add_crate_row(row.clone());
+        let (prices, packs) = self.crate_terms(&draft)?;
         let review = Review {
             draft,
             draft_revision: 0,
             terms_revision: self.terms_revision,
-            prices: vec![
-                row.rate()
-                    .or(self.crate_rate)
-                    .ok_or(ConfirmationError::InvalidDraft)?,
-            ],
+            prices,
             payment: ProposedPayment::Named(Money::from_minor_units(0)),
             payment_mode: super::super::ReceiptMode::Cash,
             checkout: Some(CheckoutTerms {

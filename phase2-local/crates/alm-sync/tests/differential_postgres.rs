@@ -11,8 +11,8 @@ use alm_core::Role;
 use alm_sync::{Intent, Outcome};
 use differential::Pair;
 use differential::script::{
-    Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_sale, crate_terms, on_hand,
-    product, purchase, receipt, receive, sale,
+    Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_sale, crate_terms, mixed_sale,
+    on_hand, product, purchase, receipt, receive, sale,
 };
 
 fn created(outcome: Option<Outcome>) -> u64 {
@@ -577,6 +577,175 @@ fn l10_crate_fifo() {
             .count(),
         2
     );
+    p.finish();
+}
+
+/// L10-style mixed bills (OPEN-013): ordinary lines beside crate rows on one bill, a crate
+/// repeating a product that is also an ordinary line (each component its own FIFO demand after
+/// the lines, OPEN-010), across a fresh dated layer at another cost; the rejections; edits of
+/// lines and crates up and down; cancel, edit while cancelled, restore; a loading charge.
+#[test]
+fn l10_mixed_bills() {
+    // Piece components need the authority's checkout pack: a Lime piece is half a packet.
+    let Some(mut p) = Pair::new_with("l10_mixed", |shop| {
+        shop.set_checkout_product(
+            alm_core::ProductId::new(LIME),
+            alm_core::confirmation::ProductTerms {
+                pack: std::num::NonZeroU32::new(2).unwrap(),
+                piece_price: alm_core::Money::from_minor_units(6_100),
+                case_price: alm_core::Money::from_minor_units(12_050),
+            },
+        )
+        .unwrap();
+    }) else {
+        return;
+    };
+    p.owner(
+        "twins template",
+        &crate_terms(
+            None,
+            "Lime Twins",
+            30_000,
+            &[(LIME, 1, false), (LIME, 2, true)],
+        ),
+    );
+    p.owner(
+        "soda template",
+        &crate_terms(None, "Soda Case", 9_000, &[(SODA, 1, false)]),
+    );
+    let po = created(p.owner(
+        "po for mixed",
+        &purchase(
+            "Synthetic Depot",
+            "2025-02-06",
+            &[("Synthetic Lime", Some(LIME), 20, 6_600)],
+        ),
+    ));
+    let core = p.core();
+    p.owner(
+        "receive for mixed",
+        &receive(&core, po, Some("2025-02-06"), "2025-02-06", &[(20, 0)]),
+    );
+    let twins: &[(u64, u32, bool)] = &[(LIME, 1, false), (LIME, 2, true)];
+    let soda: &[(u64, u32, bool)] = &[(SODA, 1, false)];
+    let core = p.core();
+    let bill = |draft: u64, lines: &'static [(u64, u32)], paid: i64, loading: i64| Bill {
+        draft,
+        to: For::Customer(CUSTOMER),
+        lines,
+        date: "2025-02-07",
+        paid,
+        loading,
+    };
+    let lime_twins = (Some("Lime Twins"), 30_000, 3, twins);
+    p.owner(
+        "mixed unpriced crate",
+        &mixed_sale(&core, &bill(11, &[(LIME, 2)], 0, 0), &[(None, 0, 1, twins)]),
+    );
+    p.owner(
+        "mixed typed customer",
+        &mixed_sale(
+            &core,
+            &Bill {
+                to: For::Typed("Walk In"),
+                ..bill(11, &[(LIME, 2)], 0, 0)
+            },
+            &[lime_twins],
+        ),
+    );
+    p.owner(
+        "mixed paid above total",
+        &mixed_sale(&core, &bill(11, &[(LIME, 2)], 9_000_000, 0), &[lime_twins]),
+    );
+    p.owner(
+        "mixed shortage",
+        &mixed_sale(
+            &core,
+            &bill(11, &[(LIME, 2)], 0, 0),
+            &[(Some("Lime Twins"), 30_000, 500, twins)],
+        ),
+    );
+    p.owner(
+        "mixed piece not whole packs",
+        &mixed_sale(
+            &core,
+            &bill(11, &[(LIME, 2)], 0, 0),
+            &[(Some("Odd"), 1_000, 1, &[(LIME, 1, true)])],
+        ),
+    );
+    let sold = p.owner(
+        "mixed sale",
+        &mixed_sale(&core, &bill(11, &[(LIME, 2)], 20_000, 0), &[lime_twins]),
+    );
+    assert!(
+        matches!(sold, Some(Outcome::Sale(r)) if r.quantity == 8),
+        "{sold:?}"
+    );
+    p.owner(
+        "mixed sale again",
+        &mixed_sale(&core, &bill(11, &[(LIME, 2)], 20_000, 0), &[lime_twins]),
+    );
+    let sold = p.owner(
+        "two lines two crates with loading",
+        &mixed_sale(
+            &core,
+            &bill(12, &[(SODA, 1), (LIME, 1)], 5_000, 150),
+            &[
+                (Some("Soda Case"), 9_000, 2, soda),
+                (Some("Lime Twins"), 30_000, 1, twins),
+            ],
+        ),
+    );
+    assert!(matches!(sold, Some(Outcome::Sale(_))), "{sold:?}");
+    let price = |core: &alm_core::projection::ProjectionSnapshot, id: u64| {
+        core.products
+            .iter()
+            .find(|x| x.id == id)
+            .unwrap()
+            .sell
+            .minor_units()
+    };
+    let lime = price(&p.core(), LIME);
+    let edit = |line: u32, crates: u32, rate: i64| Intent::EditSale {
+        draft: 11,
+        lines: vec![(line, lime), (crates, rate)],
+    };
+    assert!(p.owner("mixed edit up", &edit(3, 4, 31_000)).is_some());
+    assert!(p.owner("mixed edit down", &edit(1, 2, 29_500)).is_some());
+    assert!(p.owner("mixed edit below paid", &edit(1, 1, 100)).is_none());
+    assert!(
+        p.owner("mixed edit shortage", &edit(1, 500, 30_000))
+            .is_none()
+    );
+    p.owner(
+        "mixed edit one entry",
+        &Intent::EditSale {
+            draft: 11,
+            lines: vec![(1, lime)],
+        },
+    );
+    assert!(
+        p.owner("mixed cancel", &Intent::CancelSale { draft: 11 })
+            .is_some()
+    );
+    p.owner("mixed edit cancelled", &edit(2, 2, 30_000));
+    assert!(
+        p.owner("mixed restore", &Intent::RestoreSale { draft: 11 })
+            .is_some()
+    );
+    p.owner(
+        "receipt after mixed",
+        &receipt(CUSTOMER.0, "2025-02-08", 5_000, false),
+    );
+    let core = p.core();
+    assert_eq!(core.sales_unsupported, None);
+    assert!(core.sales.iter().any(|s| s.items
+        == [
+            "Synthetic Soda",
+            "Synthetic Lime",
+            "Soda Case",
+            "Lime Twins"
+        ]));
     p.finish();
 }
 

@@ -137,11 +137,12 @@ pub struct BookSale {
     pub date: Option<BillDate>,
     pub loading_rate: Money,
     pub lines: Vec<BookSaleLine>,
-    /// The reviewed unit prices: one per line, or the crate rate for a crate bill.
+    /// The reviewed unit prices: one per line, then each crate row's rate.
     pub prices: Vec<Money>,
-    pub crate_row: Option<BookCrateRow>,
+    /// Crate rows beside the lines, in order.
+    pub crate_rows: Vec<BookCrateRow>,
     pub checkout: Option<BookCheckout>,
-    /// Packs per crate component, frozen at review.
+    /// Packs per crate component (crate rows in order), frozen at review.
     pub crate_packs: Option<Vec<u32>>,
     pub payment: BookPayment,
     pub online: bool,

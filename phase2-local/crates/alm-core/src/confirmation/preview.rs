@@ -77,7 +77,7 @@ impl ConfirmationFixture {
             .current_sales
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
-        if (review.checkout.is_some() || review.draft.crate_row().is_some())
+        if (review.checkout.is_some() || !review.draft.crate_rows().is_empty())
             && !review.is_named_crate_sale()
         {
             return Err(ConfirmationError::InvalidDraft);
@@ -125,20 +125,28 @@ impl ConfirmationFixture {
                 })
             })
             .collect::<Result<Vec<_>, ConfirmationError>>()?;
-        let mut items_quantity = amounts.packets;
+        // `totQty`: every line's quantity, each crate line counting its crates.
+        let mut items_quantity = review
+            .draft
+            .lines()
+            .iter()
+            .try_fold(0_u32, |sum, line| sum.checked_add(line.quantity().get()))
+            .ok_or(ConfirmationError::Overflow)?;
         let mut lines = lines;
-        if let (Some(row), [price]) = (review.draft.crate_row(), review.prices.as_slice()) {
-            let amount = checked_line_amount(*price, row.quantity().get())
+        for (index, row) in review.draft.crate_rows().iter().enumerate() {
+            let price = review.crate_rate(index)?;
+            let amount = checked_line_amount(price, row.quantity().get())
                 .ok_or(ConfirmationError::Overflow)?;
             lines.push(PreviewLine {
                 product: ProductId::new(0),
                 quantity: row.quantity(),
-                price: *price,
+                price,
                 amount,
                 label: Some(format!("Crate: {}", row.name().unwrap_or_default())),
             });
-            // `totQty`: the crate line counts its crates.
-            items_quantity = row.quantity().get();
+            items_quantity = items_quantity
+                .checked_add(row.quantity().get())
+                .ok_or(ConfirmationError::Overflow)?;
         }
         let (previous, previous_date) = if let Some(customer_id) = customer_id {
             self.preview_balance(

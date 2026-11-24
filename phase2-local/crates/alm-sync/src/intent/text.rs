@@ -51,8 +51,22 @@ impl Intent {
                     0 => String::new(),
                     rate => format!(" load={rate}"),
                 };
+                // Crate rows beside the lines, each as the core's crate row text, joined by `/`.
+                let crates = if draft.crate_rows().is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " crates={}",
+                        draft
+                            .crate_rows()
+                            .iter()
+                            .map(alm_core::encode_crate_row)
+                            .collect::<Vec<_>>()
+                            .join("/")
+                    )
+                };
                 format!(
-                    "sale draft={} customer={customer} billdate={} date={} paid={} lines={lines}{load}",
+                    "sale draft={} customer={customer} billdate={} date={} paid={} lines={lines}{load}{crates}",
                     draft.id().value(),
                     draft
                         .bill_date()
@@ -131,11 +145,17 @@ impl Intent {
                     Some(text) => Money::from_minor_units(text.parse().ok()?),
                     None => Money::from_minor_units(0),
                 };
+                let mut draft = ProvisionalDraft::new(DraftId::new(num("draft")?), lines)
+                    .with_customer(customer)
+                    .with_bill_date(bill_date)
+                    .with_loading_rate(load);
+                if let Some(rows) = get("crates") {
+                    for row in rows.split('/') {
+                        draft.add_crate_row(alm_core::decode_crate_row(row).ok()?);
+                    }
+                }
                 Self::PostSale(SaleIntent {
-                    draft: ProvisionalDraft::new(DraftId::new(num("draft")?), lines)
-                        .with_customer(customer)
-                        .with_bill_date(bill_date)
-                        .with_loading_rate(load),
+                    draft,
                     date: date("date")?,
                     paid: Money::from_minor_units(get("paid")?.parse().ok()?),
                     prices,

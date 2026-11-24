@@ -165,6 +165,9 @@ fn encode_undated(review: &Review) -> String {
     if let Some(snapshot) = crate_snapshot::encode(review) {
         return snapshot;
     }
+    if let Some(snapshot) = crate_snapshot::encode_mixed(review, encode_undated) {
+        return snapshot;
+    }
     let customer = encode_customer(review.draft.customer());
     let lines = review
         .draft
@@ -230,6 +233,9 @@ fn decode_undated(snapshot: &str) -> Result<Review, InvalidStoredText> {
     }
     if snapshot.starts_with("5|") {
         return crate_snapshot::decode(snapshot);
+    }
+    if let Some(mixed) = snapshot.strip_prefix("10|") {
+        return crate_snapshot::decode_mixed(mixed, decode_undated);
     }
     let mut fields: Vec<_> = snapshot.split('|').collect();
     let payment = if fields.first() == Some(&"3") {

@@ -88,12 +88,16 @@ fn l10_01_template_sale_survives_template_edit_delete_and_pending_reopen() {
     authority
         .load_crate_template(OWNER, id, qty(2), &mut draft)
         .unwrap();
-    assert_eq!(
-        authority.load_crate_template(OWNER, id, qty(1), &mut draft),
-        Err(CrateTemplateError::DraftHasRows)
-    );
+    let mut second = draft.clone();
+    authority
+        .load_crate_template(OWNER, id, qty(1), &mut second)
+        .unwrap();
+    assert_eq!(second.crate_rows().len(), 2);
+    assert_eq!(second.crate_rows()[1].quantity(), qty(1));
     assert!(draft.lines().is_empty());
-    let row = draft.crate_row().unwrap();
+    let [row] = draft.crate_rows() else {
+        panic!("one crate row");
+    };
     assert_eq!(row.quantity(), qty(2));
     assert_eq!(row.components(), original.components);
     assert_eq!(row.name(), Some(NAME));
@@ -175,7 +179,7 @@ fn l10_01_template_sale_survives_template_edit_delete_and_pending_reopen() {
     authority
         .load_crate_template(OWNER, id, qty(1), &mut fresh)
         .unwrap();
-    let new_row = fresh.crate_row().unwrap();
+    let new_row = &fresh.crate_rows()[0];
     assert_eq!(new_row.components(), edited.components);
     assert_eq!(new_row.quantity(), qty(1));
     assert_eq!(new_row.name(), Some("Edited crate"));

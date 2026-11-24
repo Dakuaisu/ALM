@@ -78,9 +78,7 @@ impl DraftSpec {
                 id: self.customer_id(),
                 name: self.name.into(),
             });
-        draft
-            .add_crate_row(CrateRow::new(positive(self.crate_qty), components.into()))
-            .unwrap();
+        draft.add_crate_row(CrateRow::new(positive(self.crate_qty), components.into()));
         draft
     }
 }

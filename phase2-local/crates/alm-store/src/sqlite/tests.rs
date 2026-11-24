@@ -118,9 +118,7 @@ fn expected_drafts() -> [ProvisionalDraft; 2] {
             name: "Synthetic ₹".into(),
         })
         .with_bill_date(Some(BillDate::new(2024, 2, 29).unwrap()));
-    crated
-        .add_crate_row(decode_crate_row("2;2,9,0;1,2,1").unwrap())
-        .unwrap();
+    crated.add_crate_row(decode_crate_row("2;2,9,0;1,2,1").unwrap());
     let typed = ProvisionalDraft::new(DraftId::new(44), vec![])
         .with_customer(DraftCustomer::Typed("'Work'".into()));
     [crated, typed]

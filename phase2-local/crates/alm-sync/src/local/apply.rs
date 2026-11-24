@@ -24,6 +24,21 @@ pub(super) fn apply(
             if fixture.current_sale(role, id).is_ok() {
                 return Err(AuthorityError::AlreadyPosted);
             }
+            // Crate rows beside the lines carry their copied name and rate, for a directory
+            // customer, as New Bill reviewed them.
+            if !sale.draft.crate_rows().is_empty()
+                && (sale
+                    .draft
+                    .crate_rows()
+                    .iter()
+                    .any(|row| row.name().is_none() || row.rate().is_none())
+                    || !matches!(
+                        sale.draft.customer(),
+                        alm_core::DraftCustomer::Selected { .. }
+                    ))
+            {
+                return Err(rejected("crate row"));
+            }
             let priced = priced_draft(fixture, role, &sale.draft).map_err(rejected)?;
             let current: Vec<_> = priced.lines.iter().map(|line| line.unit_price).collect();
             if current != sale.prices {
@@ -124,14 +139,9 @@ pub(super) fn apply(
                 .collect::<Option<Vec<_>>>()
                 .ok_or(AuthorityError::Invalid)?;
             let id = DraftId::new(*draft);
-            let crate_bill = fixture
-                .current_sale(role, id)
-                .is_ok_and(|(review, _)| review.is_named_crate_sale());
-            let receipt = match edits.as_slice() {
-                [edit] if crate_bill => fixture.edit_crate_bill(role, id, *edit),
-                _ => fixture.edit_posted_lines(role, id, &edits),
-            }
-            .map_err(rejected)?;
+            let receipt = fixture
+                .edit_posted_lines(role, id, &edits)
+                .map_err(rejected)?;
             Ok(Outcome::Sale(SaleReceipt {
                 draft: *draft,
                 invoice: receipt.invoice,

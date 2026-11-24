@@ -29,16 +29,14 @@ fn l16_05_direct_and_crate_follow_retained_product_id_after_rename() {
                     name: "Synthetic buyer".into(),
                 })
                 .with_bill_date(Some(date(5)));
-            draft
-                .add_crate_row(CrateRow::new(
-                    NonZeroU32::new(2).unwrap(),
-                    vec![CrateComponent::new(
-                        ProductId::new(1),
-                        NonZeroU32::new(5).unwrap(),
-                        SaleUnit::Piece,
-                    )],
-                ))
-                .unwrap();
+            draft.add_crate_row(CrateRow::new(
+                NonZeroU32::new(2).unwrap(),
+                vec![CrateComponent::new(
+                    ProductId::new(1),
+                    NonZeroU32::new(5).unwrap(),
+                    SaleUnit::Piece,
+                )],
+            ));
             f.register_draft(draft).unwrap();
             let review = f
                 .review_checkout(Role::Owner, DraftId::new(1), &[], money(1))

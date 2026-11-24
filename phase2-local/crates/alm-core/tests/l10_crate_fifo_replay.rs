@@ -110,7 +110,7 @@ fn docket(fixture: &mut ConfirmationFixture, components: [CrateComponent; 2]) {
     fixture
         .load_crate_template(OWNER, template, qty(2), &mut draft)
         .unwrap();
-    assert_eq!(draft.crate_row().unwrap().components(), components);
+    assert_eq!(draft.crate_rows()[0].components(), components);
     fixture.register_draft(draft).unwrap();
 }
 

@@ -155,7 +155,7 @@ impl ConfirmationFixture {
             if !in_range(date) {
                 continue;
             }
-            if (review.checkout.is_some() || review.draft.crate_row().is_some())
+            if (review.checkout.is_some() || !review.draft.crate_rows().is_empty())
                 && !review.is_named_crate_sale()
             {
                 return Err(ConfirmationError::UnsupportedSalesRecord(*id));
@@ -169,17 +169,19 @@ impl ConfirmationFixture {
                 .posted_sale_items
                 .get(id)
                 .ok_or(ConfirmationError::InvalidDraft)?;
-            // A crate line matches by its name (`li.item || li.name`).
-            let crate_name = review.draft.crate_row().map(|row| row.name().unwrap_or(""));
+            // Each line matches by `li.item || li.name`: an ordinary line by its product, a crate
+            // line by its name (its components are not searched).
+            let ordinary = review.draft.lines().len();
             if !(matches(name)
-                || crate_name.map_or_else(
-                    || {
-                        items
-                            .iter()
-                            .any(|item| item.item.as_deref().is_some_and(matches))
-                    },
-                    matches,
-                ))
+                || items
+                    .iter()
+                    .take(ordinary)
+                    .any(|item| item.item.as_deref().is_some_and(matches))
+                || review
+                    .draft
+                    .crate_rows()
+                    .iter()
+                    .any(|row| matches(row.name().unwrap_or(""))))
             {
                 continue;
             }

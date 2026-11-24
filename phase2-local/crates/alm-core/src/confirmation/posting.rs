@@ -8,8 +8,9 @@ use super::{
 pub(super) fn validate_bill(draft: &ProvisionalDraft) -> Result<(), ConfirmationError> {
     if draft.lines().is_empty()
         && draft
-            .crate_row()
-            .is_none_or(|row| row.components().is_empty())
+            .crate_rows()
+            .iter()
+            .all(|row| row.components().is_empty())
     {
         return Err(ConfirmationError::MissingBillableItems);
     }
@@ -46,7 +47,8 @@ impl PostedLineItem {
 }
 
 impl ConfirmationFixture {
-    /// Returns stored product text in bill-line order (component order for a crate sale).
+    /// Returns stored product text in bill-line order: ordinary lines, then each crate row's
+    /// components in order.
     pub fn posted_sale_items(
         &self,
         role: Role,
@@ -171,8 +173,8 @@ impl ConfirmationFixture {
             .map(DraftLine::product_id);
         let components = review
             .draft
-            .crate_row()
-            .into_iter()
+            .crate_rows()
+            .iter()
             .flat_map(|row| row.components())
             .map(|component| component.product);
         let items = products

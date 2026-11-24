@@ -34,7 +34,7 @@ fn order(row: CrateRow, lines: Vec<DraftLine>) -> ProvisionalDraft {
             name: "Synthetic".into(),
         })
         .with_bill_date(test_bill_date());
-    draft.add_crate_row(row).unwrap();
+    draft.add_crate_row(row);
     draft
 }
 

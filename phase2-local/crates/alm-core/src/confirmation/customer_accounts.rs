@@ -98,7 +98,7 @@ impl ConfirmationFixture {
                 matches!(review.draft.customer(), DraftCustomer::Selected { id, .. } if id == &input.customer_id)
                     && matches!(review.payment, ProposedPayment::Named(_))
                     && review.checkout.is_none()
-                    && review.draft.crate_row().is_none()
+                    && review.draft.crate_rows().is_empty()
             })
         {
             return Err(ConfirmationError::InvalidDraft);
@@ -175,7 +175,7 @@ impl ConfirmationFixture {
                 continue;
             }
             if !matches!(review.payment, ProposedPayment::Named(_))
-                || ((review.checkout.is_some() || review.draft.crate_row().is_some())
+                || ((review.checkout.is_some() || !review.draft.crate_rows().is_empty())
                     && !review.is_named_crate_sale())
             {
                 return Err(ConfirmationError::InvalidDraft);

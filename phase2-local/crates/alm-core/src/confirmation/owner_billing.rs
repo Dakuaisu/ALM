@@ -18,31 +18,39 @@ pub struct PricedLine {
     pub amount: Money,
 }
 
+/// One crate row of a saved draft: its name, crates, rate and amount (`lineAmt`).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PricedCrate {
+    pub name: String,
+    pub quantity: std::num::NonZeroU32,
+    pub rate: Money,
+    pub amount: Money,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PricedDraft {
     pub lines: Vec<PricedLine>,
-    /// The draft's per-packet loading rate times its packets.
+    /// Crate rows beside the ordinary lines, in order.
+    pub crates: Vec<PricedCrate>,
+    /// The draft's per-packet loading rate times its packets (crate components included).
     pub loading: Money,
-    /// Line amounts plus loading.
+    /// Line and crate amounts plus loading.
     pub total: Money,
 }
 
-/// Owner-only line amounts and total for the review screen, with checked arithmetic.
+/// Owner-only line and crate amounts and total for the review screen, with checked arithmetic.
 pub fn priced_draft(
     authority: &ConfirmationFixture,
     role: Role,
     draft: &ProvisionalDraft,
 ) -> Result<PricedDraft, ConfirmationError> {
-    let prices = preview_unit_prices(authority, role, draft)?;
-    let mut total = 0_i64;
-    let mut lines = Vec::with_capacity(prices.len());
-    for (line, unit_price) in draft.lines().iter().zip(prices) {
+    require_owner(role)?;
+    let (prices, crate_packs) = authority.sale_terms(draft)?;
+    let mut lines = Vec::with_capacity(draft.lines().len());
+    for (line, &unit_price) in draft.lines().iter().zip(&prices) {
         let amount = unit_price
             .minor_units()
             .checked_mul(i64::from(line.quantity().get()))
-            .ok_or(ConfirmationError::Overflow)?;
-        total = total
-            .checked_add(amount)
             .ok_or(ConfirmationError::Overflow)?;
         lines.push(PricedLine {
             product_id: line.product_id(),
@@ -51,15 +59,39 @@ pub fn priced_draft(
             amount: Money::from_minor_units(amount),
         });
     }
-    let loading = crate::provisional_preview::loading_charge(draft)
-        .map_err(|_| ConfirmationError::Overflow)?;
-    let total = total
-        .checked_add(loading.minor_units())
-        .ok_or(ConfirmationError::Overflow)?;
+    let mut crates = Vec::with_capacity(draft.crate_rows().len());
+    for (row, &rate) in draft
+        .crate_rows()
+        .iter()
+        .zip(&prices[draft.lines().len()..])
+    {
+        let amount = rate
+            .minor_units()
+            .checked_mul(i64::from(row.quantity().get()))
+            .ok_or(ConfirmationError::Overflow)?;
+        crates.push(PricedCrate {
+            name: row.name().unwrap_or_default().to_owned(),
+            quantity: row.quantity(),
+            rate,
+            amount: Money::from_minor_units(amount),
+        });
+    }
+    let review = Review {
+        draft: draft.clone(),
+        draft_revision: 0,
+        terms_revision: 0,
+        prices,
+        payment: super::ProposedPayment::Legacy,
+        payment_mode: ReceiptMode::Cash,
+        checkout: None,
+        crate_packs,
+    };
+    let amounts = review.amounts()?;
     Ok(PricedDraft {
         lines,
-        loading,
-        total: Money::from_minor_units(total),
+        crates,
+        loading: amounts.loading,
+        total: amounts.total,
     })
 }
 
@@ -283,7 +315,7 @@ pub struct CrateSaleTerms<'a> {
     pub paid: Money,
 }
 
-/// Posts a crate sale (`dispatchCrate`): the template is copied as the bill's only row, each
+/// Posts a crate sale (`dispatchCrate`): the template is copied as a bill of one crate row, each
 /// component's packets are taken from its FIFO lots as a separate demand (a repeated product
 /// takes from its lots once per component), and the bill is reviewed at the template's rate
 /// with the authority's loading charge. Nothing changes on any rejection.

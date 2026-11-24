@@ -82,15 +82,13 @@ fn l12_02_checkout_and_crates_use_posted_packets_after_pack_terms_change() {
 
     let crate_id = DraftId::new(9);
     let mut draft = named_draft(crate_id, Vec::new(), 11);
-    draft
-        .add_crate_row(CrateRow::new(
-            qty(2),
-            vec![
-                CrateComponent::new(PRODUCT, qty(12), SaleUnit::Piece),
-                CrateComponent::new(OTHER, qty(1), SaleUnit::Case),
-            ],
-        ))
-        .unwrap();
+    draft.add_crate_row(CrateRow::new(
+        qty(2),
+        vec![
+            CrateComponent::new(PRODUCT, qty(12), SaleUnit::Piece),
+            CrateComponent::new(OTHER, qty(1), SaleUnit::Case),
+        ],
+    ));
     fixture.set_crate_rate(SELL).unwrap();
     fixture.register_draft(draft).unwrap();
     let review = fixture.review_checkout(OWNER, crate_id, &[], SELL).unwrap();

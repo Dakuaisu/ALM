@@ -36,7 +36,7 @@ mod quantity_tests {
                 id: DraftCustomerId::new("customer-1".into()),
                 name: "Synthetic Customer".into(),
             });
-        draft.add_crate_row(CrateRow::new(one, vec![])).unwrap();
+        draft.add_crate_row(CrateRow::new(one, vec![]));
         let mut expected = draft.clone();
         expected.lines[1] = DraftLine::new(ProductId::new(2), two);
 
@@ -151,7 +151,9 @@ impl CrateRow {
         }
     }
 
-    pub(crate) fn with_price(mut self, name: String, rate: Money) -> Self {
+    /// The crate's copied name and rate per crate (`li.name`, `li.rate`).
+    #[must_use]
+    pub fn with_price(mut self, name: String, rate: Money) -> Self {
         self.price = Some(CrateRowPrice { name, rate });
         self
     }
@@ -211,15 +213,37 @@ pub enum DraftCustomer {
 pub struct ProvisionalDraft {
     id: DraftId,
     lines: Vec<DraftLine>,
-    crate_row: Option<CrateRow>,
+    /// Crate rows beside the ordinary lines (`draft.items` entries with `isCrate`), in the order
+    /// added; a bill lists its ordinary lines first, then its crate rows.
+    #[cfg_attr(
+        feature = "demo-fixture",
+        serde(alias = "crate_row", default, deserialize_with = "crate_rows_or_one")
+    )]
+    crate_rows: Vec<CrateRow>,
     customer: DraftCustomer,
     bill_date: Option<BillDate>,
     /// "Loading/Delivery ₹ per packet" (`draft.loadingRate`), charged per billed packet.
     loading_rate: Money,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct CrateRowAlreadyPresent;
+/// Journals written before mixed bills hold one optional crate row.
+#[cfg(feature = "demo-fixture")]
+fn crate_rows_or_one<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<CrateRow>, D::Error> {
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum Stored {
+        Many(Vec<CrateRow>),
+        One(Option<CrateRow>),
+    }
+    Ok(
+        match <Stored as serde::Deserialize>::deserialize(deserializer)? {
+            Stored::Many(rows) => rows,
+            Stored::One(row) => row.into_iter().collect(),
+        },
+    )
+}
 
 impl ProvisionalDraft {
     /// Takes ownership of the draft lines, which may be empty while editing.
@@ -227,7 +251,7 @@ impl ProvisionalDraft {
         Self {
             id,
             lines,
-            crate_row: None,
+            crate_rows: Vec::new(),
             customer: DraftCustomer::Unassigned,
             bill_date: None,
             loading_rate: Money::from_minor_units(0),
@@ -259,32 +283,25 @@ impl ProvisionalDraft {
         self.bill_date
     }
 
-    /// Adds the first crate row without replacing an existing one.
-    ///
-    /// # Errors
-    /// Returns [`CrateRowAlreadyPresent`] without changing the draft if it already has a crate row.
-    pub fn add_crate_row(&mut self, row: CrateRow) -> Result<(), CrateRowAlreadyPresent> {
-        if self.crate_row.is_some() {
-            return Err(CrateRowAlreadyPresent);
-        }
-        self.crate_row = Some(row);
-        Ok(())
+    /// Adds a crate row after the existing ones (`draft.items.push` of a crate).
+    pub fn add_crate_row(&mut self, row: CrateRow) {
+        self.crate_rows.push(row);
     }
 
-    /// Replaces an existing crate row, returning the previous row. An empty slot is unchanged.
-    pub fn replace_crate_row(&mut self, row: CrateRow) -> Option<CrateRow> {
-        self.crate_row
-            .as_mut()
+    /// Replaces the crate row at `index`, returning the previous row. A missing row is unchanged.
+    pub fn replace_crate_row(&mut self, index: usize, row: CrateRow) -> Option<CrateRow> {
+        self.crate_rows
+            .get_mut(index)
             .map(|existing| std::mem::replace(existing, row))
     }
 
-    /// Removes the crate row, returning it.
-    pub const fn remove_crate_row(&mut self) -> Option<CrateRow> {
-        self.crate_row.take()
+    /// Removes the crate row at `index`, returning it.
+    pub fn remove_crate_row(&mut self, index: usize) -> Option<CrateRow> {
+        (index < self.crate_rows.len()).then(|| self.crate_rows.remove(index))
     }
 
-    pub const fn crate_row(&self) -> Option<&CrateRow> {
-        self.crate_row.as_ref()
+    pub fn crate_rows(&self) -> &[CrateRow] {
+        &self.crate_rows
     }
 
     pub const fn customer(&self) -> &DraftCustomer {

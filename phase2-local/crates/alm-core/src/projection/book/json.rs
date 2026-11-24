@@ -191,10 +191,11 @@ fn encode_sale(s: &BookSale) -> Value {
         "loading": m(s.loading_rate),
         "lines": s.lines.iter().map(|l| json!([l.product, l.quantity])).collect::<Vec<_>>(),
         "prices": s.prices.iter().map(|p| m(*p)).collect::<Vec<_>>(),
-        "crate_row": s.crate_row.as_ref().map(|c| json!({"quantity": c.quantity,
+        "crate_rows": s.crate_rows.iter().map(|c| json!({"quantity": c.quantity,
             "components": c.components.iter().map(|(p, q, piece)| json!([p, q, piece]))
                 .collect::<Vec<_>>(),
-            "name": c.price.as_ref().map(|p| &p.0), "rate": c.price.as_ref().map(|p| m(p.1))})),
+            "name": c.price.as_ref().map(|p| &p.0), "rate": c.price.as_ref().map(|p| m(p.1))}))
+            .collect::<Vec<_>>(),
         "checkout": s.checkout.as_ref().map(|c| json!({"loading": m(c.loading_rate),
             "lines": c.lines.iter().map(|(piece, pack, pp, cp)| json!([piece, pack, m(*pp), m(*cp)]))
                 .collect::<Vec<_>>()})),
@@ -208,6 +209,19 @@ fn encode_sale(s: &BookSale) -> Value {
         "line_units": s.line_units.iter().map(|(l, u)| json!([l, om(*u)])).collect::<Vec<_>>(),
         "allocations": s.allocations.iter().map(|a| json!([a.line, a.product, a.lot,
             a.quantity, om(a.cost)])).collect::<Vec<_>>(),
+    })
+}
+
+fn decode_crate_row(c: &Value) -> R<BookCrateRow> {
+    Ok(BookCrateRow {
+        quantity: small(&c["quantity"])?,
+        components: rows(&c["components"], |x| {
+            Ok((number(&x[0]), small(&x[1])?, flag(&x[2])))
+        })?,
+        price: match (c["name"].as_str(), opt_money(&c["rate"])) {
+            (Some(name), Some(rate)) => Some((name.to_owned(), rate)),
+            _ => None,
+        },
     })
 }
 
@@ -242,20 +256,13 @@ fn decode_sale(r: &Value) -> R<BookSale> {
             })
         })?,
         prices: list(&r["prices"]).iter().map(money).collect(),
-        crate_row: if r["crate_row"].is_object() {
-            let c = &r["crate_row"];
-            Some(BookCrateRow {
-                quantity: small(&c["quantity"])?,
-                components: rows(&c["components"], |x| {
-                    Ok((number(&x[0]), small(&x[1])?, flag(&x[2])))
-                })?,
-                price: match (c["name"].as_str(), opt_money(&c["rate"])) {
-                    (Some(name), Some(rate)) => Some((name.to_owned(), rate)),
-                    _ => None,
-                },
-            })
+        // Books written before mixed bills hold one optional `crate_row`.
+        crate_rows: if r["crate_rows"].is_array() {
+            rows(&r["crate_rows"], decode_crate_row)?
+        } else if r["crate_row"].is_object() {
+            vec![decode_crate_row(&r["crate_row"])?]
         } else {
-            None
+            Vec::new()
         },
         checkout: if r["checkout"].is_object() {
             let c = &r["checkout"];

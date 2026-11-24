@@ -59,7 +59,7 @@ fn schedule_chart(
                     continue;
                 }
                 let lines = review.draft().lines();
-                assert!(review.draft().crate_row().is_none());
+                assert!(review.draft().crate_rows().is_empty());
                 assert_eq!(lines.len(), review.unit_prices().len());
                 let line_sales: i64 = lines
                     .iter()

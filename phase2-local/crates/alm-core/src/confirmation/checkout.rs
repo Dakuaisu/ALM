@@ -46,11 +46,7 @@ impl Review {
     }
 
     pub fn amounts(&self) -> Result<CheckoutAmounts, ConfirmationError> {
-        if self.draft.crate_row().is_some() {
-            return self.crate_amounts();
-        }
-        let mut packets = 0_u32;
-        let mut subtotal = 0_i64;
+        let (mut packets, mut subtotal) = self.crate_totals()?;
         for (index, line) in self.draft.lines().iter().enumerate() {
             let (quantity, price) = self.line_values(index)?;
             packets = packets
@@ -174,7 +170,8 @@ impl ConfirmationFixture {
         Ok(())
     }
 
-    /// Reviews regular lines with their requested units, or a sole crate with an empty `units` slice.
+    /// Reviews regular lines with their requested units beside any crate rows, or crate rows
+    /// alone with an empty `units` slice.
     pub fn review_checkout(
         &mut self,
         role: Role,
@@ -190,7 +187,7 @@ impl ConfirmationFixture {
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
         super::posting::validate_bill(draft)?;
-        if draft.crate_row().is_some() {
+        if draft.lines().is_empty() && !draft.crate_rows().is_empty() {
             if !units.is_empty() {
                 return Err(ConfirmationError::InvalidDraft);
             }
@@ -245,7 +242,10 @@ impl ConfirmationFixture {
     }
 
     pub(super) fn checkout_current(&self, review: &Review) -> bool {
-        if review.draft.crate_row().is_some() {
+        if review.checkout.is_some()
+            && review.draft.lines().is_empty()
+            && !review.draft.crate_rows().is_empty()
+        {
             let ProposedPayment::Named(received) = review.payment else {
                 return false;
             };
@@ -254,7 +254,9 @@ impl ConfirmationFixture {
                 .as_ref()
                 == Ok(review);
         }
-        if self.catalog.prices(&review.draft).as_ref() != Ok(&review.prices) {
+        if self.sale_terms(&review.draft).as_ref()
+            != Ok(&(review.prices.clone(), review.crate_packs.clone()))
+        {
             return false;
         }
         review.checkout.as_ref().is_none_or(|checkout| {

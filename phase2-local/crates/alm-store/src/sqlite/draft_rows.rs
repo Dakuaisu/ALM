@@ -96,9 +96,9 @@ pub(super) fn decode(
         .with_customer(customer(metadata)?)
         .with_bill_date(bill_date);
     if let Some(definition) = definition {
-        draft
-            .add_crate_row(decode_crate_row(&definition)?)
-            .map_err(|_| InvalidOutput)?;
+        for row in definition.split(";;") {
+            draft.add_crate_row(decode_crate_row(row)?);
+        }
     }
     Ok(Some(draft))
 }

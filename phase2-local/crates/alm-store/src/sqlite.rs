@@ -180,10 +180,17 @@ impl SqliteDraftStore {
                 ))?;
             }
         }
-        if let Some(row) = draft.crate_row() {
+        if !draft.crate_rows().is_empty() {
+            // Several crate rows share the one definition, joined by `;;`.
+            let definition = draft
+                .crate_rows()
+                .iter()
+                .map(encode_crate_row)
+                .collect::<Vec<_>>()
+                .join(";;");
             tx.execute(
                 "INSERT INTO provisional_draft_crates VALUES (?1, ?2)",
-                (&id, encode_crate_row(row)),
+                (&id, definition),
             )?;
         }
         tx.commit()?;

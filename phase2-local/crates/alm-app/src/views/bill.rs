@@ -28,22 +28,35 @@ pub fn bill_screen(view: &BillView<'_>) -> String {
     header(&mut html, view);
     html += &bill_body(view);
     html += r#"<div class="row" style="justify-content:flex-end;gap:10px"><button class="btn" type="button" data-action="bill_fresh">Clear</button><button class="btn primary" type="submit" form="bill-header" name="intent" value="save" style="padding:11px 22px">Save Bill as Draft</button>"#;
-    if view.role == Role::Owner && view.saved && view.draft.crate_row().is_none() {
+    if view.role == Role::Owner && view.saved && !single_crate(view.draft) {
         html += r#"<button class="btn" type="button" data-action="screen" data-tab="review">Owner review</button>"#;
     }
     html + "</div></div></div>"
 }
 
+/// A bill of one crate row and no items, posted through the crate-sale command.
+fn single_crate(draft: &ProvisionalDraft) -> bool {
+    draft.lines().is_empty() && draft.crate_rows().len() == 1
+}
+
 /// Items and totals, returned alone for live quantity updates (`#bill-body`).
 pub fn bill_body(view: &BillView<'_>) -> String {
-    if let Some(row) = view.draft.crate_row() {
+    if let ([row], true) = (view.draft.crate_rows(), view.draft.lines().is_empty()) {
         return crate_body(view, row);
     }
     let mut html = String::from(r#"<div id="bill-body">"#);
+    // The ordinary lines' preview (GST per line); crate rows are priced by the authority below.
+    let ordinary = ProvisionalDraft::new(view.draft.id(), view.draft.lines().to_vec())
+        .with_customer(view.draft.customer().clone())
+        .with_bill_date(view.draft.bill_date())
+        .with_loading_rate(view.draft.loading_rate());
     let preview = match view.catalog {
-        Some(catalog) => view.directory.catalog_preview(catalog, view.draft),
-        None => view.directory.preview(view.authority, view.draft),
+        Some(catalog) => view.directory.catalog_preview(catalog, &ordinary),
+        None => view.directory.preview(view.authority, &ordinary),
     };
+    let priced = (!view.draft.crate_rows().is_empty()).then(|| {
+        alm_core::confirmation::owner_billing::priced_draft(view.authority, view.role, view.draft)
+    });
     html += r#"<div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><button type="submit" form="bill-item" class="btn sm">＋ Add Item</button></div><div class="bill-items" style="margin-top:12px">"#;
     html += r#"<div class="bill-line bill-labels"><div>Item</div><div>Unit</div><div class="num">Rate ₹</div><div class="num">Qty</div><div class="num">Amount</div><div></div></div>"#;
     if let Ok(preview) = &preview {
@@ -51,12 +64,30 @@ pub fn bill_body(view: &BillView<'_>) -> String {
             item_row(&mut html, index + 1, line);
         }
     }
-    html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bill-item-list" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist" id="bill-item-list" role="listbox" aria-label="Item suggestions"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form>"#;
-    if view.draft.lines().is_empty() {
-        add_crate(&mut html, view.crates);
+    for (index, row) in view.draft.crate_rows().iter().enumerate() {
+        let amount = priced
+            .as_ref()
+            .and_then(|priced| priced.as_ref().ok())
+            .and_then(|priced| priced.crates.get(index))
+            .map(|line| line.amount);
+        crate_line(&mut html, view, index, row, amount);
     }
+    html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bill-item-list" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist" id="bill-item-list" role="listbox" aria-label="Item suggestions"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form>"#;
+    add_crate(&mut html, view.crates);
     html += "</div></div>";
 
+    if let Some(priced) = priced {
+        match priced {
+            Ok(priced) => mixed_totals(&mut html, view.draft, &priced),
+            Err(error) => {
+                let _ = write!(
+                    html,
+                    r#"<div class="card" role="alert">Totals unavailable: {error:?}.</div>"#
+                );
+            }
+        }
+        return html + "</div>";
+    }
     let with_loading = preview.and_then(|preview| {
         alm_core::provisional_preview::with_loading(view.draft, &preview.totals)
             .map(|charges| (preview, charges))
@@ -88,26 +119,87 @@ fn add_crate(html: &mut String, crates: &[(u64, String)]) {
     );
 }
 
-/// A crate bill's items and totals: the crate row (`crateRow`) and, once the draft is saved, the
-/// Owner's post form.
-fn crate_body(view: &BillView<'_>, row: &alm_core::CrateRow) -> String {
-    let mut html = String::from(
-        r#"<div id="bill-body"><div class="card"><div class="sectit" style="margin:0">Items</div><div class="bill-items" style="margin-top:12px"><div class="bill-line bill-labels"><div>Item</div><div>Unit</div><div class="num">Rate ₹</div><div class="num">Qty</div><div class="num">Amount</div><div></div></div>"#,
-    );
-    let amounts = view.authority.crate_line_amounts(view.role, row);
+/// One crate row (`crateRow`): name, contents, Crate, rate, crates, amount and ×.
+fn crate_line(
+    html: &mut String,
+    view: &BillView<'_>,
+    index: usize,
+    row: &alm_core::CrateRow,
+    amount: Option<alm_core::Money>,
+) {
     let name = row.name().unwrap_or("Crate");
     let rate = row.rate().map_or_else(|| "—".to_owned(), inr);
-    let line = amounts.as_ref().map_or_else(
-        |_| "—".to_owned(),
-        |a| format!("<b>₹{}</b>", inr(a.subtotal)),
-    );
+    let line = amount.map_or_else(|| "—".to_owned(), |a| format!("<b>₹{}</b>", inr(a)));
     let _ = write!(
         html,
-        r#"<form class="bill-line" style="background:var(--bg2);border-radius:9px;padding:6px 4px" data-action="bill_crate_quantity" data-payload="terms"><div style="padding-left:6px"><b>📦 {}</b><div class="muted" style="font-size:11px">{}</div></div><span class="muted">Crate</span><span class="num">₹{rate}</span><input class="inp num" name="quantity" inputmode="numeric" value="{}" aria-label="Crates" required><span class="num">{line}</span><span class="row" style="gap:4px"><button class="btn sm" type="submit">Set</button><button class="x" type="button" data-action="bill_crate_remove" aria-label="Remove crate">×</button></span></form></div></div>"#,
+        r#"<form class="bill-line" style="background:var(--bg2);border-radius:9px;padding:6px 4px" data-action="bill_crate_quantity" data-payload="terms" data-line="{index}"><div style="padding-left:6px"><b>📦 {}</b><div class="muted" style="font-size:11px">{}</div></div><span class="muted">Crate</span><span class="num">₹{rate}</span><input class="inp num" name="quantity" inputmode="numeric" value="{}" aria-label="Crates for {}" required><span class="num">{line}</span><span class="row" style="gap:4px"><button class="btn sm" type="submit">Set</button><button class="x" type="button" data-action="bill_crate_remove" data-line="{index}" aria-label="Remove crate {}">×</button></span></form>"#,
         esc(name),
         esc(&view.authority.crate_row_contents(row)),
-        row.quantity()
+        row.quantity(),
+        esc(name),
+        esc(name)
     );
+}
+
+/// Totals of a bill with crate rows beside its items, priced by the authority (`subtotal`,
+/// `totalPkts × loadingRate`): items total, loading and the bill amount.
+fn mixed_totals(
+    html: &mut String,
+    draft: &ProvisionalDraft,
+    priced: &alm_core::confirmation::owner_billing::PricedDraft,
+) {
+    html.push_str(r#"<div class="card"><div class="row" style="align-items:flex-start;gap:24px"><div style="flex:1"><div class="sectit">Provisional totals</div><div class="help">Saving a draft does not post a sale or record payment. Each crate sells as one line at its rate; stock reduces item by item and loading is charged per packet of its contents.</div>"#);
+    let rate = draft.loading_rate();
+    let _ = write!(
+        html,
+        r#"<div style="margin-top:12px;max-width:220px"><label for="bill-loading">Loading/Delivery ₹ per packet</label><input id="bill-loading" class="inp num" form="bill-header" name="loading" inputmode="decimal" value="{}"></div></div><div class="bill-totals">"#,
+        if rate.is_zero() {
+            "0".to_owned()
+        } else {
+            rate.to_rupee_text()
+        }
+    );
+    let items = alm_core::Money::from_minor_units(
+        priced.total.minor_units() - priced.loading.minor_units(),
+    );
+    let loading_row = (!priced.loading.is_zero()).then_some(("Loading", priced.loading));
+    for (label, amount) in [
+        Some(("Items total", items)),
+        loading_row,
+        Some(("Bill Amount", priced.total)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if label == "Bill Amount" {
+            html.push_str(r#"<hr class="sep" style="margin:7px 0">"#);
+        }
+        let _ = write!(
+            html,
+            r#"<div class="row" style="justify-content:space-between;padding:5px 0;gap:12px"><span class="muted">{label}</span><b>₹{}</b></div>"#,
+            inr(amount)
+        );
+    }
+    html.push_str("</div></div></div>");
+}
+
+/// A bill of one crate row: the crate row (`crateRow`) and, once the draft is saved, the Owner's
+/// post form.
+fn crate_body(view: &BillView<'_>, row: &alm_core::CrateRow) -> String {
+    let mut html = String::from(
+        r#"<div id="bill-body"><div class="card"><div class="row" style="justify-content:space-between"><div class="sectit" style="margin:0">Items</div><button type="submit" form="bill-item" class="btn sm">＋ Add Item</button></div><div class="bill-items" style="margin-top:12px"><div class="bill-line bill-labels"><div>Item</div><div>Unit</div><div class="num">Rate ₹</div><div class="num">Qty</div><div class="num">Amount</div><div></div></div>"#,
+    );
+    let amounts = view.authority.crate_line_amounts(view.role, row);
+    crate_line(
+        &mut html,
+        view,
+        0,
+        row,
+        amounts.as_ref().ok().map(|a| a.subtotal),
+    );
+    html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bill-item-list" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist" id="bill-item-list" role="listbox" aria-label="Item suggestions"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form>"#;
+    add_crate(&mut html, view.crates);
+    html += "</div></div>";
     match amounts {
         Ok(amounts) => {
             html.push_str(r#"<div class="card"><div class="row" style="align-items:flex-start;gap:24px"><div style="flex:1"><div class="sectit">Totals</div><div class="help">The crate sells as one line at its rate; stock reduces item by item. Loading is charged per packet of its contents.</div>"#);

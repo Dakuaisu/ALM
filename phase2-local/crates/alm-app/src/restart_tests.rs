@@ -933,14 +933,14 @@ fn new_bill_takes_a_crate_row_and_posts_it_through_the_crate_sale_command() {
     assert!(html.contains("<b>₹800.00</b>"), "2 crates at ₹400: {html}");
     assert!(!html.contains("bill_crate_post"), "posted only once saved");
     assert!(!html.contains(">Owner review</button>"));
-    assert!(
-        trial
-            .bill_add(ProductId::new(1), NonZeroU32::MIN)
-            .unwrap_err()
-            .contains("crate only")
-    );
+    // An item sits beside the crate row (OPEN-013 mixed bill); removed again here.
+    trial.bill_add(ProductId::new(1), NonZeroU32::MIN).unwrap();
+    assert_eq!(trial.current.as_ref().unwrap().0.lines().len(), 1);
     trial
-        .bill_crate_quantity(NonZeroU32::new(3).unwrap())
+        .edit_bill(|draft| Ok(draft.remove_line(std::num::NonZeroUsize::MIN).is_some()))
+        .unwrap();
+    trial
+        .bill_crate_quantity(0, NonZeroU32::new(3).unwrap())
         .unwrap();
     assert!(trial.render("bill").unwrap().contains("<b>₹1,200.00</b>"));
     trial
@@ -977,6 +977,138 @@ fn new_bill_takes_a_crate_row_and_posts_it_through_the_crate_sale_command() {
     let html = trial.render("bill").unwrap();
     assert!(!html.contains("📦 Party Crate"));
     trial.bill_crate_add(template, NonZeroU32::MIN).unwrap();
-    trial.bill_crate_remove().unwrap();
-    assert!(trial.current.as_ref().unwrap().0.crate_row().is_none());
+    trial.bill_crate_remove(0).unwrap();
+    assert!(trial.current.as_ref().unwrap().0.crate_rows().is_empty());
+}
+
+#[test]
+fn new_bill_mixes_item_lines_and_crate_rows_and_posts_them_as_one_sale() {
+    use crate::bill_entry::{Header, HeaderIntent};
+    let root = Root::new("new-bill-mixed");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.crate_form = Some(crate::views::CrateForm {
+        rows: vec![
+            ("1".into(), "2".into(), "Case".into()),
+            ("2".into(), "3".into(), "Case".into()),
+        ],
+        ..Default::default()
+    });
+    trial
+        .crate_submit(map(&[
+            ("name", "Party Crate"),
+            ("price", "400"),
+            ("product_0", "1"),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("product_1", "2"),
+            ("qty_1", "3"),
+            ("unit_1", "Case"),
+            ("intent", "save"),
+        ]))
+        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id;
+    let header = |intent| Header::new("batch1-customer", "2025-04-30", Some(""), intent);
+    trial.current = None;
+    trial.render("bill").unwrap();
+    trial.bill_header(header(HeaderIntent::Select)).unwrap();
+    trial
+        .bill_add(ProductId::new(1), NonZeroU32::new(2).unwrap())
+        .unwrap();
+    trial.bill_crate_add(template, NonZeroU32::MIN).unwrap();
+    trial.bill_crate_add(template, NonZeroU32::MIN).unwrap();
+    trial
+        .bill_crate_quantity(1, NonZeroU32::new(2).unwrap())
+        .unwrap();
+    trial.bill_crate_remove(0).unwrap();
+    let draft = &trial.current.as_ref().unwrap().0;
+    assert_eq!((draft.lines().len(), draft.crate_rows().len()), (1, 1));
+    let html = trial.render("bill").unwrap();
+    assert!(
+        html.contains("📦 Party Crate") && html.contains("Synthetic Lime"),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"data-action="bill_crate_remove" data-line="0""#),
+        "{html}"
+    );
+    assert!(html.contains("<b>₹800.00</b>"), "2 crates at ₹400: {html}");
+    // The authority prices the bill: 2 Lime at the Owner rate and 2 crates; no loading.
+    assert!(
+        html.contains("<span class=\"muted\">Bill Amount</span><b>₹1,041.00</b>"),
+        "{html}"
+    );
+    assert!(!html.contains(">Owner review</button>"), "only once saved");
+    trial.bill_header(header(HeaderIntent::Save)).unwrap();
+    let html = trial.render("bill").unwrap();
+    assert!(html.contains(">Owner review</button>"), "{html}");
+    assert!(
+        !html.contains("bill_crate_post"),
+        "posted through Owner review"
+    );
+    assert!(trial.bill_crate_post("0").is_err());
+    trial
+        .sale_prepare(&crate::billing::Terms {
+            date: "2025-04-30".into(),
+            paid: "500".into(),
+        })
+        .unwrap();
+    let review = trial.render("review").unwrap();
+    assert!(review.contains("📦 Crate: Party Crate"), "{review}");
+    let serial = trial.posting.pending(Role::Owner).unwrap().serial();
+    assert_eq!(trial.sale_confirm(serial).unwrap(), 1);
+    let entries = trial.outbox.entries().unwrap();
+    let entry = entries
+        .iter()
+        .find(|e| e.intent.starts_with("sale draft="))
+        .unwrap();
+    assert!(
+        entry.intent.contains(" crates=2,40000,"),
+        "{}",
+        entry.intent
+    );
+    let s = trial.projected().unwrap().snapshot;
+    assert_eq!(
+        (
+            s.sales[0].lines,
+            s.sales[0].items.as_slice(),
+            s.sales[0].packets
+        ),
+        (
+            2,
+            &["Synthetic Lime".to_owned(), "Party Crate".to_owned()][..],
+            2 + 10
+        )
+    );
+    assert_eq!(s.sales[0].total, Money::from_minor_units(104_100));
+    let on_hand = |s: &alm_core::projection::ProjectionSnapshot, p: u64| {
+        s.stock.iter().find(|r| r.product == p).unwrap().on_hand
+    };
+    assert_eq!((on_hand(&s, 1), on_hand(&s, 2)), (44, 34));
+    let bill = alm_core::DraftId::new(s.sales[0].draft_id);
+    let estimate = trial.estimate_html(bill).unwrap();
+    assert!(
+        estimate.contains("Crate: Party Crate") && estimate.contains("Synthetic Lime"),
+        "{estimate}"
+    );
+    let (_, png) = trial.bill_image_png(bill).unwrap();
+    assert!(png.starts_with(b"\x89PNG"));
+
+    // Edit: 1 Lime, 1 crate at ₹390.
+    let id = s.sales[0].draft_id.to_string();
+    trial
+        .sale_edit_save(map(&[
+            ("id", id.as_str()),
+            ("qty_0", "1"),
+            ("rate_0", "120.50"),
+            ("qty_1", "1"),
+            ("rate_1", "390"),
+        ]))
+        .unwrap();
+    let s = trial.projected().unwrap().snapshot;
+    assert_eq!(s.sales[0].total, Money::from_minor_units(51_050));
+    assert_eq!((on_hand(&s, 1), on_hand(&s, 2)), (47, 37));
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let s = trial.projected().unwrap().snapshot;
+    assert_eq!(s.sales[0].items, ["Synthetic Lime", "Party Crate"]);
 }

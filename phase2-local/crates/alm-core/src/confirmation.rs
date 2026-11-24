@@ -368,7 +368,7 @@ impl ConfirmationFixture {
         draft: &ProvisionalDraft,
         revision: u64,
     ) -> Result<Review, ConfirmationError> {
-        let prices = self.catalog.prices(draft)?;
+        let (prices, crate_packs) = self.sale_terms(draft)?;
         Ok(Review {
             draft: draft.clone(),
             draft_revision: revision,
@@ -377,8 +377,23 @@ impl ConfirmationFixture {
             payment: ProposedPayment::Legacy,
             payment_mode: ReceiptMode::Cash,
             checkout: None,
-            crate_packs: None,
+            crate_packs,
         })
+    }
+
+    /// A bill's prices (each ordinary line's sell rate, then each crate row's rate) and its
+    /// crate components' packs (`None` without crate rows).
+    pub(crate) fn sale_terms(
+        &self,
+        draft: &ProvisionalDraft,
+    ) -> Result<(Vec<Money>, Option<Vec<std::num::NonZeroU32>>), ConfirmationError> {
+        let mut prices = self.catalog.prices(draft)?;
+        if draft.crate_rows().is_empty() {
+            return Ok((prices, None));
+        }
+        let (rates, packs) = self.crate_terms(draft)?;
+        prices.extend(rates);
+        Ok((prices, Some(packs)))
     }
 
     pub const fn ledger(&self) -> Money {

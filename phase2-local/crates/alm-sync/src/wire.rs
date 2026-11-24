@@ -41,6 +41,22 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
             if load != 0 {
                 terms["loading_minor"] = json!(load);
             }
+            if !sale.draft.crate_rows().is_empty() {
+                terms["crates"] = sale
+                    .draft
+                    .crate_rows()
+                    .iter()
+                    .map(|row| {
+                        json!({"name": row.name().unwrap_or_default(),
+                            "rate_minor": row.rate().map(Money::minor_units),
+                            "quantity": row.quantity().get(),
+                            "components": row.components().iter().map(|c| json!({
+                                "product_id": c.product.value(), "quantity": c.quantity.get(),
+                                "piece": c.unit == alm_core::SaleUnit::Piece}))
+                                .collect::<Vec<_>>()})
+                    })
+                    .collect();
+            }
             match sale.draft.customer() {
                 DraftCustomer::Selected { id, name } => {
                     terms["customer_id"] = json!(id.value());

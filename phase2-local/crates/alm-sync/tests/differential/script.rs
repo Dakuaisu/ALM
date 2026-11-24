@@ -71,6 +71,41 @@ pub fn sale(core: &ProjectionSnapshot, bill: &Bill<'_>) -> Intent {
     })
 }
 
+/// A crate row copied onto a bill: `(name, rate, crates, components)`; no name leaves it
+/// unpriced.
+pub type CrateLine<'a> = (Option<&'a str>, i64, u32, &'a [(u64, u32, bool)]);
+
+/// [`sale`] with crate rows beside its lines (the HTML's New Bill mixing `crateRow`s).
+pub fn mixed_sale(core: &ProjectionSnapshot, bill: &Bill<'_>, crates: &[CrateLine<'_>]) -> Intent {
+    let Intent::PostSale(mut sale) = sale(core, bill) else {
+        unreachable!("a sale")
+    };
+    for (name, rate, quantity, components) in crates {
+        let row = alm_core::CrateRow::new(
+            NonZeroU32::new(*quantity).unwrap(),
+            components
+                .iter()
+                .map(|(p, q, piece)| {
+                    alm_core::CrateComponent::new(
+                        ProductId::new(*p),
+                        NonZeroU32::new(*q).unwrap(),
+                        if *piece {
+                            alm_core::SaleUnit::Piece
+                        } else {
+                            alm_core::SaleUnit::Case
+                        },
+                    )
+                })
+                .collect(),
+        );
+        sale.draft.add_crate_row(match name {
+            Some(name) => row.with_price((*name).into(), rs(*rate)),
+            None => row,
+        });
+    }
+    Intent::PostSale(sale)
+}
+
 pub fn receipt(customer: &str, date: &str, paise: i64, online: bool) -> Intent {
     Intent::RecordReceipt {
         customer: customer.into(),

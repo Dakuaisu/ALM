@@ -23,6 +23,7 @@ mod gst_invoice_hsn;
 mod invoice_handoff;
 mod invoice_image_share;
 mod manual_stock_count;
+mod mixed_bills;
 mod monthly_reports_replay;
 mod multiline;
 mod named_payment;

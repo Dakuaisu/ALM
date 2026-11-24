@@ -66,9 +66,7 @@ fn l03_03_sqlite_reopens_incomplete_and_corrected_draft_before_one_owner_post() 
             .unwrap()
     };
     let mut incomplete = ProvisionalDraft::new(ID, Vec::new());
-    incomplete
-        .add_crate_row(CrateRow::new(NonZeroU32::MIN, vec![]))
-        .unwrap();
+    incomplete.add_crate_row(CrateRow::new(NonZeroU32::MIN, vec![]));
     save(incomplete.clone());
     let reopened = reopen();
     assert_eq!(reopened, incomplete);

@@ -107,7 +107,7 @@ pub(crate) fn with_catalog(
     draft: &ProvisionalDraft,
     lookup: impl Fn(ProductId) -> Option<(String, Money, u32)>,
 ) -> Result<ProvisionalBillPreview, ProvisionalPreviewError> {
-    if draft.crate_row().is_some() {
+    if !draft.crate_rows().is_empty() {
         return Err(ProvisionalPreviewError::UnsupportedCrateRow);
     }
 
@@ -247,9 +247,7 @@ mod tests {
             DraftId::new(7),
             vec![DraftLine::new(ProductId::new(1), NonZeroU32::MIN)],
         );
-        draft
-            .add_crate_row(CrateRow::new(NonZeroU32::MIN, vec![]))
-            .unwrap();
+        draft.add_crate_row(CrateRow::new(NonZeroU32::MIN, vec![]));
 
         // When the draft is previewed.
         let result = preview(&draft);

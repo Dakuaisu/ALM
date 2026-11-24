@@ -149,7 +149,7 @@ impl ConfirmationFixture {
             if !window.contains(date) {
                 continue;
             }
-            if ((review.checkout.is_some() || review.draft.crate_row().is_some())
+            if ((review.checkout.is_some() || !review.draft.crate_rows().is_empty())
                 && !review.is_named_crate_sale())
                 || matches!(review.payment, ProposedPayment::Legacy)
             {

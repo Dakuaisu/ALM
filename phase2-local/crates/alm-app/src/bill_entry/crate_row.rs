@@ -1,7 +1,7 @@
-//! New Bill's crate row (ALM_Business_Manager.html L3640 "Add Crate", L3755 `crateRow`): the
-//! Owner adds a saved crate template as the bill's line, changes its crates or removes it, and
-//! posts the saved bill through the authority's crate-sale command. A crate bill holds its crate
-//! only (the core's sole-crate bill).
+//! New Bill's crate rows (ALM_Business_Manager.html L3640 "Add Crate", L3755 `crateRow`): the
+//! Owner adds a saved crate template as a line beside the bill's items, changes its crates or
+//! removes it. A bill of one crate row and no items posts through the authority's crate-sale
+//! command; any other bill with crate rows goes through Owner review and the sale command.
 use std::num::NonZeroU32;
 
 use alm_core::{DraftCustomer, DraftId, Money, ProvisionalDraft};
@@ -10,9 +10,6 @@ use tauri::State;
 
 use super::quantity;
 use crate::{AppState, Trial, debug, ipc::IpcId, with};
-
-const SOLE: &str = "A crate bill holds its crate only: remove the items first.";
-pub(super) const SOLE_ITEMS: &str = "A crate bill holds its crate only: remove the crate first.";
 
 #[derive(serde::Deserialize)]
 pub struct CrateLine {
@@ -61,33 +58,36 @@ impl Trial {
         self.posted
             .load_crate_template(role, id, crates, &mut loaded)
             .map_err(debug)?;
-        let row = loaded.remove_crate_row().ok_or("Choose a saved crate.")?;
+        let row = loaded.remove_crate_row(0).ok_or("Choose a saved crate.")?;
         self.edit_bill(|draft| {
-            if !draft.lines().is_empty() {
-                return Err(SOLE.into());
-            }
-            draft.remove_crate_row();
-            draft.add_crate_row(row).map_err(|_| SOLE.to_owned())?;
+            draft.add_crate_row(row);
             Ok(true)
         })
     }
 
-    pub(crate) fn bill_crate_quantity(&mut self, crates: NonZeroU32) -> Result<(), String> {
+    pub(crate) fn bill_crate_quantity(
+        &mut self,
+        index: usize,
+        crates: NonZeroU32,
+    ) -> Result<(), String> {
         self.require_owner()?;
         self.edit_bill(|draft| {
-            let row = draft.crate_row().ok_or("No crate on this bill.")?;
+            let row = draft
+                .crate_rows()
+                .get(index)
+                .ok_or("No such crate on this bill.")?;
             if row.quantity() == crates {
                 return Ok(false);
             }
             let row = row.with_quantity(crates);
-            draft.replace_crate_row(row);
+            draft.replace_crate_row(index, row);
             Ok(true)
         })
     }
 
-    pub(crate) fn bill_crate_remove(&mut self) -> Result<(), String> {
+    pub(crate) fn bill_crate_remove(&mut self, index: usize) -> Result<(), String> {
         self.require_owner()?;
-        self.edit_bill(|draft| Ok(draft.remove_crate_row().is_some()))
+        self.edit_bill(|draft| Ok(draft.remove_crate_row(index).is_some()))
     }
 
     /// Posts the saved crate bill: the crate row's template, crates, rate and contents as shown,
@@ -98,7 +98,11 @@ impl Trial {
         if !saved {
             return Err("Save the bill as a draft first.".into());
         }
-        let row = draft.crate_row().ok_or("No crate on this bill.")?;
+        let ([row], true) = (draft.crate_rows(), draft.lines().is_empty()) else {
+            return Err(
+                "A bill with items or several crates is posted through Owner review.".into(),
+            );
+        };
         let template = self.posted.crate_template_of(role, row).map_err(|_| {
             "The crate changed since it was added to this bill: add it again.".to_owned()
         })?;
@@ -159,15 +163,21 @@ pub fn bill_crate_add(state: State<'_, AppState>, line: CrateLine) -> Result<Str
 pub fn bill_crate_quantity(
     state: State<'_, AppState>,
     terms: CrateQuantity,
+    line: Option<usize>,
 ) -> Result<String, String> {
     with(&state, "bill", |trial| {
-        trial.bill_crate_quantity(quantity(&terms.quantity)?)
+        trial.bill_crate_quantity(line.unwrap_or(0), quantity(&terms.quantity)?)
     })
 }
 
 #[tauri::command(async)]
-pub fn bill_crate_remove(state: State<'_, AppState>) -> Result<String, String> {
-    with(&state, "bill", Trial::bill_crate_remove)
+pub fn bill_crate_remove(
+    state: State<'_, AppState>,
+    line: Option<usize>,
+) -> Result<String, String> {
+    with(&state, "bill", |trial| {
+        trial.bill_crate_remove(line.unwrap_or(0))
+    })
 }
 
 #[tauri::command(async)]

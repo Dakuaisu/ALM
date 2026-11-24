@@ -45,16 +45,14 @@ fn fixture(crate_sale: bool) -> ConfirmationFixture {
         })
         .with_bill_date(Some(date("2025-04-01")));
     if crate_sale {
-        draft
-            .add_crate_row(CrateRow::new(
+        draft.add_crate_row(CrateRow::new(
+            NonZeroU32::MIN,
+            vec![CrateComponent::new(
+                product,
                 NonZeroU32::MIN,
-                vec![CrateComponent::new(
-                    product,
-                    NonZeroU32::MIN,
-                    SaleUnit::Case,
-                )],
-            ))
-            .unwrap();
+                SaleUnit::Case,
+            )],
+        ));
     }
     fixture.register_draft(draft).unwrap();
     let units = if crate_sale {

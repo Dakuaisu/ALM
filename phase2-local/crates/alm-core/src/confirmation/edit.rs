@@ -57,7 +57,7 @@ impl ConfirmationFixture {
         if *revision != 0
             || original.draft.lines().len() != 1
             || original.checkout.is_some()
-            || original.draft.crate_row().is_some()
+            || !original.draft.crate_rows().is_empty()
             || !matches!(original.payment, ProposedPayment::Named(_))
             || receipt.received.is_none_or(|amount| {
                 amount.minor_units() <= 0 || amount.minor_units() >= receipt.total.minor_units()
@@ -247,13 +247,16 @@ impl LineEdit {
 }
 
 impl ConfirmationFixture {
-    /// The HTML's Edit Bill on an ordinary named bill: replaces each existing line's quantity and
-    /// rate in place, keeping customer, date, invoice and the amount paid. Stock, lots, the
-    /// customer's balance, the ledger and the frozen sale cost follow; Cash Book (paid) does not
-    /// change. A second edit is allowed.
+    /// The HTML's Edit Bill on a named bill: replaces each existing line's quantity and rate in
+    /// place, ordinary lines first and then each crate row (crates and rate; its contents stay),
+    /// keeping customer, date, invoice and the amount paid. Stock, lots, the customer's balance,
+    /// the ledger and the frozen sale cost follow (each crate component's packets follow its
+    /// crate count from or back to its lots, as a line edit); Cash Book (paid) does not change.
+    /// A bill of crate rows only keeps its posted loading charge per packet. A second edit is
+    /// allowed.
     ///
     /// # Errors
-    /// Denies Managers; rejects missing, cancelled, crate or checkout bills, a line count change,
+    /// Denies Managers; rejects missing, cancelled or checkout bills, a line count change,
     /// negative rates, a total below the amount paid, and stock shortages, all before mutation.
     pub fn edit_posted_lines(
         &mut self,
@@ -269,14 +272,16 @@ impl ConfirmationFixture {
             .get(&id)
             .cloned()
             .ok_or(ConfirmationError::DraftNotFound)?;
+        let ordinary = original.draft.lines().len();
+        let crates = original.draft.crate_rows();
         if self
             .lifecycle
             .get(&id)
             .is_some_and(|(cancelled, _)| *cancelled)
-            || original.checkout.is_some()
-            || original.draft.crate_row().is_some()
+            || (original.checkout.is_some() && ordinary != 0)
+            || (!crates.is_empty() && !original.is_named_crate_sale())
             || !matches!(original.payment, ProposedPayment::Named(_))
-            || edits.len() != original.draft.lines().len()
+            || edits.len() != ordinary + crates.len()
             || edits.iter().any(|edit| edit.price.minor_units() < 0)
         {
             return Err(ConfirmationError::InvalidDraft);
@@ -289,10 +294,17 @@ impl ConfirmationFixture {
             .zip(edits)
             .map(|(line, edit)| DraftLine::new(line.product_id(), edit.quantity))
             .collect();
-        updated.draft = ProvisionalDraft::new(id, lines.clone())
+        let mut draft = ProvisionalDraft::new(id, lines.clone())
             .with_customer(original.draft.customer().clone())
             .with_bill_date(original.draft.bill_date())
             .with_loading_rate(original.draft.loading_rate());
+        for (row, edit) in crates.iter().zip(&edits[ordinary..]) {
+            draft.add_crate_row(
+                crate::CrateRow::new(edit.quantity, row.components().to_vec())
+                    .with_price(row.name().unwrap_or_default().to_owned(), edit.price),
+            );
+        }
+        updated.draft = draft;
         updated.prices = edits.iter().map(|edit| edit.price).collect();
         let amounts = updated.amounts()?;
         let received = receipt
@@ -325,11 +337,14 @@ impl ConfirmationFixture {
             .checked_sub(receipt.total.minor_units())
             .and_then(|value| value.checked_add(amounts.total.minor_units()))
             .ok_or(ConfirmationError::Overflow)?;
+        let before = original.crate_packet_demands()?.unwrap_or_default();
+        let after = updated.crate_packet_demands()?.unwrap_or_default();
         let moves: Vec<_> = original
             .draft
             .lines()
             .iter()
-            .zip(&lines)
+            .chain(&before)
+            .zip(lines.iter().chain(&after))
             .map(|(old, new)| {
                 (
                     old.product_id().value(),
@@ -361,17 +376,11 @@ impl ConfirmationFixture {
             .insert(id, (updated, receipt.clone(), revision));
         Ok(receipt)
     }
-}
 
-impl ConfirmationFixture {
-    /// The HTML's Edit Bill on a crate bill (`sell_crate`): the crate line's quantity and rate
-    /// change in place, keeping its contents, customer, date, invoice and the amount paid. Each
-    /// component's packets follow the new crate count from or back to its lots (frozen unit
-    /// cost, as a line edit); the loading charge per packet stays the posted one.
+    /// The HTML's Edit Bill on a bill of one crate row (`sell_crate`): its crates and rate.
     ///
     /// # Errors
-    /// Denies Managers; rejects missing, cancelled or non-crate bills, a negative rate, a total
-    /// below the amount paid and stock shortages, all before mutation.
+    /// As [`Self::edit_posted_lines`]; rejects a bill that is not one named crate row.
     pub fn edit_crate_bill(
         &mut self,
         role: Role,
@@ -381,99 +390,14 @@ impl ConfirmationFixture {
         if role != Role::Owner {
             return Err(ConfirmationError::AccessDenied);
         }
-        let (original, receipt, revision) = self
-            .current_sales
-            .get(&id)
-            .cloned()
-            .ok_or(ConfirmationError::DraftNotFound)?;
-        let row = original
-            .draft
-            .crate_row()
-            .filter(|_| original.is_named_crate_sale())
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        if self
-            .lifecycle
-            .get(&id)
-            .is_some_and(|(cancelled, _)| *cancelled)
-            || edit.price.minor_units() < 0
+        let (original, _) = self.current_sale(role, id)?;
+        if !original.draft.lines().is_empty()
+            || original.draft.crate_rows().len() != 1
+            || !original.is_named_crate_sale()
         {
             return Err(ConfirmationError::InvalidDraft);
         }
-        let changed = crate::CrateRow::new(edit.quantity, row.components().to_vec())
-            .with_price(row.name().unwrap_or_default().to_owned(), edit.price);
-        let mut updated = original.clone();
-        updated.draft.replace_crate_row(changed);
-        updated.prices = vec![edit.price];
-        let amounts = updated.amounts()?;
-        let received = receipt
-            .received
-            .ok_or(ConfirmationError::InvalidDraft)?
-            .minor_units();
-        let due = amounts
-            .total
-            .minor_units()
-            .checked_sub(received)
-            .filter(|value| *value >= 0)
-            .ok_or(ConfirmationError::InvalidAmount)?;
-        let old_due = receipt
-            .due
-            .ok_or(ConfirmationError::InvalidDraft)?
-            .minor_units();
-        let DraftCustomer::Selected { id: customer, .. } = updated.draft.customer() else {
-            return Err(ConfirmationError::InvalidDraft);
-        };
-        let balance = self
-            .customer_balances
-            .get(customer.value())
-            .copied()
-            .ok_or(ConfirmationError::InvalidDraft)?
-            .checked_sub(old_due)
-            .and_then(|value| value.checked_add(due))
-            .ok_or(ConfirmationError::Overflow)?;
-        let ledger = self
-            .ledger
-            .checked_sub(receipt.total.minor_units())
-            .and_then(|value| value.checked_add(amounts.total.minor_units()))
-            .ok_or(ConfirmationError::Overflow)?;
-        let before = original
-            .crate_packet_demands()?
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        let after = updated
-            .crate_packet_demands()?
-            .ok_or(ConfirmationError::InvalidDraft)?;
-        let moves: Vec<_> = before
-            .iter()
-            .zip(&after)
-            .map(|(old, new)| {
-                (
-                    old.product_id().value(),
-                    old.quantity().get(),
-                    new.quantity().get(),
-                )
-            })
-            .collect();
-        let catalog = self.catalog.stage_line_edit(id.value(), &moves)?;
-        let movement = self
-            .movement_epoch
-            .checked_add(1)
-            .ok_or(ConfirmationError::Overflow)?;
-        let revision = revision.checked_add(1).ok_or(ConfirmationError::Overflow)?;
-        let receipt = Receipt {
-            quantity: amounts.packets,
-            total: amounts.total,
-            due: Some(Money::from_minor_units(due)),
-            customer_balance: Some(Money::from_minor_units(balance)),
-            ..receipt
-        };
-        self.catalog = catalog;
-        self.movement_epoch = movement;
-        self.lifecycle.insert(id, (false, movement));
-        self.ledger = ledger;
-        self.customer_balances
-            .insert(customer.value().to_owned(), balance);
-        self.current_sales
-            .insert(id, (updated, receipt.clone(), revision));
-        Ok(receipt)
+        self.edit_posted_lines(role, id, &[edit])
     }
 }
 

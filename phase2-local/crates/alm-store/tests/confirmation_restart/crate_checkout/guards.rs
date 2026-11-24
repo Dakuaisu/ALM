@@ -1,24 +1,24 @@
 use super::*;
-use alm_core::CrateRowAlreadyPresent;
 use alm_core::confirmation::pending;
 
 #[test]
-fn adding_a_second_crate_row_preserves_the_original_until_explicit_replacement() {
+fn a_second_crate_row_sits_beside_the_first_until_replaced_or_removed() {
     let mut draft = ProvisionalDraft::new(ID, vec![]);
     let replacement = CrateRow::new(qty(1), vec![components()[1]]);
-    assert_eq!(draft.replace_crate_row(replacement.clone()), None);
-    assert!(draft.crate_row().is_none());
+    assert_eq!(draft.replace_crate_row(0, replacement.clone()), None);
+    assert!(draft.crate_rows().is_empty());
 
     let original = CrateRow::new(qty(2), components().to_vec());
-    assert_eq!(draft.add_crate_row(original.clone()), Ok(()));
-    assert_eq!(
-        draft.add_crate_row(replacement.clone()),
-        Err(CrateRowAlreadyPresent)
-    );
-    assert_eq!(draft.crate_row(), Some(&original));
+    draft.add_crate_row(original.clone());
+    draft.add_crate_row(replacement.clone());
+    assert_eq!(draft.crate_rows(), [original.clone(), replacement.clone()]);
 
-    assert_eq!(draft.replace_crate_row(replacement.clone()), Some(original));
-    assert_eq!(draft.crate_row(), Some(&replacement));
+    assert_eq!(
+        draft.replace_crate_row(0, replacement.clone()),
+        Some(original)
+    );
+    assert_eq!(draft.remove_crate_row(1), Some(replacement.clone()));
+    assert_eq!(draft.crate_rows(), [replacement]);
 }
 
 #[test]
