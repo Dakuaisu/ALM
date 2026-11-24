@@ -84,6 +84,7 @@ impl SqliteDraftStore {
                     .map(|conn| Self { conn })
                     .map_err(|_| DraftStorageError::AccountStoreMismatch)?;
                 store.check_scope(&key)?;
+                store.conn.execute_batch(schema::LOADING_TABLE)?;
                 store.enable_wal()?;
                 Ok(store)
             }
@@ -94,6 +95,7 @@ impl SqliteDraftStore {
     fn initialize_scoped(&mut self, key: &str) -> Result<(), DraftStorageError> {
         let tx = self.begin()?;
         tx.execute_batch(schema::DRAFT_TABLES)?;
+        tx.execute_batch(schema::LOADING_TABLE)?;
         tx.execute_batch(&format!(
             "CREATE TABLE {SCOPE_TABLE} (account_hex TEXT PRIMARY KEY NOT NULL) STRICT;"
         ))?;

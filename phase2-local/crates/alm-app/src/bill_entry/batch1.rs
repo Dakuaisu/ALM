@@ -52,6 +52,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
         .bill_header(Header {
             customer: CUSTOMER.into(),
             date: BILL_DAY.into(),
+            loading: None,
             intent: Intent::Save,
         })
         .unwrap();

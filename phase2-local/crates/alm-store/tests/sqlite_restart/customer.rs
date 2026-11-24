@@ -63,6 +63,7 @@ fn customer_entry_survives_process_restart_and_isolated_edit() {
             "provisional_draft_customers",
             "provisional_draft_dates",
             "provisional_draft_lines",
+            "provisional_draft_loading",
             "provisional_drafts"
         ]
     );

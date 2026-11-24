@@ -43,8 +43,12 @@ pub fn bill_body(view: &BillView<'_>) -> String {
     }
     html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form></div></div>"#;
 
-    match preview {
-        Ok(preview) => totals(&mut html, &preview.totals),
+    let with_loading = preview.and_then(|preview| {
+        alm_core::provisional_preview::with_loading(view.draft, &preview.totals)
+            .map(|charges| (preview, charges))
+    });
+    match with_loading {
+        Ok((preview, charges)) => totals(&mut html, &preview.totals, view.draft, charges),
         Err(error) => {
             let _ = write!(
                 html,
@@ -101,15 +105,35 @@ fn item_row(html: &mut String, index: usize, line: &ProvisionalPreviewLine) {
     );
 }
 
-fn totals(html: &mut String, amounts: &PreviewAmounts) {
-    html.push_str(r#"<div class="card"><div class="row" style="align-items:flex-start;gap:24px"><div style="flex:1"><div class="sectit">Provisional totals</div><div class="help">Saving a draft does not post a sale or record payment.</div></div><div class="bill-totals">"#);
+fn totals(
+    html: &mut String,
+    amounts: &PreviewAmounts,
+    draft: &ProvisionalDraft,
+    (loading, grand): (alm_core::Money, alm_core::Money),
+) {
+    html.push_str(r#"<div class="card"><div class="row" style="align-items:flex-start;gap:24px"><div style="flex:1"><div class="sectit">Provisional totals</div><div class="help">Saving a draft does not post a sale or record payment.</div>"#);
+    let rate = draft.loading_rate();
+    let _ = write!(
+        html,
+        r#"<div style="margin-top:12px;max-width:220px"><label for="bill-loading">Loading/Delivery ₹ per packet</label><input id="bill-loading" class="inp num" form="bill-header" name="loading" inputmode="decimal" value="{}"></div></div><div class="bill-totals">"#,
+        if rate.is_zero() {
+            "0".to_owned()
+        } else {
+            rate.to_rupee_text()
+        }
+    );
+    let loading_row = (!loading.is_zero()).then_some(("Loading", loading));
     for (label, amount) in [
-        ("Items total", amounts.inclusive),
-        ("Taxable", amounts.taxable),
-        ("CGST", amounts.cgst),
-        ("SGST", amounts.sgst),
-        ("Bill Amount", amounts.inclusive),
-    ] {
+        Some(("Items total", amounts.inclusive)),
+        Some(("Taxable", amounts.taxable)),
+        Some(("CGST", amounts.cgst)),
+        Some(("SGST", amounts.sgst)),
+        loading_row,
+        Some(("Bill Amount", grand)),
+    ]
+    .into_iter()
+    .flatten()
+    {
         if label == "Bill Amount" {
             html.push_str(r#"<hr class="sep" style="margin:7px 0">"#);
         }

@@ -26,6 +26,7 @@ pub(super) fn assert_cost_free_records(database: &Path) {
             "provisional_draft_customers:draft_id,kind,customer_id,name\n",
             "provisional_draft_dates:draft_id,bill_date\n",
             "provisional_draft_lines:draft_id,position,product_id,quantity\n",
+            "provisional_draft_loading:draft_id,rate\n",
             "provisional_drafts:id\n",
             "draft|43\n",
             "customer|43|2|crate-buyer|Synthetic\n",

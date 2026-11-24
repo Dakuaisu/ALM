@@ -73,10 +73,10 @@ impl Review {
         packets: u32,
         subtotal: i64,
     ) -> Result<CheckoutAmounts, ConfirmationError> {
-        let rate = self
-            .checkout
-            .as_ref()
-            .map_or(0, |terms| terms.loading_rate.minor_units());
+        let rate = self.checkout.as_ref().map_or_else(
+            || self.draft.loading_rate().minor_units(),
+            |terms| terms.loading_rate.minor_units(),
+        );
         let loading = rate
             .checked_mul(i64::from(packets))
             .ok_or(ConfirmationError::Overflow)?;

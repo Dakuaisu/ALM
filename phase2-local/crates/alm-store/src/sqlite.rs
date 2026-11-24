@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use rusqlite::types::ValueRef;
-use rusqlite::{Connection, Row, Transaction, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
 use alm_core::{
     DraftCustomer, DraftId, DraftStoreFailure, DurableDraftStore, ProvisionalDraft,
@@ -72,6 +72,7 @@ impl SqliteDraftStore {
         };
         let tx = store.begin()?;
         tx.execute_batch(schema::DRAFT_TABLES)?;
+        tx.execute_batch(schema::LOADING_TABLE)?;
         tx.execute_batch(schema::OWNER_PENDING_TABLE)?;
         tx.commit()?;
         store.enable_wal()?;
@@ -128,6 +129,7 @@ impl SqliteDraftStore {
             "provisional_draft_lines",
             "provisional_draft_crates",
             "provisional_draft_dates",
+            "provisional_draft_loading",
         ] {
             tx.execute(&format!("DELETE FROM {table} WHERE draft_id = ?1"), [&id])?;
         }
@@ -135,6 +137,13 @@ impl SqliteDraftStore {
             tx.execute(
                 "INSERT INTO provisional_draft_dates VALUES (?1, ?2)",
                 (&id, date.to_string()),
+            )?;
+        }
+        let loading = draft.loading_rate().minor_units();
+        if loading > 0 {
+            tx.execute(
+                "INSERT INTO provisional_draft_loading VALUES (?1, ?2)",
+                (&id, loading),
             )?;
         }
         match draft.customer() {
@@ -200,6 +209,17 @@ impl SqliteDraftStore {
         while let Some(row) = rows.next()? {
             decoded.push(draft_rows::DraftRow::read(row)?);
         }
-        draft_rows::decode(id, decoded)
+        let loading: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT rate FROM provisional_draft_loading WHERE draft_id = ?1",
+                [id.value().to_string()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(draft_rows::decode(id, decoded)?.map(|draft| match loading {
+            Some(rate) => draft.with_loading_rate(alm_core::Money::from_minor_units(rate)),
+            None => draft,
+        }))
     }
 }

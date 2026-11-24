@@ -48,3 +48,11 @@ CREATE TABLE IF NOT EXISTS pending_owner_confirmations (
     snapshot TEXT NOT NULL
 ) STRICT;
 ";
+
+/// The per-draft loading rate; also added to files created before it existed.
+pub(super) const LOADING_TABLE: &str = "
+CREATE TABLE IF NOT EXISTS provisional_draft_loading (
+    draft_id TEXT PRIMARY KEY NOT NULL REFERENCES provisional_drafts(id),
+    rate INTEGER NOT NULL CHECK (rate > 0)
+) STRICT;
+";

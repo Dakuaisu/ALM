@@ -21,6 +21,9 @@ pub struct PricedLine {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PricedDraft {
     pub lines: Vec<PricedLine>,
+    /// The draft's per-packet loading rate times its packets.
+    pub loading: Money,
+    /// Line amounts plus loading.
     pub total: Money,
 }
 
@@ -48,8 +51,14 @@ pub fn priced_draft(
             amount: Money::from_minor_units(amount),
         });
     }
+    let loading = crate::provisional_preview::loading_charge(draft)
+        .map_err(|_| ConfirmationError::Overflow)?;
+    let total = total
+        .checked_add(loading.minor_units())
+        .ok_or(ConfirmationError::Overflow)?;
     Ok(PricedDraft {
         lines,
+        loading,
         total: Money::from_minor_units(total),
     })
 }

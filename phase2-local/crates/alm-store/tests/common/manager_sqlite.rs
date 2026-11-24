@@ -22,6 +22,8 @@ const COLUMNS: &str = concat!(
     "table|provisional_draft_lines|position\n",
     "table|provisional_draft_lines|product_id\n",
     "table|provisional_draft_lines|quantity\n",
+    "table|provisional_draft_loading|draft_id\n",
+    "table|provisional_draft_loading|rate\n",
     "table|provisional_drafts|id\n",
 );
 

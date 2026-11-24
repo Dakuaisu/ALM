@@ -25,6 +25,7 @@ fn header(customer: &str, intent: Intent) -> Header {
     Header {
         customer: customer.into(),
         date: "2025-05-01".into(),
+        loading: None,
         intent,
     }
 }

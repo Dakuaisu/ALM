@@ -212,8 +212,12 @@ impl Intent {
                     })
                     .collect::<Vec<_>>()
                     .join(",");
+                let load = match draft.loading_rate().minor_units() {
+                    0 => String::new(),
+                    rate => format!(" load={rate}"),
+                };
                 format!(
-                    "sale draft={} customer={customer} billdate={} date={} paid={} lines={lines}",
+                    "sale draft={} customer={customer} billdate={} date={} paid={} lines={lines}{load}",
                     draft.id().value(),
                     draft
                         .bill_date()
@@ -288,10 +292,15 @@ impl Intent {
                     "-" => None,
                     text => Some(text.parse().ok()?),
                 };
+                let load = match get("load") {
+                    Some(text) => Money::from_minor_units(text.parse().ok()?),
+                    None => Money::from_minor_units(0),
+                };
                 Self::PostSale(SaleIntent {
                     draft: ProvisionalDraft::new(DraftId::new(num("draft")?), lines)
                         .with_customer(customer)
-                        .with_bill_date(bill_date),
+                        .with_bill_date(bill_date)
+                        .with_loading_rate(load),
                     date: date("date")?,
                     paid: Money::from_minor_units(get("paid")?.parse().ok()?),
                     prices,
@@ -375,8 +384,12 @@ impl Intent {
             })
             .collect::<Vec<_>>()
             .join(", ");
+        let load = match sale.draft.loading_rate().minor_units() {
+            0 => String::new(),
+            rate => format!(r#", "loading_minor": {rate}"#),
+        };
         Some(format!(
-            r#"{{"draft_id": "{}", "lines": [{lines}]}}"#,
+            r#"{{"draft_id": "{}", "lines": [{lines}]{load}}}"#,
             sale.draft.id().value()
         ))
     }

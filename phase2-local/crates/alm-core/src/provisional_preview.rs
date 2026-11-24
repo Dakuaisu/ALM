@@ -63,6 +63,40 @@ pub fn preview(
     })
 }
 
+/// `totalPkts(items) * loadingRate`: the draft's loading charge over its ordinary lines.
+///
+/// # Errors
+/// Rejects overflow.
+pub fn loading_charge(draft: &ProvisionalDraft) -> Result<Money, ProvisionalPreviewError> {
+    let packets = draft.lines().iter().try_fold(0_i64, |sum, line| {
+        sum.checked_add(i64::from(line.quantity().get()))
+            .ok_or(ProvisionalPreviewError::Overflow)
+    })?;
+    draft
+        .loading_rate()
+        .minor_units()
+        .checked_mul(packets)
+        .map(Money::from_minor_units)
+        .ok_or(ProvisionalPreviewError::Overflow)
+}
+
+/// The loading charge and the bill amount (items total plus loading) for New Bill.
+///
+/// # Errors
+/// Rejects overflow.
+pub fn with_loading(
+    draft: &ProvisionalDraft,
+    totals: &PreviewAmounts,
+) -> Result<(Money, Money), ProvisionalPreviewError> {
+    let loading = loading_charge(draft)?;
+    let grand = totals
+        .inclusive
+        .minor_units()
+        .checked_add(loading.minor_units())
+        .ok_or(ProvisionalPreviewError::Overflow)?;
+    Ok((loading, Money::from_minor_units(grand)))
+}
+
 pub(crate) fn with_catalog(
     draft: &ProvisionalDraft,
     lookup: impl Fn(ProductId) -> Option<(&'static str, Money, u32)>,

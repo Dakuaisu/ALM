@@ -64,6 +64,13 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
                     rupees(line.amount)
                 );
             }
+            if !priced.loading.is_zero() {
+                let _ = write!(
+                    html,
+                    "<tr><td>Loading</td><td></td><td></td><td class=\"num\">{}</td></tr>",
+                    rupees(priced.loading)
+                );
+            }
             let _ = write!(
                 html,
                 "</tbody></table><div style=\"margin-top:8px\"><b>Owner total {}</b></div>",

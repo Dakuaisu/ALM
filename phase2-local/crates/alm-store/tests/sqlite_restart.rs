@@ -156,6 +156,7 @@ fn edited_and_empty_drafts_survive_a_fresh_process_without_posting_tables() {
             "provisional_draft_customers",
             "provisional_draft_dates",
             "provisional_draft_lines",
+            "provisional_draft_loading",
             "provisional_drafts"
         ],
     );

@@ -132,7 +132,8 @@ impl ConfirmationFixture {
         let lines = vec![updated.draft.lines()[0], edit.changes.appended_line];
         updated.draft = ProvisionalDraft::new(id, lines)
             .with_customer(updated.draft.customer().clone())
-            .with_bill_date(updated.draft.bill_date());
+            .with_bill_date(updated.draft.bill_date())
+            .with_loading_rate(updated.draft.loading_rate());
         updated.prices = vec![edit.changes.retained_price, edit.changes.appended_price];
         let amounts = updated.amounts()?;
         let received = edit
@@ -290,7 +291,8 @@ impl ConfirmationFixture {
             .collect();
         updated.draft = ProvisionalDraft::new(id, lines.clone())
             .with_customer(original.draft.customer().clone())
-            .with_bill_date(original.draft.bill_date());
+            .with_bill_date(original.draft.bill_date())
+            .with_loading_rate(original.draft.loading_rate());
         updated.prices = edits.iter().map(|edit| edit.price).collect();
         let amounts = updated.amounts()?;
         let received = receipt

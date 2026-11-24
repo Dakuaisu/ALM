@@ -62,6 +62,7 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
         .bill_header(Header {
             customer: CUSTOMER.into(),
             date: BILL_DAY.into(),
+            loading: None,
             intent: Intent::Save,
         })
         .unwrap();
@@ -230,6 +231,7 @@ fn in_place_line_edit_flows_through_sales_customers_cash_book_and_dashboard() {
         .bill_header(Header {
             customer: CUSTOMER.into(),
             date: BILL_DAY.into(),
+            loading: None,
             intent: Intent::Save,
         })
         .unwrap();

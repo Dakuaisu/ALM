@@ -6,7 +6,7 @@ use crate::{Trial, debug, ipc::IpcId, text, views};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum Intent {
+pub(crate) enum Intent {
     Select,
     Save,
 }
@@ -15,7 +15,25 @@ enum Intent {
 pub struct Header {
     customer: String,
     date: String,
+    /// "Loading/Delivery ₹ per packet"; absent leaves the draft's rate.
+    #[serde(default)]
+    loading: Option<String>,
     intent: Intent,
+}
+
+#[cfg(test)]
+pub(crate) use Intent as HeaderIntent;
+
+#[cfg(test)]
+impl Header {
+    pub(crate) fn new(customer: &str, date: &str, loading: Option<&str>, intent: Intent) -> Self {
+        Self {
+            customer: customer.into(),
+            date: date.into(),
+            loading: loading.map(str::to_owned),
+            intent,
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -116,7 +134,18 @@ impl Trial {
             .checked_add(1)
             .ok_or("Draft limit reached.")?;
         let date = self.today()?;
-        let draft = ProvisionalDraft::new(DraftId::new(id), Vec::new()).with_bill_date(Some(date));
+        // `newDraft`: loadingRate starts at the business default (Settings, Owner only).
+        let loading = match self.role() {
+            alm_core::Role::Owner => self
+                .shop
+                .business_profile(alm_core::Role::Owner)
+                .map_err(debug)?
+                .loading_charge(),
+            alm_core::Role::Manager => alm_core::Money::from_minor_units(0),
+        };
+        let draft = ProvisionalDraft::new(DraftId::new(id), Vec::new())
+            .with_bill_date(Some(date))
+            .with_loading_rate(loading);
         self.current = Some((draft, false));
         self.posting.invalidate();
         Ok(())
@@ -134,7 +163,7 @@ impl Trial {
         Ok(())
     }
 
-    pub(super) fn bill_header(&mut self, header: Header) -> Result<(), String> {
+    pub(crate) fn bill_header(&mut self, header: Header) -> Result<(), String> {
         let customer = self
             .directory
             .select_customer(self.drafting(), &header.customer)
@@ -144,10 +173,17 @@ impl Trial {
             .parse()
             .map_err(|_| "Enter a valid bill date.".to_owned())?;
         let (current, saved) = self.current.as_ref().ok_or("No draft is open.")?;
+        let loading = match header.loading.as_deref().map(str::trim) {
+            None => current.loading_rate(),
+            Some("") => alm_core::Money::from_minor_units(0),
+            Some(text) => alm_core::Money::parse_rupees(text)
+                .map_err(|_| "Enter the loading charge in rupees per packet.".to_owned())?,
+        };
         let draft = current
             .clone()
             .with_customer(customer)
-            .with_bill_date(Some(date));
+            .with_bill_date(Some(date))
+            .with_loading_rate(loading);
         let changed = &draft != current;
         let saved = match header.intent {
             Intent::Select => *saved && !changed,
@@ -173,7 +209,7 @@ impl Trial {
         Ok(())
     }
 
-    pub(super) fn bill_add(
+    pub(crate) fn bill_add(
         &mut self,
         product: ProductId,
         quantity: NonZeroU32,
@@ -188,7 +224,7 @@ impl Trial {
         })
     }
 
-    pub(super) fn bill_open(&mut self, id: DraftId) -> Result<(), String> {
+    pub(crate) fn bill_open(&mut self, id: DraftId) -> Result<(), String> {
         let draft = self
             .drafts
             .reopen_draft(id)

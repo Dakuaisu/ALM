@@ -205,6 +205,8 @@ pub struct ProvisionalDraft {
     crate_row: Option<CrateRow>,
     customer: DraftCustomer,
     bill_date: Option<BillDate>,
+    /// "Loading/Delivery ₹ per packet" (`draft.loadingRate`), charged per billed packet.
+    loading_rate: Money,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -219,7 +221,18 @@ impl ProvisionalDraft {
             crate_row: None,
             customer: DraftCustomer::Unassigned,
             bill_date: None,
+            loading_rate: Money::from_minor_units(0),
         }
+    }
+
+    /// Sets the per-packet loading charge (`newDraft` starts it at the business default).
+    pub const fn with_loading_rate(mut self, rate: Money) -> Self {
+        self.loading_rate = rate;
+        self
+    }
+
+    pub const fn loading_rate(&self) -> Money {
+        self.loading_rate
     }
 
     pub fn with_customer(mut self, customer: DraftCustomer) -> Self {

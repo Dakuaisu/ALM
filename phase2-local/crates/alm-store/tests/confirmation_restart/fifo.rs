@@ -70,6 +70,7 @@ fn sqlite_lost_response_retries_fifo_without_reallocation_or_cost_disclosure() {
             "provisional_draft_customers:draft_id,kind,customer_id,name\n",
             "provisional_draft_dates:draft_id,bill_date\n",
             "provisional_draft_lines:draft_id,position,product_id,quantity\n",
+            "provisional_draft_loading:draft_id,rate\n",
             "provisional_drafts:id\n",
             "draft|43\nline|43|0|1|2\nline|43|1|1|3\n",
             "pending|987|6|2024-02-29|2|43|1|0|125,125|1,,53796E746865746963|1,2;1,3\n",

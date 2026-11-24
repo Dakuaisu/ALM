@@ -409,3 +409,95 @@ fn device_gst_tables_move_into_the_authority_once_without_losing_any() {
         "the next number follows the moved bills"
     );
 }
+
+#[test]
+fn new_bill_applies_the_default_loading_charge_through_review_posting_and_restart() {
+    use std::num::NonZeroU32;
+
+    use crate::bill_entry::{Header, HeaderIntent};
+    let root = Root::new("restart-loading");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let profile = crate::settings::Profile {
+        name: "ALM".into(),
+        loading: "1.50".into(),
+        ..Default::default()
+    };
+    trial.settings_profile(&profile, 1).unwrap();
+    trial.current = None;
+    let html = trial.render("bill").unwrap();
+    assert!(
+        html.contains(r#"name="loading" inputmode="decimal" value="1.50""#),
+        "{html}"
+    );
+    trial
+        .bill_add(ProductId::new(1), NonZeroU32::new(2).unwrap())
+        .unwrap();
+    trial
+        .bill_header(Header::new(
+            "batch1-customer",
+            "2025-04-30",
+            None,
+            HeaderIntent::Save,
+        ))
+        .unwrap();
+    let html = trial.render("bill").unwrap();
+    // Provisional ₹118 × 2 + loading ₹1.50 × 2 packets.
+    assert!(
+        html.contains("<span class=\"muted\">Loading</span><b>₹3.00</b>"),
+        "{html}"
+    );
+    assert!(
+        html.contains("<span class=\"muted\">Bill Amount</span><b>₹239.00</b>"),
+        "{html}"
+    );
+    drop(trial);
+
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.bill_open(alm_core::DraftId::new(1)).unwrap();
+    assert_eq!(
+        trial.current.as_ref().unwrap().0.loading_rate(),
+        Money::from_minor_units(150),
+        "the draft keeps its loading rate across a restart"
+    );
+    trial
+        .sale_prepare(&crate::billing::Terms {
+            date: "2025-04-30".into(),
+            paid: "0".into(),
+        })
+        .unwrap();
+    let html = trial.render("review").unwrap();
+    assert!(html.contains("<td>Loading</td>"), "{html}");
+    let serial = trial.posting.pending(Role::Owner).unwrap().serial();
+    trial.sale_confirm(serial).unwrap();
+    let sale = trial.projected().unwrap().snapshot.sales.remove(0);
+    // Owner rate ₹120.50 × 2 + ₹3 loading.
+    assert_eq!(sale.total, Money::from_minor_units(24_400));
+    let entry = trial.outbox.entries().unwrap().remove(0);
+    assert!(entry.intent.ends_with(" load=150"), "{}", entry.intent);
+
+    // A typed rate replaces the default on that draft only; blank means none.
+    trial.current = None;
+    trial.render("bill").unwrap();
+    trial
+        .bill_add(ProductId::new(2), NonZeroU32::new(1).unwrap())
+        .unwrap();
+    trial
+        .bill_header(Header::new(
+            "batch1-customer",
+            "2025-04-30",
+            Some(""),
+            HeaderIntent::Select,
+        ))
+        .unwrap();
+    assert!(trial.current.as_ref().unwrap().0.loading_rate().is_zero());
+    assert!(
+        trial
+            .bill_header(Header::new(
+                "batch1-customer",
+                "2025-04-30",
+                Some("-1"),
+                HeaderIntent::Select,
+            ))
+            .is_err()
+    );
+}

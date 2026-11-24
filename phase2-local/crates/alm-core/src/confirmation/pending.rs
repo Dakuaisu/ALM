@@ -138,6 +138,14 @@ fn decode_customer(customer: &str) -> Result<DraftCustomer, InvalidStoredText> {
 }
 
 pub fn encode(review: &Review) -> String {
+    let encoded = encode_unloaded(review);
+    match review.draft.loading_rate().minor_units() {
+        0 => encoded,
+        rate => format!("9|{rate}|{encoded}"),
+    }
+}
+
+fn encode_unloaded(review: &Review) -> String {
     let payload = encode_undated(review);
     let dated = match review.draft.bill_date() {
         Some(date) => format!("6|{date}|{payload}"),
@@ -191,6 +199,18 @@ fn encode_undated(review: &Review) -> String {
 }
 
 pub fn decode(snapshot: &str) -> Result<Review, InvalidStoredText> {
+    if let Some(loaded) = snapshot.strip_prefix("9|") {
+        let (rate, rest) = loaded.split_once('|').ok_or(InvalidStoredText)?;
+        let rate: i64 = rate.parse().map_err(|_| InvalidStoredText)?;
+        if rate <= 0 || rest.starts_with("9|") {
+            return Err(InvalidStoredText);
+        }
+        let mut review = decode(rest)?;
+        review.draft = review
+            .draft
+            .with_loading_rate(Money::from_minor_units(rate));
+        return Ok(review);
+    }
     if let Some(payload) = snapshot.strip_prefix("8|") {
         return online_snapshot::decode(payload);
     }
