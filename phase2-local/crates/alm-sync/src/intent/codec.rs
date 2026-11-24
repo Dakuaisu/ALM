@@ -116,6 +116,7 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
             ])
         ),
         Intent::DeleteCrate { id } => format!("cratedel id={id}"),
+        Intent::SetReorderDefault { level } => format!("reorderdefault level={level}"),
         Intent::SellCrate(c) => format!(
             "cratesale draft={} template={} qty={} customer={} name={} date={} paid={} rate={} items={}",
             c.draft,

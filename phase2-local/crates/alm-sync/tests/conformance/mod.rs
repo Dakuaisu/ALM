@@ -673,6 +673,34 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+/// The default reorder level: a later product saved with a blank level takes it.
+pub fn set_reorder_default<A: SalesAuthority>(a: &mut A) {
+    exercise(
+        a,
+        "reorder",
+        &Intent::SetReorderDefault { level: 9 },
+        &Intent::SetReorderDefault { level: 8 },
+        None,
+        None,
+        |s| {
+            s.owner
+                .as_ref()
+                .is_some_and(|o| o.book.settings.reorder_default == 9)
+        },
+    );
+    let mut blank = product(77, true, "Conformance Default", 4_000);
+    blank.reorder = None;
+    setup(a, "reorder", "product", &Intent::SaveProduct(blank));
+    let (_, s) = state(a);
+    assert_eq!(
+        s.products
+            .iter()
+            .find(|p| p.id == 77)
+            .map(|p| p.reorder_level),
+        Some(9)
+    );
+}
+
 pub fn delete_crate<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
     let id = created(setup(
@@ -953,7 +981,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, delete_crate, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, delete_crate, set_reorder_default, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup
         );

@@ -143,6 +143,7 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
                     .collect::<Vec<_>>()}),
         ),
         Intent::DeleteCrate { id } => ("delete_crate", json!({"id": id})),
+        Intent::SetReorderDefault { level } => ("set_reorder_default", json!({"level": level})),
         Intent::SaveOpening {
             customer,
             amount,

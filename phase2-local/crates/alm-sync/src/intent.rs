@@ -81,6 +81,10 @@ pub enum Intent {
     DeleteCrate {
         id: u64,
     },
+    /// The Settings default reorder level, used when a product is saved with a blank level.
+    SetReorderDefault {
+        level: u32,
+    },
     SaveOpening {
         customer: String,
         amount: Option<Money>,

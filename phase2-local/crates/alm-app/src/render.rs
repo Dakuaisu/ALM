@@ -93,12 +93,13 @@ impl Trial {
             "settings" => {
                 let role = self.role();
                 let profile = alm_core::synthetic_read_model::BusinessProfile::default();
-                let (profile, reorder) = match role {
-                    Role::Owner => (
-                        self.shop.business_profile(role).map_err(debug)?,
-                        self.shop.records(role).map_err(debug)?.reorder_default,
-                    ),
-                    Role::Manager => (&profile, 0),
+                let reorder = match role {
+                    Role::Owner => self.reorder_default()?,
+                    Role::Manager => 0,
+                };
+                let profile = match role {
+                    Role::Owner => self.shop.business_profile(role).map_err(debug)?,
+                    Role::Manager => &profile,
                 };
                 let backup = if role == Role::Owner {
                     let restored = match &self.restored {

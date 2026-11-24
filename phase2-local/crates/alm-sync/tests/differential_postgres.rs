@@ -57,6 +57,7 @@ fn batch2() {
     let Some(mut p) = Pair::new("batch2") else {
         return;
     };
+    p.owner("reorder default", &Intent::SetReorderDefault { level: 7 });
     p.owner(
         "new product",
         &product(3, true, "Synthetic Orange", 3_000, 4_500, None),

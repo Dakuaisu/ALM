@@ -51,6 +51,13 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
                 }
             }
         }
+        Intent::SetReorderDefault { level } => {
+            state
+                .fixture
+                .save_product_reorder_default(ROLE, *level)
+                .map_err(rejected)?;
+            Ok(Outcome::Done)
+        }
         Intent::DeleteCrate { id } => {
             let fixture = &mut state.fixture;
             let id = fixture.crate_template_id(ROLE, *id).map_err(rejected)?;

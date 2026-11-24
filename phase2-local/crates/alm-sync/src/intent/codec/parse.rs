@@ -146,6 +146,9 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
             components: f.list("items", component)?,
         }),
         "cratedel" => Intent::DeleteCrate { id: f.num("id")? },
+        "reorderdefault" => Intent::SetReorderDefault {
+            level: f.num("level")?,
+        },
         "cratesale" => Intent::SellCrate(CrateSale {
             draft: f.num("draft")?,
             template: f.num("template")?,

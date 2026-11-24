@@ -32,6 +32,23 @@ pub struct Profile {
 }
 
 impl Trial {
+    /// The authority's default reorder level, from this account's book rows.
+    pub(crate) fn reorder_default(&mut self) -> Result<u32, String> {
+        Ok(self
+            .projected()?
+            .snapshot
+            .owner
+            .map_or(5, |owner| owner.book.settings.reorder_default))
+    }
+
+    /// Sends a changed default reorder level to the authority, like every other posted setting.
+    pub(crate) fn send_reorder_default(&mut self, level: u32) -> Result<(), String> {
+        if self.reorder_default()? != level {
+            self.send(&alm_sync::Intent::SetReorderDefault { level })?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn settings_profile(&mut self, form: &Profile, now: u64) -> Result<(), String> {
         let role = self.require_owner()?;
         let reorder = parse_reorder_default(&form.reorder)
@@ -59,9 +76,7 @@ impl Trial {
         self.shop
             .set_reorder_default(role, reorder)
             .map_err(debug)?;
-        self.shop
-            .apply_product_settings(role, &mut self.authority)
-            .map_err(debug)?;
+        self.send_reorder_default(reorder)?;
         self.refresh()?;
         self.message = "Profile saved ✓".into();
         Ok(())

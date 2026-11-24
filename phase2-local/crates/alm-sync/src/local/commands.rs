@@ -85,6 +85,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         | Intent::ClosePurchaseOrder { .. } => purchasing::apply(state, intent),
         Intent::SaveCrate(_)
         | Intent::DeleteCrate { .. }
+        | Intent::SetReorderDefault { .. }
         | Intent::SaveOpening { .. }
         | Intent::SaveGodown { .. }
         | Intent::CountStock { .. }

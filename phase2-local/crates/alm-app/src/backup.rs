@@ -101,11 +101,10 @@ impl Trial {
             .map_err(|e| e.to_string())?;
         fs::rename(&staged, &live).map_err(|e| e.to_string())?;
         self.shop = Store::open(&live, role).map_err(debug)?;
-        self.shop
-            .apply_product_settings(role, &mut self.authority)
-            .map_err(debug)?;
         self.projection.clear().map_err(|e| e.to_string())?;
         self.refresh()?;
+        let level = self.shop.records(role).map_err(debug)?.reorder_default;
+        self.send_reorder_default(level)?;
         self.restored = Some((name.to_owned(), store));
         self.message =
             format!("Restored {name}: settings replaced, posted data rebuilt from the authority ✓");

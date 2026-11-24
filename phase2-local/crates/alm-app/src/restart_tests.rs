@@ -612,3 +612,53 @@ fn the_crate_picker_lists_every_product_including_new_ones() {
             .any(|c| c.name == "Orange Box" && c.components == 1)
     );
 }
+
+#[test]
+fn the_default_reorder_level_goes_through_the_authority_and_survives_a_restart() {
+    let root = Root::new("reorder-default");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let form = crate::settings::Profile {
+        name: "ALM".into(),
+        reorder: "9".into(),
+        ..Default::default()
+    };
+    trial.settings_profile(&form, 1).unwrap();
+    assert!(
+        trial
+            .outbox
+            .entries()
+            .unwrap()
+            .iter()
+            .any(|e| e.intent == "reorderdefault level=9" && e.status == OutboxStatus::Confirmed)
+    );
+    // Saving again with the same level sends nothing.
+    let sent = trial.outbox.entries().unwrap().len();
+    trial.settings_profile(&form, 2).unwrap();
+    assert_eq!(trial.outbox.entries().unwrap().len(), sent);
+    let id = trial.posted.next_product_id(Role::Owner).unwrap();
+    trial.products.form = Some(trial.posted.begin_product_entry(Role::Owner, id).unwrap());
+    trial
+        .product_save(&crate::products::Form {
+            reorder: String::new(),
+            ..product_form("Synthetic Default", "30", "45")
+        })
+        .unwrap();
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let s = trial.projected().unwrap().snapshot;
+    assert_eq!(s.owner.unwrap().book.settings.reorder_default, 9);
+    assert_eq!(
+        s.products
+            .iter()
+            .find(|p| p.id == id.value())
+            .map(|p| p.reorder_level),
+        Some(9)
+    );
+    assert!(
+        trial
+            .render("settings")
+            .unwrap()
+            .contains(r#"name="reorder""#)
+    );
+    assert_eq!(trial.reorder_default().unwrap(), 9);
+}
