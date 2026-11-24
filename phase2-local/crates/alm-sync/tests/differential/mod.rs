@@ -11,6 +11,7 @@ use std::fmt::Debug;
 
 use alm_core::confirmation::demo_fixture::{directory, fixture, seed_purchasing};
 use alm_core::projection::ProjectionSnapshot;
+use alm_core::projection::book::OwnerBook;
 use alm_core::{ProductId, Role};
 use alm_sync::{AuthorityError, Intent, LocalAuthority, Outcome, RequestId, SalesAuthority};
 
@@ -147,10 +148,47 @@ fn compare(core: &Effects, sql: &Effects) -> Vec<String> {
         &co.purchase_orders,
         &so.purchase_orders,
     );
+    compare_book(&mut out, &co.book, &so.book);
     differ(&mut out, "manager projection", &core.manager, &sql.manager);
     differ(&mut out, "FIFO lots", &core.lots, &sql.lots);
     differ(&mut out, "fridge", &core.fridge, &sql.fridge);
     out
+}
+
+/// The authority's own clock stamps (receipt and bill creation keys) differ between the two;
+/// only their presence is compared.
+fn unstamped(book: &OwnerBook) -> OwnerBook {
+    let mut b = book.clone();
+    for s in &mut b.sales {
+        s.creation_key = s.creation_key.map(|_| 0);
+    }
+    for r in &mut b.receipts {
+        if let Some((_, key)) = r.selected.as_mut() {
+            *key = 0;
+        }
+    }
+    b
+}
+
+fn compare_book(out: &mut Vec<String>, core: &OwnerBook, sql: &OwnerBook) {
+    let (c, s) = (unstamped(core), unstamped(sql));
+    differ(out, "book.settings", &c.settings, &s.settings);
+    differ(out, "book.products", &c.products, &s.products);
+    differ(
+        out,
+        "book.checkout_terms",
+        &c.checkout_terms,
+        &s.checkout_terms,
+    );
+    differ(out, "book.sales", &c.sales, &s.sales);
+    differ(out, "book.receipts", &c.receipts, &s.receipts);
+    differ(out, "book.customers", &c.customers, &s.customers);
+    differ(out, "book.purchasing", &c.purchasing, &s.purchasing);
+    differ(out, "book.crates", &c.crates, &s.crates);
+    differ(out, "book.godown", &c.godown, &s.godown);
+    differ(out, "book.gst_bills", &c.gst_bills, &s.gst_bills);
+    differ(out, "book.gst_deleted", &c.gst_deleted, &s.gst_deleted);
+    differ(out, "book.cash_days", &c.cash_days, &s.cash_days);
 }
 
 /// Both authorities, seeded with the same shop, and the differences seen so far.

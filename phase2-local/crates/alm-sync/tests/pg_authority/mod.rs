@@ -7,8 +7,8 @@
 
 use std::cell::RefCell;
 
+use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
-use alm_core::{ProductId, Role};
 use alm_sync::{
     AuthorityError, Intent, LocalAuthority, Lookup, Outcome, RequestId, SalesAuthority, wire,
 };
@@ -37,46 +37,73 @@ fn sql_id(value: u64) -> i64 {
     i64::try_from(value).unwrap()
 }
 
-/// Inserts `seed`'s shop: products with their FIFO lots, customers, suppliers and quotes.
+/// Inserts `seed`'s shop from its Owner book rows: settings, products with every FIFO layer,
+/// purchasing registration and quotes, customers, suppliers and crates' piece MRPs.
+#[allow(clippy::too_many_lines)]
 pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
     let snapshot = seed.pull(Role::Owner, None).unwrap().snapshot.unwrap();
-    let owner = snapshot.owner.as_ref().expect("an owner seed");
-    for p in &snapshot.products {
-        let stock = snapshot
-            .stock
-            .iter()
-            .find(|s| s.product == p.id)
-            .map_or(0, |s| s.on_hand);
-        let buy = owner
-            .buy_rates
-            .iter()
-            .find(|(id, _)| *id == p.id)
-            .map_or(0, |(_, b)| b.minor_units());
+    let book = &snapshot.owner.as_ref().expect("an owner seed").book;
+    assert!(
+        book.sales.is_empty() && book.receipts.is_empty(),
+        "seed has no bills"
+    );
+    let s = &book.settings;
+    client
+        .execute(
+            "UPDATE public.authority_state SET default_product = $1, reorder_default = $2,
+                 loading_minor = $3, crate_rate_minor = $4, next_cash = $5,
+                 last_crate = $6, movement = $7 WHERE id = 1",
+            &[
+                &sql_id(s.default_product),
+                &i32::try_from(s.reorder_default).unwrap(),
+                &s.loading_rate.minor_units(),
+                &s.crate_rate.map(alm_core::Money::minor_units),
+                &sql_id(s.next_cash),
+                &sql_id(book.crates.last_id),
+                &sql_id(s.movement),
+            ],
+        )
+        .expect("seed settings");
+    for p in &book.products {
+        let d = p.details.as_ref().expect("seed products are named");
         let provisional = snapshot
             .catalog
             .iter()
             .find(|c| c.id == p.id)
             .map(|c| c.rate.minor_units());
+        let purchase = book.purchasing.products.iter().find(|(id, ..)| *id == p.id);
+        let cost = book.purchasing.costs.iter().position(|(id, _)| *id == p.id);
+        let average = cost.map(|i| book.purchasing.costs[i].1.minor_units());
+        let cost_seq = cost.map(|i| i64::try_from(i).unwrap() - 1_000);
+        let small = |v: u32| i32::try_from(v).unwrap();
         client
             .execute(
-                "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock, reorder_level, provisional_minor)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock,
+                     reorder_level, provisional_minor, fridge, seeded_opening, gst_rate, cess, hsn,
+                     purchase_item, purchase_buy_minor, purchase_avg_minor, purchase_cost_seq)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
                 &[
                     &sql_id(p.id),
-                    &p.item,
-                    &p.brand,
+                    &d.item,
+                    &d.brand,
                     &p.sell.minor_units(),
-                    &buy,
-                    &i32::try_from(stock).unwrap(),
-                    &i32::try_from(p.reorder_level).unwrap(),
+                    &p.buy.minor_units(),
+                    &small(p.stock),
+                    &small(d.reorder_level),
                     &provisional,
+                    &small(p.fridge),
+                    &small(p.seeded_opening),
+                    &d.gst_rate.map(small),
+                    &d.cess.map(small),
+                    &d.hsn,
+                    &purchase.map(|(_, item, _)| item.clone()),
+                    &purchase.map(|(_, _, buy)| buy.minor_units()),
+                    &average,
+                    &cost_seq,
                 ],
             )
             .expect("seed product");
-        let lots = seed
-            .open_stock_lots(Role::Owner, ProductId::new(p.id))
-            .expect("seed lots");
-        for lot in &lots.rows {
+        for lot in &p.lots {
             client
                 .execute(
                     "INSERT INTO public.product_lots (product_id, received_on, remaining, unit_cost_minor)
@@ -84,37 +111,67 @@ pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
                     &[
                         &sql_id(p.id),
                         &lot.date.map(|d| d.to_string()),
-                        &i32::try_from(lot.remaining.get()).unwrap(),
+                        &small(lot.remaining),
                         &lot.unit_cost.map(alm_core::Money::minor_units),
                     ],
                 )
                 .expect("seed lot");
         }
     }
-    for c in &snapshot.customers {
-        assert_eq!(c.balance.minor_units(), 0, "seed customers start settled");
+    for c in &book.customers {
+        let name = snapshot
+            .customers
+            .iter()
+            .find(|r| r.id == c.id)
+            .map_or_else(String::new, |r| r.name.clone());
+        let (opening, date) = c.opening.map_or((0, None), |(a, d)| (a.minor_units(), d));
         client
             .execute(
-                "INSERT INTO public.customers (id, name) VALUES ($1, $2)",
-                &[&c.id, &c.name],
+                "INSERT INTO public.customers (id, name, registered, has_balance, has_opening,
+                     opening_minor, opening_date)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7::text::date)",
+                &[
+                    &c.id,
+                    &name,
+                    &c.registered,
+                    &c.balance.is_some(),
+                    &c.opening.is_some(),
+                    &opening,
+                    &date.map(|d| d.to_string()),
+                ],
             )
             .expect("seed customer");
     }
-    for s in &snapshot.suppliers {
+    for (id, name) in &book.purchasing.suppliers {
         client
             .execute(
-                "INSERT INTO public.suppliers (id, name) VALUES ($1, $2)",
-                &[&sql_id(s.id), &s.name],
+                "INSERT INTO public.suppliers (id, name, price_column) VALUES ($1, $2, $3)",
+                &[
+                    &sql_id(*id),
+                    name,
+                    &book.purchasing.price_suppliers.contains(id),
+                ],
             )
             .expect("seed supplier");
     }
-    for (product, supplier, rate) in &owner.supplier_prices {
+    for (product, quotes) in &book.purchasing.quotes {
+        for (name, rate) in quotes {
+            client
+                .execute(
+                    "INSERT INTO public.supplier_prices (product_id, supplier_id, rate_minor)
+                     SELECT $1, id, $3 FROM public.suppliers WHERE name = $2",
+                    &[&sql_id(*product), name, &rate.minor_units()],
+                )
+                .expect("seed quote");
+        }
+    }
+    for (product, mrp) in &book.crates.piece_mrps {
         client
             .execute(
-                "INSERT INTO public.supplier_prices (product_id, supplier_id, rate_minor) VALUES ($1, $2, $3)",
-                &[&sql_id(*product), &sql_id(*supplier), &rate.minor_units()],
+                "INSERT INTO public.crate_piece_mrps VALUES ($1, $2)",
+                &[&sql_id(*product), &mrp.minor_units()],
             )
-            .expect("seed quote");
+            .expect("seed piece MRP");
     }
 }
 
