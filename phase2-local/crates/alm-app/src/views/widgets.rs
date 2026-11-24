@@ -65,9 +65,15 @@ pub fn search_options(options: &[SearchOption<'_>]) -> String {
         } else {
             format!("<small>{}</small>", esc(option.sub))
         };
+        let name = if option.sub.is_empty() {
+            option.label.to_owned()
+        } else {
+            format!("{}, {}", option.label, option.sub)
+        };
         let _ = write!(
             html,
-            r#"<div role="option" data-fill="{}"{submit}><span>{}</span>{sub}</div>"#,
+            r#"<div role="option" aria-selected="false" tabindex="-1" aria-label="{}" data-fill="{}"{submit}><span>{}</span>{sub}</div>"#,
+            esc(&name),
             esc(&fill),
             esc(option.label)
         );

@@ -165,10 +165,22 @@ async function search(input) {
   try {
     list.innerHTML = await invoke(input.dataset.search, { q: input.value, field: input.name });
     list.classList.toggle("show", list.children.length > 0);
+    if (input.setAttribute) input.setAttribute("aria-expanded", String(list.children.length > 0));
     if (list.children.length) place(input, list);
   } catch (error) {
     note(String(error), true);
   }
+}
+
+// Options picked on pointerdown, so the click that follows does not pick them again; a click
+// alone (assistive technology, keyboard) picks.
+const picked = new WeakSet();
+
+// Hides a search list and marks its box collapsed.
+function collapse(list) {
+  list.classList.remove("show");
+  const input = list.id && document.querySelector && document.querySelector(`[aria-controls="${list.id}"]`);
+  if (input && input.setAttribute) input.setAttribute("aria-expanded", "false");
 }
 
 // A picked option fills named fields of its form (data-fill is a query string), then
@@ -176,7 +188,8 @@ async function search(input) {
 function pick(option) {
   const form = option.closest("form");
   const list = option.closest(".autolist");
-  if (list) list.classList.remove("show");
+  if (list) collapse(list);
+  picked.add(option);
   if (!form) return;
   for (const [name, value] of new URLSearchParams(option.dataset.fill)) {
     const box = form.elements.namedItem(name);
@@ -222,12 +235,12 @@ function onFocusOut(event) {
   const input = event.target;
   if (!input.dataset || !input.dataset.search) return;
   const list = input.parentNode && input.parentNode.querySelector(".autolist");
-  if (list) setTimeout(() => list.classList.remove("show"), 150);
+  if (list) setTimeout(() => collapse(list), 150);
 }
 
 function onClick(event) {
   const option = event.target.closest("[data-fill]");
-  if (option && option.dataset.fill != null) return;
+  if (option && option.dataset.fill != null) return picked.has(option) ? undefined : pick(option);
   const target = event.target.closest("button[data-action],button[data-copy]");
   if (target) return act(target);
 }

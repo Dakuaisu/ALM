@@ -18,7 +18,7 @@ pub fn receipt_screen(
     }
     Ok(format!(
         r#"<div class="card"><p class="help">Local simulation only. This payment is dated independently of any bill.</p>
-    <form data-action="receipt_save" data-payload="terms"><div class="field autobox"><label>Customer <input class="inp" name="customer_q" data-search="receipt_customer_search" autocomplete="off" placeholder="Search customer…" required></label><input type="hidden" name="customer" value=""><div class="autolist"></div></div>
+    <form data-action="receipt_save" data-payload="terms"><div class="field autobox"><label>Customer <input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="receipt-customer-list" name="customer_q" data-search="receipt_customer_search" autocomplete="off" placeholder="Search customer…" required></label><input type="hidden" name="customer" value=""><div class="autolist" id="receipt-customer-list" role="listbox" aria-label="Customer suggestions"></div></div>
     <div class="f2"><div class="field"><label>Amount ₹ <input class="inp num" name="amount" inputmode="decimal" required></label></div>
     <div class="field"><label>Mode <select class="inp" name="mode"><option>Cash</option><option>Online</option></select></label></div></div>
     <div class="field"><label>Date <input class="inp" type="date" name="date" value="{today}" required></label></div>

@@ -1376,3 +1376,52 @@ fn stock_adjust_dialog_sets_the_counted_on_hand_and_fridge_as_the_html() {
         (37, 3, 1)
     );
 }
+
+#[test]
+fn every_search_list_is_a_labelled_listbox_of_options() {
+    let root = Root::new("a11y");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let combobox = |list: &str| {
+        format!(
+            r#"role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="{list}""#
+        )
+    };
+    let listbox = |list: &str, label: &str| {
+        format!(r#"<div class="autolist" id="{list}" role="listbox" aria-label="{label}"></div>"#)
+    };
+    let bill = trial.render("bill").unwrap();
+    for (list, label) in [
+        ("bill-customer-list", "Customer suggestions"),
+        ("bill-item-list", "Item suggestions"),
+    ] {
+        assert!(bill.contains(&combobox(list)), "{list}: {bill}");
+        assert!(bill.contains(&listbox(list, label)), "{list}");
+    }
+    let receipt = trial.render("receipt").unwrap();
+    assert!(receipt.contains(&combobox("receipt-customer-list")));
+    assert!(receipt.contains(&listbox("receipt-customer-list", "Customer suggestions")));
+    let godown = trial.render("godown").unwrap();
+    assert!(godown.contains(&listbox("godown-item-list", "Item suggestions")));
+    trial.gst_form = Some(
+        trial
+            .posted
+            .new_gst_bill_fields(Role::Owner, day())
+            .unwrap(),
+    );
+    let gst = trial.render("gstsales").unwrap();
+    assert!(gst.contains(&listbox("gst-customer-list", "Customer suggestions")));
+    assert!(gst.contains(&combobox("gst-item-list-0")));
+    assert!(gst.contains(&listbox("gst-item-list-0", "Item 1 suggestions")));
+    let options = trial.bill_customer_search("syn");
+    assert!(
+        options.contains(r#"<div role="option" aria-selected="false" tabindex="-1" aria-label="Synthetic Customer"#),
+        "{options}"
+    );
+    let items = trial.bill_item_search("lime");
+    assert!(
+        items.contains(
+            r#"role="option" aria-selected="false" tabindex="-1" aria-label="Synthetic Lime"#
+        ),
+        "{items}"
+    );
+}

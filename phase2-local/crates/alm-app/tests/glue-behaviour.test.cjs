@@ -229,3 +229,31 @@ test("a search list opens upward when the on-screen keyboard leaves no room belo
   resize();
   assert.equal(list.classList.contains("up"), false, "keyboard closed: opens below again");
 });
+
+test("a click alone picks an option (assistive technology) and the box reports its list", async () => {
+  const list = { innerHTML: "", children: [1], classList: element().classList, id: "bill-item-list" };
+  const attributes = {};
+  const h = harness({ bill_item_search: "<div role=\"option\" data-fill>opt</div>" });
+  const input = {
+    name: "product_q",
+    value: "lim",
+    dataset: { search: "bill_item_search" },
+    parentNode: { querySelector: () => list },
+    setAttribute: (name, value) => (attributes[name] = value),
+  };
+  h.document.querySelector = (selector) =>
+    selector === '[aria-controls="bill-item-list"]' ? input : null;
+  h.ids.view.listeners.input({ target: input });
+  await tick(200);
+  assert.equal(attributes["aria-expanded"], "true");
+  const boxes = { product: { value: "" } };
+  const form = { elements: { namedItem: (name) => boxes[name] } };
+  const option = {
+    dataset: { fill: "product=1" },
+    closest: (s) => (s === "form" ? form : s === ".autolist" ? list : option),
+  };
+  h.ids.app.listeners.click({ target: { closest: () => option } });
+  assert.equal(boxes.product.value, "1");
+  assert.equal(list.classList.contains("show"), false);
+  assert.equal(attributes["aria-expanded"], "false");
+});

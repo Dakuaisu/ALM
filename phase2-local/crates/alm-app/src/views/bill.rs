@@ -41,7 +41,7 @@ pub fn bill_body(view: &BillView<'_>) -> String {
             item_row(&mut html, index + 1, line);
         }
     }
-    html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form></div></div>"#;
+    html += r#"<form id="bill-item" class="bill-line" data-action="bill_add" data-payload="line"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bill-item-list" id="bill-item-q" name="product_q" data-search="bill_item_search" placeholder="Type item…" aria-label="Item" autocomplete="off"><input type="hidden" name="product" value=""><div class="autolist" id="bill-item-list" role="listbox" aria-label="Item suggestions"></div></div><span class="muted">Packet</span><span class="num muted">—</span><input class="inp num" name="quantity" inputmode="numeric" value="1" aria-label="New item quantity" required><span class="num muted">—</span><span></span></form></div></div>"#;
 
     let with_loading = preview.and_then(|preview| {
         alm_core::provisional_preview::with_loading(view.draft, &preview.totals)
@@ -72,7 +72,7 @@ fn header(html: &mut String, view: &BillView<'_>) {
     };
     let _ = write!(
         html,
-        r#"<div class="card"><form id="bill-header" class="f3" data-action="bill_header" data-payload="header"><div class="autobox"><label for="bill-customer">Customer / Party</label><input id="bill-customer" class="inp" name="customer_q" data-search="bill_customer_search" placeholder="Search customer…" autocomplete="off" value="{}"><input type="hidden" name="customer" value="{}"><div class="autolist"></div></div>"#,
+        r#"<div class="card"><form id="bill-header" class="f3" data-action="bill_header" data-payload="header"><div class="autobox"><label for="bill-customer">Customer / Party</label><input id="bill-customer" class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bill-customer-list" name="customer_q" data-search="bill_customer_search" placeholder="Search customer…" autocomplete="off" value="{}"><input type="hidden" name="customer" value="{}"><div class="autolist" id="bill-customer-list" role="listbox" aria-label="Customer suggestions"></div></div>"#,
         esc(name),
         esc(selected)
     );
