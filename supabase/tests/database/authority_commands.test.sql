@@ -7,8 +7,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
 
-insert into public.products (id, item, sell_minor, buy_minor, stock) values
-    (1, 'Synthetic Lime', 12050, 7000, 50), (2, 'Synthetic Soda', 6250, 3800, 40);
+insert into public.products (id, item, sell_minor, buy_minor, stock, provisional_minor) values
+    (1, 'Synthetic Lime', 12050, 7000, 50, 11800), (2, 'Synthetic Soda', 6250, 3800, 40, 5900);
 insert into public.product_lots (product_id, remaining, unit_cost_minor) values (1, 50, 7000), (2, 40, 3800);
 insert into public.customers (id, name) values ('c1', 'Synthetic Customer');
 insert into public.suppliers (id, name) values (0, 'Synthetic Wholesale');
@@ -107,7 +107,7 @@ select * from pg_temp.battery('post-sale', 'post_sale',
     '{"draft_id": "p1", "lines": [{"product_id": 1, "quantity": 2, "unit_price_minor": 12050}], "customer_id": "c1", "customer": "Synthetic Customer", "date": "2025-04-30", "paid_minor": 2000}',
     '{"draft_id": "p1", "lines": [{"product_id": 1, "quantity": 3, "unit_price_minor": 12050}], "customer_id": "c1", "customer": "Synthetic Customer", "date": "2025-04-30", "paid_minor": 2000}',
     '{"draft_id": "p2", "lines": [{"product_id": 1, "quantity": 1, "unit_price_minor": 12051}]}',
-    '{"draft_id": "p3", "lines": [{"product_id": 1, "quantity": 999, "unit_price_minor": 12050}]}',
+    '{"draft_id": "p3", "lines": [{"product_id": 1, "quantity": 999, "unit_price_minor": 12050}], "customer_id": "c1", "customer": "Synthetic Customer", "date": "2025-04-30"}',
     'ALM04');
 select is((select stock from public.products where id = 1), 48, 'the sale took 2 from stock');
 select is((select cost_minor from public.sale_lines), 14000::bigint, 'the sale line keeps its FIFO cost');
@@ -229,8 +229,8 @@ select is(pg_temp.call('owner', 'select to_jsonb(public.allocate_gst_bill_number
 select ok(pg_temp.call('owner', 'select public.pull_projection(null)') -> 'rows' ? 'owner',
     'the Owner pull carries owner values');
 select is(pg_temp.call('owner', 'select public.pull_projection(null)') #> '{rows,owner,sale_costs,0}',
-    '["p1", 36150, 14000]'::jsonb,
-    'the Owner pull includes the sale revenue and the cost frozen at posting');
+    '["p1", 36150, 21000]'::jsonb,
+    'the Owner pull includes the sale revenue and the cost frozen at the edit (7000 a packet, 3 packets)');
 select is(
     (select array_agg(k order by k) from jsonb_object_keys(
         pg_temp.call('manager', 'select public.pull_projection(null)') -> 'rows') k),

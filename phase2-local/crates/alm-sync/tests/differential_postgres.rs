@@ -177,7 +177,7 @@ fn batch2() {
         &count(&core, LIME, lime + 3, None, "2025-05-07"),
     );
     let core = p.core();
-    let bill = Bill {
+    let typed = Bill {
         draft: 2,
         to: For::Typed("Walk In Buyer"),
         lines: &[(3, 6), (SODA, 2)],
@@ -185,7 +185,40 @@ fn batch2() {
         paid: 39_500,
         loading: 0,
     };
+    p.owner("typed customer refused", &sale(&core, &typed));
+    let bill = Bill {
+        to: For::Customer(MARKET),
+        ..typed
+    };
     p.owner("sale across lots", &sale(&core, &bill));
+    p.owner(
+        "renamed customer refused",
+        &sale(
+            &core,
+            &Bill {
+                draft: 3,
+                to: For::Customer((MARKET.0, "Market Renamed")),
+                lines: &[(SODA, 1)],
+                date: "2025-05-08",
+                paid: 0,
+                loading: 0,
+            },
+        ),
+    );
+    p.owner(
+        "overpaid refused",
+        &sale(
+            &core,
+            &Bill {
+                draft: 3,
+                to: For::Customer(MARKET),
+                lines: &[(SODA, 1)],
+                date: "2025-05-08",
+                paid: 6_251,
+                loading: 0,
+            },
+        ),
+    );
     p.owner("delete sold product", &Intent::DeleteProduct { id: 3 });
     p.finish();
 }
@@ -203,7 +236,7 @@ fn batch4() {
         to: For::Customer(MARKET),
         lines: &[(LIME, 3), (SODA, 1)],
         date: "2025-06-01",
-        paid: 0,
+        paid: 5_000,
         loading: 150,
     };
     p.owner("post with loading", &sale(&core, &bill));
@@ -224,7 +257,24 @@ fn batch4() {
         paid: 25_000,
         loading: 0,
     };
-    p.owner("walk-in", &sale(&core, &walkin));
+    p.owner("walk-in refused", &sale(&core, &walkin));
+    p.owner(
+        "unpaid",
+        &sale(
+            &core,
+            &Bill {
+                to: For::Customer(CUSTOMER),
+                paid: 0,
+                ..walkin
+            },
+        ),
+    );
+    p.owner("cancel unpaid refused", &Intent::CancelSale { draft: 2 });
+    p.owner(
+        "receipt moves no stock",
+        &receipt(CUSTOMER.0, "2025-06-02", 100, true),
+    );
+    p.owner("cancel after movement", &Intent::CancelSale { draft: 1 });
     p.finish();
 }
 

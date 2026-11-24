@@ -28,9 +28,10 @@ impl SalesAuthority for PgAuthority {
         if role != Role::Owner {
             return Err(AuthorityError::Denied);
         }
-        let terms: Value =
-            serde_json::from_str(&intent.supabase_terms().ok_or(AuthorityError::Invalid)?)
-                .map_err(|_| AuthorityError::Invalid)?;
+        if !matches!(intent, Intent::PostSale(_)) {
+            return Err(AuthorityError::Invalid);
+        }
+        let (_, terms) = alm_sync::wire::command(intent);
         self.0
             .batch_execute("SAVEPOINT submit")
             .map_err(|_| AuthorityError::Unavailable)?;
@@ -106,9 +107,10 @@ fn authority() -> Option<PgAuthority> {
         )
         .expect("begin as the owner");
     client
-        .execute(
-            "INSERT INTO public.products (id, item, sell_minor, stock) VALUES (900000000000000002, 'Synthetic trait product', 125, 5)",
-            &[],
+        .batch_execute(
+            "INSERT INTO public.products (id, item, sell_minor, stock) VALUES (900000000000000002, 'Synthetic trait product', 125, 5);
+             INSERT INTO public.product_lots (product_id, remaining) VALUES (900000000000000002, 5);
+             INSERT INTO public.customers (id, name) VALUES ('trait-customer', 'Synthetic')",
         )
         .expect("seed");
     Some(PgAuthority(client))
@@ -124,7 +126,10 @@ fn sale(draft: u64, quantity: u32, price: i64) -> SaleIntent {
                 NonZeroU32::new(quantity).unwrap(),
             )],
         )
-        .with_customer(DraftCustomer::Typed("Synthetic".into()))
+        .with_customer(DraftCustomer::Selected {
+            id: alm_core::DraftCustomerId::new("trait-customer".into()),
+            name: "Synthetic".into(),
+        })
         .with_bill_date(Some(day)),
         date: day,
         paid: Money::from_minor_units(0),

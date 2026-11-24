@@ -60,10 +60,15 @@ impl PgAuthority {
                 .iter()
                 .find(|(id, _)| *id == p.id)
                 .map_or(0, |(_, b)| b.minor_units());
+            let provisional = snapshot
+                .catalog
+                .iter()
+                .find(|c| c.id == p.id)
+                .map(|c| c.rate.minor_units());
             client
                 .execute(
-                    "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock, reorder_level)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock, reorder_level, provisional_minor)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                     &[
                         &sql_id(p.id),
                         &p.item,
@@ -72,6 +77,7 @@ impl PgAuthority {
                         &buy,
                         &i32::try_from(stock).unwrap(),
                         &i32::try_from(p.reorder_level).unwrap(),
+                        &provisional,
                     ],
                 )
                 .expect("seed product");

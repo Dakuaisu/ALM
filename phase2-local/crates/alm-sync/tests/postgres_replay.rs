@@ -34,7 +34,8 @@ fn allocate_gst_bill_number(client: &mut Client, bill_id: &str) -> Result<i64, E
 
 fn terms(draft: &str, quantity: i32) -> Value {
     json!({"draft_id": draft, "lines": [{"product_id": 900000000000000001_i64,
-        "quantity": quantity, "unit_price_minor": 125}]})
+        "quantity": quantity, "unit_price_minor": 125}],
+        "customer_id": "replay-customer", "customer": "Synthetic", "date": "2025-04-30"})
 }
 
 fn seed(client: &mut Client) {
@@ -49,6 +50,12 @@ fn seed(client: &mut Client) {
             ],
         )
         .expect("insert synthetic product");
+    client
+        .batch_execute(
+            "INSERT INTO public.product_lots (product_id, remaining) VALUES (900000000000000001, 5);
+             INSERT INTO public.customers (id, name) VALUES ('replay-customer', 'Synthetic')",
+        )
+        .expect("insert its lot and a customer");
 }
 
 fn stock(client: &mut Client) -> i32 {
