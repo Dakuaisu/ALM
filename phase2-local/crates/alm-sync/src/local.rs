@@ -34,8 +34,11 @@ struct State {
     cashbook: ManualCashBook,
     /// GST bill key → allocated number.
     gst: BTreeMap<String, u64>,
+    /// The activity log, in recording order.
+    activity: Vec<alm_core::projection::book::ActivityRow>,
 }
 
+mod activity;
 mod apply;
 mod authority;
 mod commands;
@@ -52,6 +55,9 @@ pub struct LocalAuthority {
     lose_next: bool,
     /// The role the authority currently grants this device's account (`None`: revoked).
     granted: Option<Role>,
+    /// The device and account the next commands come from (a server reads them from the
+    /// request and its token).
+    caller: (String, String),
 }
 
 fn system_clock() -> u64 {
@@ -72,6 +78,7 @@ impl LocalAuthority {
                 fixture,
                 cashbook: ManualCashBook::default(),
                 gst: BTreeMap::new(),
+                activity: Vec::new(),
             },
             directory,
             requests: BTreeMap::new(),
@@ -80,6 +87,7 @@ impl LocalAuthority {
             clock: system_clock,
             lose_next: false,
             granted: Some(Role::Owner),
+            caller: (String::new(), String::new()),
         }
     }
 
@@ -102,10 +110,15 @@ impl LocalAuthority {
         for (index, line) in text.lines().enumerate() {
             let corrupt = || LocalAuthorityError::Corrupt(index + 1);
             match line.split('\t').collect::<Vec<_>>().as_slice() {
-                ["R", request, intent, stamp] => {
+                ["R", request, intent, stamp, caller @ ..] => {
                     let request = RequestId::new(request).map_err(|_| corrupt())?;
                     let intent = Intent::parse(intent).ok_or_else(corrupt)?;
                     let stamp = stamp.parse().map_err(|_| corrupt())?;
+                    authority.caller = match caller {
+                        [] => (String::new(), String::new()),
+                        [device, account] => ((*device).to_owned(), (*account).to_owned()),
+                        _ => return Err(corrupt()),
+                    };
                     authority
                         .commit(&request, &intent, stamp)
                         .map_err(|_| corrupt())?;
@@ -127,6 +140,7 @@ impl LocalAuthority {
             }
         }
         authority.journal = Some(journal.to_path_buf());
+        authority.caller = (String::new(), String::new());
         Ok(authority)
     }
 
@@ -141,6 +155,13 @@ impl LocalAuthority {
     /// it on their next pull. Not journaled.
     pub const fn set_granted(&mut self, role: Option<Role>) {
         self.granted = role;
+    }
+
+    /// The device and account the next commands come from (recorded in the activity log).
+    /// Tabs and line breaks are not allowed.
+    pub fn set_caller(&mut self, device: &str, account: &str) {
+        let clean = |t: &str| t.replace(['\t', '\n', '\r'], " ");
+        self.caller = (clean(device), clean(account));
     }
 
     /// Simulates a lost response: the next command commits but its reply is dropped.
@@ -204,6 +225,16 @@ impl LocalAuthority {
         }
         let mut next = self.state.clone();
         let outcome = apply(&mut next, &self.directory, intent, stamp)?;
+        if let Some(row) = activity::record(
+            &self.state,
+            &next,
+            &self.directory,
+            intent,
+            &outcome,
+            (stamp, &self.caller.0, &self.caller.1),
+        ) {
+            next.activity.push(row);
+        }
         self.state = next;
         self.requests.insert(
             request.as_str().to_owned(),

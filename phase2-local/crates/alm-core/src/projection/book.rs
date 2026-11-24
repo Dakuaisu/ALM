@@ -261,6 +261,61 @@ pub struct BookCashDay {
     pub amounts: CashBookAmounts,
 }
 
+/// One authority-recorded action (`logAct`): when, from which device and account, the HTML's
+/// action type and the parts of its message.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActivityRow {
+    pub at_ms: u64,
+    pub device: String,
+    pub account: String,
+    /// `bill-save`, `bill-edit`, `bill-cancel`, `bill-restore`, `payment`, `grn`, `adjust`,
+    /// `prod-delete`, `crate-save`, `crate-edit`, `crate-delete`, `gst-save`, `gst-edit`,
+    /// `gst-cancel` or `gst-delete`.
+    pub kind: String,
+    pub subject: String,
+    pub amount: Option<Money>,
+    pub detail: String,
+}
+
+/// `fmtN` for whole numbers: en-IN digit grouping (12,34,567).
+pub fn indian_number(value: i64) -> String {
+    let digits = value.unsigned_abs().to_string();
+    let (head, tail) = digits.split_at(digits.len().saturating_sub(3));
+    let mut out = String::new();
+    for (i, c) in head.chars().enumerate() {
+        if i > 0 && (head.len() - i) % 2 == 0 {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    if !head.is_empty() {
+        out.push(',');
+    }
+    out.push_str(tail);
+    if value < 0 { format!("-{out}") } else { out }
+}
+
+/// `moneyR`: rupees rounded with `Math.round` (halves toward +∞), grouped en-IN.
+pub fn money_r(value: Money) -> String {
+    let paise = value.minor_units();
+    let rupees = (paise + 50).div_euclid(100);
+    format!("₹{}", indian_number(rupees))
+}
+
+impl ActivityRow {
+    /// The HTML's `logAct` message for this action.
+    pub fn message(&self) -> String {
+        let amount = self.amount.map(money_r).unwrap_or_default();
+        match self.kind.as_str() {
+            "bill-save" | "bill-edit" | "bill-cancel" => format!("{} {amount}", self.subject),
+            "payment" => format!("{} {amount} ({})", self.subject, self.detail),
+            "grn" => format!("{} — goods received", self.subject),
+            "adjust" => format!("{}: {}", self.subject, self.detail),
+            _ => self.subject.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct OwnerBook {
     pub settings: BookSettings,
@@ -280,4 +335,49 @@ pub struct OwnerBook {
     pub gst_deleted: Vec<u64>,
     /// In row number order.
     pub cash_days: Vec<BookCashDay>,
+    /// In recording order (kept by the authority, not by the core state).
+    pub activity: Vec<ActivityRow>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ActivityRow, indian_number, money_r};
+    use crate::Money;
+
+    #[test]
+    fn numbers_and_rupees_follow_fmtn_and_money_r() {
+        assert_eq!(indian_number(0), "0");
+        assert_eq!(indian_number(999), "999");
+        assert_eq!(indian_number(1_000), "1,000");
+        assert_eq!(indian_number(1_234_567), "12,34,567");
+        assert_eq!(indian_number(-12_345), "-12,345");
+        assert_eq!(money_r(Money::from_minor_units(12_050)), "₹121");
+        assert_eq!(money_r(Money::from_minor_units(12_049)), "₹120");
+        assert_eq!(money_r(Money::from_minor_units(-150)), "₹-1");
+        let row = |kind: &str, amount: Option<i64>, detail: &str| ActivityRow {
+            at_ms: 0,
+            device: String::new(),
+            account: String::new(),
+            kind: kind.into(),
+            subject: "#3 Synthetic Customer".into(),
+            amount: amount.map(Money::from_minor_units),
+            detail: detail.into(),
+        };
+        assert_eq!(
+            row("bill-save", Some(36_150), "").message(),
+            "#3 Synthetic Customer ₹362"
+        );
+        assert_eq!(
+            row("bill-restore", None, "").message(),
+            "#3 Synthetic Customer"
+        );
+        assert_eq!(
+            row("payment", Some(1_000), "Cash").message(),
+            "#3 Synthetic Customer ₹10 (Cash)"
+        );
+        assert_eq!(
+            row("adjust", None, "40 → 37 (Damage / leakage)").message(),
+            "#3 Synthetic Customer: 40 → 37 (Damage / leakage)"
+        );
+    }
 }

@@ -1,5 +1,8 @@
 //! Settings cards that need hosted services (Supabase sync, Google Sheets, folder auto-save,
-//! the activity log, Clear All Data). Shown with the HTML's fields and buttons, disabled.
+//! Clear All Data), shown with the HTML's fields and buttons, disabled; and the activity log,
+//! read from the authority's rows.
+use crate::gst_print::esc;
+
 const INERT: &str = "Needs the hosted service; not available in this development build.";
 
 fn disabled_input(label: &str, placeholder: &str) -> String {
@@ -57,10 +60,36 @@ pub fn data_safety_card() -> String {
     )
 }
 
-pub fn activity_card() -> String {
-    format!(
-        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help" style="margin-bottom:8px">The permanent action log is kept by the hosted service. {INERT}</div><div class="empty">No actions logged on this device</div></div>"#
-    )
+/// The authority's action log (`logAct`), newest first, the last 200 (Owner only, OPEN-004).
+pub fn activity_card(
+    role: alm_core::Role,
+    rows: &[alm_core::projection::book::ActivityRow],
+) -> String {
+    use std::fmt::Write as _;
+    if role != alm_core::Role::Owner {
+        return r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help">Owner only.</div></div>"#.into();
+    }
+    let shown: Vec<_> = rows.iter().rev().take(200).collect();
+    let mut html = format!(
+        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help" style="margin-bottom:8px">Last {} recorded actions (bills, payments, goods received, adjustments, sync…). Newest first — this log is permanent; the authority records each action with the device and account it came from.</div><div class="tbl-wrap" style="max-height:40vh"><table aria-label="Activity log"><thead><tr><th>When</th><th>Device</th><th>Action</th><th>Details</th></tr></thead><tbody>"#,
+        shown.len()
+    );
+    if shown.is_empty() {
+        html += r#"<tr><td colspan="4"><div class="empty">No actions logged yet</div></td></tr>"#;
+    }
+    for row in shown {
+        let when = alm_core::projection::as_of_text(row.at_ms);
+        let _ = write!(
+            html,
+            r#"<tr><td class="muted">{}</td><td class="muted" title="account {}">{}</td><td>{}</td><td>{}</td></tr>"#,
+            esc(when.trim_start_matches("as of ")),
+            esc(&row.account),
+            esc(&row.device),
+            esc(&row.kind),
+            esc(&row.message())
+        );
+    }
+    html + "</tbody></table></div></div>"
 }
 
 pub fn danger_card() -> String {

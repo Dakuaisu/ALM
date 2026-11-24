@@ -21,6 +21,8 @@ pub struct SettingsView<'a> {
     pub reorder_default: u32,
     /// The Backup & Restore card, placed where the HTML has it.
     pub backup: &'a str,
+    /// The authority's activity log (Owner rows only).
+    pub activity: &'a [alm_core::projection::book::ActivityRow],
 }
 
 fn scope_note(scope: SettingScope) -> &'static str {
@@ -150,7 +152,7 @@ pub fn settings_screen(view: &SettingsView<'_>) -> String {
     html += &hosted::sheets_card();
     html += &hosted::data_safety_card();
     html += view.backup;
-    html += &hosted::activity_card();
+    html += &hosted::activity_card(view.role, view.activity);
     html += &hosted::danger_card();
     html
 }

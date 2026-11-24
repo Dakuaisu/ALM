@@ -662,3 +662,52 @@ fn the_default_reorder_level_goes_through_the_authority_and_survives_a_restart()
     );
     assert_eq!(trial.reorder_default().unwrap(), 9);
 }
+
+#[test]
+fn the_activity_log_is_recorded_by_the_authority_with_device_and_account() {
+    let root = Root::new("activity-log");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let device = trial.device_id.clone();
+    assert!(device.starts_with("dev-"));
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("No actions logged yet"));
+    trial
+        .receipt_save(crate::receipts::Terms {
+            customer: "batch1-customer".into(),
+            date: "2025-04-30".into(),
+            amount: "10.50".into(),
+            mode: crate::receipts::Mode::Online,
+        })
+        .unwrap();
+    let on_hand = trial
+        .posted
+        .open_physical_count(Role::Owner, ProductId::new(2))
+        .unwrap()
+        .on_hand;
+    trial
+        .stock_count(&crate::stock::Count {
+            product: "2".into(),
+            on_hand: on_hand.to_string(),
+            counted: "1234".into(),
+            fridge: String::new(),
+            reason: "count".into(),
+            note: String::new(),
+        })
+        .unwrap();
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert_eq!(trial.device_id, device, "the device keeps its identity");
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("Last 2 recorded actions"), "{html}");
+    let adjust = html
+        .find("Synthetic Soda: 40 → 1,234 (Count correction)")
+        .unwrap();
+    let payment = html.find("Synthetic Customer ₹11 (Online)").unwrap();
+    assert!(adjust < payment, "newest first");
+    assert!(html.contains(&format!(
+        r#"<td class="muted" title="account trial">{device}</td><td>adjust</td>"#
+    )));
+    trial.set_owner(false).unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(!html.contains("Synthetic Customer ₹11") && !html.contains("Synthetic Soda: 40"));
+}

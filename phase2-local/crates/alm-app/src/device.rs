@@ -127,6 +127,8 @@ impl Trial {
         intent: &Intent,
     ) -> Result<Outcome, String> {
         let id = RequestId::new(request).map_err(debug)?;
+        let (device, account) = (self.device_id.clone(), self.account.clone());
+        self.authority.set_caller(&device, &account);
         match self.sales_authority().submit(role, &id, intent) {
             Ok(outcome) => {
                 self.outbox

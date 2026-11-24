@@ -15,6 +15,8 @@ pub struct RestAuthority {
     apikey: String,
     /// The JWT presented for each role this device may act as.
     tokens: Vec<(Role, String)>,
+    /// This device's identity, sent as `x-alm-device` for the authority's activity log.
+    device: String,
     agent: ureq::Agent,
 }
 
@@ -31,6 +33,7 @@ impl RestAuthority {
             base: base.trim_end_matches('/').to_owned(),
             apikey: apikey.to_owned(),
             tokens: Vec::new(),
+            device: String::new(),
             agent,
         }
     }
@@ -40,6 +43,13 @@ impl RestAuthority {
     pub fn with_token(mut self, role: Role, jwt: &str) -> Self {
         self.tokens.retain(|(r, _)| *r != role);
         self.tokens.push((role, jwt.to_owned()));
+        self
+    }
+
+    /// Names this device in every request (`x-alm-device`).
+    #[must_use]
+    pub fn with_device(mut self, device: &str) -> Self {
+        device.clone_into(&mut self.device);
         self
     }
 
@@ -61,6 +71,7 @@ impl RestAuthority {
             .header("Authorization", &format!("Bearer {token}"))
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
+            .header("x-alm-device", &self.device)
             .send(args.to_string())
             .map_err(|_| AuthorityError::Unavailable)?;
         let status = response.status().as_u16();

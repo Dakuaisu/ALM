@@ -278,6 +278,7 @@ impl ConfirmationFixture {
             gst_bills: self.gst_bills.values().cloned().collect(),
             gst_deleted: self.gst_deleted.iter().map(|id| id.0).collect(),
             cash_days,
+            activity: Vec::new(),
         })
     }
 

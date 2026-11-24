@@ -47,6 +47,26 @@ fn batch1() {
     p.owner("cancel again", &Intent::CancelSale { draft: 1 });
     p.owner("restore twice", &Intent::RestoreSale { draft: 1 });
     p.owner("restore again refused", &Intent::RestoreSale { draft: 1 });
+    let log: Vec<String> = p
+        .core()
+        .owner
+        .unwrap()
+        .book
+        .activity
+        .iter()
+        .map(|a| format!("{} {} {}", a.device, a.kind, a.message()))
+        .collect();
+    assert_eq!(
+        log,
+        [
+            "diff-device bill-save #1 Synthetic Customer ₹241",
+            "diff-device payment Synthetic Customer ₹31 (Online)",
+            "diff-device bill-cancel #1 Synthetic Customer ₹241",
+            "diff-device bill-restore #1 Synthetic Customer",
+            "diff-device bill-cancel #1 Synthetic Customer ₹241",
+            "diff-device bill-restore #1 Synthetic Customer",
+        ]
+    );
     p.finish();
 }
 

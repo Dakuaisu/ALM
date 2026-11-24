@@ -97,6 +97,15 @@ impl Trial {
                     Role::Owner => self.reorder_default()?,
                     Role::Manager => 0,
                 };
+                let activity = match role {
+                    Role::Owner => self
+                        .projected()?
+                        .snapshot
+                        .owner
+                        .map(|owner| owner.book.activity)
+                        .unwrap_or_default(),
+                    Role::Manager => Vec::new(),
+                };
                 let profile = match role {
                     Role::Owner => self.shop.business_profile(role).map_err(debug)?,
                     Role::Manager => &profile,
@@ -122,6 +131,7 @@ impl Trial {
                     profile,
                     reorder_default: reorder,
                     backup: &backup,
+                    activity: &activity,
                 })
             }
             "counter" => {

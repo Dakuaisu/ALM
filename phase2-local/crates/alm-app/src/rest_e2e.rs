@@ -116,7 +116,11 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     let lossy = proxy(&url, lose.clone());
     let device_a = Root::new("rest-e2e-a");
     let mut trial = Trial::open(&device_a.0, Some(day())).unwrap();
-    use_rest(&mut trial, rest(&lossy, &owner, &manager));
+    let device = trial.device_id.clone();
+    use_rest(
+        &mut trial,
+        rest(&lossy, &owner, &manager).with_device(&device),
+    );
 
     // Manager: a provisional draft only; posting and posted screens are denied.
     trial.set_owner(false).unwrap();
@@ -337,6 +341,29 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
             .collect::<Vec<_>>(),
         [(4, 6_900), (3, 7_150)]
     );
+
+    // The authority recorded each action with this device.
+    let log: Vec<String> = book
+        .activity
+        .iter()
+        .map(|a| format!("{} {}", a.kind, a.message()))
+        .collect();
+    assert_eq!(
+        log,
+        [
+            "bill-save #1 Synthetic Customer ₹121",
+            "payment Synthetic Customer ₹10 (Cash)",
+            "bill-edit #1 Synthetic Customer ₹362",
+            "bill-cancel #1 Synthetic Customer ₹362",
+            "grn PO-001 Synthetic Wholesale — goods received",
+            "grn PO-001 Synthetic Wholesale — goods received",
+            "crate-save Party Crate",
+            "bill-save #2 Synthetic Market ₹800",
+            "adjust Synthetic Soda: 34 → 33 (Damage / leakage)",
+            "gst-save GST 1 Synthetic GST Buyer REST",
+        ]
+    );
+    assert!(book.activity.iter().all(|a| a.device == device));
 
     // A second device of the same account pulls the same rows.
     let device_b = Root::new("rest-e2e-b");

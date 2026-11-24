@@ -19,14 +19,35 @@ fn read(device_root: &Path) -> Option<[String; 3]> {
     Some([lines.next()?, lines.next()?, lines.next()?])
 }
 
+/// This device's identity for the authority's activity log: made once, kept in the device data
+/// folder (`device-id.txt`).
+pub(crate) fn device_id(device_root: &Path) -> Result<String, String> {
+    let path = device_root.join("device-id.txt");
+    if let Ok(id) = std::fs::read_to_string(&path) {
+        let id = id.trim();
+        if !id.is_empty() {
+            return Ok(id.to_owned());
+        }
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mixed = (nanos ^ (u128::from(std::process::id()) << 64)) % 0xffff_ffff;
+    let id = format!("dev-{mixed:08x}");
+    std::fs::write(&path, format!("{id}\n")).map_err(text)?;
+    Ok(id)
+}
+
 /// The REST authority saved on this device, if any. The device presents its one token whatever
 /// role it acts as; the authority decides from the token.
 pub(crate) fn load(device_root: &Path) -> Option<RestAuthority> {
     let [url, apikey, token] = read(device_root)?;
+    let device = device_id(device_root).ok()?;
     Some(
         RestAuthority::new(&url, &apikey)
             .with_token(Role::Owner, &token)
-            .with_token(Role::Manager, &token),
+            .with_token(Role::Manager, &token)
+            .with_device(&device),
     )
 }
 

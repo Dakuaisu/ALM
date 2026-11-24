@@ -1,10 +1,10 @@
 //! The book rows in the authority's wire format (`owner.book` in `pull_projection`), both
 //! ways; the device stores the same JSON per top-level section.
 use super::{
-    BookAllocation, BookCashDay, BookCheckout, BookCrate, BookCrateRow, BookCrates, BookCustomer,
-    BookCustomerRef, BookGodownRow, BookLot, BookOrder, BookOrderLine, BookOrderReceipt,
-    BookPayment, BookProduct, BookProductDetails, BookPurchasing, BookReceipt, BookSale,
-    BookSaleLine, BookSettings, OwnerBook,
+    ActivityRow, BookAllocation, BookCashDay, BookCheckout, BookCrate, BookCrateRow, BookCrates,
+    BookCustomer, BookCustomerRef, BookGodownRow, BookLot, BookOrder, BookOrderLine,
+    BookOrderReceipt, BookPayment, BookProduct, BookProductDetails, BookPurchasing, BookReceipt,
+    BookSale, BookSaleLine, BookSettings, OwnerBook,
 };
 use crate::confirmation::{GstBill, StockCountMovement, StockCountReason};
 use crate::{BillDate, Money};
@@ -398,6 +398,9 @@ pub fn to_json(b: &OwnerBook) -> Value {
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok()).unwrap_or(Value::Null))
             .collect::<Vec<_>>(),
         "gst_deleted": b.gst_deleted,
+        "activity": b.activity.iter().map(|a| json!({"at_ms": a.at_ms, "device": a.device,
+            "account": a.account, "kind": a.kind, "subject": a.subject,
+            "amount": om(a.amount), "detail": a.detail})).collect::<Vec<_>>(),
         "cash_days": b.cash_days.iter().map(|r| {
             let a = r.amounts;
             json!({"id": r.id, "date": r.date.to_string(), "cash": m(a.cash),
@@ -482,6 +485,17 @@ pub fn from_json(b: &Value) -> R<OwnerBook> {
             GstBill::from_record_text(&g.to_string()).map_err(|_| BookFormatError)
         })?,
         gst_deleted: list(&b["gst_deleted"]).iter().map(number).collect(),
+        activity: rows(&b["activity"], |a| {
+            Ok(ActivityRow {
+                at_ms: number(&a["at_ms"]),
+                device: text(&a["device"]),
+                account: text(&a["account"]),
+                kind: text(&a["kind"]),
+                subject: text(&a["subject"]),
+                amount: opt_money(&a["amount"]),
+                detail: text(&a["detail"]),
+            })
+        })?,
         cash_days: rows(&b["cash_days"], |r| {
             Ok(BookCashDay {
                 id: number(&r["id"]),

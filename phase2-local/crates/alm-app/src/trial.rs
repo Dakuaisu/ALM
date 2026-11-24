@@ -95,6 +95,8 @@ pub(crate) struct Trial {
     /// The shop archive holding shared settings (business profile, default reorder level).
     pub(crate) shop: alm_store::synthetic_read_model::Store,
     pub(crate) device_root: std::path::PathBuf,
+    /// This device's identity in the authority's activity log.
+    pub(crate) device_id: String,
     /// The last restored backup, opened read-only at a fresh path.
     pub(crate) restored: Option<(String, alm_store::synthetic_read_model::Store)>,
     /// The bill or PO number shown on the estimate / PO print views.
@@ -187,6 +189,7 @@ impl Trial {
             prefs: alm_store::preferences::Preferences::load(&prefs_dir),
             shop,
             device_root: device_root.to_path_buf(),
+            device_id: crate::dev_authority::device_id(device_root)?,
             restored: None,
             print_view: None,
         };

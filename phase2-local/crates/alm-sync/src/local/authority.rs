@@ -20,9 +20,11 @@ impl SalesAuthority for LocalAuthority {
         let outcome = self.commit(request, intent, stamp)?;
         if !known {
             self.append(&format!(
-                "R\t{}\t{}\t{stamp}",
+                "R\t{}\t{}\t{stamp}\t{}\t{}",
                 request.as_str(),
-                intent.canonical()
+                intent.canonical(),
+                self.caller.0,
+                self.caller.1
             ))?;
         }
         if std::mem::take(&mut self.lose_next) {
@@ -97,12 +99,15 @@ impl SalesAuthority for LocalAuthority {
         let snapshot = if checkpoint == Some(self.checkpoint) {
             None
         } else {
-            Some(
-                self.state
-                    .fixture
-                    .projection(role, &self.directory, &self.state.cashbook)
-                    .map_err(rejected)?,
-            )
+            let mut snapshot = self
+                .state
+                .fixture
+                .projection(role, &self.directory, &self.state.cashbook)
+                .map_err(rejected)?;
+            if let Some(owner) = snapshot.owner.as_mut() {
+                owner.book.activity.clone_from(&self.state.activity);
+            }
+            Some(snapshot)
         };
         // The same per-screen rows `pull_projection` sends, read back through the one decoder
         // every transport uses; the simulation's read state travels only as its `dev_state`.

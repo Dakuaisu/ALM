@@ -167,6 +167,9 @@ fn unstamped(book: &OwnerBook) -> OwnerBook {
             *key = 0;
         }
     }
+    for a in &mut b.activity {
+        a.at_ms = 0;
+    }
     b
 }
 
@@ -189,6 +192,7 @@ fn compare_book(out: &mut Vec<String>, core: &OwnerBook, sql: &OwnerBook) {
     differ(out, "book.gst_bills", &c.gst_bills, &s.gst_bills);
     differ(out, "book.gst_deleted", &c.gst_deleted, &s.gst_deleted);
     differ(out, "book.cash_days", &c.cash_days, &s.cash_days);
+    differ(out, "book.activity", &c.activity, &s.activity);
 }
 
 /// Both authorities, seeded with the same shop, and the differences seen so far.
@@ -214,7 +218,8 @@ impl Pair {
         let mut shop = fixture().unwrap();
         seed_purchasing(&mut shop).unwrap();
         terms(&mut shop);
-        let local = LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000);
+        let mut local = LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000);
+        local.set_caller("diff-device", "diff-account");
         let pg = PgAuthority::connect(&local)?;
         let mut pair = Self {
             local,
