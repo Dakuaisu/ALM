@@ -8,6 +8,21 @@ pub struct OpeningBalance {
     pub date: Option<BillDate>,
 }
 
+impl OpeningBalance {
+    /// The typed opening amount: blank is `None` (saved as zero); otherwise signed rupees, a
+    /// negative amount being an advance (`c.openingBalance = +ob.value`).
+    ///
+    /// # Errors
+    /// Rejects text that is not exact signed rupees with at most two decimals.
+    pub fn parse_amount(text: &str) -> Result<Option<Money>, crate::RupeesError> {
+        if text.trim().is_empty() {
+            Ok(None)
+        } else {
+            Money::parse_signed_rupees(text).map(Some)
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct StoredOpening {
     pub amount: Money,

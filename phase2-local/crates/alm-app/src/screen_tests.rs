@@ -91,7 +91,18 @@ fn opening_balance_input_uses_the_core_parser_and_owner_gate() {
         amount: amount.into(),
         date: "2025-04-01".into(),
     };
-    assert!(crate::customers::save_opening(&mut trial, terms("-5")).is_err());
+    crate::customers::save_opening(&mut trial, terms("-5")).unwrap();
+    assert_eq!(
+        trial.authority.customer_due("batch1-market").minor_units(),
+        -500
+    );
+    for bad in ["--5", "- 5", "5-", "-5.001", "1e3"] {
+        assert!(crate::customers::save_opening(&mut trial, terms(bad)).is_err());
+    }
+    assert_eq!(
+        trial.authority.customer_due("batch1-market").minor_units(),
+        -500
+    );
     trial.owner = false;
     assert!(crate::customers::save_opening(&mut trial, terms("5")).is_err());
     trial.owner = true;

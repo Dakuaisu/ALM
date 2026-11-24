@@ -1,5 +1,5 @@
+use alm_core::DraftCustomerId;
 use alm_core::confirmation::OpeningBalance;
-use alm_core::{DraftCustomerId, Money};
 use tauri::State;
 
 use crate::{AppState, debug, with};
@@ -58,14 +58,9 @@ pub fn save_opening(trial: &mut crate::Trial, terms: Opening) -> Result<(), Stri
         .directory
         .customer(&trial.authority, &terms.customer)
         .map_err(debug)?;
-    let amount =
-        if terms.amount.trim().is_empty() {
-            None
-        } else {
-            Some(Money::parse_rupees(&terms.amount).map_err(|_| {
-                "Enter a non-negative amount with up to two decimal places.".to_owned()
-            })?)
-        };
+    let amount = OpeningBalance::parse_amount(&terms.amount).map_err(|_| {
+        "Enter an amount with up to two decimal places (negative for an advance).".to_owned()
+    })?;
     let date = if terms.date.is_empty() {
         None
     } else {

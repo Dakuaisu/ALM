@@ -120,7 +120,7 @@ fn ledger(
     );
     let _ = write!(
         html,
-        r#"<form class="row" data-action="customer_opening" data-payload="terms"><input type="hidden" name="customer" value="{}"><label>Opening Balance ₹ <input class="inp num" name="amount" inputmode="decimal" placeholder="0"></label><label>Opening date <input class="inp" type="date" name="date"></label><button class="btn sm" type="submit">Save opening</button></form><div class="help">Opening balance = old udhaar before using this app (customer owes you).</div>"#,
+        r#"<form class="row" data-action="customer_opening" data-payload="terms"><input type="hidden" name="customer" value="{}"><label>Opening Balance ₹ <input class="inp num" name="amount" inputmode="decimal" placeholder="0"></label><label>Opening date <input class="inp" type="date" name="date"></label><button class="btn sm" type="submit">Save opening</button></form><div class="help">Opening balance = old udhaar before using this app (customer owes you); enter a negative amount for an advance.</div>"#,
         esc(id)
     );
     html += r#"<div class="sectit" style="margin-top:8px">Ledger</div><div class="tbl-wrap" style="max-height:40vh"><table><thead><tr><th>Date</th><th>Particulars</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead><tbody>"#;

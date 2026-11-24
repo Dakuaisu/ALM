@@ -67,6 +67,27 @@ impl Money {
             .ok_or(RupeesError::Overflow)
     }
 
+    /// Parses typed rupees that may carry one leading `-` or `+` (an advance is negative), as the
+    /// HTML's `+value` reads an opening balance. The magnitude follows `parse_rupees`.
+    pub fn parse_signed_rupees(text: &str) -> Result<Self, RupeesError> {
+        let text = text.trim();
+        match text.strip_prefix('-') {
+            Some(rest) => Self::parse_rupees_unsigned_tail(rest)?
+                .0
+                .checked_neg()
+                .map(Self)
+                .ok_or(RupeesError::Overflow),
+            None => Self::parse_rupees_unsigned_tail(text.strip_prefix('+').unwrap_or(text)),
+        }
+    }
+
+    fn parse_rupees_unsigned_tail(text: &str) -> Result<Self, RupeesError> {
+        if text.starts_with(char::is_whitespace) {
+            return Err(RupeesError::Invalid);
+        }
+        Self::parse_rupees(text)
+    }
+
     /// Exact rupee text that `parse_rupees` reads back ("120.50", "-0.49"), for form fields.
     pub fn to_rupee_text(self) -> String {
         let sign = if self.0 < 0 { "-" } else { "" };
