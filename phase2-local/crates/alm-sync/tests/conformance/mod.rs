@@ -849,6 +849,37 @@ pub fn import_gst_bill<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+/// An unknown outcome resolves by lookup against the stored intent, with no effect: nothing
+/// committed before the first send, the original outcome after it, and another intent under
+/// the same request is reported, never run. A Manager is denied.
+pub fn lookup<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let good = sale(&w, 151, 1, w.sell);
+    let other = sale(&w, 151, 2, w.sell);
+    let request = req("lookup", "1");
+    let before = state(a);
+    assert_eq!(
+        a.lookup(Role::Owner, &request, &good),
+        Ok(alm_sync::Lookup::NotCommitted)
+    );
+    assert_eq!(
+        a.lookup(Role::Manager, &request, &good),
+        Err(AuthorityError::Denied)
+    );
+    assert_eq!(state(a), before, "lookup has no effect");
+    let first = a.submit(Role::Owner, &request, &good).unwrap();
+    let after = state(a);
+    assert_eq!(
+        a.lookup(Role::Owner, &request, &good),
+        Ok(alm_sync::Lookup::Committed(first))
+    );
+    assert_eq!(
+        a.lookup(Role::Owner, &request, &other),
+        Ok(alm_sync::Lookup::OtherIntent)
+    );
+    assert_eq!(state(a), after, "lookup has no effect");
+}
+
 /// A Manager pull carries the catalog only: no owner values, sales, balances or stock.
 pub fn manager_pull<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
@@ -875,7 +906,7 @@ macro_rules! conformance_tests {
             set_supplier_prices, save_purchase_order, receive_purchase_order,
             close_purchase_order, save_crate, delete_crate, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
-            import_gst_bill, manager_pull
+            import_gst_bill, manager_pull, lookup
         );
     };
     ($make:expr; $($case:ident),+ $(,)?) => {

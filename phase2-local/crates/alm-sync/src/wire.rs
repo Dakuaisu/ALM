@@ -210,6 +210,19 @@ pub fn status(value: &Value) -> Result<Option<Outcome>, AuthorityError> {
     outcome(&value["outcome"]).map(Some)
 }
 
+/// Reads `request_lookup`: `{"state": "committed" | "absent" | "conflict", "outcome"}`.
+///
+/// # Errors
+/// `Invalid` for another shape.
+pub fn lookup(value: &Value) -> Result<crate::Lookup, AuthorityError> {
+    match value["state"].as_str() {
+        Some("committed") => outcome(&value["outcome"]).map(crate::Lookup::Committed),
+        Some("absent") => Ok(crate::Lookup::NotCommitted),
+        Some("conflict") => Ok(crate::Lookup::OtherIntent),
+        _ => Err(AuthorityError::Invalid),
+    }
+}
+
 /// The typed error for a SQLSTATE raised by a command (`ALM01` … `ALM08`, `42501`).
 pub fn refusal(code: &str, message: &str) -> AuthorityError {
     match code {

@@ -5,7 +5,7 @@ use alm_core::confirmation::ConfirmationFixture;
 use alm_core::confirmation::manual_cashbook::ManualCashBook;
 use alm_core::{Money, ProductId, Role};
 use alm_store::{OutboxStatus, ProjectionStore, StoredProjection};
-use alm_sync::{AuthorityError, Intent, Outcome, RequestId, SalesAuthority};
+use alm_sync::{AuthorityError, Intent, Lookup, Outcome, RequestId, SalesAuthority};
 
 use crate::{Trial, debug, text};
 
@@ -20,7 +20,7 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
         AuthorityError::Invalid => "The request was not valid.".into(),
         AuthorityError::Rejected(reason) => reason.clone(),
         AuthorityError::Unavailable => {
-            "No answer from the authority: the outcome is unknown. Check its status or retry it from Owner review.".into()
+            "No answer from the authority: the outcome is unknown. Check status, or retry with the same request.".into()
         }
     }
 }
@@ -101,9 +101,23 @@ impl Trial {
         Ok(())
     }
 
-    /// Stores `intent` with a new request ID, then sends it.
+    /// Stores `intent` with a new request ID, then sends it. An intent already waiting with an
+    /// unknown outcome is never sent again under a new ID: it is checked or retried as it is.
     pub(crate) fn send(&mut self, intent: &Intent) -> Result<Outcome, String> {
         let role = self.require_owner()?;
+        let canonical = intent.canonical();
+        if let Some(entry) = self
+            .outbox
+            .unresolved()
+            .map_err(text)?
+            .into_iter()
+            .find(|e| e.intent == canonical)
+        {
+            return Err(format!(
+                "Outcome unknown for request {}: check status / retry with the same request.",
+                entry.request_id
+            ));
+        }
         let request = self.outbox.next_request_id(&self.account).map_err(text)?;
         self.outbox
             .record(&request, &intent.canonical())
@@ -154,27 +168,29 @@ impl Trial {
         self.deliver(role, request, &intent)
     }
 
-    /// On reconnect: looks up the status of every unresolved intent (never re-sends one, and
-    /// never posts a saved draft), then refreshes the projection.
+    /// On reconnect: resolves every unresolved intent by a status lookup against its stored
+    /// intent (never re-sends one, and never posts a saved draft), then refreshes the projection.
     pub(crate) fn reconnect(&mut self) -> Result<(), String> {
         if self.role() == Role::Owner {
             for entry in self.outbox.unresolved().map_err(text)? {
                 let id = RequestId::new(&entry.request_id).map_err(debug)?;
-                match self.authority.status(Role::Owner, &id) {
-                    Ok(Some(outcome)) => self
-                        .outbox
-                        .mark(
-                            &entry.request_id,
-                            OutboxStatus::Confirmed,
-                            Some(&outcome.canonical()),
-                        )
-                        .map_err(debug)?,
-                    Ok(None) => self
-                        .outbox
-                        .mark(&entry.request_id, OutboxStatus::Unknown, None)
-                        .map_err(debug)?,
-                    Err(_) => {}
-                }
+                let Some(intent) = Intent::parse(&entry.intent) else {
+                    continue;
+                };
+                let (status, note) = match self.authority.lookup(Role::Owner, &id, &intent) {
+                    Ok(Lookup::Committed(outcome)) => {
+                        (OutboxStatus::Confirmed, Some(outcome.canonical()))
+                    }
+                    Ok(Lookup::NotCommitted) => (OutboxStatus::Unknown, None),
+                    Ok(Lookup::OtherIntent) => (
+                        OutboxStatus::Rejected,
+                        Some(refused(&AuthorityError::Conflict)),
+                    ),
+                    Err(_) => continue,
+                };
+                self.outbox
+                    .mark(&entry.request_id, status, note.as_deref())
+                    .map_err(debug)?;
             }
         }
         self.refresh()

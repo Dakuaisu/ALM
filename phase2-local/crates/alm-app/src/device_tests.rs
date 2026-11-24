@@ -208,3 +208,32 @@ fn switching_accounts_drops_the_previous_accounts_projection_outbox_and_drafts()
     assert!(trial.switch_account("not valid!").is_err());
     assert_eq!(trial.account, "trial");
 }
+
+#[test]
+fn an_unknown_outcome_is_never_sent_under_a_new_request() {
+    let root = Root::new("device-unknown");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    saved_draft(&mut trial, 1);
+    let serial = review(&mut trial);
+    trial.authority.lose_next_response();
+    assert!(trial.sale_confirm(serial).is_err());
+    // Confirming the same reviewed bill again is refused before any new request is minted.
+    let again = trial.sale_confirm(serial).unwrap_err();
+    assert!(
+        again.contains("check status / retry with the same request"),
+        "{again}"
+    );
+    let entries = trial.outbox.entries().unwrap();
+    assert_eq!(entries.len(), 1, "no second request ID");
+    let page = trial.render("review").unwrap();
+    assert!(page.contains("Outcome unknown: check status / retry with the same request"));
+    assert!(page.contains(&format!(r#"data-q="{}""#, entries[0].request_id)));
+    // The status lookup resolves it from the stored intent; nothing is re-sent.
+    trial.reconnect().unwrap();
+    assert_eq!(
+        trial.outbox.entries().unwrap()[0].status,
+        OutboxStatus::Confirmed
+    );
+    assert_eq!(trial.authority.posted_count(), 1);
+    assert!(!trial.render("review").unwrap().contains("Outcome unknown"));
+}

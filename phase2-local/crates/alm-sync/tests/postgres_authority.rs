@@ -9,7 +9,7 @@ use alm_core::{
     BillDate, DraftCustomer, DraftId, DraftLine, Money, ProductId, ProvisionalDraft, Role,
 };
 use alm_sync::{
-    AuthorityError, Intent, Outcome, RequestId, SaleIntent, SaleReceipt, SalesAuthority,
+    AuthorityError, Intent, Lookup, Outcome, RequestId, SaleIntent, SaleReceipt, SalesAuthority,
 };
 use postgres::{Client, NoTls};
 use serde_json::Value;
@@ -74,6 +74,10 @@ impl SalesAuthority for PgAuthority {
     }
 
     fn status(&self, _: Role, _: &RequestId) -> Result<Option<Outcome>, AuthorityError> {
+        Err(AuthorityError::Unavailable)
+    }
+
+    fn lookup(&self, _: Role, _: &RequestId, _: &Intent) -> Result<Lookup, AuthorityError> {
         Err(AuthorityError::Unavailable)
     }
 

@@ -3,7 +3,7 @@ use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
 use super::{LocalAuthority, rejected};
-use crate::{AuthorityError, Intent, Outcome, RequestId, SalesAuthority, wire};
+use crate::{AuthorityError, Intent, Lookup, Outcome, RequestId, SalesAuthority, wire};
 
 impl SalesAuthority for LocalAuthority {
     fn submit(
@@ -39,6 +39,24 @@ impl SalesAuthority for LocalAuthority {
             .requests
             .get(request.as_str())
             .and_then(|(_, outcome)| Outcome::parse(outcome)))
+    }
+
+    fn lookup(
+        &self,
+        role: Role,
+        request: &RequestId,
+        intent: &Intent,
+    ) -> Result<Lookup, AuthorityError> {
+        if role != Role::Owner {
+            return Err(AuthorityError::Denied);
+        }
+        Ok(match self.requests.get(request.as_str()) {
+            None => Lookup::NotCommitted,
+            Some((stored, _)) if *stored != intent.canonical() => Lookup::OtherIntent,
+            Some((_, outcome)) => {
+                Lookup::Committed(Outcome::parse(outcome).ok_or(AuthorityError::Invalid)?)
+            }
+        })
     }
 
     fn allocate_gst_number(&mut self, role: Role, bill_id: &str) -> Result<u64, AuthorityError> {

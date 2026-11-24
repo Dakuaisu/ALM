@@ -9,7 +9,9 @@ use std::cell::RefCell;
 
 use alm_core::projection::ProjectionBatch;
 use alm_core::{ProductId, Role};
-use alm_sync::{AuthorityError, Intent, LocalAuthority, Outcome, RequestId, SalesAuthority, wire};
+use alm_sync::{
+    AuthorityError, Intent, LocalAuthority, Lookup, Outcome, RequestId, SalesAuthority, wire,
+};
 use postgres::types::ToSql;
 use postgres::{Client, NoTls};
 use serde_json::{Value, json};
@@ -223,6 +225,21 @@ impl SalesAuthority for PgAuthority {
             &[&request.as_str()],
         )?;
         wire::status(&value)
+    }
+
+    fn lookup(
+        &self,
+        role: Role,
+        request: &RequestId,
+        intent: &Intent,
+    ) -> Result<Lookup, AuthorityError> {
+        let (function, terms) = wire::command(intent);
+        let value = self.as_role(
+            role,
+            "SELECT public.request_lookup($1, $2, $3)",
+            &[&request.as_str(), &function, &terms],
+        )?;
+        wire::lookup(&value)
     }
 
     fn allocate_gst_number(&mut self, role: Role, bill_id: &str) -> Result<u64, AuthorityError> {

@@ -99,6 +99,17 @@ impl AuthorityError {
     }
 }
 
+/// What the authority holds for a request, checked against the intent the device stored.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Lookup {
+    /// It committed with this intent: the stored outcome.
+    Committed(Outcome),
+    /// Nothing was committed under the request: retrying it with the same ID is safe.
+    NotCommitted,
+    /// The request ID was used for another intent.
+    OtherIntent,
+}
+
 /// The server commands the app needs. Every effectful command carries a request ID; an
 /// identical retry returns the original outcome, and a reused ID with another intent fails.
 pub trait SalesAuthority {
@@ -118,6 +129,18 @@ pub trait SalesAuthority {
     /// # Errors
     /// Denies roles that may not see the outcome; `Unavailable` without a response.
     fn status(&self, role: Role, request: &RequestId) -> Result<Option<Outcome>, AuthorityError>;
+
+    /// Resolves an intent whose outcome is unknown: whether `request` committed with exactly
+    /// `intent`. Has no effect.
+    ///
+    /// # Errors
+    /// Denies roles that may not see the outcome; `Unavailable` without a response.
+    fn lookup(
+        &self,
+        role: Role,
+        request: &RequestId,
+        intent: &Intent,
+    ) -> Result<Lookup, AuthorityError>;
 
     /// Allocates (or returns the already allocated) standalone GST invoice number for a bill.
     ///

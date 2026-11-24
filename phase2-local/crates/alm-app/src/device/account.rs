@@ -55,7 +55,7 @@ impl Trial {
         if self.role() == Role::Owner {
             for entry in self.outbox.unresolved().map_err(text)? {
                 html += &format!(
-                    r#"<div class="card" role="status" style="margin:8px 0;border-left:3px solid var(--warn)"><b>Outcome unknown</b> · request {0}<div class="help">{1}</div><div class="row" style="margin-top:6px"><button class="btn sm" data-action="outbox_check">Check status</button><button class="btn sm" data-action="outbox_retry" data-q="{0}">Retry the same request</button></div></div>"#,
+                    r#"<div class="card" role="status" style="margin:8px 0;border-left:3px solid var(--warn)"><b>Outcome unknown: check status / retry with the same request</b> · request {0}<div class="help">{1}</div><div class="row" style="margin-top:6px"><button class="btn sm" data-action="outbox_check">Check status</button><button class="btn sm" data-action="outbox_retry" data-q="{0}">Retry the same request</button></div></div>"#,
                     crate::gst_print::esc(&entry.request_id),
                     crate::gst_print::esc(&entry.intent)
                 );
