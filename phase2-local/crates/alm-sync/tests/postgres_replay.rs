@@ -13,8 +13,10 @@ fn client() -> Option<Client> {
     };
     let mut client = Client::connect(&url, NoTls).expect("connect to test database");
     client
-        .batch_execute("BEGIN")
-        .expect("begin test transaction");
+        .batch_execute(
+            "BEGIN; SELECT set_config('request.jwt.claims', '{\"app_metadata\": {\"role\": \"owner\"}}', true)",
+        )
+        .expect("begin test transaction as the owner");
     Some(client)
 }
 

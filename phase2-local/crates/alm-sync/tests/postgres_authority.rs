@@ -100,7 +100,11 @@ fn authority() -> Option<PgAuthority> {
         Err(error) => panic!("invalid ALM_PG_URL: {error}"),
     };
     let mut client = Client::connect(&url, NoTls).expect("connect to test database");
-    client.batch_execute("BEGIN").expect("begin");
+    client
+        .batch_execute(
+            "BEGIN; SELECT set_config('request.jwt.claims', '{\"app_metadata\": {\"role\": \"owner\"}}', true)",
+        )
+        .expect("begin as the owner");
     client
         .execute(
             "INSERT INTO public.products (id, item, sell_minor, stock) VALUES (900000000000000002, 'Synthetic trait product', 125, 5)",

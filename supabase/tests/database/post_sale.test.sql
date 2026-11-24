@@ -5,6 +5,8 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(17);
+-- The functions require the Owner role claim (20261124000000_authority_commands.sql).
+select set_config('request.jwt.claims', '{"app_metadata": {"role": "owner"}}', true);
 
 insert into public.products (id, item, sell_minor, stock) values (1, 'Synthetic product', 125, 5);
 
