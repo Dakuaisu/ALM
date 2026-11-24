@@ -34,7 +34,7 @@ function element(extra = {}) {
   };
 }
 
-function harness(responses) {
+function harness(responses, windowExtra = {}) {
   const calls = [];
   const view = element({
     querySelector: (selector) => (selector === "#screen-modal" ? null : { content: {}, dataset: {} }),
@@ -73,6 +73,7 @@ function harness(responses) {
     Map,
     navigator: { clipboard: { writeText: async (text) => clipboard.push(text) } },
     window: {
+      ...windowExtra,
       __TAURI__: {
         core: {
           invoke: async (command, args) => {
@@ -196,4 +197,35 @@ test("a search box losing focus closes its list", async () => {
   });
   await tick(200);
   assert.equal(list.classList.contains("show"), false);
+});
+
+test("a search list opens upward when the on-screen keyboard leaves no room below the box", async () => {
+  let resize = null;
+  const viewport = {
+    offsetTop: 0,
+    height: 400,
+    addEventListener: (type, fn) => {
+      if (type === "resize") resize = fn;
+    },
+  };
+  const list = { innerHTML: "", children: [1], scrollHeight: 200, classList: element().classList };
+  const h = harness({ bill_item_search: "<div data-fill>opt</div>" }, { visualViewport: viewport });
+  const scrolled = [];
+  let rect = { top: 330, bottom: 360 };
+  const input = {
+    name: "product_q",
+    value: "lim",
+    dataset: { search: "bill_item_search" },
+    parentNode: { querySelector: () => list },
+    scrollIntoView: (options) => scrolled.push(options),
+    getBoundingClientRect: () => rect,
+  };
+  h.ids.view.listeners.input({ target: input });
+  await tick(200);
+  assert.equal(JSON.stringify(scrolled), JSON.stringify([{ block: "center" }]));
+  assert.equal(list.classList.contains("up"), true, "no room below: opens upward");
+  rect = { top: 40, bottom: 70 };
+  viewport.height = 800;
+  resize();
+  assert.equal(list.classList.contains("up"), false, "keyboard closed: opens below again");
 });

@@ -138,6 +138,26 @@ async function live(form, input) {
   }
 }
 
+// Keeps an open search list visible above an on-screen keyboard: the box is scrolled into the
+// visible viewport and the list opens upward when there is no room for it below the box.
+let openSearch = null;
+function place(input, list) {
+  openSearch = { input, list };
+  if (input.scrollIntoView) input.scrollIntoView({ block: "center" });
+  const viewport = window.visualViewport;
+  if (!viewport || !input.getBoundingClientRect) return;
+  const box = input.getBoundingClientRect();
+  const below = viewport.offsetTop + viewport.height - box.bottom;
+  const above = box.top - viewport.offsetTop;
+  const need = Math.min(list.scrollHeight || 240, 240);
+  list.classList.toggle("up", below < need && above > below);
+}
+if (window.visualViewport && window.visualViewport.addEventListener) {
+  window.visualViewport.addEventListener("resize", () => {
+    if (openSearch && openSearch.list.classList.contains("show")) place(openSearch.input, openSearch.list);
+  });
+}
+
 // data-search inputs: ask Rust for matching options and list them under the box.
 async function search(input) {
   const list = input.parentNode.querySelector(".autolist");
@@ -145,8 +165,7 @@ async function search(input) {
   try {
     list.innerHTML = await invoke(input.dataset.search, { q: input.value, field: input.name });
     list.classList.toggle("show", list.children.length > 0);
-    // On a phone/tablet the keyboard can cover the list; bring it into the visible area.
-    if (list.children.length && list.scrollIntoView) list.scrollIntoView({ block: "nearest" });
+    if (list.children.length) place(input, list);
   } catch (error) {
     note(String(error), true);
   }

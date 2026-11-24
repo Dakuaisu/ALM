@@ -170,6 +170,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 .autobox{position:relative}
 .autolist{position:absolute;z-index:9;left:0;right:0;top:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);margin-top:4px;max-height:240px;overflow:auto;box-shadow:var(--sh);display:none}
 .autolist.show{display:block}
+.autolist.up{top:auto;bottom:100%;margin-top:0;margin-bottom:4px}
 .autolist div{padding:7px 11px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:10px}
 .autolist div:hover,.autolist div.sel{background:var(--accent-weak);color:var(--brand2)}
 .autolist div small{color:var(--mut2)}
