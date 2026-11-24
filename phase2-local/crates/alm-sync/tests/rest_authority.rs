@@ -226,14 +226,15 @@ fn two_devices_of_one_account_post_at_the_same_time() {
     assert_eq!(one.1, one.0, "identical retry, original receipt");
     assert_eq!(two.1, two.0, "identical retry, original receipt");
     let book = a.pull(Role::Owner, None).unwrap().snapshot.unwrap();
-    let devices: Vec<_> = book
-        .owner
-        .unwrap()
-        .book
-        .activity
-        .iter()
-        .map(|row| row.device.clone())
-        .collect();
+    let activity = book.owner.unwrap().book.activity;
+    let devices: Vec<_> = activity.iter().map(|row| row.device.clone()).collect();
+    // The account is the token's subject, not the account named in the request IDs.
+    if env("ALM_JWT_OWNER").is_none() {
+        assert!(
+            activity.iter().all(|row| row.account == "alm-test-owner"),
+            "{activity:?}"
+        );
+    }
     assert!(
         devices.contains(&"dev-00000000000000c1".to_owned()),
         "{devices:?}"

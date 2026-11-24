@@ -707,6 +707,26 @@ fn the_activity_log_is_recorded_by_the_authority_with_device_and_account() {
     assert!(html.contains(&format!(
         r#"<td class="muted" title="account trial">{device}</td><td>adjust</td>"#
     )));
+    // The logged device is the install whose request IDs carried the commands.
+    let entries = trial.outbox.entries().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert!(
+        entries
+            .iter()
+            .all(|e| e.request_id.starts_with(&format!("trial:{device}-")))
+    );
+    let rows = trial
+        .projected()
+        .unwrap()
+        .snapshot
+        .owner
+        .unwrap()
+        .book
+        .activity;
+    assert!(
+        rows.iter()
+            .all(|row| row.device == device && row.account == "trial")
+    );
     trial.set_owner(false).unwrap();
     let html = trial.render("settings").unwrap();
     assert!(!html.contains("Synthetic Customer ₹11") && !html.contains("Synthetic Soda: 40"));

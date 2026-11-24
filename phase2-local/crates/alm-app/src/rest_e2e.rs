@@ -96,6 +96,34 @@ fn rest(url: &str, owner: &str, manager: &str) -> RestAuthority {
         .with_token(Role::Manager, manager)
 }
 
+/// The `sub` claim of a JWT (its payload decoded from base64url).
+fn jwt_subject(token: &str) -> String {
+    let payload = token.split('.').nth(1).unwrap();
+    let mut bits = 0u32;
+    let mut count = 0;
+    let mut bytes = Vec::new();
+    for c in payload.bytes() {
+        let value = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'-' => 62,
+            b'_' => 63,
+            _ => continue,
+        };
+        bits = (bits << 6) | u32::from(value);
+        count += 6;
+        if count >= 8 {
+            count -= 8;
+            bytes.push(u8::try_from((bits >> count) & 0xff).unwrap());
+        }
+    }
+    let claims = String::from_utf8(bytes).unwrap();
+    let start = claims.find(r#""sub":""#).unwrap() + 7;
+    let end = start + claims[start..].find('"').unwrap();
+    claims[start..end].to_owned()
+}
+
 fn use_rest(trial: &mut Trial, authority: RestAuthority) {
     trial.rest = Some(authority);
     trial.projection.clear().unwrap();
@@ -448,6 +476,10 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         other.device_id.as_str(),
         "Synthetic Customer ₹8 (Online)".into()
     )));
+    // The account is the token's subject, never the account named in a request ID.
+    let subject = jwt_subject(&owner);
+    assert!(log.iter().all(|row| row.account == subject), "{log:?}");
+    assert_ne!(subject, "trial");
 
     // The Manager: denied, and its projection file holds no cost field or value.
     trial.set_owner(false).unwrap();
