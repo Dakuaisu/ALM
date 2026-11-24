@@ -1001,6 +1001,7 @@ fn settings_split_device_local_preferences_from_the_shared_archive_profile() {
         show_fssai: String::new(),
         show_gstin: "on".into(),
         reorder: reorder.into(),
+        ..Default::default()
     };
     assert!(trial.settings_profile(&form("x"), 7).is_err());
     trial.settings_profile(&form("9"), 7).unwrap();

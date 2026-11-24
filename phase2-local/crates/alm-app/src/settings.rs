@@ -1,6 +1,6 @@
 use alm_core::confirmation::BalanceMode;
 use alm_core::preferences::{Preference, Theme};
-use alm_core::synthetic_read_model::{BusinessProfile, parse_reorder_default};
+use alm_core::synthetic_read_model::{ProfileInput, parse_reorder_default};
 use tauri::State;
 
 use crate::{AppState, Trial, debug, with};
@@ -8,8 +8,20 @@ use crate::{AppState, Trial, debug, with};
 /// The device name recorded with shared profile changes.
 pub const DEVICE: &str = "this-device";
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Default)]
 pub struct Profile {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub tagline: String,
+    #[serde(default)]
+    pub owner: String,
+    #[serde(default)]
+    pub mobile: String,
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub loading: String,
     pub gstin: String,
     pub fssai: String,
     #[serde(default)]
@@ -24,13 +36,23 @@ impl Trial {
         let role = self.require_owner()?;
         let reorder = parse_reorder_default(&form.reorder)
             .ok_or("Default Reorder Level must be a whole number.")?;
-        let profile = BusinessProfile {
-            gstin: form.gstin.trim().to_owned(),
-            fssai: form.fssai.trim().to_owned(),
-            show_fssai: Some(form.show_fssai == "on"),
-            show_gstin: Some(form.show_gstin == "on"),
-            ..self.shop.business_profile(role).map_err(debug)?.clone()
-        };
+        let profile = self
+            .shop
+            .business_profile(role)
+            .map_err(debug)?
+            .with_input(&ProfileInput {
+                name: &form.name,
+                tagline: &form.tagline,
+                owner: &form.owner,
+                mobile: &form.mobile,
+                address: &form.address,
+                gstin: &form.gstin,
+                fssai: &form.fssai,
+                show_fssai: &form.show_fssai,
+                show_gstin: &form.show_gstin,
+                loading: &form.loading,
+            })
+            .map_err(|_| "Default Loading must be a non-negative amount.".to_owned())?;
         self.shop
             .save_business_profile(role, &profile, now, DEVICE)
             .map_err(debug)?;
@@ -68,11 +90,7 @@ pub fn settings_profile(state: State<'_, AppState>, terms: Profile) -> Result<St
 
 #[tauri::command(async)]
 pub fn settings_theme(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let theme = if q == "dark" {
-        Theme::Dark
-    } else {
-        Theme::Light
-    };
+    let theme = Theme::parse(&q);
     with(&state, "settings", |trial| {
         trial.settings_preference(Preference::Theme(theme))
     })

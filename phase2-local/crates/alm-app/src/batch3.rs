@@ -78,6 +78,7 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
                 show_fssai: "on".into(),
                 show_gstin: "on".into(),
                 reorder: "7".into(),
+                ..Default::default()
             },
             1_700_000_000_000,
         )

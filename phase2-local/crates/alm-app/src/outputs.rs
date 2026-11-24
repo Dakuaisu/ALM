@@ -139,11 +139,14 @@ impl Trial {
 
 /// The shop header the bill image prints (trial seller; the profile adds FSSAI/GSTIN lines).
 pub(crate) fn party(profile: Option<&BusinessProfile>) -> BillImageParty<'_> {
+    let fallback = [crate::SELLER.name, "", crate::SELLER.address, ""];
+    let [business, tagline, address, mobile] =
+        profile.map_or(fallback, |profile| profile.header(fallback));
     BillImageParty {
-        business: crate::SELLER.name,
-        tagline: "",
-        address: crate::SELLER.address,
-        mobile: "",
+        business,
+        tagline,
+        address,
+        mobile,
         profile,
         customer_mobile: "",
         customer_address: "",

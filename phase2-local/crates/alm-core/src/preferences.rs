@@ -5,6 +5,8 @@ use crate::{Money, confirmation::BalanceMode};
 pub enum Theme {
     Light,
     Dark,
+    /// "Match device": the page follows the platform colour scheme.
+    System,
 }
 
 impl Theme {
@@ -13,6 +15,18 @@ impl Theme {
         match self {
             Self::Light => "light",
             Self::Dark => "dark",
+            Self::System => "system",
+        }
+    }
+}
+
+impl Theme {
+    /// The Appearance segment's value (`light`, `dark`, `system`); anything else is Light.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "dark" => Self::Dark,
+            "system" => Self::System,
+            _ => Self::Light,
         }
     }
 }
@@ -36,6 +50,7 @@ impl PreferenceState {
     pub fn load(mut read: impl FnMut(&str) -> Option<Vec<u8>>) -> Self {
         let theme = match read("theme").as_deref() {
             Some(b"dark") => Theme::Dark,
+            Some(b"system") => Theme::System,
             _ => Theme::Light,
         };
         let privacy = matches!(read("privacy").as_deref(), Some(b"on"));
@@ -72,6 +87,7 @@ impl PreferenceState {
                     match theme {
                         Theme::Light => b"light",
                         Theme::Dark => b"dark",
+                        Theme::System => b"system",
                     },
                 )
             }

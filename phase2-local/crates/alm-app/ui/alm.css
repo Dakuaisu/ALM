@@ -314,3 +314,18 @@ body.privon .kpis:not(:has(.kpi:not(.privcard))){display:none}
 @media print{#side,#top,#toasts,.no-print{display:none!important}#view{padding:0;overflow:visible}body{overflow:visible;background:#fff}
 /* never carry the blur onto paper */
 body.privon .priv{filter:none!important}}
+/* "Match device": the dark palette when the platform prefers dark. */
+@media (prefers-color-scheme: dark){
+  :root[data-theme="system"]{
+    --bg:#0f1116; --bg2:#151922; --panel:#171b24; --panel2:#1f2531; --line:#28303d; --line2:#1e242f;
+    --txt:#e7ebf2; --mut:#a3acbb; --mut2:#727d8f;
+    --brand:#5b93ff; --brand2:#7aa9ff; --accent:#5b93ff; --accent-weak:#17243c;
+    --good:#4ade80; --good-bg:#11291d; --warn:#fbbf24; --warn-bg:#2b2110; --bad:#f87171; --bad-bg:#2d1618;
+    --chip:#1f2531;
+    --sh-sm:0 1px 2px rgba(0,0,0,.45); --sh:0 10px 30px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.45);
+    --line-hi:#33507f; --row:#1b212b; --sidebg:#12151c; --topbg:rgba(23,27,36,.82);
+    --scroll:#2c3441; --scroll-hi:#3a4453;
+    --bd-bad:#5c2e2b; --bd-good:#20492f; --bd-warn:#54401d;
+    color-scheme:dark;
+  }
+}

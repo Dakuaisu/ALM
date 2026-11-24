@@ -30,6 +30,8 @@ mod render;
 #[cfg(test)]
 mod screen_tests;
 mod settings;
+#[cfg(test)]
+mod settings_tests;
 mod stock;
 mod suppliers;
 mod trial;

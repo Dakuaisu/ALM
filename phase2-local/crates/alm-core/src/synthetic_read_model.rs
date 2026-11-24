@@ -25,6 +25,19 @@ pub use storage::{Error, ReadModel};
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BusinessProfile {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub tagline: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub owner: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub mobile: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub address: String,
+    /// "Default Loading ₹/pkt" (`loadingCharge`), in paise.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub loading_charge_minor: i64,
     pub fssai: String,
     pub gstin: String,
     pub show_fssai: Option<bool>,
@@ -32,6 +45,31 @@ pub struct BusinessProfile {
     pub version: u64,
     pub modified_at: u64,
     pub device: String,
+}
+
+const fn is_zero(value: &i64) -> bool {
+    *value == 0
+}
+
+/// The Settings "Business Profile" form as typed (checkboxes are `"on"` when ticked).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProfileInput<'a> {
+    pub name: &'a str,
+    pub tagline: &'a str,
+    pub owner: &'a str,
+    pub mobile: &'a str,
+    pub address: &'a str,
+    pub gstin: &'a str,
+    pub fssai: &'a str,
+    pub show_fssai: &'a str,
+    pub show_gstin: &'a str,
+    pub loading: &'a str,
+}
+
+/// A profile form field the core rejects.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProfileError {
+    LoadingCharge,
 }
 
 /// Settings "Default Reorder Level": blank means 5, otherwise a whole number of packets
@@ -63,6 +101,51 @@ impl BusinessProfile {
             !matches!(self.show_fssai, Some(false)),
             matches!(self.show_gstin, Some(true)),
         )
+    }
+
+    /// Applies the Save Profile form (`Object.assign(m, {...})`): text fields are kept as typed
+    /// except that GSTIN/FSSAI are trimmed; the loading charge is blank-as-zero rupees.
+    ///
+    /// # Errors
+    /// Rejects a loading charge that is not exact non-negative rupees.
+    pub fn with_input(&self, input: &ProfileInput<'_>) -> Result<Self, ProfileError> {
+        let loading = if input.loading.trim().is_empty() {
+            0
+        } else {
+            crate::Money::parse_rupees(input.loading)
+                .map_err(|_| ProfileError::LoadingCharge)?
+                .minor_units()
+        };
+        Ok(Self {
+            name: input.name.to_owned(),
+            tagline: input.tagline.to_owned(),
+            owner: input.owner.to_owned(),
+            mobile: input.mobile.to_owned(),
+            address: input.address.to_owned(),
+            loading_charge_minor: loading,
+            gstin: input.gstin.trim().to_owned(),
+            fssai: input.fssai.trim().to_owned(),
+            show_fssai: Some(input.show_fssai == "on"),
+            show_gstin: Some(input.show_gstin == "on"),
+            ..self.clone()
+        })
+    }
+
+    /// The loading charge as money, for display.
+    pub const fn loading_charge(&self) -> crate::Money {
+        crate::Money::from_minor_units(self.loading_charge_minor)
+    }
+
+    /// The seller header (name, tagline, address, mobile): each saved field, or the given
+    /// fallback while the field is blank.
+    pub fn header<'a>(&'a self, fallback: [&'a str; 4]) -> [&'a str; 4] {
+        let pick = |own: &'a str, other: &'a str| if own.trim().is_empty() { other } else { own };
+        [
+            pick(&self.name, fallback[0]),
+            pick(&self.tagline, fallback[1]),
+            pick(&self.address, fallback[2]),
+            pick(&self.mobile, fallback[3]),
+        ]
     }
 
     pub fn estimate_lines(&self) -> Vec<String> {
@@ -192,5 +275,55 @@ mod settings_tests {
             ..BusinessProfile::default()
         };
         assert_eq!(set.shows(), (false, true));
+    }
+
+    #[test]
+    fn profile_form_saves_every_html_field_and_keeps_blank_fields_out_of_the_archive() {
+        use super::{ProfileError, ProfileInput};
+        let base = BusinessProfile {
+            version: 3,
+            ..BusinessProfile::default()
+        };
+        assert_eq!(
+            serde_json::to_string(&base).unwrap(),
+            r#"{"fssai":"","gstin":"","show_fssai":null,"show_gstin":null,"version":3,"modified_at":0,"device":""}"#
+        );
+        let input = ProfileInput {
+            name: "ALM Test",
+            tagline: "Cold drinks",
+            owner: "Owner A",
+            mobile: "9000000000",
+            address: "Line 1\nLine 2",
+            gstin: " 09AAAAA0000A1Z5 ",
+            fssai: "",
+            show_fssai: "",
+            show_gstin: "on",
+            loading: "1.50",
+        };
+        let saved = base.with_input(&input).unwrap();
+        assert_eq!(saved.version, 3);
+        assert_eq!(saved.gstin, "09AAAAA0000A1Z5");
+        assert_eq!(saved.loading_charge().minor_units(), 150);
+        assert_eq!(saved.shows(), (false, true));
+        assert_eq!(
+            saved.header(["a", "b", "c", "d"]),
+            ["ALM Test", "Cold drinks", "Line 1\nLine 2", "9000000000"]
+        );
+        assert_eq!(
+            BusinessProfile::default().header(["a", "b", "c", "d"]),
+            ["a", "b", "c", "d"]
+        );
+        let json = serde_json::to_string(&saved).unwrap();
+        let back: BusinessProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, saved);
+        for bad in ["-1", "x", "1.234"] {
+            let input = ProfileInput {
+                loading: bad,
+                ..input
+            };
+            assert_eq!(base.with_input(&input), Err(ProfileError::LoadingCharge));
+        }
+        let blank = ProfileInput::default();
+        assert_eq!(base.with_input(&blank).unwrap().loading_charge_minor, 0);
     }
 }

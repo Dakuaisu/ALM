@@ -84,7 +84,16 @@ impl Trial {
                     ),
                     Role::Manager => (&profile, 0),
                 };
-                let mut html = views::settings_screen(&views::SettingsView {
+                let backup = if role == Role::Owner {
+                    let restored = match &self.restored {
+                        Some((name, store)) => Some((name.as_str(), backup::summary(store)?)),
+                        None => None,
+                    };
+                    views::backup_section(&self.backups(), restored.as_ref().map(|(n, s)| (*n, s)))
+                } else {
+                    String::new()
+                };
+                views::settings_screen(&views::SettingsView {
                     role,
                     theme: self.prefs.theme(),
                     balance: self.prefs.balance_mode(),
@@ -94,18 +103,8 @@ impl Trial {
                         .is_none(),
                     profile,
                     reorder_default: reorder,
-                });
-                if role == Role::Owner {
-                    let restored = match &self.restored {
-                        Some((name, store)) => Some((name.as_str(), backup::summary(store)?)),
-                        None => None,
-                    };
-                    html += &views::backup_section(
-                        &self.backups(),
-                        restored.as_ref().map(|(n, s)| (*n, s)),
-                    );
-                }
-                html
+                    backup: &backup,
+                })
             }
             "counter" => {
                 views::counter_screen(&self.authority, self.role(), self.today()?).map_err(debug)?
