@@ -8,6 +8,7 @@ mod crate_row_codec;
 pub mod draft_entry;
 mod draft_store;
 mod drafts;
+pub mod legacy;
 pub mod preferences;
 pub mod projection;
 pub mod provisional_preview;

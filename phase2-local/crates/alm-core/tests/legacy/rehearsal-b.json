@@ -1,0 +1,32 @@
+{
+ "meta": {"name": "Synthetic Old Shop", "loadingCharge": 0},
+ "products": [
+  {"item": "Synthetic Mango", "company": "Synthetic Co", "packetQty": 12, "buyRate": 20, "sellRate": 30, "reorderLevel": 2},
+  {"item": "Synthetic Mango", "company": "Second Co", "packetQty": 12, "buyRate": 21, "sellRate": 31},
+  {"item": "Synthetic Berry", "packetQty": 6, "buyRate": 10, "avgCost": 11, "sellRate": "15"},
+  null,
+  {"item": 7, "buyRate": 5, "sellRate": 8}
+ ],
+ "customers": [
+  {"id": "c_old", "name": "Synthetic Customer", "openingBalance": "25"},
+  {"id": "c_num", "name": 404, "openingBalance": 0},
+  "not a record"
+ ],
+ "suppliers": [{"name": "Synthetic Old Supplier"}, {"name": null}],
+ "sales": [
+  {"id": "ob_1", "no": "7", "date": "2025-06-01", "customerId": "c_old", "customerName": "Synthetic Customer", "items": [{"item": "Synthetic Berry", "qty": "3", "rate": 15, "amount": 45}, null], "loading": 0, "loadingRate": 0, "total": 45, "paid": "10"},
+  {"id": "ob_2", "no": 8, "date": "2025-06-02", "customerId": "c_old", "customerName": "Synthetic Customer", "items": "broken"}
+ ],
+ "purchases": [{"id": "opu_1", "date": "2025-05-20", "supplier": "Synthetic Old Supplier", "items": [{"item": "Synthetic Berry", "qty": 10, "rate": 9}]}],
+ "purchaseOrders": [{"id": "opo_1", "no": 3, "date": "2025-05-25", "supplier": "Synthetic Old Supplier", "items": [{"item": "Synthetic Mango", "rate": 19, "ordered": 6, "received": 6}]}],
+ "expenses": [{"id": "ocb_1", "date": "2025-06-01", "cash": "10", "miscDesc": "old", "miscAmt": 1}],
+ "payments": [{"id": "opay_1", "customerId": "c_old", "customerName": "Synthetic Customer", "amount": 5, "mode": "Cash", "date": "2025-06-03"}],
+ "stock": {"Synthetic Berry": {"opening": 4, "fridge": 1, "adjust": 2}, "Synthetic Mango": {"opening": 1, "adjust": 0}, "Old Cola": {"opening": 3, "adjust": -1}},
+ "crates": "missing",
+ "priceSuppliers": [],
+ "gstBills": [],
+ "stockLog": [{"item": "Synthetic Berry", "delta": 1, "reason": "count"}],
+ "log": [{"ts": 1748736000000, "device": "old-device", "type": "bill-save", "msg": "#7 Synthetic Customer ₹45"}],
+ "godown": [{"item": null, "qty": 2}],
+ "deleted": "none"
+}
