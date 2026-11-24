@@ -41,7 +41,7 @@ pub fn gst_form(
     );
     let _ = write!(
         html,
-        r#"<div class="f2">{}{}</div><div class="field">{}</div><div class="f2">{}{}</div><div class="f2">{}{}</div><div class="f2">{}{}</div><div class="f2">{}<div><label>GST Invoice No <input class="inp" value="{}" readonly></label></div></div><div class="f2">{}{}</div><div class="field">{}</div><div class="f3">{}{}{}</div><div class="field">{}</div></div>"#,
+        r#"<div class="autobox field"><label>Pick customer (optional — fills the fields below) <input class="inp" name="pick_q" data-search="gst_customer_search" placeholder="Search a saved customer to auto-fill…" autocomplete="off"></label><input type="hidden" name="pick" value=""><div class="autolist"></div></div><div class="f2">{}{}</div><div class="field">{}</div><div class="f2">{}{}</div><div class="f2">{}{}</div><div class="f2">{}{}</div><div class="f2">{}<div><label>GST Invoice No <input class="inp" value="{}" readonly></label></div></div><div class="f2">{}{}</div><div class="field">{}</div><div class="f3">{}{}{}</div><div class="field">{}</div></div>"#,
         input("Customer Name *", "customer", &f.customer, ""),
         input(
             "GSTIN",

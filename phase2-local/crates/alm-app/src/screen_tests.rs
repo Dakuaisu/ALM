@@ -1195,3 +1195,58 @@ fn dashboard_ports_deltas_rates_packets_top_lists_and_svg_charts() {
             .is_err()
     );
 }
+
+#[test]
+fn gst_sales_pick_customer_fills_the_saved_contact_through_data_search() {
+    use std::collections::HashMap;
+    let root = Root::new("gst-pick");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    trial.gst_form = Some(
+        trial
+            .authority
+            .new_gst_bill_fields(Role::Owner, day())
+            .unwrap(),
+    );
+    let form = trial.render("gstsales").unwrap();
+    assert!(form.contains(r#"name="pick_q" data-search="gst_customer_search""#));
+    let options = trial.gst_customer_options("synthetic c").unwrap();
+    assert!(options.contains(
+        r#"data-fill="pick=batch1-customer&amp;pick_q=Synthetic%20Customer" data-submit="pick""#
+    ));
+    assert!(options.contains("<small>90000 00001</small>"));
+    assert!(!options.contains("Synthetic Market"));
+    let terms: HashMap<String, String> = [
+        ("customer", "typed"),
+        ("gstin", "09ABCDE1234F1Z5"),
+        ("cust_state", "Uttar Pradesh"),
+        ("date", "2025-04-30"),
+        ("pick", "batch1-customer"),
+        ("intent", "pick"),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_owned(), v.to_owned()))
+    .collect();
+    trial.gst_submit(terms.clone(), 1).unwrap();
+    let form = trial.gst_form.as_ref().unwrap();
+    assert_eq!(
+        (
+            form.customer.as_str(),
+            form.gstin.as_str(),
+            form.cust_addr.as_str(),
+            form.cust_phone.as_str(),
+            form.cust_state.as_str()
+        ),
+        (
+            "Synthetic Customer",
+            "",
+            "12 Synthetic Lane, Kanpur",
+            "90000 00001",
+            "Uttar Pradesh"
+        )
+    );
+    let mut unknown = terms;
+    unknown.insert("pick".into(), "nobody".into());
+    assert!(trial.gst_submit(unknown, 2).is_err());
+    trial.owner = false;
+    assert!(trial.gst_customer_options("").is_err());
+}

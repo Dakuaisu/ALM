@@ -14,6 +14,27 @@ fn take(terms: &mut HashMap<String, String>, key: &str) -> String {
 }
 
 impl Trial {
+    /// GST Sales "Pick customer" options: saved customers by name, filling `pick`.
+    pub(crate) fn gst_customer_options(&self, q: &str) -> Result<String, String> {
+        self.require_owner()?;
+        let found = self.directory.search_customers(&self.authority, q);
+        let fills: Vec<_> = found
+            .iter()
+            .map(|c| [("pick", c.id), ("pick_q", c.name)])
+            .collect();
+        let options: Vec<_> = found
+            .iter()
+            .zip(&fills)
+            .map(|(c, fill)| crate::views::SearchOption {
+                fill,
+                label: c.name,
+                sub: c.mobile,
+                submit: Some("pick"),
+            })
+            .collect();
+        Ok(crate::views::search_options(&options))
+    }
+
     /// Copies the submitted text into the open form; core reads it on save.
     fn gst_apply(&mut self, mut terms: HashMap<String, String>) -> Result<String, String> {
         let form = self.gst_form.as_mut().ok_or("No GST invoice is open.")?;
@@ -60,10 +81,15 @@ impl Trial {
         now: u64,
     ) -> Result<(), String> {
         let role = self.require_owner()?;
+        let pick = terms.get("pick").cloned().unwrap_or_default();
         let intent = self.gst_apply(terms)?;
         let form = self.gst_form.as_mut().ok_or("No GST invoice is open.")?;
         match intent.as_str() {
             "add" => form.lines.push(GstLineFields::blank()),
+            "pick" => self
+                .directory
+                .fill_gst_customer(&self.authority, form, &pick)
+                .map_err(|_| "Select a saved customer.".to_owned())?,
             "fill" => self.authority.fill_gst_lines(role, form).map_err(warn)?,
             "save" => {
                 let lines = form
@@ -192,4 +218,10 @@ pub fn gst_view(state: State<'_, AppState>, id: IpcId) -> Result<String, String>
         trial.gst_view = id;
         Ok(())
     })
+}
+
+#[tauri::command(async)]
+pub fn gst_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
+    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    trial.gst_customer_options(&q)
 }

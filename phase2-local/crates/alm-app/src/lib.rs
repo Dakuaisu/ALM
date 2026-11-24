@@ -147,6 +147,7 @@ pub fn run() {
             gst_sales::gst_cancel,
             gst_sales::gst_delete,
             gst_sales::gst_view,
+            gst_sales::gst_customer_search,
             products::products_filter,
             products::product_new,
             products::product_edit,

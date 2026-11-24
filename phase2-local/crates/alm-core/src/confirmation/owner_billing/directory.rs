@@ -108,6 +108,25 @@ impl BillingDirectory {
             .collect()
     }
 
+    /// GST Sales "Pick customer": fills name, GSTIN (blank: the directory holds none), address
+    /// and phone from the saved customer, leaving the state fields as they are.
+    ///
+    /// # Errors
+    /// Rejects a customer the authority does not know, without changing the form.
+    pub fn fill_gst_customer(
+        &self,
+        authority: &ConfirmationFixture,
+        fields: &mut super::super::GstBillFields,
+        choice: &str,
+    ) -> Result<(), OwnerBillingError> {
+        let customer = self.customer(authority, choice)?;
+        fields.customer = customer.name.to_owned();
+        fields.gstin = String::new();
+        fields.cust_addr = customer.address();
+        fields.cust_phone = customer.mobile.to_owned();
+        Ok(())
+    }
+
     pub fn customer(
         &self,
         authority: &ConfirmationFixture,
