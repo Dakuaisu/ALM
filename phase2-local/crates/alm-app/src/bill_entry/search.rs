@@ -38,7 +38,8 @@ impl Trial {
                     fill,
                     label: name,
                     sub: "",
-                    submit: None,
+                    // The HTML's pick fills the line at once; here it adds the line.
+                    submit: Some("add"),
                 })
                 .collect::<Vec<_>>(),
         )

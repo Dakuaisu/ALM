@@ -1424,4 +1424,8 @@ fn every_search_list_is_a_labelled_listbox_of_options() {
         ),
         "{items}"
     );
+    // A pick adds the line (the HTML's pick fills it): the option submits the line form.
+    assert!(
+        items.contains(r#"data-fill="product=1&amp;product_q=Synthetic%20Lime" data-submit="add""#)
+    );
 }

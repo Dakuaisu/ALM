@@ -150,8 +150,8 @@ fn new_bill_renders_connected_choices_in_source_layout() {
         r#"data-search="bill_item_search""#,
         r#"data-fill="customer=batch1-customer&amp;customer_q=Synthetic%20Customer" data-submit="select""#,
         r#"data-fill="customer=batch1-market&amp;customer_q=Synthetic%20Market""#,
-        r#"data-fill="product=1&amp;product_q=Synthetic%20Lime"><span>Synthetic Lime"#,
-        r#"data-fill="product=2&amp;product_q=Synthetic%20Soda"><span>Synthetic Soda"#,
+        r#"data-fill="product=1&amp;product_q=Synthetic%20Lime" data-submit="add"><span>Synthetic Lime"#,
+        r#"data-fill="product=2&amp;product_q=Synthetic%20Soda" data-submit="add"><span>Synthetic Soda"#,
         "Bill Amount",
     ] {
         assert!(html.contains(markup), "missing {markup}");
