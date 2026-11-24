@@ -34,7 +34,7 @@ pub fn stock_count_reason(code: &str) -> Option<StockCountReason> {
     alm_core::projection::book::reason_from_code(code)
 }
 #[cfg(feature = "local-authority")]
-pub use local::{LocalAuthority, LocalAuthorityError};
+pub use local::{LegacyStore, LocalAuthority, LocalAuthorityError};
 pub use rest::RestAuthority;
 
 /// A client-minted request identity, persisted with its intent before sending: 1–64 ASCII

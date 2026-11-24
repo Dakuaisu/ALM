@@ -446,3 +446,46 @@ fn a_plan_from_the_file_carries_the_file_and_each_record_place_in_it() {
     missing.source.clear();
     assert_eq!(check_source(&missing), Err(SourceError::Missing));
 }
+
+#[test]
+fn the_verifier_rebuilds_the_plan_from_the_stored_file_and_compares_the_manifest() {
+    use super::import::{LegacyImports, apply, plan_file};
+    use super::verify::verify;
+    let (_, plan) = plan_file(A).unwrap();
+    let mut imports = LegacyImports::default();
+    let id = apply(&mut imports, &plan);
+    let manifest = imports.manifests[0].clone();
+    assert_eq!(id, manifest.id);
+    assert_eq!(verify(A, &manifest, &imports), []);
+
+    // A body changed in the plan (the file untouched) is stored as sent and caught.
+    let mut altered = plan.clone();
+    let customer = altered
+        .records
+        .iter_mut()
+        .find(|r| r.kind == "customer")
+        .unwrap();
+    customer.body["name"] = json!("Someone Else");
+    let mut tampered = LegacyImports::default();
+    apply(&mut tampered, &altered);
+    let findings = verify(A, &tampered.manifests[0], &tampered);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0]
+            .problem
+            .contains("differs from the file's mapping")
+    );
+
+    // A dropped quarantine, an extra record, a moved pointer and another file are all caught.
+    let mut dropped = plan.clone();
+    dropped.quarantine.remove(0);
+    let mut short = LegacyImports::default();
+    apply(&mut short, &dropped);
+    assert!(!verify(A, &short.manifests[0], &short).is_empty());
+    let mut moved = manifest.clone();
+    moved.entries[5].source = "/sales/999".into();
+    assert_eq!(verify(A, &moved, &imports).len(), 1);
+    let findings = verify(B, &manifest, &imports);
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].problem.contains("SHA-256"));
+}

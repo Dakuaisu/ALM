@@ -7,6 +7,7 @@ use super::{State, rejected};
 use crate::{AuthorityError, Intent, Outcome};
 
 mod books;
+pub(super) use books::import_legacy;
 mod purchasing;
 
 const ROLE: Role = Role::Owner;

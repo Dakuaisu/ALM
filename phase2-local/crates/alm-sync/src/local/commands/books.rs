@@ -52,15 +52,11 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
             }
         }
         Intent::RecordRestore => Ok(Outcome::Done),
-        Intent::ImportLegacy(plan) => {
-            alm_core::legacy::import::check_source(plan).map_err(rejected)?;
-            let id = alm_core::legacy::import::apply(&mut state.legacy, plan);
-            state
-                .legacy_sources
-                .entry(plan.digest.clone())
-                .or_insert_with(|| plan.source.as_str().into());
-            Ok(Outcome::Created(id))
-        }
+        Intent::ImportLegacy(plan) => Ok(Outcome::Created(import_legacy(
+            &mut state.legacy,
+            &mut state.legacy_sources,
+            plan,
+        )?)),
         Intent::SetReorderDefault { level } => {
             state
                 .fixture
@@ -193,4 +189,19 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         }
         _ => Err(AuthorityError::Invalid),
     }
+}
+
+/// The authority's legacy import: the source file must hash to the plan's digest; it is kept
+/// by digest and the plan applied (`legacy::import::apply`).
+pub(in crate::local) fn import_legacy(
+    imports: &mut alm_core::legacy::import::LegacyImports,
+    sources: &mut std::collections::BTreeMap<String, std::sync::Arc<str>>,
+    plan: &alm_core::legacy::import::ImportPlan,
+) -> Result<u64, AuthorityError> {
+    alm_core::legacy::import::check_source(plan).map_err(rejected)?;
+    let id = alm_core::legacy::import::apply(imports, plan);
+    sources
+        .entry(plan.digest.clone())
+        .or_insert_with(|| plan.source.as_str().into());
+    Ok(id)
 }

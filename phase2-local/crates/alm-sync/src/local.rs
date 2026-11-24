@@ -27,6 +27,14 @@ impl From<std::io::Error> for LocalAuthorityError {
     }
 }
 
+/// What the authority holds from legacy imports: manifests and records, and each stored
+/// source file by its SHA-256 (Owner only; never in a pull).
+#[derive(Clone, Debug, Default)]
+pub struct LegacyStore {
+    pub imports: alm_core::legacy::import::LegacyImports,
+    pub sources: BTreeMap<String, std::sync::Arc<str>>,
+}
+
 /// The simulated authority's whole state.
 #[derive(Clone)]
 struct State {
@@ -150,6 +158,45 @@ impl LocalAuthority {
         Ok(authority)
     }
 
+    /// The legacy imports and stored source files a journal holds, replayed through the
+    /// authority's legacy rules only (the rest of the journal is read, not applied), as
+    /// `alm-cli verify-legacy-import` reads a device's simulated authority.
+    ///
+    /// # Errors
+    /// Fails on I/O errors and on a journal line that does not parse or a legacy command that
+    /// does not replay.
+    pub fn legacy_journal(journal: &Path) -> Result<LegacyStore, LocalAuthorityError> {
+        let text = std::fs::read_to_string(journal)?;
+        let mut store = LegacyStore::default();
+        for (index, line) in text.lines().enumerate() {
+            let corrupt = || LocalAuthorityError::Corrupt(index + 1);
+            let intent = match line.split('\t').collect::<Vec<_>>().as_slice() {
+                ["R", _, intent, ..] => Intent::parse(intent).ok_or_else(corrupt)?,
+                ["G", ..] => continue,
+                _ => return Err(corrupt()),
+            };
+            if let Intent::ImportLegacy(plan) = &intent {
+                commands::import_legacy(&mut store.imports, &mut store.sources, plan)
+                    .map_err(|_| corrupt())?;
+            }
+        }
+        Ok(store)
+    }
+
+    /// The legacy imports and stored source files of this authority (Owner only).
+    ///
+    /// # Errors
+    /// Denies Managers.
+    pub fn legacy_store(&self, role: Role) -> Result<LegacyStore, AuthorityError> {
+        if role != Role::Owner {
+            return Err(AuthorityError::Denied);
+        }
+        Ok(LegacyStore {
+            imports: self.state.legacy.clone(),
+            sources: self.state.legacy_sources.clone(),
+        })
+    }
+
     /// Replaces the wall clock used for projection timestamps (tests).
     #[must_use]
     pub fn with_clock(mut self, clock: fn() -> u64) -> Self {
@@ -185,27 +232,6 @@ impl LocalAuthority {
     pub fn fixture_mut(&mut self) -> &mut ConfirmationFixture {
         self.checkpoint += 1;
         &mut self.state.fixture
-    }
-
-    /// The legacy imports and the stored source file of each, by digest (Owner only), as
-    /// `alm-cli verify-legacy-import` reads them.
-    ///
-    /// # Errors
-    /// Denies Managers.
-    pub fn legacy_store(
-        &self,
-        role: Role,
-    ) -> Result<
-        (
-            &alm_core::legacy::import::LegacyImports,
-            &BTreeMap<String, std::sync::Arc<str>>,
-        ),
-        AuthorityError,
-    > {
-        if role != Role::Owner {
-            return Err(AuthorityError::Denied);
-        }
-        Ok((&self.state.legacy, &self.state.legacy_sources))
     }
 
     pub const fn cashbook(&self) -> &ManualCashBook {
