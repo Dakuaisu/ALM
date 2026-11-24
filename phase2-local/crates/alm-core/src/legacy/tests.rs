@@ -399,3 +399,50 @@ mod import {
         assert_eq!(continued.unexplained(), 0, "{continued:#?}");
     }
 }
+
+#[test]
+fn a_plan_from_the_file_carries_the_file_and_each_record_place_in_it() {
+    use super::import::{SourceError, check_source, plan_file};
+    let (backup, plan) = plan_file(A).unwrap();
+    assert_eq!(plan.digest, backup.digest);
+    assert_eq!(plan.source.as_bytes(), A);
+    assert_eq!(check_source(&plan), Ok(()));
+    let raw: Value = serde_json::from_slice(A).unwrap();
+    // Every pointer names the record with that legacy ID in the file itself.
+    for record in &plan.records {
+        match record.kind.as_str() {
+            "meta" => assert_eq!(record.source, "/meta"),
+            "stock" => assert!(record.source.starts_with("/stock/"), "{record:?}"),
+            "price_supplier" => {
+                assert_eq!(raw.pointer(&record.source), Some(&json!(record.legacy_id)))
+            }
+            _ if !record.source.is_empty() => assert_eq!(
+                raw.pointer(&record.source).and_then(|r| r.get("id")),
+                Some(&json!(record.legacy_id)),
+                "{record:?}"
+            ),
+            _ => {}
+        }
+    }
+    let sale = plan.records.iter().find(|r| r.legacy_id == "b_1").unwrap();
+    assert!(sale.source.starts_with("/sales/"), "{sale:?}");
+    let quarantined = plan
+        .quarantine
+        .iter()
+        .find(|q| q.legacy_id == "pay_4")
+        .unwrap();
+    assert_eq!(
+        raw.pointer(&quarantined.source).and_then(|r| r.get("id")),
+        Some(&json!("pay_4"))
+    );
+    // A file changed after mapping, or none at all, is refused.
+    let mut tampered = plan.clone();
+    tampered.source = tampered
+        .source
+        .replacen("\"amount\": 91,", "\"amount\": 92,", 1);
+    assert_ne!(tampered.source, plan.source);
+    assert_eq!(check_source(&tampered), Err(SourceError::DigestMismatch));
+    let mut missing = plan;
+    missing.source.clear();
+    assert_eq!(check_source(&missing), Err(SourceError::Missing));
+}

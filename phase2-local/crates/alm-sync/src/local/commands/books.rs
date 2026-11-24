@@ -52,10 +52,15 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
             }
         }
         Intent::RecordRestore => Ok(Outcome::Done),
-        Intent::ImportLegacy(plan) => Ok(Outcome::Created(alm_core::legacy::import::apply(
-            &mut state.legacy,
-            plan,
-        ))),
+        Intent::ImportLegacy(plan) => {
+            alm_core::legacy::import::check_source(plan).map_err(rejected)?;
+            let id = alm_core::legacy::import::apply(&mut state.legacy, plan);
+            state
+                .legacy_sources
+                .entry(plan.digest.clone())
+                .or_insert_with(|| plan.source.as_str().into());
+            Ok(Outcome::Created(id))
+        }
         Intent::SetReorderDefault { level } => {
             state
                 .fixture

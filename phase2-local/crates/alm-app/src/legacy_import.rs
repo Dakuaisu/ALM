@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use alm_core::legacy::import::{ImportManifest, ImportPlan, plan};
+use alm_core::legacy::import::{ImportManifest, ImportPlan, plan_file};
 use alm_core::legacy::{
     LegacyBackup, LegacyError, Reconciliation, dry_run, live_numbers, reconcile,
 };
@@ -75,7 +75,7 @@ impl Trial {
             return Err("Unknown legacy backup.".into());
         }
         let bytes = fs::read(self.legacy_dir().join(name)).map_err(text)?;
-        let backup = LegacyBackup::parse_for_import(&bytes).map_err(|error| match error {
+        let (backup, plan) = plan_file(&bytes).map_err(|error| match error {
             LegacyError::NotJson => "Not a legacy backup: the file is not JSON.".to_owned(),
             LegacyError::NoProducts => {
                 "Not a legacy backup: it has no products (restoreJSON's check).".to_owned()
@@ -85,7 +85,7 @@ impl Trial {
         let report = dry_run(&backup, &book.legacy, live_numbers(&book));
         self.legacy = Some(Review {
             name: name.to_owned(),
-            plan: plan(&backup),
+            plan,
             backup,
             stage: Stage::DryRun(report),
         });

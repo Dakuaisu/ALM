@@ -294,7 +294,8 @@ fn legacy_imports_reconcile_against_the_authority_rows() {
         };
         let before = book(&authority);
         let dry = dry_run(&backup, &before.legacy, live_numbers(&before));
-        let plan = alm_core::legacy::import::plan(&backup);
+        let mut plan = alm_core::legacy::import::plan(&backup);
+        plan.source = String::from_utf8(bytes.to_vec()).unwrap();
         let Ok(Outcome::Created(id)) = authority.submit(
             Role::Owner,
             &request(&format!("legacy-{file}")),

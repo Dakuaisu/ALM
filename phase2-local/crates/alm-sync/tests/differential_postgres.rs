@@ -857,12 +857,25 @@ fn legacy_import() {
     };
     let a = LegacyBackup::parse(conformance::LEGACY_A, clock).unwrap();
     let b = LegacyBackup::parse(conformance::LEGACY_B, clock).unwrap();
-    let edited = String::from_utf8(conformance::LEGACY_A.to_vec())
+    let edited_text = String::from_utf8(conformance::LEGACY_A.to_vec())
         .unwrap()
         .replace("\"amount\": 91,", "\"amount\": 92,");
-    let edited = LegacyBackup::parse(edited.as_bytes(), clock).unwrap();
+    let edited = LegacyBackup::parse(edited_text.as_bytes(), clock).unwrap();
+    let source = |backup: &LegacyBackup| {
+        [
+            conformance::LEGACY_A,
+            conformance::LEGACY_B,
+            edited_text.as_bytes(),
+        ]
+        .into_iter()
+        .find(|bytes| alm_core::legacy::sha256_hex(bytes) == backup.digest)
+        .map(|bytes| String::from_utf8(bytes.to_vec()).unwrap())
+        .unwrap()
+    };
     let import = |backup: &LegacyBackup| {
-        Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(backup)))
+        let mut plan = alm_core::legacy::import::plan(backup);
+        plan.source = source(backup);
+        Intent::ImportLegacy(Box::new(plan))
     };
     assert_eq!(created(p.owner("import a", &import(&a))), 1);
     assert_eq!(created(p.owner("import a again", &import(&a))), 1);

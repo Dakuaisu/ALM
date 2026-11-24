@@ -685,7 +685,9 @@ pub fn legacy_plan(file: &[u8]) -> Intent {
         },
     )
     .unwrap();
-    Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(&backup)))
+    let mut plan = alm_core::legacy::import::plan(&backup);
+    plan.source = String::from_utf8(file.to_vec()).unwrap();
+    Intent::ImportLegacy(Box::new(plan))
 }
 
 fn legacy(s: &ProjectionSnapshot) -> alm_core::legacy::import::LegacyImports {
@@ -740,6 +742,61 @@ pub fn import_legacy<A: SalesAuthority>(a: &mut A) {
     // A Manager pull carries none of it.
     let manager = a.pull(Role::Manager, None).unwrap().snapshot.unwrap();
     assert!(manager.owner.is_none());
+}
+
+/// The device uploads the legacy file with its plan: the authority refuses a file whose
+/// SHA-256 is not the plan's digest, or a plan without its file, before any effect; the
+/// manifest keeps each record's place in the stored file.
+pub fn import_legacy_source<A: SalesAuthority>(a: &mut A) {
+    let (_, good) = alm_core::legacy::import::plan_file(LEGACY_A).unwrap();
+    let mut tampered = good.clone();
+    tampered.source = tampered
+        .source
+        .replacen("\"amount\": 91,", "\"amount\": 92,", 1);
+    let mut missing = good.clone();
+    missing.source.clear();
+    let before = state(a);
+    for (tag, plan) in [("tampered", tampered), ("missing", missing)] {
+        let error = a
+            .submit(
+                Role::Owner,
+                &req("legacysrc", tag),
+                &Intent::ImportLegacy(Box::new(plan)),
+            )
+            .expect_err("refused");
+        assert!(
+            matches!(error, AuthorityError::Rejected(_)),
+            "{tag}: {error:?}"
+        );
+        assert_eq!(state(a), before, "{tag}: no effect");
+    }
+    let outcome = exercise(
+        a,
+        "legacysrc",
+        &Intent::ImportLegacy(Box::new(good.clone())),
+        &legacy_plan(LEGACY_B),
+        None,
+        None,
+        |s| !legacy(s).manifests.is_empty(),
+    );
+    assert_eq!(outcome, Outcome::Created(1));
+    let manifest = legacy(&state(a).1).manifests.remove(0);
+    let place = |id: &str| {
+        manifest
+            .entries
+            .iter()
+            .find(|e| e.legacy_id == id)
+            .map(|e| e.source.clone())
+    };
+    let raw: serde_json::Value = serde_json::from_slice(LEGACY_A).unwrap();
+    for id in ["b_1", "pay_4"] {
+        let pointer = place(id).unwrap();
+        assert_eq!(
+            raw.pointer(&pointer).and_then(|r| r.get("id")),
+            Some(&serde_json::json!(id)),
+            "{id}"
+        );
+    }
 }
 
 /// A restored backup is logged by the authority as the HTML's `restore` entry.
@@ -1265,7 +1322,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

@@ -373,6 +373,10 @@ pub struct PlannedRecord {
     pub body: Value,
     /// `(kind, legacy ID)` of the records it refers to, in order.
     pub refs: Vec<(String, String)>,
+    /// Where the record sits in the source file (a JSON pointer such as `/sales/3`); empty when
+    /// `migrate()` created it.
+    #[serde(default)]
+    pub source: String,
 }
 
 /// A legacy record the mapping cannot place, with why.
@@ -381,6 +385,9 @@ pub struct PlannedQuarantine {
     pub kind: String,
     pub legacy_id: String,
     pub reason: String,
+    /// As [`PlannedRecord::source`].
+    #[serde(default)]
+    pub source: String,
 }
 
 /// What a device sends the authority to import one legacy file.
@@ -391,6 +398,125 @@ pub struct ImportPlan {
     pub version: String,
     pub records: Vec<PlannedRecord>,
     pub quarantine: Vec<PlannedQuarantine>,
+    /// The raw source file the plan was mapped from (UTF-8 JSON), uploaded with the plan; the
+    /// authority stores it Owner-only and refuses a plan whose digest is not its SHA-256.
+    #[serde(default)]
+    pub source: String,
+}
+
+/// Why the authority refuses a plan's source file.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceError {
+    /// No source file was uploaded with the plan.
+    Missing,
+    /// The source's SHA-256 is not the plan's digest.
+    DigestMismatch,
+}
+
+/// The authority's source check: the uploaded file's SHA-256 must be the plan's digest.
+///
+/// # Errors
+/// [`SourceError`] when the file is missing or its digest differs.
+pub fn check_source(plan: &ImportPlan) -> Result<(), SourceError> {
+    if plan.source.is_empty() {
+        return Err(SourceError::Missing);
+    }
+    if super::sha256_hex(plan.source.as_bytes()) != plan.digest {
+        return Err(SourceError::DigestMismatch);
+    }
+    Ok(())
+}
+
+/// Reads a legacy file as an import does ([`LegacyBackup::parse_for_import`]), maps it with
+/// [`plan`], points each record at its place in the file and attaches the file.
+///
+/// # Errors
+/// As [`LegacyBackup::parse_for_import`]; a file that is not UTF-8 is not JSON.
+pub fn plan_file(bytes: &[u8]) -> Result<(LegacyBackup, ImportPlan), super::LegacyError> {
+    let backup = LegacyBackup::parse_for_import(bytes)?;
+    let text = std::str::from_utf8(bytes).map_err(|_| super::LegacyError::NotJson)?;
+    let raw: Value = serde_json::from_str(text).map_err(|_| super::LegacyError::NotJson)?;
+    let mut plan = plan(&backup);
+    let locate = Locator::new(&raw);
+    for record in &mut plan.records {
+        record.source = locate.find(&record.kind, &record.legacy_id);
+    }
+    for entry in &mut plan.quarantine {
+        entry.source = locate.find(&entry.kind, &entry.legacy_id);
+    }
+    plan.source = text.to_owned();
+    Ok((backup, plan))
+}
+
+/// JSON pointers into the raw file, by collection and legacy ID.
+struct Locator<'a> {
+    raw: &'a Value,
+    ids: std::collections::BTreeMap<(&'static str, String), usize>,
+}
+
+fn pointer_token(text: &str) -> String {
+    text.replace('~', "~0").replace('/', "~1")
+}
+
+impl<'a> Locator<'a> {
+    fn new(raw: &'a Value) -> Self {
+        let mut ids = std::collections::BTreeMap::new();
+        for &(_, collection, _) in KINDS {
+            for (index, row) in raw
+                .get(collection)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                let id = match row {
+                    Value::String(name) if collection == "priceSuppliers" => name.clone(),
+                    _ => match row.get("id").filter(|id| truthy(id)) {
+                        Some(id) => string(id),
+                        None => continue,
+                    },
+                };
+                ids.entry((collection, id)).or_insert(index);
+            }
+        }
+        Self { raw, ids }
+    }
+
+    fn find(&self, kind: &str, legacy_id: &str) -> String {
+        let Some(collection) = collection_of(kind) else {
+            return String::new();
+        };
+        match collection {
+            "meta" if self.raw.get("meta").is_some() => "/meta".into(),
+            "stock"
+                if self
+                    .raw
+                    .get("stock")
+                    .and_then(|s| s.get(legacy_id))
+                    .is_some() =>
+            {
+                format!("/stock/{}", pointer_token(legacy_id))
+            }
+            _ => {
+                if let Some(index) = self.ids.get(&(collection, legacy_id.to_owned())) {
+                    return format!("/{collection}/{index}");
+                }
+                // `collection[i]`: a record without a legacy ID at that place.
+                legacy_id
+                    .strip_prefix(collection)
+                    .and_then(|rest| rest.strip_prefix('['))
+                    .and_then(|rest| rest.strip_suffix(']'))
+                    .and_then(|index| index.parse::<usize>().ok())
+                    .filter(|&index| {
+                        self.raw
+                            .get(collection)
+                            .and_then(Value::as_array)
+                            .is_some_and(|rows| index < rows.len())
+                    })
+                    .map_or_else(String::new, |index| format!("/{collection}/{index}"))
+            }
+        }
+    }
 }
 
 impl ImportPlan {
@@ -455,6 +581,7 @@ pub fn plan(backup: &LegacyBackup) -> ImportPlan {
                 kind: kind.into(),
                 legacy_id: legacy_id.clone(),
                 reason,
+                source: String::new(),
             };
             if record.is_null() {
                 quarantine.push(quarantine_as("not a supplier name".into()));
@@ -490,6 +617,7 @@ pub fn plan(backup: &LegacyBackup) -> ImportPlan {
                 legacy_id,
                 body,
                 refs,
+                source: String::new(),
             });
         }
     }
@@ -498,6 +626,7 @@ pub fn plan(backup: &LegacyBackup) -> ImportPlan {
         version: MAPPING_VERSION.into(),
         records,
         quarantine,
+        source: String::new(),
     }
 }
 
@@ -517,6 +646,10 @@ pub struct ManifestEntry {
     pub authority_id: Option<String>,
     pub status: EntryStatus,
     pub reason: String,
+    /// Where the record sits in the stored source file (a JSON pointer; empty when
+    /// `migrate()` created it).
+    #[serde(default)]
+    pub source: String,
 }
 
 /// One imported file: its digest, mapping version and every record's fate.
@@ -570,6 +703,7 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
             authority_id: None,
             status: EntryStatus::Quarantined,
             reason: q.reason.clone(),
+            source: q.source.clone(),
         })
         .collect();
     for record in &plan.records {
@@ -579,6 +713,7 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
             authority_id,
             status,
             reason,
+            source: record.source.clone(),
         };
         if let Some(existing) = imports
             .records

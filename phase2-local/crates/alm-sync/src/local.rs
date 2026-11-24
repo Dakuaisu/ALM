@@ -38,6 +38,8 @@ struct State {
     activity: Vec<alm_core::projection::book::ActivityRow>,
     /// Legacy imports: manifests and placed records.
     legacy: alm_core::legacy::import::LegacyImports,
+    /// Each imported legacy file as uploaded, by its SHA-256 (Owner-only; not in any pull).
+    legacy_sources: BTreeMap<String, std::sync::Arc<str>>,
 }
 
 mod activity;
@@ -82,6 +84,7 @@ impl LocalAuthority {
                 gst: BTreeMap::new(),
                 activity: Vec::new(),
                 legacy: alm_core::legacy::import::LegacyImports::default(),
+                legacy_sources: BTreeMap::new(),
             },
             directory,
             requests: BTreeMap::new(),
@@ -182,6 +185,27 @@ impl LocalAuthority {
     pub fn fixture_mut(&mut self) -> &mut ConfirmationFixture {
         self.checkpoint += 1;
         &mut self.state.fixture
+    }
+
+    /// The legacy imports and the stored source file of each, by digest (Owner only), as
+    /// `alm-cli verify-legacy-import` reads them.
+    ///
+    /// # Errors
+    /// Denies Managers.
+    pub fn legacy_store(
+        &self,
+        role: Role,
+    ) -> Result<
+        (
+            &alm_core::legacy::import::LegacyImports,
+            &BTreeMap<String, std::sync::Arc<str>>,
+        ),
+        AuthorityError,
+    > {
+        if role != Role::Owner {
+            return Err(AuthorityError::Denied);
+        }
+        Ok((&self.state.legacy, &self.state.legacy_sources))
     }
 
     pub const fn cashbook(&self) -> &ManualCashBook {
