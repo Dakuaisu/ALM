@@ -18,7 +18,7 @@ mod regen;
 #[cfg(test)]
 pub(crate) use export::Export;
 #[cfg(test)]
-pub(crate) use regen::regenerate;
+pub(crate) use regen::{bill_png, regenerate};
 
 impl Trial {
     /// The bill image PNG for an Owner-visible bill, with its file name.

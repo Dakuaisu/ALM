@@ -7,6 +7,8 @@ mod backup;
 mod batch2;
 #[cfg(test)]
 mod batch3;
+#[cfg(test)]
+mod batch4;
 mod bill_entry;
 mod billing;
 #[cfg(test)]
