@@ -1447,3 +1447,91 @@ fn every_search_list_is_a_labelled_listbox_of_options() {
         items.contains(r#"data-fill="product=1&amp;product_q=Synthetic%20Lime" data-submit="add""#)
     );
 }
+
+#[test]
+fn an_owner_imports_a_legacy_backup_only_after_a_dry_run_and_a_confirmation() {
+    let root = Root::new("legacy-import");
+    let mut trial = crate::Trial::open(&root.0, Some(super::billing_tests::day())).unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains("Import legacy backup") && html.contains("No legacy files"));
+    std::fs::create_dir_all(root.0.join("legacy-import")).unwrap();
+    std::fs::write(
+        root.0.join("legacy-import/ALM_backup_2026-01-08.json"),
+        include_bytes!("../../alm-core/tests/legacy/rehearsal-a.json"),
+    )
+    .unwrap();
+    std::fs::write(root.0.join("legacy-import/broken.json"), b"{\"meta\": {}}").unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains(r#"data-action="legacy_dry_run" data-q="ALM_backup_2026-01-08.json""#));
+    assert_eq!(
+        trial.legacy_dry_run("broken.json").unwrap_err(),
+        "Not a legacy backup: it has no products (restoreJSON's check)."
+    );
+    assert!(trial.legacy_dry_run("../shop.json").is_err());
+    assert!(
+        trial.legacy_import_confirm().is_err(),
+        "no confirmation without a dry run"
+    );
+
+    // Manager: denied.
+    trial.set_owner(false).unwrap();
+    assert!(trial.legacy_dry_run("ALM_backup_2026-01-08.json").is_err());
+    assert!(
+        !trial
+            .render("settings")
+            .unwrap()
+            .contains("Import legacy backup")
+    );
+    trial.set_owner(true).unwrap();
+
+    let book = |trial: &mut crate::Trial| trial.projected().unwrap().snapshot.owner.unwrap().book;
+    trial.legacy_dry_run("ALM_backup_2026-01-08.json").unwrap();
+    assert!(
+        book(&mut trial).legacy.manifests.is_empty(),
+        "a dry run sends nothing"
+    );
+    let html = trial.render("settings").unwrap();
+    assert!(
+        html.contains("Dry run: ALM_backup_2026-01-08.json (nothing imported)"),
+        "{html}"
+    );
+    assert!(
+        html.contains("4 quarantined") && html.contains("<b>2 unexplained</b>"),
+        "{html}"
+    );
+    assert!(html.contains("unresolved reference customer c_gone"));
+    assert!(
+        html.contains("UNEXPLAINED: the authority's live series"),
+        "{html}"
+    );
+    assert!(html.contains(r#"data-action="legacy_import_confirm""#));
+
+    trial.legacy_import_confirm().unwrap();
+    assert!(trial.message.contains("manifest 1"), "{}", trial.message);
+    let imported = book(&mut trial).legacy;
+    assert_eq!(imported.manifests.len(), 1);
+    let html = trial.render("settings").unwrap();
+    assert!(
+        html.contains("Imported: ALM_backup_2026-01-08.json — manifest 1"),
+        "{html}"
+    );
+    assert!(
+        html.contains("<td>sale</td><td>b_2</td><td>sale-5</td><td>imported</td>"),
+        "{html}"
+    );
+    assert!(html.contains(r#"aria-label="Quarantine""#));
+    assert!(
+        trial.legacy_import_confirm().is_err(),
+        "a confirmation sends once"
+    );
+
+    // The same file again: dry run shows everything already imported; importing changes
+    // nothing. After a restart the rows are still there.
+    trial.legacy_dry_run("ALM_backup_2026-01-08.json").unwrap();
+    trial.legacy_import_confirm().unwrap();
+    assert_eq!(book(&mut trial).legacy, imported);
+    drop(trial);
+    let mut trial = crate::Trial::open(&root.0, Some(super::billing_tests::day())).unwrap();
+    assert_eq!(book(&mut trial).legacy, imported);
+    trial.legacy_close();
+}

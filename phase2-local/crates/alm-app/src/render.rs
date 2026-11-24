@@ -109,7 +109,21 @@ impl Trial {
                         Some((name, store)) => Some((name.as_str(), backup::summary(store)?)),
                         None => None,
                     };
+                    let legacy = self.legacy.as_ref().map(|review| {
+                        (
+                            review.name.as_str(),
+                            match &review.stage {
+                                crate::legacy_import::Stage::DryRun(r) => {
+                                    views::LegacyStage::DryRun(r)
+                                }
+                                crate::legacy_import::Stage::Imported { manifest, report } => {
+                                    views::LegacyStage::Imported(manifest, report)
+                                }
+                            },
+                        )
+                    });
                     views::backup_section(&self.backups(), restored.as_ref().map(|(n, s)| (*n, s)))
+                        + &views::legacy_card(&self.legacy_files(), legacy)
                         + &crate::dev_authority::card(&self.device_root)
                 } else {
                     String::new()

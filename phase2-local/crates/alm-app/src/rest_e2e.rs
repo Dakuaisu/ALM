@@ -493,39 +493,41 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     assert!(log.iter().all(|row| row.account == subject), "{log:?}");
     assert_ne!(subject, "trial");
 
-    // A legacy backup import through REST: manifest, quarantine, no duplicates on a second
-    // import, and the reconciliation from the REST book rows equals the dry run.
-    let clock = alm_core::legacy::MigrateClock {
-        now_ms: 1_767_900_000_000,
-        today: "2026-01-08",
-    };
-    let legacy = alm_core::legacy::LegacyBackup::parse(
+    // A legacy backup import through REST from Settings: dry run, explicit confirmation,
+    // manifest and quarantine; the reconciliation from the REST book rows equals the dry run;
+    // a second import changes nothing and nothing is posted.
+    std::fs::create_dir_all(device_a.0.join("legacy-import")).unwrap();
+    std::fs::write(
+        device_a.0.join("legacy-import/ALM_backup_rehearsal.json"),
         include_bytes!("../../alm-core/tests/legacy/rehearsal-a.json"),
-        clock,
     )
     .unwrap();
     let book = |trial: &mut Trial| trial.projected().unwrap().snapshot.owner.unwrap().book;
     let before = book(&mut trial);
-    let dry = alm_core::legacy::dry_run(
-        &legacy,
-        &before.legacy,
-        alm_core::legacy::live_numbers(&before),
+    trial.legacy_dry_run("ALM_backup_rehearsal.json").unwrap();
+    let dry = match &trial.legacy.as_ref().unwrap().stage {
+        crate::legacy_import::Stage::DryRun(r) => r.clone(),
+        crate::legacy_import::Stage::Imported { .. } => panic!("a dry run"),
+    };
+    trial.legacy_import_confirm().unwrap();
+    assert!(
+        trial.message.contains("by the REST authority"),
+        "{}",
+        trial.message
     );
-    let import = alm_sync::Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(&legacy)));
-    assert_eq!(trial.send(&import), Ok(Outcome::Created(1)));
-    let after = book(&mut trial);
-    let report = alm_core::legacy::reconcile(
-        &legacy,
-        &after.legacy,
-        1,
-        alm_core::legacy::live_numbers(&after),
-    )
-    .unwrap();
-    assert_eq!(report, dry);
+    let crate::legacy_import::Stage::Imported { manifest, report } =
+        &trial.legacy.as_ref().unwrap().stage
+    else {
+        panic!("imported")
+    };
+    assert_eq!((manifest.id, report), (1, &dry));
     assert_eq!(report.quarantined.len(), 4);
-    assert_eq!(trial.send(&import), Ok(Outcome::Created(1)));
+    let after = book(&mut trial);
+    trial.legacy_dry_run("ALM_backup_rehearsal.json").unwrap();
+    trial.legacy_import_confirm().unwrap();
     assert_eq!(book(&mut trial).legacy, after.legacy, "no duplicates");
     assert_eq!(after.sales, before.sales, "the import posts nothing");
+    trial.legacy_close();
 
     // The Manager: denied, and its projection file holds no cost field or value.
     trial.set_owner(false).unwrap();

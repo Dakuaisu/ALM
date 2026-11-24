@@ -39,6 +39,25 @@ fn restore_requires_a_json_object_with_products() {
 }
 
 #[test]
+fn the_import_clock_comes_from_the_file_so_a_reparse_is_identical() {
+    let b = LegacyBackup::parse_for_import(B).unwrap();
+    assert_eq!(b, LegacyBackup::parse_for_import(B).unwrap());
+    // The latest stamp in rehearsal-b is the log entry's ts (2025-06-01).
+    let migrated = b
+        .stock_log()
+        .into_iter()
+        .find(|e| e.reason == "Migrated balance (old adjustments)")
+        .unwrap();
+    assert_eq!(migrated.id, "adj_mig5");
+    assert_eq!(
+        b.collection("stockLog")[1]["date"],
+        json!("2025-06-01"),
+        "{:?}",
+        b.collection("stockLog")
+    );
+}
+
+#[test]
 fn every_collection_is_read_with_its_records() {
     let a = LegacyBackup::parse(A, CLOCK).unwrap();
     assert_eq!(a.source_schema, 3);

@@ -28,6 +28,7 @@ mod gst_print;
 mod gst_sales;
 mod image;
 mod ipc;
+mod legacy_import;
 mod order;
 mod outputs;
 mod products;
@@ -200,6 +201,9 @@ pub fn run() {
             crates::crate_submit,
             crates::crate_close,
             crates::crate_delete,
+            legacy_import::legacy_dry_run,
+            legacy_import::legacy_import_confirm,
+            legacy_import::legacy_close,
             commands::rate_brand,
             commands::rate_group,
             commands::rate_search,

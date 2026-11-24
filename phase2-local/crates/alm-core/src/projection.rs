@@ -472,7 +472,7 @@ pub fn activity_time(ms: u64, utc_offset_minutes: i32) -> String {
 }
 
 /// The civil date `days` after 1970-01-01 (proleptic Gregorian).
-fn civil_date(days: i64) -> Option<BillDate> {
+pub(crate) fn civil_date(days: i64) -> Option<BillDate> {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);

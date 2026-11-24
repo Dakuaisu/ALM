@@ -103,6 +103,52 @@ impl LegacyBackup {
         })
     }
 
+    /// As [`Self::parse`], with `migrate()`'s clock taken from the file itself: the latest
+    /// `ts`, `_m`, `created` or `upd` stamp it holds (0 when none), and that moment's UTC date.
+    /// The same bytes always give the same records, so an import can be repeated.
+    ///
+    /// # Errors
+    /// As [`Self::parse`].
+    pub fn parse_for_import(bytes: &[u8]) -> Result<Self, LegacyError> {
+        let value: Value = serde_json::from_slice(bytes).map_err(|_| LegacyError::NotJson)?;
+        let mut latest = 0.0_f64;
+        let mut visit = |record: &Value| {
+            for key in ["ts", "_m", "created", "upd"] {
+                if let Some(stamp) = record.get(key) {
+                    latest = latest.max(js::num(stamp));
+                }
+            }
+        };
+        if let Value::Object(db) = &value {
+            for (_, collection) in db {
+                match collection {
+                    Value::Array(rows) => rows.iter().for_each(&mut visit),
+                    Value::Object(map) => {
+                        visit(collection);
+                        map.values().for_each(&mut visit);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let now_ms = if latest.is_finite() && latest > 0.0 {
+            latest as u64
+        } else {
+            0
+        };
+        let today = i64::try_from(now_ms / 86_400_000)
+            .ok()
+            .and_then(crate::projection::civil_date)
+            .map_or_else(|| "1970-01-01".to_owned(), |d| d.to_string());
+        Self::parse(
+            bytes,
+            MigrateClock {
+                now_ms,
+                today: &today,
+            },
+        )
+    }
+
     /// One collection's records (an empty slice for `stock` and `meta`, which are objects).
     pub fn collection(&self, name: &str) -> &[Value] {
         self.db

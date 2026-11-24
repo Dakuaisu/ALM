@@ -103,6 +103,8 @@ pub(crate) struct Trial {
     pub(crate) restored: Option<(String, alm_store::synthetic_read_model::Store)>,
     /// The bill or PO number shown on the estimate / PO print views.
     pub(crate) print_view: Option<u64>,
+    /// The legacy backup under review (dry run or imported).
+    pub(crate) legacy: Option<crate::legacy_import::Review>,
 }
 
 pub(crate) type AppState = Mutex<Trial>;
@@ -195,6 +197,7 @@ impl Trial {
             device_id: crate::dev_authority::device_id(device_root)?,
             restored: None,
             print_view: None,
+            legacy: None,
         };
         trial.reconnect()?;
         trial.migrate_gst_tables()?;
