@@ -1275,3 +1275,29 @@ fn gst_sales_pick_customer_fills_the_saved_contact_through_data_search() {
     trial.set_owner(false).unwrap();
     assert!(trial.gst_customer_options("").is_err());
 }
+
+#[test]
+fn product_live_preview_keeps_the_typed_name_brand_and_reorder_level() {
+    let root = Root::new("product-live");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let id = trial.posted.next_product_id(Role::Owner).unwrap();
+    trial.products.form = Some(trial.posted.begin_product_entry(Role::Owner, id).unwrap());
+    let html = trial
+        .product_preview(&crate::products::Form {
+            item: "Smoke Orange".into(),
+            brand: "Smoke Co".into(),
+            buy: "0.00".into(),
+            margin: "0.00".into(),
+            sell: "0.00".into(),
+            reorder: "6".into(),
+            changed: "item".into(),
+        })
+        .unwrap();
+    for kept in [
+        r#"id="product-item" name="item" value="Smoke Orange""#,
+        r#"id="product-brand" name="brand" value="Smoke Co""#,
+        r#"name="reorder" inputmode="numeric" value="6""#,
+    ] {
+        assert!(html.contains(kept), "{kept}\n{html}");
+    }
+}

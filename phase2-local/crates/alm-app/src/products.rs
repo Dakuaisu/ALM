@@ -74,14 +74,20 @@ impl Trial {
     pub(crate) fn product_preview(&mut self, form: &Form) -> Result<String, String> {
         self.require_owner()?;
         let entry = self.products.form.as_mut().ok_or("No product is open.")?;
+        // The re-rendered card must keep what was typed in the other boxes.
+        entry.item.clone_from(&form.item);
+        entry.brand.clone_from(&form.brand);
+        if let Ok(level) = form.reorder.trim().parse() {
+            entry.reorder_level = Some(level);
+        } else if form.reorder.trim().is_empty() {
+            entry.reorder_level = None;
+        }
         let changed = match form.changed.as_str() {
             "buy" => PriceField::Buy,
             "margin" => PriceField::Margin,
             "sell" => PriceField::Sell,
             _ => return Ok(crate::views::product_form(entry)),
         };
-        entry.item.clone_from(&form.item);
-        entry.brand.clone_from(&form.brand);
         entry
             .preview_prices(&form.buy, &form.margin, &form.sell, changed)
             .map_err(|_| "Enter prices in rupees (up to two decimals).".to_owned())?;
