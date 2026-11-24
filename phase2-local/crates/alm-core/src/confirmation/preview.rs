@@ -12,10 +12,13 @@ pub enum BalanceMode {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreviewLine {
+    /// `ProductId::new(0)` on a crate line.
     pub product: ProductId,
     pub quantity: NonZeroU32,
     pub price: Money,
     pub amount: Money,
+    /// The HTML's own label for a line that is not a product: `Crate: <name>`.
+    pub label: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,7 +77,9 @@ impl ConfirmationFixture {
             .current_sales
             .get(&id)
             .ok_or(ConfirmationError::DraftNotFound)?;
-        if review.checkout.is_some() || review.draft.crate_row().is_some() {
+        if (review.checkout.is_some() || review.draft.crate_row().is_some())
+            && !review.is_named_crate_sale()
+        {
             return Err(ConfirmationError::InvalidDraft);
         }
         let amounts = review.amounts()?;
@@ -116,9 +121,25 @@ impl ConfirmationFixture {
                     quantity: line.quantity(),
                     price,
                     amount,
+                    label: None,
                 })
             })
             .collect::<Result<Vec<_>, ConfirmationError>>()?;
+        let mut items_quantity = amounts.packets;
+        let mut lines = lines;
+        if let (Some(row), [price]) = (review.draft.crate_row(), review.prices.as_slice()) {
+            let amount = checked_line_amount(*price, row.quantity().get())
+                .ok_or(ConfirmationError::Overflow)?;
+            lines.push(PreviewLine {
+                product: ProductId::new(0),
+                quantity: row.quantity(),
+                price: *price,
+                amount,
+                label: Some(format!("Crate: {}", row.name().unwrap_or_default())),
+            });
+            // `totQty`: the crate line counts its crates.
+            items_quantity = row.quantity().get();
+        }
         let (previous, previous_date) = if let Some(customer_id) = customer_id {
             self.preview_balance(
                 customer_id,
@@ -154,7 +175,7 @@ impl ConfirmationFixture {
             date,
             customer,
             lines,
-            items_quantity: amounts.packets,
+            items_quantity,
             items_total: amounts.subtotal,
             loading: amounts.loading,
             total: receipt.total,

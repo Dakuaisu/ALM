@@ -30,10 +30,12 @@ impl Trial {
             .lines
             .iter()
             .map(|line| {
-                self.directory
-                    .products(&self.posted)
-                    .find(|(product, _)| *product == line.product)
-                    .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned())
+                line.label.clone().unwrap_or_else(|| {
+                    self.directory
+                        .products(&self.posted)
+                        .find(|(product, _)| *product == line.product)
+                        .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned())
+                })
             })
             .collect();
         let lines: Vec<_> = bill
@@ -107,11 +109,12 @@ impl Trial {
             .lines
             .iter()
             .map(|line| {
-                let name = self
-                    .directory
-                    .products(&self.posted)
-                    .find(|(product, _)| *product == line.product)
-                    .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned());
+                let name = line.label.clone().unwrap_or_else(|| {
+                    self.directory
+                        .products(&self.posted)
+                        .find(|(product, _)| *product == line.product)
+                        .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned())
+                });
                 (line.product, name)
             })
             .collect())

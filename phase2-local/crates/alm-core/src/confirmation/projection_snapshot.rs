@@ -52,18 +52,23 @@ impl ConfirmationFixture {
                 .current_sales
                 .get(&id)
                 .ok_or(ConfirmationError::InvalidDraft)?;
-            let items = self
-                .posted_sale_items
-                .get(&id)
-                .map(|items| items.iter().filter_map(|i| i.item.clone()).collect())
-                .unwrap_or_default();
+            // A crate line is one item, named by the crate (`li.item || li.name`).
+            let crate_row = review.draft.crate_row();
+            let items = match crate_row {
+                Some(row) => vec![row.name().unwrap_or_default().to_owned()],
+                None => self
+                    .posted_sale_items
+                    .get(&id)
+                    .map(|items| items.iter().filter_map(|i| i.item.clone()).collect())
+                    .unwrap_or_default(),
+            };
             sales.push(ProjectedSale {
                 draft_id: id.value(),
                 invoice: row.bill.invoice,
                 date: row.date,
                 customer: customer_name(review.draft.customer()),
                 items,
-                lines: u32::try_from(review.draft.lines().len())
+                lines: u32::try_from(review.draft.lines().len() + usize::from(crate_row.is_some()))
                     .map_err(|_| ConfirmationError::Overflow)?,
                 packets: row.bill.quantity,
                 total: row.bill.total,

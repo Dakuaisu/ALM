@@ -70,20 +70,38 @@ fn fixture(crate_sale: bool) -> ConfirmationFixture {
 }
 
 #[test]
-fn l04_checkout_and_crate_reject_in_range_before_search_but_not_outside_range() {
-    for crate_sale in [false, true] {
-        let fixture = fixture(crate_sale);
-        let before = fixture.clone();
-        assert_eq!(
-            fixture.sales_history(OWNER, date("2025-04-01"), SalesPeriod::Today, "no match"),
-            Err(ConfirmationError::UnsupportedSalesRecord(DraftId::new(1)))
-        );
-        let outside = fixture
-            .sales_history(OWNER, date("2025-03-15"), SalesPeriod::Today, "")
-            .unwrap();
-        assert!(outside.rows.is_empty());
-        assert_eq!(fixture, before);
-    }
+fn l04_checkout_rejects_in_range_before_search_but_not_outside_range() {
+    let fixture = fixture(false);
+    let before = fixture.clone();
+    assert_eq!(
+        fixture.sales_history(OWNER, date("2025-04-01"), SalesPeriod::Today, "no match"),
+        Err(ConfirmationError::UnsupportedSalesRecord(DraftId::new(1)))
+    );
+    let outside = fixture
+        .sales_history(OWNER, date("2025-03-15"), SalesPeriod::Today, "")
+        .unwrap();
+    assert!(outside.rows.is_empty());
+    assert_eq!(fixture, before);
+}
+
+/// Requested change (OPEN-013): a crate bill sold to a named customer is listed in Sales like
+/// any bill, as the HTML lists its crate line; it no longer makes the list unsupported.
+#[test]
+fn l04_a_named_crate_bill_is_listed_and_searched_by_its_crate() {
+    let fixture = fixture(true);
+    let before = fixture.clone();
+    let history = fixture
+        .sales_history(OWNER, date("2025-04-01"), SalesPeriod::Today, "")
+        .unwrap();
+    assert_eq!(history.rows.len(), 1);
+    assert_eq!(history.rows[0].bill.draft_id, DraftId::new(1));
+    // 1 crate at 18.00 and one packet of loading at 2.00.
+    assert_eq!(history.sales, Money::from_minor_units(2_000));
+    let none = fixture
+        .sales_history(OWNER, date("2025-04-01"), SalesPeriod::Today, "no match")
+        .unwrap();
+    assert!(none.rows.is_empty());
+    assert_eq!(fixture, before);
 }
 
 #[test]

@@ -123,9 +123,15 @@ pub(super) fn apply(
                 })
                 .collect::<Option<Vec<_>>>()
                 .ok_or(AuthorityError::Invalid)?;
-            let receipt = fixture
-                .edit_posted_lines(role, DraftId::new(*draft), &edits)
-                .map_err(rejected)?;
+            let id = DraftId::new(*draft);
+            let crate_bill = fixture
+                .current_sale(role, id)
+                .is_ok_and(|(review, _)| review.is_named_crate_sale());
+            let receipt = match edits.as_slice() {
+                [edit] if crate_bill => fixture.edit_crate_bill(role, id, *edit),
+                _ => fixture.edit_posted_lines(role, id, &edits),
+            }
+            .map_err(rejected)?;
             Ok(Outcome::Sale(SaleReceipt {
                 draft: *draft,
                 invoice: receipt.invoice,

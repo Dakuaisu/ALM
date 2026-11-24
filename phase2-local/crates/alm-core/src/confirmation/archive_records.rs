@@ -71,7 +71,9 @@ impl ConfirmationFixture {
         }
         let mut sales = Vec::new();
         for (id, (review, receipt, _)) in &self.current_sales {
-            if review.checkout.is_some() || review.draft.crate_row().is_some() {
+            if (review.checkout.is_some() || review.draft.crate_row().is_some())
+                && !review.is_named_crate_sale()
+            {
                 return Err(ConfirmationError::UnsupportedSalesRecord(*id));
             }
             let customer = match review.draft.customer() {
@@ -108,6 +110,35 @@ impl ConfirmationFixture {
                     rate_minor: price.minor_units(),
                     quantity,
                     amount_minor: amount,
+                });
+            }
+            if let (Some(row), [price]) = (review.draft.crate_row(), review.prices.as_slice()) {
+                let quantity = row.quantity().get();
+                lines.push(Line {
+                    item: row.name().unwrap_or_default().to_owned(),
+                    pack: String::new(),
+                    uom: String::new(),
+                    packet_quantity: 1,
+                    kind: LineKind::Crate {
+                        components: row
+                            .components()
+                            .iter()
+                            .map(|component| crate::synthetic_read_model::Component {
+                                item: self
+                                    .catalog
+                                    .item_name(component.product)
+                                    .unwrap_or_default()
+                                    .to_owned(),
+                                quantity: component.quantity.get(),
+                            })
+                            .collect(),
+                    },
+                    rate_minor: price.minor_units(),
+                    quantity,
+                    amount_minor: price
+                        .minor_units()
+                        .checked_mul(i64::from(quantity))
+                        .ok_or(ConfirmationError::Overflow)?,
                 });
             }
             sales.push(Sale {

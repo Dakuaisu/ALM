@@ -24,10 +24,12 @@ pub fn sale_edit_form(
         id.value()
     );
     for (i, line) in bill.lines.iter().enumerate() {
-        let name = directory
-            .products(fixture)
-            .find(|(product, _)| *product == line.product)
-            .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned());
+        let name = line.label.clone().unwrap_or_else(|| {
+            directory
+                .products(fixture)
+                .find(|(product, _)| *product == line.product)
+                .map_or_else(|| line.product.to_string(), |(_, name)| name.to_owned())
+        });
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td class="num"><input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Edit quantity {}" value="{}"></td><td class="num"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Edit rate {}" value="{}"></td><td class="num">{}</td></tr>"#,

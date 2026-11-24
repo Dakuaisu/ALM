@@ -10,8 +10,8 @@ use super::{
 impl Review {
     /// Returns the packet demand of each component in its original order.
     /// A crate dispatched to a named customer (`sell_crate`): an ordinary bill for ledgers, the
-    /// Cash Book and the Dashboard; the Sales list, edits, cancellation and bill images still
-    /// decline it.
+    /// Cash Book, the Dashboard, the Sales list, edits (crates and rate), cancellation and the
+    /// bill image, as the HTML's crate line.
     pub fn is_named_crate_sale(&self) -> bool {
         self.draft.crate_row().is_some()
             && self.draft.lines().is_empty()

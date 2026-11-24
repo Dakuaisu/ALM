@@ -17,8 +17,8 @@ pub(super) fn require_received_regular(
         .minor_units();
     if !matches!(review.draft.customer(), DraftCustomer::Selected { .. })
         || !matches!(review.payment, ProposedPayment::Named(_))
-        || review.checkout.is_some()
-        || review.draft.crate_row().is_some()
+        || ((review.checkout.is_some() || review.draft.crate_row().is_some())
+            && !review.is_named_crate_sale())
         || received <= 0
         || due < 0
     {

@@ -399,7 +399,8 @@ fn l15_cashbook() {
 }
 
 /// L10: repeated-product FIFO layers at different costs and dates, a bill spanning layers,
-/// edits up and down, cancel and restore, a count down, and a crate repeating a product.
+/// edits up and down, cancel and restore, a count down, and a crate repeating a product, its
+/// bills edited, cancelled and restored.
 #[test]
 fn l10_crate_fifo() {
     // Piece components need the authority's checkout pack: a Lime piece is half a packet.
@@ -524,13 +525,34 @@ fn l10_crate_fifo() {
         "crate sale twice",
         &crate_sale(8, template, 2, MARKET, 0, 30_000, &twins),
     );
-    p.owner("crate cancel refused", &Intent::CancelSale { draft: 7 });
+    // Crate bills are edited (crates and rate), cancelled and restored like any bill.
+    let edit = |crates: u32, rate: i64| Intent::EditSale {
+        draft: 7,
+        lines: vec![(crates, rate)],
+    };
+    assert!(p.owner("crate edit up", &edit(4, 31_000)).is_some());
+    assert!(p.owner("crate edit down", &edit(2, 29_500)).is_some());
+    assert!(p.owner("crate edit below paid", &edit(1, 100)).is_none());
+    assert!(p.owner("crate edit shortage", &edit(500, 30_000)).is_none());
     p.owner(
-        "crate edit refused",
+        "crate edit two lines",
         &Intent::EditSale {
             draft: 7,
-            lines: vec![(1, 30_000)],
+            lines: vec![(1, 30_000), (1, 30_000)],
         },
+    );
+    assert!(
+        p.owner("crate cancel", &Intent::CancelSale { draft: 7 })
+            .is_some()
+    );
+    p.owner("crate edit cancelled", &edit(3, 30_000));
+    assert!(
+        p.owner("crate restore", &Intent::RestoreSale { draft: 7 })
+            .is_some()
+    );
+    assert!(
+        p.owner("crate cancel unpaid", &Intent::CancelSale { draft: 8 })
+            .is_none()
     );
     p.owner(
         "receipt after crate",
@@ -545,7 +567,15 @@ fn l10_crate_fifo() {
         &crate_sale(9, solo, 2, MARKET, 9_000, 9_000, &[(SODA, 1, false)]),
     );
     assert!(matches!(sold, Some(Outcome::Sale(_))), "{sold:?}");
-    assert_eq!(p.core().sales_unsupported, Some(9));
+    let core = p.core();
+    assert_eq!(core.sales_unsupported, None);
+    assert_eq!(
+        core.sales
+            .iter()
+            .filter(|s| s.items == ["Lime Twins"])
+            .count(),
+        2
+    );
     p.finish();
 }
 

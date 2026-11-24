@@ -353,7 +353,11 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         .find(|c| c.id == "batch1-market")
         .unwrap();
     assert_eq!(market.balance, Money::from_minor_units(80_000 - 30_000));
-    assert_eq!(a.sales_unsupported, Some(2));
+    assert_eq!(
+        a.sales_unsupported, None,
+        "the crate bill is listed in Sales"
+    );
+    assert_eq!(a.sales.len(), 2);
     assert_eq!(a.cash_days[0].amounts.cash, Money::from_minor_units(3_000));
     assert_eq!(a.gst_bills.len(), 1);
     let book = &a.owner.as_ref().unwrap().book;

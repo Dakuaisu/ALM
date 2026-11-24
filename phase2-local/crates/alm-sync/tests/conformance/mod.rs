@@ -673,6 +673,84 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+/// A crate bill is edited in place: crates and rate change, each component's packets follow.
+pub fn edit_crate_sale<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let template = created(setup(
+        a,
+        "crateedit",
+        "template",
+        &crate_terms(&w, None, 40_000, true),
+    ));
+    setup(
+        a,
+        "crateedit",
+        "sale",
+        &crate_sale(&w, template, 155, 1, 40_000),
+    );
+    let (product, on_hand) = (w.product, stock_of(&state(a).1, w.product).unwrap());
+    let edit = |crates: u32, rate: i64| Intent::EditSale {
+        draft: 155,
+        lines: vec![(crates, rate)],
+    };
+    let outcome = exercise(
+        a,
+        "crateedit",
+        &edit(2, 41_000),
+        &edit(3, 41_000),
+        None,
+        Some(&edit(1, 100)),
+        |s| stock_of(s, product) == Some(on_hand - 2),
+    );
+    assert!(
+        matches!(outcome, Outcome::Sale(r) if r.quantity == 4 && r.total == money(82_000)),
+        "{outcome:?}"
+    );
+    let (_, s) = state(a);
+    let bill = sale_of(&s, 155).unwrap();
+    assert_eq!(
+        (bill.lines, bill.items.as_slice()),
+        (1, &["Conformance Crate".to_owned()][..])
+    );
+}
+
+/// A crate bill is cancelled (its packets back to stock) and restored like any bill.
+pub fn cancel_crate_sale<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let template = created(setup(
+        a,
+        "cratecancel",
+        "template",
+        &crate_terms(&w, None, 40_000, true),
+    ));
+    setup(
+        a,
+        "cratecancel",
+        "sale",
+        &crate_sale(&w, template, 156, 1, 40_000),
+    );
+    let (product, on_hand) = (w.product, stock_of(&state(a).1, w.product).unwrap());
+    exercise(
+        a,
+        "cratecancel",
+        &Intent::CancelSale { draft: 156 },
+        &Intent::RestoreSale { draft: 156 },
+        None,
+        Some(&Intent::CancelSale { draft: 997 }),
+        |s| {
+            sale_of(s, 156).is_some_and(|x| x.cancelled)
+                && stock_of(s, product) == Some(on_hand + 2)
+        },
+    );
+    setup(
+        a,
+        "cratecancel",
+        "restore",
+        &Intent::RestoreSale { draft: 156 },
+    );
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
+}
+
 /// The default reorder level: a later product saved with a blank level takes it.
 pub fn set_reorder_default<A: SalesAuthority>(a: &mut A) {
     exercise(
@@ -1029,7 +1107,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, delete_crate, set_reorder_default, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

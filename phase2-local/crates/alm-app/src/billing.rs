@@ -141,14 +141,9 @@ impl crate::Trial {
             .and_then(|text| text.parse().ok())
             .map(alm_core::DraftId::new)
             .ok_or("Unknown bill.")?;
-        let lines = self
-            .posted
-            .current_sale(role, id)
-            .map_err(debug)?
-            .0
-            .draft()
-            .lines()
-            .len();
+        let draft = self.posted.current_sale(role, id).map_err(debug)?.0.draft();
+        // A crate bill edits its one crate line (crates and rate).
+        let lines = draft.lines().len() + usize::from(draft.crate_row().is_some());
         let edits = (0..lines)
             .map(|i| {
                 let qty = terms.remove(&format!("qty_{i}")).unwrap_or_default();

@@ -46,7 +46,7 @@ impl SalesFilter {
 
 pub struct Filter {
     period: SalesPeriod,
-    q: String,
+    pub(crate) q: String,
 }
 
 impl Default for Filter {

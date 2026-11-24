@@ -171,8 +171,8 @@ pub struct OwnerValues {
 /// Everything one account may see, as of one authority checkpoint.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ProjectionSnapshot {
-    /// A posted bill the sales list cannot represent yet (crate or checkout bills); the
-    /// Sales screen reports it instead of listing a partial history.
+    /// A posted bill the sales list cannot represent yet (a checkout bill other than a named
+    /// crate bill); the Sales screen reports it instead of listing a partial history.
     pub sales_unsupported: Option<u64>,
     pub sales: Vec<ProjectedSale>,
     pub receipts: Vec<ProjectedReceipt>,

@@ -554,7 +554,7 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
             .find(|c| c.id == "batch1-customer")
             .unwrap();
         assert_eq!(customer.balance, Money::from_minor_units(50_000));
-        assert_eq!(s.sales_unsupported, Some(1));
+        assert_eq!(s.sales_unsupported, None, "crate bills are listed in Sales");
     };
     check(&mut trial);
     crate::device::assert_book_view(&mut trial);
@@ -569,9 +569,135 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
     );
     // Selling again makes a new bill under the next draft number.
     assert!(trial.crate_sell(&sell).is_ok());
+    assert_eq!(trial.projected().unwrap().snapshot.sales.len(), 2);
+}
+
+#[test]
+fn a_crate_bill_is_listed_viewed_edited_cancelled_restored_and_imaged_in_sales() {
+    let root = Root::new("crate-bill-sales");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.crate_form = Some(crate::views::CrateForm {
+        rows: vec![
+            ("1".into(), "2".into(), "Case".into()),
+            ("2".into(), "3".into(), "Case".into()),
+        ],
+        ..Default::default()
+    });
+    trial
+        .crate_submit(map(&[
+            ("name", "Party Crate"),
+            ("price", "400"),
+            ("product_0", "1"),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("product_1", "2"),
+            ("qty_1", "3"),
+            ("unit_1", "Case"),
+            ("intent", "save"),
+        ]))
+        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id.to_string();
+    trial
+        .crate_sell(&map(&[
+            ("id", &template),
+            ("customer", "batch1-customer"),
+            ("qty", "2"),
+            ("date", "2025-04-30"),
+            ("paid", "300"),
+        ]))
+        .unwrap();
+    let sales = trial.render("sales").unwrap();
+    assert!(!sales.contains("role=\"alert\""), "{sales}");
+    assert!(
+        sales.contains("<b>#1</b>") && sales.contains("1 items · 10 pkt"),
+        "{sales}"
+    );
+    assert!(sales.contains(r#"data-action="sale_edit_open" data-id="1""#));
+    trial.message.clear();
+    trial.sales_filter.q = "party".into();
+    assert!(
+        trial.render("sales").unwrap().contains("<b>#1</b>"),
+        "found by crate name"
+    );
+    trial.sales_filter.q = "synthetic lime".into();
+    assert!(
+        !trial.render("sales").unwrap().contains("<b>#1</b>"),
+        "not by its contents"
+    );
+    trial.sales_filter.q.clear();
+
+    // View (estimate) and bill image name the crate line as the HTML does.
+    let estimate = trial.estimate_html(alm_core::DraftId::new(1)).unwrap();
+    assert!(estimate.contains("Crate: Party Crate"), "{estimate}");
+    let (name, png) = trial.bill_image_png(alm_core::DraftId::new(1)).unwrap();
+    assert_eq!(name, "Bill-1.png");
+    assert!(png.starts_with(b"\x89PNG"));
+
+    // Edit: 3 crates at ₹380 (15 packets: Lime 6, Soda 9).
+    trial.sale_edit = Some(alm_core::DraftId::new(1));
+    let form = trial.render("sales").unwrap();
+    assert!(
+        form.contains("Crate: Party Crate") && form.contains(r#"name="qty_0""#),
+        "{form}"
+    );
+    trial
+        .sale_edit_save(map(&[("id", "1"), ("qty_0", "3"), ("rate_0", "380")]))
+        .unwrap();
+    let stock = |trial: &mut Trial| {
+        let s = trial.projected().unwrap().snapshot;
+        let on_hand = |p: u64| s.stock.iter().find(|r| r.product == p).unwrap().on_hand;
+        (
+            on_hand(1),
+            on_hand(2),
+            s.sales[0].total,
+            s.sales[0].cancelled,
+        )
+    };
     assert_eq!(
-        trial.projected().unwrap().snapshot.sales_unsupported,
-        Some(2)
+        stock(&mut trial),
+        (44, 31, Money::from_minor_units(114_000), false)
+    );
+    assert!(
+        trial
+            .sale_edit_save(map(&[("id", "1"), ("qty_0", "1"), ("rate_0", "1")]))
+            .unwrap_err()
+            .contains("below the amount already paid")
+    );
+    trial
+        .send(&alm_sync::Intent::CancelSale { draft: 1 })
+        .unwrap();
+    assert_eq!(
+        stock(&mut trial),
+        (50, 40, Money::from_minor_units(114_000), true)
+    );
+    trial
+        .send(&alm_sync::Intent::RestoreSale { draft: 1 })
+        .unwrap();
+    assert_eq!(
+        stock(&mut trial),
+        (44, 31, Money::from_minor_units(114_000), false)
+    );
+    crate::device::assert_book_view(&mut trial);
+    let log: Vec<_> = trial
+        .projected()
+        .unwrap()
+        .snapshot
+        .owner
+        .unwrap()
+        .book
+        .activity
+        .iter()
+        .map(|a| a.kind.clone())
+        .collect();
+    assert_eq!(
+        log,
+        [
+            "crate-save",
+            "bill-save",
+            "bill-edit",
+            "bill-cancel",
+            "bill-restore"
+        ]
     );
 }
 
