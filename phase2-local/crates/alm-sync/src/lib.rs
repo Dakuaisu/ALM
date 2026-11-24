@@ -62,6 +62,21 @@ impl RequestId {
     }
 }
 
+/// The prefix of the request IDs one device install mints for one account: `<account>:<device>`,
+/// followed by `-<sequence>`. Two devices of one account never mint the same ID; the account is
+/// shortened when needed so a 20-digit sequence still fits the 64-byte bound (the device ID
+/// alone keeps it unique).
+pub fn request_prefix(account: &str, device: &str) -> String {
+    const SEQUENCE: usize = 21;
+    let room = 64usize.saturating_sub(device.len() + 1 + SEQUENCE);
+    let account: String = account
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        .take(room)
+        .collect();
+    format!("{account}:{device}")
+}
+
 /// Why a command did not produce an outcome.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AuthorityError {

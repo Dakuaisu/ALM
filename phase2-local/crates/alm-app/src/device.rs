@@ -113,7 +113,8 @@ impl Trial {
                 entry.request_id
             ));
         }
-        let request = self.outbox.next_request_id(&self.account).map_err(text)?;
+        let prefix = alm_sync::request_prefix(&self.account, &self.device_id);
+        let request = self.outbox.next_request_id(&prefix).map_err(text)?;
         self.outbox
             .record(&request, &intent.canonical())
             .map_err(debug)?;

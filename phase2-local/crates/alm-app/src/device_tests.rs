@@ -379,3 +379,66 @@ fn the_owner_can_point_this_device_at_a_rest_authority_and_back() {
             .contains("built-in authority simulation")
     );
 }
+
+#[test]
+fn request_ids_name_the_account_and_this_device_install_and_old_ids_stay_resolvable() {
+    let root = Root::new("device-request-ids");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let device = trial.device_id.clone();
+    let hex = device.strip_prefix("dev-").unwrap();
+    assert!(hex.len() == 16 && hex.bytes().all(|b| b.is_ascii_hexdigit()));
+    let other = Root::new("device-request-ids-other");
+    let second = Trial::open(&other.0, Some(day())).unwrap();
+    assert_ne!(second.device_id, device, "each install draws its own ID");
+
+    saved_draft(&mut trial, 1);
+    let serial = review(&mut trial);
+    assert_eq!(trial.sale_confirm(serial), Ok(1));
+    let posted = trial.outbox.entries().unwrap().remove(0).request_id;
+    assert_eq!(posted, format!("trial:{device}-1"));
+
+    // An intent stored under the earlier `account-n` form before an upgrade.
+    trial
+        .outbox
+        .record("trial-2", &Intent::CancelSale { draft: 1 }.canonical())
+        .unwrap();
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert_eq!(trial.device_id, device, "kept across a restart");
+    assert_eq!(trial.retry("trial-2"), Ok(Outcome::Done));
+    assert_eq!(cancelled(&mut trial, 1), Some(true));
+    assert_eq!(
+        trial.send(&Intent::RestoreSale { draft: 1 }),
+        Ok(Outcome::Done)
+    );
+    let ids: Vec<_> = trial
+        .outbox
+        .entries()
+        .unwrap()
+        .into_iter()
+        .map(|e| e.request_id)
+        .collect();
+    assert_eq!(ids, [posted, "trial-2".into(), format!("trial:{device}-3")]);
+}
+
+#[test]
+fn a_device_id_from_an_earlier_build_is_kept() {
+    let root = Root::new("device-id-earlier");
+    std::fs::write(root.0.join("device-id.txt"), "dev-0a1b2c3d\n").unwrap();
+    let trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert_eq!(trial.device_id, "dev-0a1b2c3d");
+}
+
+#[test]
+fn request_prefixes_fit_the_request_id_bound_for_any_account() {
+    let long = "a".repeat(64);
+    let prefix = alm_sync::request_prefix(&long, "dev-0123456789abcdef");
+    let id = format!("{prefix}-{}", u64::MAX);
+    assert!(RequestId::new(&id).is_ok(), "{id}");
+    assert!(prefix.ends_with(":dev-0123456789abcdef"));
+    assert_eq!(
+        alm_sync::request_prefix("trial", "dev-1"),
+        "trial:dev-1",
+        "short accounts are kept whole"
+    );
+}

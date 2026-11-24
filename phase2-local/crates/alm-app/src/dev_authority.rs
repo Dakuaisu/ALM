@@ -19,23 +19,39 @@ fn read(device_root: &Path) -> Option<[String; 3]> {
     Some([lines.next()?, lines.next()?, lines.next()?])
 }
 
-/// This device's identity for the authority's activity log: made once, kept in the device data
-/// folder (`device-id.txt`).
+/// This device install's identity: in its request IDs and the authority's activity log. Made
+/// once, kept in the device data folder (`device-id.txt`) across restarts and restores; an ID
+/// made by an earlier build is kept as it is.
 pub(crate) fn device_id(device_root: &Path) -> Result<String, String> {
     let path = device_root.join("device-id.txt");
     if let Ok(id) = std::fs::read_to_string(&path) {
         let id = id.trim();
-        if !id.is_empty() {
+        if alm_sync::RequestId::new(id).is_ok() && id.len() <= 32 && !id.contains(':') {
             return Ok(id.to_owned());
         }
     }
+    let id = format!("dev-{:016x}", random_u64());
+    std::fs::write(&path, format!("{id}\n")).map_err(text)?;
+    Ok(id)
+}
+
+/// 64 random bits from std only: the process's randomly keyed `RandomState` hashers over the
+/// time, the process ID and a stack address.
+fn random_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    let mixed = (nanos ^ (u128::from(std::process::id()) << 64)) % 0xffff_ffff;
-    let id = format!("dev-{mixed:08x}");
-    std::fs::write(&path, format!("{id}\n")).map_err(text)?;
-    Ok(id)
+    let marker = 0u8;
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u128(nanos);
+    hasher.write_u32(std::process::id());
+    hasher.write_usize(std::ptr::addr_of!(marker) as usize);
+    let first = hasher.finish();
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u64(first);
+    hasher.write_u128(nanos);
+    first ^ hasher.finish().rotate_left(29)
 }
 
 /// The REST authority saved on this device, if any. The device presents its one token whatever
