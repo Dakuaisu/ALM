@@ -49,19 +49,19 @@ fn every_collection_is_read_with_its_records() {
             ("products", 4),
             ("customers", 3),
             ("suppliers", 2),
-            ("sales", 6),
+            ("sales", 7),
             ("purchases", 1),
             ("purchaseOrders", 1),
             ("expenses", 2),
-            ("payments", 3),
+            ("payments", 5),
             ("stock", 3),
             ("crates", 1),
             ("priceSuppliers", 1),
             ("gstBills", 2),
-            ("stockLog", 2),
+            ("stockLog", 3),
             ("log", 1),
             ("godown", 1),
-            ("deleted", 1),
+            ("deleted", 2),
             ("meta", 1),
         ]
     );
@@ -192,4 +192,120 @@ fn migrate_fixes_every_legacy_shape_as_the_html_does() {
     assert_eq!(product_id(&b, "Synthetic Berry"), "p_mig3");
     assert_eq!(b.key_of_name("Old Cola"), "n:Old Cola");
     let _: &Value = &b.db["meta"];
+}
+
+mod import {
+    use super::{A, B, CLOCK};
+    use crate::legacy::LegacyBackup;
+    use crate::legacy::import::{EntryStatus, LegacyImports, apply, plan};
+
+    fn quarantine(imports: &LegacyImports, id: u64) -> Vec<(String, String, String)> {
+        imports.manifests[usize::try_from(id - 1).unwrap()]
+            .entries
+            .iter()
+            .filter(|e| e.status == EntryStatus::Quarantined)
+            .map(|e| (e.kind.clone(), e.legacy_id.clone(), e.reason.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn a_imports_with_a_manifest_and_quarantines_what_cannot_be_mapped() {
+        let a = LegacyBackup::parse(A, CLOCK).unwrap();
+        let p = plan(&a);
+        assert_eq!(p.digest, a.digest);
+        assert_eq!(p.version, "legacy-map-1");
+        let mut imports = LegacyImports::default();
+        let id = apply(&mut imports, &p);
+        assert_eq!(id, 1);
+        let q = quarantine(&imports, id);
+        let q: Vec<_> = q
+            .iter()
+            .map(|(k, l, r)| (k.as_str(), l.as_str(), r.as_str()))
+            .collect();
+        assert_eq!(
+            q,
+            [
+                ("stock_log", "adj_2", "delta -0.5 is not a whole quantity"),
+                ("payment", "pay_4", "amount 10.005 is below a paisa"),
+                (
+                    "payment",
+                    "pay_9",
+                    "deleted in the same file (tombstone payments:pay_9)"
+                ),
+                ("sale", "b_7", "unresolved reference customer c_gone"),
+            ]
+        );
+        let m = &imports.manifests[0];
+        assert_eq!(m.count(EntryStatus::Imported), imports.records.len());
+        assert_eq!(m.count(EntryStatus::Already), 0);
+        // Every legacy record is accounted for: imported or quarantined.
+        let total: usize = a
+            .counts()
+            .iter()
+            .filter(|(name, _)| *name != "meta")
+            .map(|(_, n)| n)
+            .sum::<usize>()
+            + 1;
+        assert_eq!(m.entries.len(), total);
+        let sale = imports
+            .records
+            .iter()
+            .find(|r| r.legacy_id == "b_2")
+            .unwrap();
+        assert_eq!(sale.authority_id, "sale-5");
+        assert_eq!(sale.body["total"], serde_json::json!(30_600));
+        assert_eq!(sale.body["items"][1]["rate"], serde_json::json!(6_000));
+
+        // The same file again: nothing changes, the same manifest.
+        let before = imports.clone();
+        assert_eq!(apply(&mut imports, &plan(&a)), 1);
+        assert_eq!(imports, before);
+    }
+
+    #[test]
+    fn a_changed_file_maps_known_records_and_quarantines_conflicts() {
+        let a = LegacyBackup::parse(A, CLOCK).unwrap();
+        let mut imports = LegacyImports::default();
+        apply(&mut imports, &plan(&a));
+        let records = imports.records.len();
+        let edited = String::from_utf8(A.to_vec())
+            .unwrap()
+            .replace("\"amount\": 91,", "\"amount\": 92,");
+        let edited = LegacyBackup::parse(edited.as_bytes(), CLOCK).unwrap();
+        assert_ne!(edited.digest, a.digest);
+        let id = apply(&mut imports, &plan(&edited));
+        assert_eq!(id, 2);
+        assert_eq!(imports.records.len(), records, "no duplicates");
+        let m = &imports.manifests[1];
+        assert_eq!(m.count(EntryStatus::Imported), 0);
+        assert_eq!(m.count(EntryStatus::Already), records - 1);
+        assert!(
+            quarantine(&imports, 2).contains(&(
+                "payment".into(),
+                "pay_1".into(),
+                "differs from the imported record payment-3".into()
+            )),
+            "{:?}",
+            quarantine(&imports, 2)
+        );
+    }
+
+    #[test]
+    fn b_migrated_shapes_import() {
+        let b = LegacyBackup::parse(B, CLOCK).unwrap();
+        let mut imports = LegacyImports::default();
+        let id = apply(&mut imports, &plan(&b));
+        let q = quarantine(&imports, id);
+        let q: Vec<_> = q
+            .iter()
+            .map(|(k, l, r)| (k.as_str(), l.as_str(), r.as_str()))
+            .collect();
+        assert_eq!(
+            q,
+            [
+                ("stock_log", "stockLog[0]", "no legacy ID"),
+                ("godown", "godown[0]", "no legacy ID"),
+            ]
+        );
+    }
 }

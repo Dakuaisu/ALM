@@ -139,6 +139,21 @@ fn canonical_text_round_trips_and_rejects_other_text() {
         Intent::DeleteCrate { id: 1 },
         Intent::SetReorderDefault { level: 7 },
         Intent::RecordRestore,
+        Intent::ImportLegacy(Box::new(alm_core::legacy::import::ImportPlan {
+            digest: "ab".into(),
+            version: "legacy-map-1".into(),
+            records: vec![alm_core::legacy::import::PlannedRecord {
+                kind: "customer".into(),
+                legacy_id: "c 1,%".into(),
+                body: serde_json::json!({"name": "X Y", "openingBalance": 150}),
+                refs: vec![("product".into(), "p_1".into())],
+            }],
+            quarantine: vec![alm_core::legacy::import::PlannedQuarantine {
+                kind: "payment".into(),
+                legacy_id: "pay_9".into(),
+                reason: "no legacy ID".into(),
+            }],
+        })),
         Intent::CancelGstBill { id: 2 },
         Intent::DeleteGstBill { id: 2 },
     ] {

@@ -52,6 +52,10 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
             }
         }
         Intent::RecordRestore => Ok(Outcome::Done),
+        Intent::ImportLegacy(plan) => Ok(Outcome::Created(alm_core::legacy::import::apply(
+            &mut state.legacy,
+            plan,
+        ))),
         Intent::SetReorderDefault { level } => {
             state
                 .fixture

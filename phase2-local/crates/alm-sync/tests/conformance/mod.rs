@@ -673,6 +673,75 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+pub const LEGACY_A: &[u8] = include_bytes!("../../../alm-core/tests/legacy/rehearsal-a.json");
+pub const LEGACY_B: &[u8] = include_bytes!("../../../alm-core/tests/legacy/rehearsal-b.json");
+
+pub fn legacy_plan(file: &[u8]) -> Intent {
+    let backup = alm_core::legacy::LegacyBackup::parse(
+        file,
+        alm_core::legacy::MigrateClock {
+            now_ms: 1_767_900_000_000,
+            today: "2026-01-08",
+        },
+    )
+    .unwrap();
+    Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(&backup)))
+}
+
+fn legacy(s: &ProjectionSnapshot) -> alm_core::legacy::import::LegacyImports {
+    s.owner
+        .as_ref()
+        .map(|o| o.book.legacy.clone())
+        .unwrap_or_default()
+}
+
+/// A legacy file is imported once: a manifest, its records by legacy ID and a quarantine. The
+/// same file under a new request changes nothing; a file that changed one record maps the
+/// rest to what was imported and quarantines the changed one, with no duplicates.
+pub fn import_legacy<A: SalesAuthority>(a: &mut A) {
+    let outcome = exercise(
+        a,
+        "legacy",
+        &legacy_plan(LEGACY_A),
+        &legacy_plan(LEGACY_B),
+        None,
+        None,
+        |s| !legacy(s).records.is_empty(),
+    );
+    assert_eq!(outcome, Outcome::Created(1));
+    let first = legacy(&state(a).1);
+    let manifest = &first.manifests[0];
+    assert_eq!(manifest.version, "legacy-map-1");
+    assert_eq!(
+        manifest.count(alm_core::legacy::import::EntryStatus::Quarantined),
+        4
+    );
+    assert_eq!(
+        a.submit(Role::Owner, &req("legacy", "again"), &legacy_plan(LEGACY_A)),
+        Ok(Outcome::Created(1))
+    );
+    assert_eq!(legacy(&state(a).1), first, "the same file changes nothing");
+    let edited = String::from_utf8(LEGACY_A.to_vec())
+        .unwrap()
+        .replace("\"amount\": 91,", "\"amount\": 92,");
+    assert_eq!(
+        a.submit(
+            Role::Owner,
+            &req("legacy", "edited"),
+            &legacy_plan(edited.as_bytes())
+        ),
+        Ok(Outcome::Created(2))
+    );
+    let after = legacy(&state(a).1);
+    assert_eq!(after.records, first.records, "no duplicates");
+    assert!(after.manifests[1].entries.iter().any(
+        |e| e.legacy_id == "pay_1" && e.reason == "differs from the imported record payment-3"
+    ));
+    // A Manager pull carries none of it.
+    let manager = a.pull(Role::Manager, None).unwrap().snapshot.unwrap();
+    assert!(manager.owner.is_none());
+}
+
 /// A restored backup is logged by the authority as the HTML's `restore` entry.
 pub fn record_restore<A: SalesAuthority>(a: &mut A) {
     exercise(
@@ -1127,7 +1196,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, record_restore, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, delete_crate, set_reorder_default, record_restore, import_legacy, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices
         );

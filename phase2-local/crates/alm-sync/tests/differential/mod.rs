@@ -193,6 +193,7 @@ fn compare_book(out: &mut Vec<String>, core: &OwnerBook, sql: &OwnerBook) {
     differ(out, "book.gst_deleted", &c.gst_deleted, &s.gst_deleted);
     differ(out, "book.cash_days", &c.cash_days, &s.cash_days);
     differ(out, "book.activity", &c.activity, &s.activity);
+    differ(out, "book.legacy", &c.legacy, &s.legacy);
 }
 
 /// Both authorities, seeded with the same shop, and the differences seen so far.

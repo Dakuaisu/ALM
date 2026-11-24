@@ -167,7 +167,8 @@ fn component(value: &Value) -> LegacyComponent {
     }
 }
 
-fn line(value: &Value) -> LegacyLine {
+/// A raw sale or purchase line as `LegacyLine`.
+pub(super) fn line_of(value: &Value) -> LegacyLine {
     let crate_line = (value.get("isCrate").is_some_and(truthy)).then(|| {
         (
             text(value, "name"),
@@ -246,7 +247,7 @@ impl LegacyBackup {
                 lines: s
                     .get("items")
                     .and_then(Value::as_array)
-                    .map(|items| items.iter().map(line).collect())
+                    .map(|items| items.iter().map(line_of).collect())
                     .unwrap_or_default(),
                 loading: field(s, "loading"),
                 loading_rate: field(s, "loadingRate"),
@@ -428,7 +429,7 @@ impl LegacyBackup {
                 .flatten()
                 .enumerate()
             {
-                let li = line(item);
+                let li = line_of(item);
                 for (key, _, packets) in self.line_packets(&li) {
                     if packets > 0.0 {
                         lots.push(LegacyLotSource {
@@ -454,7 +455,7 @@ impl LegacyBackup {
                 .flatten()
                 .enumerate()
             {
-                let li = line(item);
+                let li = line_of(item);
                 let key = li.pid.clone().unwrap_or_else(|| self.key_of_name(&li.item));
                 let receipts = item
                     .get("receipts")

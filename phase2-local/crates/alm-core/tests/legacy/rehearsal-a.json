@@ -1,67 +1,798 @@
 {
- "meta": {"name": "Synthetic Rehearsal Shop", "tagline": "Synthetic data only", "owner": "", "mobile": "", "address": "", "gst": "", "fssai": "", "msme": "", "loadingCharge": 1, "syncUrl": "", "lastSync": 0, "defaultReorder": 6, "gstRate": 18, "gstHsn": "2202", "created": 1767225600000, "schema": 3, "rev": 41, "_v": 7, "_m": 1767830400000, "_d": "dev-legacy-a"},
+ "meta": {
+  "name": "Synthetic Rehearsal Shop",
+  "tagline": "Synthetic data only",
+  "owner": "",
+  "mobile": "",
+  "address": "",
+  "gst": "",
+  "fssai": "",
+  "msme": "",
+  "loadingCharge": 1,
+  "syncUrl": "",
+  "lastSync": 0,
+  "defaultReorder": 6,
+  "gstRate": 18,
+  "gstHsn": "2202",
+  "created": 1767225600000,
+  "schema": 3,
+  "rev": 41,
+  "_v": 7,
+  "_m": 1767830400000,
+  "_d": "dev-legacy-a"
+ },
  "products": [
-  {"id": "p_guava", "item": "Synthetic Guava", "company": "Synthetic Co", "packSize": "250 ml", "uom": "Case", "packetQty": 24, "mrp": 0, "buyRate": 70, "avgCost": 69.5, "openingCost": 68, "margin": 50, "sellRate": 120, "reorderLevel": 5, "gstRate": null, "cess": null, "hsn": null, "_v": 3, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "p_tonic", "item": "Synthetic Tonic", "company": "Synthetic Co", "packSize": "1 L", "uom": "Case", "packetQty": 12, "mrp": 0, "buyRate": 38, "avgCost": 38, "margin": 24, "sellRate": 62, "reorderLevel": 4, "_v": 2, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "p_orange", "item": "Synthetic Orange", "company": "Synthetic Co", "packSize": "500 ml", "uom": "Case", "packetQty": 12, "mrp": 0, "buyRate": 30, "avgCost": 31, "openingCost": 30, "margin": 14, "sellRate": 45, "reorderLevel": 3, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "p_soda", "item": "Synthetic Soda", "company": "Synthetic Co", "packSize": "1.25 L", "uom": "Case", "packetQty": 12, "mrp": 0, "buyRate": 38, "avgCost": 38, "openingCost": 38, "margin": 24.5, "sellRate": 62.5, "reorderLevel": 4, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "p_guava",
+   "item": "Synthetic Guava",
+   "company": "Synthetic Co",
+   "packSize": "250 ml",
+   "uom": "Case",
+   "packetQty": 24,
+   "mrp": 0,
+   "buyRate": 70,
+   "avgCost": 69.5,
+   "openingCost": 68,
+   "margin": 50,
+   "sellRate": 120,
+   "reorderLevel": 5,
+   "gstRate": null,
+   "cess": null,
+   "hsn": null,
+   "_v": 3,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "p_tonic",
+   "item": "Synthetic Tonic",
+   "company": "Synthetic Co",
+   "packSize": "1 L",
+   "uom": "Case",
+   "packetQty": 12,
+   "mrp": 0,
+   "buyRate": 38,
+   "avgCost": 38,
+   "margin": 24,
+   "sellRate": 62,
+   "reorderLevel": 4,
+   "_v": 2,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "p_orange",
+   "item": "Synthetic Orange",
+   "company": "Synthetic Co",
+   "packSize": "500 ml",
+   "uom": "Case",
+   "packetQty": 12,
+   "mrp": 0,
+   "buyRate": 30,
+   "avgCost": 31,
+   "openingCost": 30,
+   "margin": 14,
+   "sellRate": 45,
+   "reorderLevel": 3,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "p_soda",
+   "item": "Synthetic Soda",
+   "company": "Synthetic Co",
+   "packSize": "1.25 L",
+   "uom": "Case",
+   "packetQty": 12,
+   "mrp": 0,
+   "buyRate": 38,
+   "avgCost": 38,
+   "openingCost": 38,
+   "margin": 24.5,
+   "sellRate": 62.5,
+   "reorderLevel": 4,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "customers": [
-  {"id": "c_cust", "name": "Synthetic Customer", "mobile": "90000 00001", "addr1": "12 Synthetic Lane", "addr2": "Kanpur", "openingBalance": 100, "gstin": "", "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "c_mkt", "name": "Synthetic Market", "mobile": "", "addr1": "", "addr2": "", "openingBalance": 0, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "c_far", "name": "Synthetic Faraway Traders", "mobile": "", "addr1": "", "addr2": "", "openingBalance": 50, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "c_cust",
+   "name": "Synthetic Customer",
+   "mobile": "90000 00001",
+   "addr1": "12 Synthetic Lane",
+   "addr2": "Kanpur",
+   "openingBalance": 100,
+   "gstin": "",
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "c_mkt",
+   "name": "Synthetic Market",
+   "mobile": "",
+   "addr1": "",
+   "addr2": "",
+   "openingBalance": 0,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "c_far",
+   "name": "Synthetic Faraway Traders",
+   "mobile": "",
+   "addr1": "",
+   "addr2": "",
+   "openingBalance": 50,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "suppliers": [
-  {"id": "s_whole", "name": "Synthetic Wholesale", "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  {"id": "s_hills", "name": "Synthetic Hills Bottling", "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "s_whole",
+   "name": "Synthetic Wholesale",
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "s_hills",
+   "name": "Synthetic Hills Bottling",
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "sales": [
-  {"id": "b_6", "no": 1006, "date": "2026-01-06", "customerId": "", "customerName": "Walk-in", "paymentMode": "Cash", "items": [{"item": "Synthetic Tonic", "pid": "p_tonic", "packSize": "1 L", "uom": "Case", "packetQty": 12, "unit": "Packet", "mrp": 0, "rate": 62, "qty": 1, "amount": 62, "costAtSale": 38}], "loading": 0, "loadingRate": 0, "subtotal": 62, "total": 62, "paid": 62, "note": "", "created": 1767657600000, "_v": 1, "_m": 1767657600000, "_d": "dev-legacy-a"},
-  {"id": "b_5", "no": 1005, "date": "2026-01-05", "customerId": "c_far", "customerName": "Synthetic Faraway Traders", "paymentMode": "Credit", "items": [{"item": "Synthetic Guava", "pid": "p_guava", "unit": "Packet", "packetQty": 24, "rate": 120.5, "qty": 1, "amount": 120.5, "costAtSale": 68}], "loading": 0, "loadingRate": 0, "subtotal": 120.5, "total": 120.5, "paid": 0, "note": "", "created": 1767571200000, "_v": 1, "_m": 1767571200000, "_d": "dev-legacy-a"},
-  {"id": "b_4", "no": 1004, "date": "2026-01-04", "customerId": "c_mkt", "customerName": "Synthetic Market", "paymentMode": "Cash", "items": [{"isCrate": true, "name": "Party Crate", "components": [{"item": "Synthetic Guava", "pid": "p_guava", "unit": "Packet", "qty": 2}, {"item": "Synthetic Tonic", "pid": "p_tonic", "unit": "Packet", "qty": 3}], "rate": 400, "qty": 2, "amount": 800, "costAtSale": 250}], "loading": 0, "loadingRate": 0, "subtotal": 800, "total": 800, "paid": 300, "note": "", "created": 1767484800000, "_v": 1, "_m": 1767484800000, "_d": "dev-legacy-a"},
-  {"id": "b_3", "no": 1003, "date": "2026-01-03", "customerId": "c_cust", "customerName": "Synthetic Customer", "paymentMode": "Cash", "items": [{"item": "Synthetic Tonic", "pid": "p_tonic", "unit": "Packet", "packetQty": 12, "rate": 62.5, "qty": 2, "amount": 125, "costAtSale": 38}], "loading": 0, "loadingRate": 0, "subtotal": 125, "total": 125, "paid": 20, "note": "", "created": 1767398400000, "cancelled": true, "_v": 2, "_m": 1767402000000, "_d": "dev-legacy-a"},
-  {"id": "b_2", "no": 1002, "date": "2026-01-02", "customerId": "c_mkt", "customerName": "Synthetic Market", "paymentMode": "Cash", "items": [{"item": "Synthetic Orange", "pid": "p_orange", "unit": "Packet", "packetQty": 12, "rate": 45, "qty": 4, "amount": 180, "costAtSale": 30}, {"item": "Synthetic Tonic", "pid": "p_tonic", "unit": "Packet", "packetQty": 12, "rate": 60, "qty": 2, "amount": 120, "costAtSale": 38}], "loading": 6, "loadingRate": 1, "subtotal": 300, "total": 306, "paid": 100, "note": "edited: tonic at 60", "created": 1767312000000, "_v": 3, "_m": 1767400000000, "_d": "dev-legacy-a"},
-  {"id": "b_1", "no": 1001, "date": "2026-01-01", "customerId": "c_cust", "customerName": "Synthetic Customer", "paymentMode": "Cash", "items": [{"item": "Synthetic Guava", "pid": "p_guava", "unit": "Packet", "packetQty": 24, "rate": 120.5, "qty": 2, "amount": 241, "costAtSale": 68}], "loading": 0, "loadingRate": 0, "subtotal": 241, "total": 241, "paid": 50, "note": "", "created": 1767225600000, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "b_7",
+   "no": 1007,
+   "date": "2026-01-07",
+   "customerId": "c_gone",
+   "customerName": "Synthetic Gone Customer",
+   "paymentMode": "Credit",
+   "items": [
+    {
+     "item": "Synthetic Orange",
+     "pid": "p_orange",
+     "unit": "Piece",
+     "packetQty": 12,
+     "rate": 4,
+     "qty": 6,
+     "amount": 24,
+     "costAtSale": 2.5
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 24,
+   "total": 24,
+   "paid": 0,
+   "note": "customer deleted on another device",
+   "created": 1767744000000,
+   "_v": 1,
+   "_m": 1767744000000,
+   "_d": "dev-legacy-b"
+  },
+  {
+   "id": "b_6",
+   "no": 1006,
+   "date": "2026-01-06",
+   "customerId": "",
+   "customerName": "Walk-in",
+   "paymentMode": "Cash",
+   "items": [
+    {
+     "item": "Synthetic Tonic",
+     "pid": "p_tonic",
+     "packSize": "1 L",
+     "uom": "Case",
+     "packetQty": 12,
+     "unit": "Packet",
+     "mrp": 0,
+     "rate": 62,
+     "qty": 1,
+     "amount": 62,
+     "costAtSale": 38
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 62,
+   "total": 62,
+   "paid": 62,
+   "note": "",
+   "created": 1767657600000,
+   "_v": 1,
+   "_m": 1767657600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "b_5",
+   "no": 1005,
+   "date": "2026-01-05",
+   "customerId": "c_far",
+   "customerName": "Synthetic Faraway Traders",
+   "paymentMode": "Credit",
+   "items": [
+    {
+     "item": "Synthetic Guava",
+     "pid": "p_guava",
+     "unit": "Packet",
+     "packetQty": 24,
+     "rate": 120.5,
+     "qty": 1,
+     "amount": 120.5,
+     "costAtSale": 68
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 120.5,
+   "total": 120.5,
+   "paid": 0,
+   "note": "",
+   "created": 1767571200000,
+   "_v": 1,
+   "_m": 1767571200000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "b_4",
+   "no": 1004,
+   "date": "2026-01-04",
+   "customerId": "c_mkt",
+   "customerName": "Synthetic Market",
+   "paymentMode": "Cash",
+   "items": [
+    {
+     "isCrate": true,
+     "name": "Party Crate",
+     "components": [
+      {
+       "item": "Synthetic Guava",
+       "pid": "p_guava",
+       "unit": "Packet",
+       "qty": 2
+      },
+      {
+       "item": "Synthetic Tonic",
+       "pid": "p_tonic",
+       "unit": "Packet",
+       "qty": 3
+      }
+     ],
+     "rate": 400,
+     "qty": 2,
+     "amount": 800,
+     "costAtSale": 250
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 800,
+   "total": 800,
+   "paid": 300,
+   "note": "",
+   "created": 1767484800000,
+   "_v": 1,
+   "_m": 1767484800000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "b_3",
+   "no": 1003,
+   "date": "2026-01-03",
+   "customerId": "c_cust",
+   "customerName": "Synthetic Customer",
+   "paymentMode": "Cash",
+   "items": [
+    {
+     "item": "Synthetic Tonic",
+     "pid": "p_tonic",
+     "unit": "Packet",
+     "packetQty": 12,
+     "rate": 62.5,
+     "qty": 2,
+     "amount": 125,
+     "costAtSale": 38
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 125,
+   "total": 125,
+   "paid": 20,
+   "note": "",
+   "created": 1767398400000,
+   "cancelled": true,
+   "_v": 2,
+   "_m": 1767402000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "b_2",
+   "no": 1002,
+   "date": "2026-01-02",
+   "customerId": "c_mkt",
+   "customerName": "Synthetic Market",
+   "paymentMode": "Cash",
+   "items": [
+    {
+     "item": "Synthetic Orange",
+     "pid": "p_orange",
+     "unit": "Packet",
+     "packetQty": 12,
+     "rate": 45,
+     "qty": 4,
+     "amount": 180,
+     "costAtSale": 30
+    },
+    {
+     "item": "Synthetic Tonic",
+     "pid": "p_tonic",
+     "unit": "Packet",
+     "packetQty": 12,
+     "rate": 60,
+     "qty": 2,
+     "amount": 120,
+     "costAtSale": 38
+    }
+   ],
+   "loading": 6,
+   "loadingRate": 1,
+   "subtotal": 300,
+   "total": 306,
+   "paid": 100,
+   "note": "edited: tonic at 60",
+   "created": 1767312000000,
+   "_v": 3,
+   "_m": 1767400000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "b_1",
+   "no": 1001,
+   "date": "2026-01-01",
+   "customerId": "c_cust",
+   "customerName": "Synthetic Customer",
+   "paymentMode": "Cash",
+   "items": [
+    {
+     "item": "Synthetic Guava",
+     "pid": "p_guava",
+     "unit": "Packet",
+     "packetQty": 24,
+     "rate": 120.5,
+     "qty": 2,
+     "amount": 241,
+     "costAtSale": 68
+    }
+   ],
+   "loading": 0,
+   "loadingRate": 0,
+   "subtotal": 241,
+   "total": 241,
+   "paid": 50,
+   "note": "",
+   "created": 1767225600000,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "purchases": [
-  {"id": "pu_1", "date": "2025-12-20", "supplier": "Synthetic Wholesale", "items": [{"item": "Synthetic Guava", "pid": "p_guava", "unit": "Packet", "qty": 10, "rate": 69, "amount": 690}, {"item": "Synthetic Orange", "pid": "p_orange", "unit": "Packet", "qty": 12, "rate": 30, "amount": 360}], "total": 1050, "created": 1766188800000, "_v": 1, "_m": 1766188800000, "_d": "dev-legacy-a"}
+  {
+   "id": "pu_1",
+   "date": "2025-12-20",
+   "supplier": "Synthetic Wholesale",
+   "items": [
+    {
+     "item": "Synthetic Guava",
+     "pid": "p_guava",
+     "unit": "Packet",
+     "qty": 10,
+     "rate": 69,
+     "amount": 690
+    },
+    {
+     "item": "Synthetic Orange",
+     "pid": "p_orange",
+     "unit": "Packet",
+     "qty": 12,
+     "rate": 30,
+     "amount": 360
+    }
+   ],
+   "total": 1050,
+   "created": 1766188800000,
+   "_v": 1,
+   "_m": 1766188800000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "purchaseOrders": [
-  {"id": "po_1", "no": 1, "date": "2025-12-28", "supplier": "Synthetic Wholesale", "supId": "s_whole", "note": "", "created": 1766880000000, "cancelled": false, "items": [{"item": "Synthetic Tonic", "pid": "p_tonic", "rate": 36, "ordered": 20, "received": 12, "cancelled": 0, "receipts": [{"date": "2025-12-29", "qty": 8, "rate": 36}, {"date": "2026-01-03", "qty": 4, "rate": 37.5}]}], "_v": 3, "_m": 1767398400000, "_d": "dev-legacy-a"}
+  {
+   "id": "po_1",
+   "no": 1,
+   "date": "2025-12-28",
+   "supplier": "Synthetic Wholesale",
+   "supId": "s_whole",
+   "note": "",
+   "created": 1766880000000,
+   "cancelled": false,
+   "items": [
+    {
+     "item": "Synthetic Tonic",
+     "pid": "p_tonic",
+     "rate": 36,
+     "ordered": 20,
+     "received": 12,
+     "cancelled": 0,
+     "receipts": [
+      {
+       "date": "2025-12-29",
+       "qty": 8,
+       "rate": 36
+      },
+      {
+       "date": "2026-01-03",
+       "qty": 4,
+       "rate": 37.5
+      }
+     ]
+    }
+   ],
+   "_v": 3,
+   "_m": 1767398400000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "expenses": [
-  {"id": "cb_2", "date": "2026-01-02", "cash": 100, "paytm": 91, "phonepe": 0, "debt": 0, "goodsDesc": "bottles", "goodsAmt": 50, "miscDesc": "", "miscAmt": 0, "salary": 200, "_v": 1, "_m": 1767312000000, "_d": "dev-legacy-a"},
-  {"id": "cb_1", "date": "2026-01-01", "cash": 291, "paytm": 0, "phonepe": 0, "debt": 0, "goodsDesc": "", "goodsAmt": 0, "miscDesc": "tea", "miscAmt": 20, "salary": 0, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "cb_2",
+   "date": "2026-01-02",
+   "cash": 100,
+   "paytm": 91,
+   "phonepe": 0,
+   "debt": 0,
+   "goodsDesc": "bottles",
+   "goodsAmt": 50,
+   "miscDesc": "",
+   "miscAmt": 0,
+   "salary": 200,
+   "_v": 1,
+   "_m": 1767312000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "cb_1",
+   "date": "2026-01-01",
+   "cash": 291,
+   "paytm": 0,
+   "phonepe": 0,
+   "debt": 0,
+   "goodsDesc": "",
+   "goodsAmt": 0,
+   "miscDesc": "tea",
+   "miscAmt": 20,
+   "salary": 0,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "payments": [
-  {"id": "pay_3", "customerId": "c_far", "customerName": "Synthetic Faraway Traders", "amount": 20, "mode": "Cash", "date": "2026-01-06", "note": "", "created": 1767657600000, "_v": 1, "_m": 1767657600000, "_d": "dev-legacy-a"},
-  {"id": "pay_2", "customerId": "c_mkt", "customerName": "Synthetic Market", "amount": 150, "mode": "Online", "date": "2026-01-07", "note": "part", "created": 1767744000000, "_v": 1, "_m": 1767744000000, "_d": "dev-legacy-a"},
-  {"id": "pay_1", "customerId": "c_cust", "customerName": "Synthetic Customer", "amount": 91, "mode": "Cash", "date": "2026-01-02", "note": "", "created": 1767312000000, "_v": 1, "_m": 1767312000000, "_d": "dev-legacy-a"}
+  {
+   "id": "pay_4",
+   "customerId": "c_cust",
+   "customerName": "Synthetic Customer",
+   "amount": 10.005,
+   "mode": "Online",
+   "date": "2026-01-07",
+   "note": "typed with three decimals",
+   "created": 1767744200000,
+   "_v": 1,
+   "_m": 1767744200000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "pay_9",
+   "customerId": "c_mkt",
+   "customerName": "Synthetic Market",
+   "amount": 40,
+   "mode": "Cash",
+   "date": "2026-01-07",
+   "note": "entered twice",
+   "created": 1767744100000,
+   "_v": 1,
+   "_m": 1767744100000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "pay_3",
+   "customerId": "c_far",
+   "customerName": "Synthetic Faraway Traders",
+   "amount": 20,
+   "mode": "Cash",
+   "date": "2026-01-06",
+   "note": "",
+   "created": 1767657600000,
+   "_v": 1,
+   "_m": 1767657600000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "pay_2",
+   "customerId": "c_mkt",
+   "customerName": "Synthetic Market",
+   "amount": 150,
+   "mode": "Online",
+   "date": "2026-01-07",
+   "note": "part",
+   "created": 1767744000000,
+   "_v": 1,
+   "_m": 1767744000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "pay_1",
+   "customerId": "c_cust",
+   "customerName": "Synthetic Customer",
+   "amount": 91,
+   "mode": "Cash",
+   "date": "2026-01-02",
+   "note": "",
+   "created": 1767312000000,
+   "_v": 1,
+   "_m": 1767312000000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "stock": {
-  "p_guava": {"opening": 20, "fridge": 2, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  "p_tonic": {"opening": 10, "fridge": 0, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"},
-  "p_orange": {"opening": 0, "fridge": 0, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  "p_guava": {
+   "opening": 20,
+   "fridge": 2,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  "p_tonic": {
+   "opening": 10,
+   "fridge": 0,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  },
+  "p_orange": {
+   "opening": 0,
+   "fridge": 0,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  },
  "crates": [
-  {"id": "cr_1", "name": "Party Crate", "components": [{"item": "Synthetic Guava", "pid": "p_guava", "unit": "Packet", "qty": 2}, {"item": "Synthetic Tonic", "pid": "p_tonic", "unit": "Packet", "qty": 3}], "price": 400, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "cr_1",
+   "name": "Party Crate",
+   "components": [
+    {
+     "item": "Synthetic Guava",
+     "pid": "p_guava",
+     "unit": "Packet",
+     "qty": 2
+    },
+    {
+     "item": "Synthetic Tonic",
+     "pid": "p_tonic",
+     "unit": "Packet",
+     "qty": 3
+    }
+   ],
+   "price": 400,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
- "priceSuppliers": ["Synthetic Wholesale"],
+ "priceSuppliers": [
+  "Synthetic Wholesale"
+ ],
  "gstBills": [
-  {"id": "gb_2", "no": 2, "date": "2026-01-05", "customerId": "", "customerName": "Synthetic GST Buyer Two", "custGstin": "", "custAddr": "", "custPhone": "", "custEmail": "", "custState": "Uttar Pradesh", "custStateCode": "09", "posState": "Uttar Pradesh", "posCode": "09", "payMode": "Cash", "payTerms": "", "reverseCharge": "No", "transporter": "", "vehicleNo": "", "lrNo": "", "ewayNo": "", "termsDelivery": "", "dispatch": "", "cancelled": true, "paymentMode": "", "items": [{"item": "Synthetic Soda", "pid": "p_soda", "hsn": "22021010", "unit": "Case", "qty": 2, "rate": 62.5, "gst": 18, "packetQty": 1, "amount": 125}], "isGstBill": true, "created": 1767571200000, "_v": 2, "_m": 1767575000000, "_d": "dev-legacy-a"},
-  {"id": "gb_1", "no": 1, "date": "2026-01-03", "customerId": "c_cust", "customerName": "Synthetic Customer", "custGstin": "", "custAddr": "12 Synthetic Lane", "custPhone": "", "custEmail": "", "custState": "Uttar Pradesh", "custStateCode": "09", "posState": "Uttar Pradesh", "posCode": "09", "payMode": "Cash", "payTerms": "", "reverseCharge": "No", "transporter": "", "vehicleNo": "", "lrNo": "", "ewayNo": "", "termsDelivery": "", "dispatch": "", "cancelled": false, "paymentMode": "", "items": [{"item": "Synthetic Soda", "pid": "p_soda", "hsn": "", "unit": "Case", "qty": 1, "rate": 118, "gst": 18, "packetQty": 1, "amount": 118}], "isGstBill": true, "created": 1767398400000, "_v": 1, "_m": 1767398400000, "_d": "dev-legacy-a"}
+  {
+   "id": "gb_2",
+   "no": 2,
+   "date": "2026-01-05",
+   "customerId": "",
+   "customerName": "Synthetic GST Buyer Two",
+   "custGstin": "",
+   "custAddr": "",
+   "custPhone": "",
+   "custEmail": "",
+   "custState": "Uttar Pradesh",
+   "custStateCode": "09",
+   "posState": "Uttar Pradesh",
+   "posCode": "09",
+   "payMode": "Cash",
+   "payTerms": "",
+   "reverseCharge": "No",
+   "transporter": "",
+   "vehicleNo": "",
+   "lrNo": "",
+   "ewayNo": "",
+   "termsDelivery": "",
+   "dispatch": "",
+   "cancelled": true,
+   "paymentMode": "",
+   "items": [
+    {
+     "item": "Synthetic Soda",
+     "pid": "p_soda",
+     "hsn": "22021010",
+     "unit": "Case",
+     "qty": 2,
+     "rate": 62.5,
+     "gst": 18,
+     "packetQty": 1,
+     "amount": 125
+    }
+   ],
+   "isGstBill": true,
+   "created": 1767571200000,
+   "_v": 2,
+   "_m": 1767575000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "gb_1",
+   "no": 1,
+   "date": "2026-01-03",
+   "customerId": "c_cust",
+   "customerName": "Synthetic Customer",
+   "custGstin": "",
+   "custAddr": "12 Synthetic Lane",
+   "custPhone": "",
+   "custEmail": "",
+   "custState": "Uttar Pradesh",
+   "custStateCode": "09",
+   "posState": "Uttar Pradesh",
+   "posCode": "09",
+   "payMode": "Cash",
+   "payTerms": "",
+   "reverseCharge": "No",
+   "transporter": "",
+   "vehicleNo": "",
+   "lrNo": "",
+   "ewayNo": "",
+   "termsDelivery": "",
+   "dispatch": "",
+   "cancelled": false,
+   "paymentMode": "",
+   "items": [
+    {
+     "item": "Synthetic Soda",
+     "pid": "p_soda",
+     "hsn": "",
+     "unit": "Case",
+     "qty": 1,
+     "rate": 118,
+     "gst": 18,
+     "packetQty": 1,
+     "amount": 118
+    }
+   ],
+   "isGstBill": true,
+   "created": 1767398400000,
+   "_v": 1,
+   "_m": 1767398400000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "stockLog": [
-  {"id": "adj_0", "ts": 1767100000000, "date": "2025-12-30", "device": "dev-legacy-a", "key": "p_guava", "item": "Synthetic Guava", "from": 0, "to": 0, "delta": 3, "reason": "history", "note": "", "eff": false, "_v": 1, "_m": 1767100000000, "_d": "dev-legacy-a"},
-  {"id": "adj_1", "ts": 1767484800000, "date": "2026-01-04", "device": "dev-legacy-a", "key": "p_tonic", "pid": "p_tonic", "item": "Synthetic Tonic", "from": 13, "to": 12, "delta": -1, "reason": "Damage / leakage", "note": "", "eff": true, "_v": 1, "_m": 1767484800000, "_d": "dev-legacy-a"}
+  {
+   "id": "adj_0",
+   "ts": 1767100000000,
+   "date": "2025-12-30",
+   "device": "dev-legacy-a",
+   "key": "p_guava",
+   "item": "Synthetic Guava",
+   "from": 0,
+   "to": 0,
+   "delta": 3,
+   "reason": "history",
+   "note": "",
+   "eff": false,
+   "_v": 1,
+   "_m": 1767100000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "adj_1",
+   "ts": 1767484800000,
+   "date": "2026-01-04",
+   "device": "dev-legacy-a",
+   "key": "p_tonic",
+   "pid": "p_tonic",
+   "item": "Synthetic Tonic",
+   "from": 13,
+   "to": 12,
+   "delta": -1,
+   "reason": "Damage / leakage",
+   "note": "",
+   "eff": true,
+   "_v": 1,
+   "_m": 1767484800000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "adj_2",
+   "ts": 1767744400000,
+   "date": "2026-01-07",
+   "device": "dev-legacy-a",
+   "key": "p_guava",
+   "pid": "p_guava",
+   "item": "Synthetic Guava",
+   "from": 30,
+   "to": 29.5,
+   "delta": -0.5,
+   "reason": "Own use / sample",
+   "note": "half a case",
+   "eff": true,
+   "_v": 1,
+   "_m": 1767744400000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "log": [
-  {"id": "lg_1", "ts": 1767225600000, "date": "2026-01-01", "device": "dev-legacy-a", "type": "bill-save", "msg": "#1001 Synthetic Customer ₹241", "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "lg_1",
+   "ts": 1767225600000,
+   "date": "2026-01-01",
+   "device": "dev-legacy-a",
+   "type": "bill-save",
+   "msg": "#1001 Synthetic Customer ₹241",
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "godown": [
-  {"id": "gd_1", "item": "Synthetic Guava", "qty": 15, "note": "back room", "upd": 1767225600000, "_v": 1, "_m": 1767225600000, "_d": "dev-legacy-a"}
+  {
+   "id": "gd_1",
+   "item": "Synthetic Guava",
+   "qty": 15,
+   "note": "back room",
+   "upd": 1767225600000,
+   "_v": 1,
+   "_m": 1767225600000,
+   "_d": "dev-legacy-a"
+  }
  ],
  "deleted": [
-  {"id": "sales:b_0", "coll": "sales", "rid": "b_0", "ts": 1767200000000, "_v": 1, "_m": 1767200000000, "_d": "dev-legacy-a"}
+  {
+   "id": "sales:b_0",
+   "coll": "sales",
+   "rid": "b_0",
+   "ts": 1767200000000,
+   "_v": 1,
+   "_m": 1767200000000,
+   "_d": "dev-legacy-a"
+  },
+  {
+   "id": "payments:pay_9",
+   "coll": "payments",
+   "rid": "pay_9",
+   "ts": 1767744300000,
+   "_v": 1,
+   "_m": 1767744300000,
+   "_d": "dev-legacy-b"
+  }
  ]
 }

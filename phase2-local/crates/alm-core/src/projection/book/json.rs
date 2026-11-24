@@ -401,6 +401,7 @@ pub fn to_json(b: &OwnerBook) -> Value {
         "activity": b.activity.iter().map(|a| json!({"at_ms": a.at_ms, "device": a.device,
             "account": a.account, "kind": a.kind, "subject": a.subject,
             "amount": om(a.amount), "detail": a.detail})).collect::<Vec<_>>(),
+        "legacy": serde_json::to_value(&b.legacy).unwrap_or(Value::Null),
         "cash_days": b.cash_days.iter().map(|r| {
             let a = r.amounts;
             json!({"id": r.id, "date": r.date.to_string(), "cash": m(a.cash),
@@ -496,6 +497,11 @@ pub fn from_json(b: &Value) -> R<OwnerBook> {
                 detail: text(&a["detail"]),
             })
         })?,
+        legacy: if b["legacy"].is_null() {
+            crate::legacy::import::LegacyImports::default()
+        } else {
+            serde_json::from_value(b["legacy"].clone()).map_err(|_| BookFormatError)?
+        },
         cash_days: rows(&b["cash_days"], |r| {
             Ok(BookCashDay {
                 id: number(&r["id"]),

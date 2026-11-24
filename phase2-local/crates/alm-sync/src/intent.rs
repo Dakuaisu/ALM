@@ -87,6 +87,9 @@ pub enum Intent {
     },
     /// The device restored a backup file: the authority logs the HTML's `restore` entry.
     RecordRestore,
+    /// Imports a legacy backup file as the core mapped it (`legacy::import::plan`): the
+    /// authority places each record by its legacy ID and records a manifest and quarantine.
+    ImportLegacy(Box<alm_core::legacy::import::ImportPlan>),
     SaveOpening {
         customer: String,
         amount: Option<Money>,

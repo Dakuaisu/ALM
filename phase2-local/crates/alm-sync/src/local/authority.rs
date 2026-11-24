@@ -106,6 +106,7 @@ impl SalesAuthority for LocalAuthority {
                 .map_err(rejected)?;
             if let Some(owner) = snapshot.owner.as_mut() {
                 owner.book.activity.clone_from(&self.state.activity);
+                owner.book.legacy.clone_from(&self.state.legacy);
             }
             Some(snapshot)
         };

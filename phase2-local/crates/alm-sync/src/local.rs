@@ -36,6 +36,8 @@ struct State {
     gst: BTreeMap<String, u64>,
     /// The activity log, in recording order.
     activity: Vec<alm_core::projection::book::ActivityRow>,
+    /// Legacy imports: manifests and placed records.
+    legacy: alm_core::legacy::import::LegacyImports,
 }
 
 mod activity;
@@ -79,6 +81,7 @@ impl LocalAuthority {
                 cashbook: ManualCashBook::default(),
                 gst: BTreeMap::new(),
                 activity: Vec::new(),
+                legacy: alm_core::legacy::import::LegacyImports::default(),
             },
             directory,
             requests: BTreeMap::new(),

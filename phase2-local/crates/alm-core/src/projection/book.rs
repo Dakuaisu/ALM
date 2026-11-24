@@ -337,6 +337,8 @@ pub struct OwnerBook {
     pub cash_days: Vec<BookCashDay>,
     /// In recording order (kept by the authority, not by the core state).
     pub activity: Vec<ActivityRow>,
+    /// Legacy imports: manifests and the records placed (kept by the authority).
+    pub legacy: crate::legacy::import::LegacyImports,
 }
 
 #[cfg(test)]

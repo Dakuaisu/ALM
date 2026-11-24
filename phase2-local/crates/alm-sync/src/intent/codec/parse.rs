@@ -150,6 +150,9 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
             level: f.num("level")?,
         },
         "restorelog" => Intent::RecordRestore,
+        "legacyimport" => Intent::ImportLegacy(Box::new(
+            alm_core::legacy::import::ImportPlan::from_json(&f.text("plan")?)?,
+        )),
         "cratesale" => Intent::SellCrate(CrateSale {
             draft: f.num("draft")?,
             template: f.num("template")?,

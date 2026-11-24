@@ -7,6 +7,7 @@
 use serde_json::{Map, Value};
 
 mod digest;
+pub mod import;
 mod js;
 mod migrate;
 mod records;

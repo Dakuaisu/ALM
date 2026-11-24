@@ -145,6 +145,10 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
         Intent::DeleteCrate { id } => ("delete_crate", json!({"id": id})),
         Intent::SetReorderDefault { level } => ("set_reorder_default", json!({"level": level})),
         Intent::RecordRestore => ("record_restore", json!({})),
+        Intent::ImportLegacy(plan) => (
+            "import_legacy",
+            serde_json::to_value(plan.as_ref()).unwrap_or(Value::Null),
+        ),
         Intent::SaveOpening {
             customer,
             amount,

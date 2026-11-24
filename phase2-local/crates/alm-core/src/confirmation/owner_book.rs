@@ -279,6 +279,7 @@ impl ConfirmationFixture {
             gst_deleted: self.gst_deleted.iter().map(|id| id.0).collect(),
             cash_days,
             activity: Vec::new(),
+            legacy: crate::legacy::import::LegacyImports::default(),
         })
     }
 
