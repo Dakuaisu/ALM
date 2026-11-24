@@ -212,10 +212,67 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
         .chain(owner.stock_value.map(Money::minor_units))
         .chain([7_000, 3_800, 3_620])
         .collect();
+    // Every cost the book rows carry: lot costs, purchase buy rates and running averages,
+    // quotes, receipt rates, margins, the sales' frozen costs and their lot allocations.
+    let b = &owner.book;
+    let m = Money::minor_units;
+    costs.extend(
+        b.products
+            .iter()
+            .flat_map(|p| p.lots.iter().filter_map(|l| l.unit_cost.map(m)))
+            .chain(b.products.iter().map(|p| m(p.buy)))
+            .chain(b.products.iter().map(|p| m(p.margin)))
+            .chain(b.purchasing.products.iter().map(|(_, _, buy)| m(*buy)))
+            .chain(b.purchasing.costs.iter().map(|(_, avg)| m(*avg)))
+            .chain(
+                b.purchasing
+                    .quotes
+                    .iter()
+                    .flat_map(|(_, q)| q.iter().map(|(_, r)| m(*r))),
+            )
+            .chain(b.purchasing.orders.iter().flat_map(|o| {
+                o.lines
+                    .iter()
+                    .flat_map(|l| l.receipts.iter().map(|r| m(r.rate)).chain([m(l.rate)]))
+            }))
+            .chain(b.sales.iter().filter_map(|s| s.cost.map(m)))
+            .chain(
+                b.sales
+                    .iter()
+                    .flat_map(|s| s.allocations.iter().filter_map(|a| a.cost.map(m))),
+            ),
+    );
+    // A margin may equal a sell rate the Manager's catalog legitimately shows (a product with
+    // no buy rate); only check values the catalog does not carry.
+    for row in &shop
+        .projection(Role::Manager, &directory(), &book)
+        .unwrap()
+        .catalog
+    {
+        costs.remove(&row.rate.minor_units());
+    }
     costs.remove(&0);
     assert!(costs.len() >= 8, "{costs:?}");
 
     let owner_cells = cells(&file(&root.0, "owner"));
+    let sections: BTreeSet<&str> = owner_cells
+        .iter()
+        .filter(|(t, c, _)| t == "owner_state_sections" && c == "section")
+        .map(|(_, _, v)| v.as_str())
+        .collect();
+    for section in [
+        "products",
+        "sales",
+        "purchasing",
+        "crates",
+        "godown",
+        "customers",
+    ] {
+        assert!(
+            sections.contains(section),
+            "the Owner file holds book {section}"
+        );
+    }
     assert!(
         owner_cells
             .iter()

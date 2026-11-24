@@ -148,6 +148,8 @@ fn manager_is_denied_and_receives_no_owner_fields() {
         "on_hand",
         "balance",
         "dev_state",
+        "book",
+        "allocations",
         "7000",
         "3800",
     ] {
