@@ -35,6 +35,8 @@ mod purchases;
 mod receipts;
 mod render;
 #[cfg(test)]
+mod rest_e2e;
+#[cfg(test)]
 mod restart_tests;
 #[cfg(test)]
 mod screen_tests;

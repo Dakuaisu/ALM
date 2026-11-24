@@ -183,3 +183,15 @@ fn manager_is_denied_and_receives_no_owner_fields() {
         );
     }
 }
+
+/// Leaves the database reset and seeded with the app's shop, for the app's opt-in REST end to
+/// end test. Runs only with `ALM_RESET_ONLY` set.
+#[test]
+fn reset_and_seed_for_the_app() {
+    if env("ALM_RESET_ONLY").is_some() {
+        assert!(
+            rest().is_some(),
+            "ALM_REST_URL, ALM_PG_URL and tokens are needed"
+        );
+    }
+}
