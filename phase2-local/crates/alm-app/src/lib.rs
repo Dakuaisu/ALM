@@ -159,6 +159,8 @@ pub fn run() {
             stock::stock_lots,
             stock::stock_lots_close,
             stock::stock_count,
+            stock::stock_adjust,
+            stock::stock_adjust_close,
             godown::godown_save,
             godown::godown_filter,
             gst_sales::gst_new,

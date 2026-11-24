@@ -1,4 +1,5 @@
-//! Stock: ALM_Business_Manager.html L8046–8180 (VIEWS.stock) and L1339–1395 (showLots, inline).
+//! Stock: ALM_Business_Manager.html L8046–8180 (VIEWS.stock), L1339–1395 (showLots) and
+//! L8184–8264 (adjustStock: the Adjust dialog of a stock row).
 //! Status, counts and FIFO value come from the account's projection (`stock_view`); lots are
 //! read from the authority on demand (`open_stock_lots`).
 use std::fmt::Write as _;
@@ -15,6 +16,8 @@ pub struct StockState {
     pub query: String,
     pub low_only: bool,
     pub lots: Option<ProductId>,
+    /// The product whose Adjust dialog is open.
+    pub adjust: Option<ProductId>,
 }
 
 pub fn stock_screen(
@@ -68,12 +71,12 @@ pub fn stock_screen(
         };
         let _ = write!(
             html,
-            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td><span class="tag {class}">{label}</span></td><td class="num"><button class="btn sm" data-action="stock_lots" data-id="{}">📅 Lots</button></td></tr>"#,
+            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td><span class="tag {class}">{label}</span></td><td class="num"><button class="btn sm" data-action="stock_lots" data-id="{id}">📅 Lots</button> <button class="btn sm" data-action="stock_adjust" data-id="{id}">Adjust</button></td></tr>"#,
             esc(&row.item),
             esc(&row.brand),
             indian_digits(u64::from(row.on_hand)),
             indian_digits(u64::from(row.reorder_level)),
-            row.product
+            id = row.product
         );
     }
     html += "</tbody></table></div>";
@@ -105,12 +108,6 @@ pub fn stock_screen(
             lots.total_value
                 .map_or_else(|| "Unknown".to_owned(), money_r)
         );
-        let _ = write!(
-            body,
-            r#"<form class="card" style="margin-top:10px" data-action="stock_count" data-payload="terms"><div class="sectit">Physical count</div><input type="hidden" name="product" value="{id}"><input type="hidden" name="on_hand" value="{on_hand}"><div class="f2"><div><label>Actual count (pkt) <input class="inp num" name="counted" inputmode="numeric"></label></div><div><label>Fridge (pkt, optional) <input class="inp num" name="fridge" inputmode="numeric"></label></div></div><div class="f2"><div><label>Reason <select class="inp" name="reason"><option value="count">Count correction</option><option value="damage">Damage / leakage</option><option value="expired">Expired</option><option value="theft">Theft / unknown</option><option value="own-use">Own use / sample</option><option value="other">Other</option></select></label></div><div><label>Note <input class="inp" name="note"></label></div></div><div class="row" style="justify-content:flex-end"><button class="btn primary" type="submit">Save count</button></div></form>"#,
-            id = id.value(),
-            on_hand = lots.on_hand
-        );
         html += &super::modal(
             "📅",
             &format!("{name} — stock lots"),
@@ -119,5 +116,50 @@ pub fn stock_screen(
             &body,
         );
     }
+    if let Some(id) = state.adjust {
+        html += &adjust(fixture, role, &list.rows, id)?;
+    }
     Ok(html)
+}
+
+/// `adjustStock`: set the counted on-hand and the fridge display; the difference goes to the
+/// permanent adjustment log with a reason.
+fn adjust(
+    fixture: &ConfirmationFixture,
+    role: Role,
+    rows: &[(&alm_core::projection::ProjectedStock, StockStatus)],
+    id: ProductId,
+) -> Result<String, StockLotsError> {
+    let count = fixture
+        .open_physical_count(role, id)
+        .map_err(|_| StockLotsError::ProductNotFound)?;
+    let name = rows
+        .iter()
+        .find(|(row, _)| row.product == id.value())
+        .map_or("Product", |(row, _)| row.item.as_str());
+    let mut reasons = String::new();
+    for (code, label) in [
+        ("count", "Count correction"),
+        ("damage", "Damage / leakage"),
+        ("expired", "Expired"),
+        ("theft", "Theft / unknown"),
+        ("own-use", "Own use / sample"),
+        ("other", "Other"),
+    ] {
+        let _ = write!(reasons, r#"<option value="{code}">{label}</option>"#);
+    }
+    let body = format!(
+        r#"<form data-action="stock_count" data-payload="terms"><p class="help" style="margin-bottom:12px">Current on-hand: <b>{shown}</b> packets. Set the counted quantity — the difference is saved to the permanent adjustment log with a reason.</p><input type="hidden" name="product" value="{id}"><input type="hidden" name="on_hand" value="{on_hand}"><div class="f2"><div><label>Set actual on-hand (physical count) <input class="inp num" name="counted" inputmode="numeric" value="{on_hand}"></label></div><div><label>In Fridge (display) <input class="inp num" name="fridge" inputmode="numeric" value="{fridge}"></label></div></div><div class="f2"><div><label>Reason <select class="inp" name="reason">{reasons}</select></label></div><div><label>Note <input class="inp" name="note" placeholder="optional note"></label></div></div><div class="row"><button class="btn" type="button" data-action="stock_adjust_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>"#,
+        shown = indian_digits(u64::from(count.on_hand)),
+        id = id.value(),
+        on_hand = count.on_hand,
+        fridge = count.fridge,
+    );
+    Ok(super::modal(
+        "🔧",
+        &format!("Adjust — {name}"),
+        "stock_adjust_close",
+        false,
+        &body,
+    ))
 }

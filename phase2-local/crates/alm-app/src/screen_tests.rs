@@ -1327,3 +1327,52 @@ fn customers_list_mobile_and_address_and_search_by_mobile() {
         "{html}"
     );
 }
+
+#[test]
+fn stock_adjust_dialog_sets_the_counted_on_hand_and_fridge_as_the_html() {
+    use alm_core::ProductId;
+    let root = Root::new("stock-adjust");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("stock").unwrap();
+    assert!(
+        html.contains(
+            r#"<button class="btn sm" data-action="stock_adjust" data-id="2">Adjust</button>"#
+        ),
+        "{html}"
+    );
+    trial.stock.lots = Some(ProductId::new(2));
+    assert!(!trial.render("stock").unwrap().contains("name=\"counted\""));
+    trial.stock.lots = None;
+    trial.stock.adjust = Some(ProductId::new(2));
+    let html = trial.render("stock").unwrap();
+    assert!(
+        html.contains(r#"aria-label="Adjust — Synthetic Soda""#),
+        "{html}"
+    );
+    assert!(html.contains("Current on-hand: <b>40</b> packets."));
+    assert!(html.contains(r#"name="counted" inputmode="numeric" value="40""#));
+    assert!(html.contains(r#"name="fridge" inputmode="numeric" value="0""#));
+    let count = |counted: &str| crate::stock::Count {
+        product: "2".into(),
+        on_hand: "40".into(),
+        counted: counted.into(),
+        fridge: "3".into(),
+        reason: "damage".into(),
+        note: "dropped".into(),
+    };
+    assert_eq!(
+        trial.stock_count(&count(" ")).unwrap_err(),
+        "Enter the counted quantity"
+    );
+    trial.stock_count(&count("37")).unwrap();
+    assert_eq!(trial.message, "Stock adjusted ✓");
+    assert!(trial.stock.adjust.is_none());
+    let soda = trial
+        .posted
+        .open_physical_count(Role::Owner, ProductId::new(2))
+        .unwrap();
+    assert_eq!(
+        (soda.on_hand, soda.fridge, soda.movements.len()),
+        (37, 3, 1)
+    );
+}

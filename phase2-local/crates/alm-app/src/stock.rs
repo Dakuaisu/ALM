@@ -44,6 +44,9 @@ impl crate::Trial {
             .parse::<u64>()
             .map_err(|_| "Unknown product.".to_owned())?;
         let on_hand = whole(&count.on_hand).map_err(|_| "Unknown stock.".to_owned())?;
+        if count.counted.trim().is_empty() {
+            return Err("Enter the counted quantity".into());
+        }
         let counted = whole(&count.counted)
             .map_err(|_| "Enter the actual count in whole packets.".to_owned())?;
         let fridge = if count.fridge.trim().is_empty() {
@@ -66,7 +69,8 @@ impl crate::Trial {
             note,
             on_hand,
         })?;
-        self.message = "Stock count saved ✓".into();
+        self.stock.adjust = None;
+        self.message = "Stock adjusted ✓".into();
         Ok(())
     }
 }
@@ -74,6 +78,25 @@ impl crate::Trial {
 #[tauri::command(async)]
 pub fn stock_count(state: State<'_, AppState>, terms: Count) -> Result<String, String> {
     with(&state, "stock", |trial| trial.stock_count(&terms))
+}
+
+#[tauri::command(async)]
+pub fn stock_adjust(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+    let id = ProductId::new(id.value());
+    with(&state, "stock", |trial| {
+        let role = trial.require_owner()?;
+        trial.posted.open_physical_count(role, id).map_err(debug)?;
+        trial.stock.adjust = Some(id);
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+pub fn stock_adjust_close(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "stock", |trial| {
+        trial.stock.adjust = None;
+        Ok(())
+    })
 }
 
 #[tauri::command(async)]
