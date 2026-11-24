@@ -80,6 +80,52 @@ impl ConfirmationFixture {
             .find(|id| id.value() == value)
             .ok_or(CrateTemplateError::NotFound)
     }
+
+    /// New Bill's contents line under a crate row (`crateRow`): `qty + ("pc" for pieces) + " " +
+    /// item`, joined with " + ", cut at 60 characters.
+    pub fn crate_row_contents(&self, row: &crate::CrateRow) -> String {
+        let text = row
+            .components()
+            .iter()
+            .map(|component| {
+                let unit = match component.unit {
+                    SaleUnit::Piece => "pc",
+                    SaleUnit::Case => "",
+                };
+                let item = self
+                    .catalog
+                    .item_name(component.product)
+                    .map_or_else(|| component.product.to_string(), str::to_owned);
+                format!("{}{unit} {item}", component.quantity)
+            })
+            .collect::<Vec<_>>()
+            .join(" + ");
+        text.chars().take(60).collect()
+    }
+
+    /// The saved template a crate line was loaded from: the same name, contents and rate. A
+    /// template changed since the line was loaded matches no longer.
+    ///
+    /// # Errors
+    /// Denies Managers; `NotFound` when no saved template matches.
+    pub fn crate_template_of(
+        &self,
+        role: Role,
+        row: &crate::CrateRow,
+    ) -> Result<CrateTemplateId, CrateTemplateError> {
+        if role != Role::Owner {
+            return Err(CrateTemplateError::AccessDenied);
+        }
+        self.crate_templates
+            .saved_templates()
+            .find(|(_, t)| {
+                row.name() == Some(t.name.as_str())
+                    && row.rate() == Some(t.price)
+                    && row.components() == t.components.as_slice()
+            })
+            .map(|(id, _)| id)
+            .ok_or(CrateTemplateError::NotFound)
+    }
 }
 
 #[cfg(test)]

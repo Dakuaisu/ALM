@@ -286,16 +286,16 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
             ("intent", "save"),
         ]))
         .unwrap();
-    let template = trial.projected().unwrap().snapshot.crates[0].id.to_string();
-    trial
-        .crate_sell(&map(&[
-            ("id", &template),
-            ("customer", "batch1-market"),
-            ("qty", "2"),
-            ("date", "2025-04-30"),
-            ("paid", "300"),
-        ]))
-        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id;
+    crate::bill_entry::crate_row::sell_on_new_bill(
+        &mut trial,
+        template,
+        "batch1-market",
+        2,
+        "2025-04-30",
+        "300",
+    )
+    .unwrap();
     let on_hand = trial
         .posted
         .open_physical_count(Role::Owner, alm_core::ProductId::new(2))

@@ -171,6 +171,15 @@ impl CrateRow {
     pub fn components(&self) -> &[CrateComponent] {
         &self.components
     }
+
+    /// The same crate line (contents, name and rate) at another number of crates.
+    #[must_use]
+    pub fn with_quantity(&self, quantity: NonZeroU32) -> Self {
+        Self {
+            quantity,
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -267,6 +276,11 @@ impl ProvisionalDraft {
         self.crate_row
             .as_mut()
             .map(|existing| std::mem::replace(existing, row))
+    }
+
+    /// Removes the crate row, returning it.
+    pub const fn remove_crate_row(&mut self) -> Option<CrateRow> {
+        self.crate_row.take()
     }
 
     pub const fn crate_row(&self) -> Option<&CrateRow> {

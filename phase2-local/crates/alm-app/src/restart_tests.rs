@@ -1,6 +1,7 @@
 //! Every remaining write goes through the outbox and the authority and survives an app restart;
 //! the device GST tables move into the authority once, without losing a record.
 use std::collections::HashMap;
+use std::num::NonZeroU32;
 
 use alm_core::confirmation::{GstBillDraft, GstBillId, GstBillLineInput, GstBillStore as _};
 use alm_core::{BillDate, Money, ProductId, Role};
@@ -527,18 +528,21 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
             ("intent", "save"),
         ]))
         .unwrap();
-    let template = trial.projected().unwrap().snapshot.crates[0].id.to_string();
-    let sell = map(&[
-        ("id", &template),
-        ("customer", "batch1-customer"),
-        ("qty", "2"),
-        ("date", "2025-04-30"),
-        ("paid", "300"),
-    ]);
+    let template = trial.projected().unwrap().snapshot.crates[0].id;
+    let sell = |trial: &mut Trial| {
+        crate::bill_entry::crate_row::sell_on_new_bill(
+            trial,
+            template,
+            "batch1-customer",
+            2,
+            "2025-04-30",
+            "300",
+        )
+    };
     trial.set_owner(false).unwrap();
-    assert!(trial.crate_sell(&sell).is_err(), "Manager denied");
+    assert!(sell(&mut trial).is_err(), "Manager denied");
     trial.set_owner(true).unwrap();
-    trial.crate_sell(&sell).unwrap();
+    sell(&mut trial).unwrap();
     assert!(
         trial.message.contains("Crate bill #1 posted: 10 packets"),
         "{}",
@@ -568,7 +572,7 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
                 && e.status == OutboxStatus::Confirmed)
     );
     // Selling again makes a new bill under the next draft number.
-    assert!(trial.crate_sell(&sell).is_ok());
+    assert!(sell(&mut trial).is_ok());
     assert_eq!(trial.projected().unwrap().snapshot.sales.len(), 2);
 }
 
@@ -596,16 +600,16 @@ fn a_crate_bill_is_listed_viewed_edited_cancelled_restored_and_imaged_in_sales()
             ("intent", "save"),
         ]))
         .unwrap();
-    let template = trial.projected().unwrap().snapshot.crates[0].id.to_string();
-    trial
-        .crate_sell(&map(&[
-            ("id", &template),
-            ("customer", "batch1-customer"),
-            ("qty", "2"),
-            ("date", "2025-04-30"),
-            ("paid", "300"),
-        ]))
-        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id;
+    crate::bill_entry::crate_row::sell_on_new_bill(
+        &mut trial,
+        template,
+        "batch1-customer",
+        2,
+        "2025-04-30",
+        "300",
+    )
+    .unwrap();
     let sales = trial.render("sales").unwrap();
     assert!(!sales.contains("role=\"alert\""), "{sales}");
     assert!(
@@ -856,4 +860,114 @@ fn the_activity_log_is_recorded_by_the_authority_with_device_and_account() {
     trial.set_owner(false).unwrap();
     let html = trial.render("settings").unwrap();
     assert!(!html.contains("Synthetic Customer ₹11") && !html.contains("Synthetic Soda: 40"));
+}
+
+#[test]
+fn new_bill_takes_a_crate_row_and_posts_it_through_the_crate_sale_command() {
+    use crate::bill_entry::{Header, HeaderIntent};
+    let root = Root::new("new-bill-crate");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.crate_form = Some(crate::views::CrateForm {
+        rows: vec![
+            ("1".into(), "2".into(), "Case".into()),
+            ("2".into(), "3".into(), "Case".into()),
+        ],
+        ..Default::default()
+    });
+    trial
+        .crate_submit(map(&[
+            ("name", "Party Crate"),
+            ("price", "400"),
+            ("product_0", "1"),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("product_1", "2"),
+            ("qty_1", "3"),
+            ("unit_1", "Case"),
+            ("intent", "save"),
+        ]))
+        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id;
+    assert!(
+        !trial.render("crates").unwrap().contains("crate_sell"),
+        "the HTML's Crates screen has no Sell form"
+    );
+    let html = trial.render("bill").unwrap();
+    assert!(html.contains(r#"data-action="bill_crate_add""#) && html.contains("Party Crate"));
+    trial.set_owner(false).unwrap();
+    trial.current = None;
+    assert!(
+        !trial.render("bill").unwrap().contains("bill_crate_add"),
+        "a Manager adds no crate (OPEN-004)"
+    );
+    assert!(trial.bill_crate_add(template, NonZeroU32::MIN).is_err());
+    trial.set_owner(true).unwrap();
+    trial.current = None;
+    trial.render("bill").unwrap();
+    trial
+        .bill_header(Header::new(
+            "batch1-customer",
+            "2025-04-30",
+            None,
+            HeaderIntent::Select,
+        ))
+        .unwrap();
+    trial
+        .bill_crate_add(template, NonZeroU32::new(2).unwrap())
+        .unwrap();
+    let html = trial.render("bill").unwrap();
+    assert!(html.contains("📦 Party Crate"), "{html}");
+    assert!(
+        html.contains("2 Synthetic Lime + 3 Synthetic Soda"),
+        "{html}"
+    );
+    assert!(html.contains("<b>₹800.00</b>"), "2 crates at ₹400: {html}");
+    assert!(!html.contains("bill_crate_post"), "posted only once saved");
+    assert!(!html.contains(">Owner review</button>"));
+    assert!(
+        trial
+            .bill_add(ProductId::new(1), NonZeroU32::MIN)
+            .unwrap_err()
+            .contains("crate only")
+    );
+    trial
+        .bill_crate_quantity(NonZeroU32::new(3).unwrap())
+        .unwrap();
+    assert!(trial.render("bill").unwrap().contains("<b>₹1,200.00</b>"));
+    trial
+        .bill_header(Header::new(
+            "batch1-customer",
+            "2025-04-30",
+            None,
+            HeaderIntent::Save,
+        ))
+        .unwrap();
+    trial.bill_crate_post("500").unwrap();
+    assert!(
+        trial.message.contains("Crate bill #1 posted: 15 packets"),
+        "{}",
+        trial.message
+    );
+    let s = trial.projected().unwrap().snapshot;
+    assert_eq!(
+        (s.sales[0].invoice, s.sales[0].total, s.sales[0].paid),
+        (
+            1,
+            Money::from_minor_units(120_000),
+            Money::from_minor_units(50_000)
+        )
+    );
+    let on_hand = |p: u64| s.stock.iter().find(|r| r.product == p).unwrap().on_hand;
+    assert_eq!((on_hand(1), on_hand(2)), (44, 31));
+    let sent = trial.outbox.entries().unwrap();
+    assert!(
+        sent.iter()
+            .any(|e| e.intent.starts_with("cratesale draft=1 "))
+    );
+    // A new bill starts empty; removing a crate row empties the bill.
+    let html = trial.render("bill").unwrap();
+    assert!(!html.contains("📦 Party Crate"));
+    trial.bill_crate_add(template, NonZeroU32::MIN).unwrap();
+    trial.bill_crate_remove().unwrap();
+    assert!(trial.current.as_ref().unwrap().0.crate_row().is_none());
 }

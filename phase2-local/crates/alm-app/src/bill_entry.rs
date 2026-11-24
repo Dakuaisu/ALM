@@ -48,6 +48,7 @@ impl Trial {
         if self.current.is_none() {
             self.fresh_bill(&saved_ids)?;
         }
+        let crates = self.bill_crates();
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_screen(&views::BillView {
             authority: self.drafting(),
@@ -56,6 +57,7 @@ impl Trial {
             saved: *saved,
             saved_ids: &saved_ids,
             role: self.role(),
+            crates: &crates,
         }))
     }
 
@@ -73,6 +75,7 @@ impl Trial {
                 .ok_or("Unknown line.")?;
             Ok(previous != qty)
         })?;
+        let crates = self.bill_crates();
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
         Ok(views::bill_body(&views::BillView {
             authority: self.drafting(),
@@ -81,6 +84,7 @@ impl Trial {
             saved: *saved,
             saved_ids: &[],
             role: self.role(),
+            crates: &crates,
         }))
     }
     pub(super) fn fresh_bill(&mut self, saved_ids: &[u64]) -> Result<(), String> {
@@ -151,12 +155,14 @@ impl Trial {
         let saved = match header.intent {
             Intent::Select => *saved && !changed,
             Intent::Save => {
-                if draft.lines().is_empty() {
+                if draft.lines().is_empty() && draft.crate_row().is_none() {
                     return Err("Add at least one item before saving.".into());
                 }
-                self.directory
-                    .preview(self.drafting(), &draft)
-                    .map_err(debug)?;
+                if draft.crate_row().is_none() {
+                    self.directory
+                        .preview(self.drafting(), &draft)
+                        .map_err(debug)?;
+                }
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(
                     "Saved draft {}: PROVISIONAL, NOT POSTED.",
@@ -182,6 +188,9 @@ impl Trial {
             .select_line(self.drafting(), product, quantity)
             .map_err(|_| "Select a connected product.".to_owned())?;
         self.edit_bill(|draft| {
+            if draft.crate_row().is_some() {
+                return Err(crate_row::SOLE_ITEMS.into());
+            }
             draft.add_line(line);
             Ok(true)
         })
@@ -210,6 +219,7 @@ mod batch1;
 #[cfg(test)]
 mod batch1_edit;
 pub mod commands;
+pub mod crate_row;
 mod search;
 #[cfg(test)]
 mod tests;

@@ -127,6 +127,49 @@ impl ConfirmationFixture {
         })
     }
 
+    /// New Bill's crate line totals before posting: crates times the rate, and the authority's
+    /// loading charge per packet of its components, as `sell_crate` will charge them.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects components without checkout terms or not dividing into whole
+    /// packs, and overflow.
+    pub fn crate_line_amounts(
+        &self,
+        role: crate::Role,
+        row: &crate::CrateRow,
+    ) -> Result<CheckoutAmounts, ConfirmationError> {
+        if role != crate::Role::Owner {
+            return Err(ConfirmationError::AccessDenied);
+        }
+        let packs = row
+            .components()
+            .iter()
+            .map(|component| self.component_pack(component.product, component.unit))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut draft = crate::ProvisionalDraft::new(DraftId::new(0), Vec::new());
+        draft
+            .add_crate_row(row.clone())
+            .map_err(|_| ConfirmationError::InvalidDraft)?;
+        let review = Review {
+            draft,
+            draft_revision: 0,
+            terms_revision: self.terms_revision,
+            prices: vec![
+                row.rate()
+                    .or(self.crate_rate)
+                    .ok_or(ConfirmationError::InvalidDraft)?,
+            ],
+            payment: ProposedPayment::Named(Money::from_minor_units(0)),
+            payment_mode: super::super::ReceiptMode::Cash,
+            checkout: Some(CheckoutTerms {
+                lines: Vec::new(),
+                loading_rate: self.loading_rate,
+            }),
+            crate_packs: Some(packs),
+        };
+        review.amounts()
+    }
+
     fn component_pack(
         &self,
         product: ProductId,

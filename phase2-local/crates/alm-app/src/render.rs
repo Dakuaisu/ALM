@@ -65,14 +65,8 @@ impl Trial {
             "purchases" => {
                 views::purchases_screen(&self.posted, self.role(), self.receiving, self.today()?)?
             }
-            "crates" => views::crates_screen(
-                &self.posted,
-                &self.directory,
-                self.role(),
-                self.crate_form.as_ref(),
-                self.today()?,
-            )
-            .map_err(debug)?,
+            "crates" => views::crates_screen(&self.posted, self.role(), self.crate_form.as_ref())
+                .map_err(debug)?,
             "ratelist" => {
                 let today = self.today()?;
                 views::ratelist_screen(
