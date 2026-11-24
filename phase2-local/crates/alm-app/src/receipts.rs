@@ -66,7 +66,7 @@ impl crate::Trial {
         };
         save(&mut scratch, &self.directory, role, terms)?;
         self.send(&intent)?;
-        self.message = "Standalone payment recorded in the local simulation.".into();
+        self.message = format!("Standalone payment recorded {}.", self.authority_name());
         Ok(())
     }
 }

@@ -104,7 +104,7 @@ pub fn sale_confirm(state: State<'_, AppState>, id: IpcId) -> Result<String, Str
     let id = id.value();
     with(&state, "sales", |trial| {
         let invoice = trial.sale_confirm(id)?;
-        trial.message = format!("Bill #{invoice} confirmed in the local simulation.");
+        trial.message = format!("Bill #{invoice} confirmed {}.", trial.authority_name());
         Ok(())
     })
 }

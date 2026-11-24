@@ -164,6 +164,11 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
             mode: crate::receipts::Mode::Cash,
         })
         .unwrap();
+    assert!(
+        trial.message.contains("by the REST authority"),
+        "{}",
+        trial.message
+    );
     trial
         .cash_entry(entry("", "2025-04-30", "30", "save"))
         .unwrap();

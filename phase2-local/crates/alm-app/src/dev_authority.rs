@@ -88,6 +88,15 @@ impl Trial {
         }
     }
 
+    /// Where commands go, for confirmation messages.
+    pub(crate) const fn authority_name(&self) -> &'static str {
+        if self.rest.is_some() {
+            "by the REST authority (development)"
+        } else {
+            "in the local simulation"
+        }
+    }
+
     /// Switches authorities: the stored projection belongs to the previous one, so it is
     /// rebuilt from the new one.
     fn use_authority(&mut self, rest: Option<RestAuthority>, message: &str) -> Result<(), String> {
