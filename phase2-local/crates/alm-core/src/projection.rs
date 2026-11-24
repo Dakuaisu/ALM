@@ -51,6 +51,20 @@ pub struct ProjectedCustomer {
     pub id: String,
     pub name: String,
     pub balance: Money,
+    pub mobile: String,
+    pub addr1: String,
+    pub addr2: String,
+}
+
+impl ProjectedCustomer {
+    /// The Customers list's address cell: `addr1`, then `, addr2` when present.
+    pub fn address(&self) -> String {
+        if self.addr2.is_empty() {
+            self.addr1.clone()
+        } else {
+            format!("{}, {}", self.addr1, self.addr2)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -358,7 +372,11 @@ impl ProjectionSnapshot {
             let keep = match filter {
                 CustomerFilter::All => true,
                 CustomerFilter::Due => customer.balance.minor_units() > 0,
-                CustomerFilter::Name(_) => customer.name.to_lowercase().contains(&needle),
+                // `c.name.toLowerCase().includes(q) || (c.mobile || "").includes(custQ)`.
+                CustomerFilter::Name(text) => {
+                    customer.name.to_lowercase().contains(&needle)
+                        || customer.mobile.contains(text.as_str())
+                }
             };
             if keep {
                 view.rows.push((customer, side));

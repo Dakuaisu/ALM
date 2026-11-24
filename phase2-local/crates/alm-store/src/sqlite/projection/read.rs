@@ -69,12 +69,18 @@ pub(super) fn read_snapshot(
     )?;
     let customers = rows(
         conn,
-        "SELECT id, name, balance FROM projected_customers ORDER BY position",
+        "SELECT c.id, c.name, c.balance, coalesce(k.mobile, ''), coalesce(k.addr1, ''),
+             coalesce(k.addr2, '')
+         FROM projected_customers c LEFT JOIN projected_customer_contacts k USING (position)
+         ORDER BY c.position",
         |r| {
             Ok(ProjectedCustomer {
                 id: r.get(0)?,
                 name: r.get(1)?,
                 balance: money(r, 2)?,
+                mobile: r.get(3)?,
+                addr1: r.get(4)?,
+                addr2: r.get(5)?,
             })
         },
     )?;

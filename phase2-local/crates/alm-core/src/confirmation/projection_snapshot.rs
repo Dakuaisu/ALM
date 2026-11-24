@@ -106,6 +106,9 @@ impl ConfirmationFixture {
                 id: row.customer.id.to_owned(),
                 name: row.customer.name.to_owned(),
                 balance: row.balance,
+                mobile: row.customer.mobile.to_owned(),
+                addr1: row.customer.addr1.to_owned(),
+                addr2: row.customer.addr2.to_owned(),
             })
             .collect();
         let list = self

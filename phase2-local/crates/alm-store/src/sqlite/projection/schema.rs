@@ -42,6 +42,9 @@ CREATE TABLE projected_cash_days (
 
 /// Added with the catalog, purchasing, crate, godown and GST screens; created on older files.
 pub(super) const BOOK_TABLES: &str = "
+CREATE TABLE IF NOT EXISTS projected_customer_contacts (
+    position INTEGER PRIMARY KEY, mobile TEXT NOT NULL, addr1 TEXT NOT NULL, addr2 TEXT NOT NULL
+) STRICT;
 CREATE TABLE IF NOT EXISTS projected_products (
     position INTEGER PRIMARY KEY, id INTEGER NOT NULL, item TEXT NOT NULL, brand TEXT NOT NULL,
     sell INTEGER NOT NULL, reorder_level INTEGER NOT NULL
@@ -87,8 +90,9 @@ CREATE TABLE owner_sale_costs (
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
 
-const PROJECTED: [&str; 12] = [
+const PROJECTED: [&str; 13] = [
     "projected_notes",
+    "projected_customer_contacts",
     "projected_sales",
     "projected_receipts",
     "projected_customers",

@@ -1301,3 +1301,29 @@ fn product_live_preview_keeps_the_typed_name_brand_and_reorder_level() {
         assert!(html.contains(kept), "{kept}\n{html}");
     }
 }
+
+#[test]
+fn customers_list_mobile_and_address_and_search_by_mobile() {
+    let root = Root::new("customer-contacts");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let html = trial.render("customers").unwrap();
+    assert!(html.contains(r#"Synthetic Customer</button></td><td class="muted">90000 00001</td><td class="muted">12 Synthetic Lane, Kanpur</td>"#), "{html}");
+    assert!(html.contains(
+        r#"Synthetic Market</button></td><td class="muted">—</td><td class="muted"></td>"#
+    ));
+    trial.customers.query = "00001".into();
+    let html = trial.render("customers").unwrap();
+    assert!(html.contains("Synthetic Customer") && !html.contains("Synthetic Market</button>"));
+    trial.customers.query = "synthetic m".into();
+    let html = trial.render("customers").unwrap();
+    assert!(
+        !html.contains("Synthetic Customer</button>") && html.contains("Synthetic Market</button>")
+    );
+    trial.customers.query.clear();
+    trial.customers.open = Some("batch1-customer".into());
+    let html = trial.render("customers").unwrap();
+    assert!(
+        html.contains(">90000 00001 · 12 Synthetic Lane, Kanpur</div>"),
+        "{html}"
+    );
+}

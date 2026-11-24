@@ -119,17 +119,22 @@ pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
         }
     }
     for c in &book.customers {
-        let name = snapshot
-            .customers
-            .iter()
-            .find(|r| r.id == c.id)
-            .map_or_else(String::new, |r| r.name.clone());
+        let row = snapshot.customers.iter().find(|r| r.id == c.id);
+        let field = |f: fn(&alm_core::projection::ProjectedCustomer) -> &String| {
+            row.map_or_else(String::new, |r| f(r).clone())
+        };
+        let (name, mobile, addr1, addr2) = (
+            field(|r| &r.name),
+            field(|r| &r.mobile),
+            field(|r| &r.addr1),
+            field(|r| &r.addr2),
+        );
         let (opening, date) = c.opening.map_or((0, None), |(a, d)| (a.minor_units(), d));
         client
             .execute(
                 "INSERT INTO public.customers (id, name, registered, has_balance, has_opening,
-                     opening_minor, opening_date)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7::text::date)",
+                     opening_minor, opening_date, mobile, addr1, addr2)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7::text::date, $8, $9, $10)",
                 &[
                     &c.id,
                     &name,
@@ -138,6 +143,9 @@ pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
                     &c.opening.is_some(),
                     &opening,
                     &date.map(|d| d.to_string()),
+                    &mobile,
+                    &addr1,
+                    &addr2,
                 ],
             )
             .expect("seed customer");

@@ -23,7 +23,8 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
             "brand": r.brand, "on_hand": r.on_hand, "reorder_level": r.reorder_level}))
             .collect::<Vec<_>>(),
         "customers": s.customers.iter().map(|r| json!({"id": r.id, "name": r.name,
-            "balance": m(r.balance)})).collect::<Vec<_>>(),
+            "balance": m(r.balance), "mobile": r.mobile, "addr1": r.addr1, "addr2": r.addr2}))
+            .collect::<Vec<_>>(),
         "sales": s.sales.iter().map(|r| json!({"draft_id": r.draft_id, "invoice": r.invoice,
             "date": r.date.to_string(), "customer": r.customer, "items": r.items,
             "lines": r.lines, "packets": r.packets, "total": m(r.total), "paid": m(r.paid),

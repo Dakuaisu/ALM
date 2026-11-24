@@ -79,7 +79,7 @@ pub fn customers_screen(
     );
     let _ = write!(
         html,
-        r#"</div><form class="row" style="margin-bottom:12px" data-action="customers_filter" data-payload="terms"><div class="search" style="flex:1"><span class="si">🔍</span><input class="inp" name="q" placeholder="Search customers…" aria-label="Search customers" value="{}"></div><button class="btn" type="submit" name="mode" value="search">Search</button><button class="pill" type="submit" name="mode" value="due">Only Due</button><button class="pill" type="submit" name="mode" value="all">All</button></form>"#,
+        r#"</div><form class="row" style="margin-bottom:12px" data-action="customers_filter" data-payload="terms"><div class="search" style="flex:1"><span class="si">🔍</span><input class="inp" name="q" placeholder="Search customers…" aria-label="Search customers by name or mobile" value="{}"></div><button class="btn" type="submit" name="mode" value="search">Search</button><button class="pill" type="submit" name="mode" value="due">Only Due</button><button class="pill" type="submit" name="mode" value="all">All</button></form>"#,
         esc(&state.query)
     );
     html += r#"<div class="tbl-wrap" style="max-height:56vh"><table><thead><tr><th>Name</th><th>Mobile</th><th>Address</th><th class="num">Balance</th><th class="num">Actions</th></tr></thead><tbody>"#;
@@ -90,16 +90,37 @@ pub fn customers_screen(
         let (class, balance) = side(*balance_side);
         let _ = write!(
             html,
-            r#"<tr><td><button class="list-link" type="button" data-action="customer_open" data-id="{id}">{name}</button></td><td class="muted">—</td><td class="muted"></td><td class="num{class}">{balance}</td><td class="num"><button class="btn sm" data-action="customer_open" data-id="{id}">Ledger</button></td></tr>"#,
+            r#"<tr><td><button class="list-link" type="button" data-action="customer_open" data-id="{id}">{name}</button></td><td class="muted">{mobile}</td><td class="muted">{address}</td><td class="num{class}">{balance}</td><td class="num"><button class="btn sm" data-action="customer_open" data-id="{id}">Ledger</button></td></tr>"#,
             id = esc(&customer.id),
-            name = esc(&customer.name)
+            name = esc(&customer.name),
+            mobile = if customer.mobile.is_empty() {
+                "—".to_owned()
+            } else {
+                esc(&customer.mobile)
+            },
+            address = esc(&customer.address()),
         );
     }
     html += "</tbody></table></div>";
     if let Some(open) = &state.open
         && let Some(row) = directory.customers(fixture).find(|c| c.id == open)
     {
-        html += &ledger(fixture, role, row.id, row.name)?;
+        let contact = projected
+            .customers
+            .iter()
+            .find(|c| c.id == row.id)
+            .map_or_else(
+                || "no mobile · ".to_owned(),
+                |c| {
+                    let mobile = if c.mobile.is_empty() {
+                        "no mobile"
+                    } else {
+                        &c.mobile
+                    };
+                    format!("{mobile} · {}", c.address())
+                },
+            );
+        html += &ledger(fixture, role, (row.id, row.name), &contact)?;
     }
     Ok(html)
 }
@@ -107,8 +128,8 @@ pub fn customers_screen(
 fn ledger(
     fixture: &ConfirmationFixture,
     role: Role,
-    id: &str,
-    name: &str,
+    (id, name): (&str, &str),
+    contact: &str,
 ) -> Result<String, ConfirmationError> {
     let ledger = fixture.customer_ledger_with_opening(role, &DraftCustomerId::new(id.into()))?;
     let (class, balance) = match BalanceSide::of(ledger.closing)? {
@@ -119,7 +140,7 @@ fn ledger(
         }
     };
     let mut html = format!(
-        r#"<div class="row" style="justify-content:space-between"><div style="font-size:13px;color:var(--mut)">no mobile</div><div style="text-align:right"><div class="muted" style="font-size:11px">BALANCE</div><div style="font-size:22px;font-weight:800" class="{class}">{balance}</div></div></div><div class="row" style="margin:12px 0"><button class="btn sm" data-action="screen" data-tab="receipt">💵 Receive Payment</button></div>"#
+        r#"<div class="row" style="justify-content:space-between"><div style="font-size:13px;color:var(--mut)">{contact}</div><div style="text-align:right"><div class="muted" style="font-size:11px">BALANCE</div><div style="font-size:22px;font-weight:800" class="{class}">{balance}</div></div></div><div class="row" style="margin:12px 0"><button class="btn sm" data-action="screen" data-tab="receipt">💵 Receive Payment</button></div>"#
     );
     let _ = write!(
         html,

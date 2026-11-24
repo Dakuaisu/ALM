@@ -88,6 +88,9 @@ fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, AuthorityErr
             id: text(&r["id"]),
             name: text(&r["name"]),
             balance: money(&r["balance"]),
+            mobile: text(&r["mobile"]),
+            addr1: text(&r["addr1"]),
+            addr2: text(&r["addr2"]),
         })
         .collect();
     s.sales = list(&d["sales"])

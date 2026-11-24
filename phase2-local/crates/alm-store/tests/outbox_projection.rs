@@ -54,6 +54,9 @@ fn owner_snapshot() -> ProjectionSnapshot {
             id: "batch1-customer".into(),
             name: "Synthetic Customer".into(),
             balance: money(28_350),
+            mobile: "90000 00001".into(),
+            addr1: "12 Synthetic Lane".into(),
+            addr2: "Kanpur".into(),
         }],
         stock: vec![ProjectedStock {
             product: 1,
