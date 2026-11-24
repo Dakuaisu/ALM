@@ -105,6 +105,7 @@ impl Trial {
                         None => None,
                     };
                     views::backup_section(&self.backups(), restored.as_ref().map(|(n, s)| (*n, s)))
+                        + &crate::dev_authority::card(&self.device_root)
                 } else {
                     String::new()
                 };
@@ -229,22 +230,5 @@ impl Trial {
             views::notice(&message),
             self.prefs.theme().data_theme()
         ))
-    }
-}
-
-impl Trial {
-    fn account_pills(&self) -> String {
-        let mut html = r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#.to_owned();
-        for account in crate::trial::ACCOUNTS {
-            let on = if *account == self.account {
-                "pill on"
-            } else {
-                "pill"
-            };
-            html += &format!(
-                r#"<button class="{on}" data-action="account_switch" data-q="{account}">{account}</button>"#
-            );
-        }
-        html + "</div>"
     }
 }

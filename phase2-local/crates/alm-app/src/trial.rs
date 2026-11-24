@@ -65,6 +65,9 @@ pub(crate) struct Trial {
     pub(crate) reviewed: Option<SaleIntent>,
     pub(crate) current: Option<(ProvisionalDraft, bool)>,
     pub(crate) owner: bool,
+    /// Development only: a REST authority the Owner pointed this device at in Settings; the
+    /// local simulation otherwise.
+    pub(crate) rest: Option<alm_sync::RestAuthority>,
     /// The authority revoked this account: every command is blocked.
     pub(crate) revoked: bool,
     pub(crate) message: String,
@@ -162,6 +165,7 @@ impl Trial {
             current: None,
             owner: true,
             revoked: false,
+            rest: crate::dev_authority::load(device_root),
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),

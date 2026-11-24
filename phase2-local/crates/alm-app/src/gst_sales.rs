@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use alm_sync::SalesAuthority as _;
-
 use alm_core::confirmation::{GstBillDraft, GstBillError, GstBillId, GstBillNumber, GstLineFields};
 use tauri::State;
 
@@ -116,11 +114,11 @@ impl Trial {
                 let number = match saved {
                     Some(number) => number,
                     // The authority numbers a new bill, as the hosted function will.
-                    None => GstBillNumber(
-                        self.authority
-                            .allocate_gst_number(role, &alm_sync::gst_bill_key(id.0))
-                            .map_err(|e| crate::device::refused(&e))?,
-                    ),
+                    None => GstBillNumber(crate::dev_authority::allocate_gst(
+                        &mut self.rest,
+                        &mut self.authority,
+                        id.0,
+                    )?),
                 };
                 let draft = GstBillDraft { number, ..draft };
                 let record = self

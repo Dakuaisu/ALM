@@ -95,3 +95,20 @@ pub fn account_switch(state: State<'_, AppState>, q: String) -> Result<String, S
     trial.switch_account(&q)?;
     trial.render("review")
 }
+
+impl Trial {
+    pub(crate) fn account_pills(&self) -> String {
+        let mut html = r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#.to_owned();
+        for account in crate::trial::ACCOUNTS {
+            let on = if *account == self.account {
+                "pill on"
+            } else {
+                "pill"
+            };
+            html += &format!(
+                r#"<button class="{on}" data-action="account_switch" data-q="{account}">{account}</button>"#
+            );
+        }
+        html + "</div>"
+    }
+}

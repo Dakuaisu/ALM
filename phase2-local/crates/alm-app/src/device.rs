@@ -5,7 +5,7 @@ use alm_core::confirmation::ConfirmationFixture;
 use alm_core::confirmation::manual_cashbook::ManualCashBook;
 use alm_core::{Money, ProductId, Role};
 use alm_store::{OutboxStatus, ProjectionStore, StoredProjection};
-use alm_sync::{AuthorityError, Intent, Lookup, Outcome, RequestId, SalesAuthority};
+use alm_sync::{AuthorityError, Intent, Lookup, Outcome, RequestId};
 
 use crate::{Trial, debug, text};
 
@@ -132,7 +132,7 @@ impl Trial {
         intent: &Intent,
     ) -> Result<Outcome, String> {
         let id = RequestId::new(request).map_err(debug)?;
-        match self.authority.submit(role, &id, intent) {
+        match self.sales_authority().submit(role, &id, intent) {
             Ok(outcome) => {
                 self.outbox
                     .mark(request, OutboxStatus::Confirmed, Some(&outcome.canonical()))
@@ -177,7 +177,8 @@ impl Trial {
                 let Some(intent) = Intent::parse(&entry.intent) else {
                     continue;
                 };
-                let (status, note) = match self.authority.lookup(Role::Owner, &id, &intent) {
+                let (status, note) = match self.sales_authority().lookup(Role::Owner, &id, &intent)
+                {
                     Ok(Lookup::Committed(outcome)) => {
                         (OutboxStatus::Confirmed, Some(outcome.canonical()))
                     }
@@ -205,7 +206,7 @@ impl Trial {
                 .map_err(text)?;
         }
         let since = self.projection.checkpoint().map_err(text)?.map(|(c, _)| c);
-        match self.authority.pull(role, since) {
+        match self.sales_authority().pull(role, since) {
             // The authority grants less than this device holds: drop it before anything else.
             Ok(batch) if batch.role != role => return self.downgrade(batch.role),
             Err(AuthorityError::Denied) => return self.revoke(),
@@ -214,7 +215,10 @@ impl Trial {
                 // The authority's checkpoint is behind ours (its history was reset): rebuild.
                 Err(alm_store::ProjectionError::Rejected) if batch.role == role => {
                     self.projection.clear().map_err(text)?;
-                    let fresh = self.authority.pull(role, None).map_err(|e| refused(&e))?;
+                    let fresh = self
+                        .sales_authority()
+                        .pull(role, None)
+                        .map_err(|e| refused(&e))?;
                     self.projection.apply(&fresh).map_err(debug)?;
                 }
                 Err(error) => return Err(debug(error)),

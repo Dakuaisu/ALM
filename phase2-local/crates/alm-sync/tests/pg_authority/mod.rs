@@ -37,6 +37,87 @@ fn sql_id(value: u64) -> i64 {
     i64::try_from(value).unwrap()
 }
 
+/// Inserts `seed`'s shop: products with their FIFO lots, customers, suppliers and quotes.
+pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
+    let snapshot = seed.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    let owner = snapshot.owner.as_ref().expect("an owner seed");
+    for p in &snapshot.products {
+        let stock = snapshot
+            .stock
+            .iter()
+            .find(|s| s.product == p.id)
+            .map_or(0, |s| s.on_hand);
+        let buy = owner
+            .buy_rates
+            .iter()
+            .find(|(id, _)| *id == p.id)
+            .map_or(0, |(_, b)| b.minor_units());
+        let provisional = snapshot
+            .catalog
+            .iter()
+            .find(|c| c.id == p.id)
+            .map(|c| c.rate.minor_units());
+        client
+            .execute(
+                "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock, reorder_level, provisional_minor)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                &[
+                    &sql_id(p.id),
+                    &p.item,
+                    &p.brand,
+                    &p.sell.minor_units(),
+                    &buy,
+                    &i32::try_from(stock).unwrap(),
+                    &i32::try_from(p.reorder_level).unwrap(),
+                    &provisional,
+                ],
+            )
+            .expect("seed product");
+        let lots = seed
+            .open_stock_lots(Role::Owner, ProductId::new(p.id))
+            .expect("seed lots");
+        for lot in &lots.rows {
+            client
+                .execute(
+                    "INSERT INTO public.product_lots (product_id, received_on, remaining, unit_cost_minor)
+                     VALUES ($1, $2::text::date, $3, $4)",
+                    &[
+                        &sql_id(p.id),
+                        &lot.date.map(|d| d.to_string()),
+                        &i32::try_from(lot.remaining.get()).unwrap(),
+                        &lot.unit_cost.map(alm_core::Money::minor_units),
+                    ],
+                )
+                .expect("seed lot");
+        }
+    }
+    for c in &snapshot.customers {
+        assert_eq!(c.balance.minor_units(), 0, "seed customers start settled");
+        client
+            .execute(
+                "INSERT INTO public.customers (id, name) VALUES ($1, $2)",
+                &[&c.id, &c.name],
+            )
+            .expect("seed customer");
+    }
+    for s in &snapshot.suppliers {
+        client
+            .execute(
+                "INSERT INTO public.suppliers (id, name) VALUES ($1, $2)",
+                &[&sql_id(s.id), &s.name],
+            )
+            .expect("seed supplier");
+    }
+    for (product, supplier, rate) in &owner.supplier_prices {
+        client
+            .execute(
+                "INSERT INTO public.supplier_prices (product_id, supplier_id, rate_minor) VALUES ($1, $2, $3)",
+                &[&sql_id(*product), &sql_id(*supplier), &rate.minor_units()],
+            )
+            .expect("seed quote");
+    }
+}
+
 impl PgAuthority {
     /// Connects to `ALM_PG_URL` (None when unset), opens the test transaction and seeds it with
     /// `seed`'s shop: products with their FIFO lots, customers, suppliers and quotes, so both
@@ -49,83 +130,7 @@ impl PgAuthority {
         };
         let mut client = Client::connect(&url, NoTls).expect("connect to test database");
         client.batch_execute("BEGIN").expect("begin");
-        let snapshot = seed.pull(Role::Owner, None).unwrap().snapshot.unwrap();
-        let owner = snapshot.owner.as_ref().expect("an owner seed");
-        for p in &snapshot.products {
-            let stock = snapshot
-                .stock
-                .iter()
-                .find(|s| s.product == p.id)
-                .map_or(0, |s| s.on_hand);
-            let buy = owner
-                .buy_rates
-                .iter()
-                .find(|(id, _)| *id == p.id)
-                .map_or(0, |(_, b)| b.minor_units());
-            let provisional = snapshot
-                .catalog
-                .iter()
-                .find(|c| c.id == p.id)
-                .map(|c| c.rate.minor_units());
-            client
-                .execute(
-                    "INSERT INTO public.products (id, item, brand, sell_minor, buy_minor, stock, reorder_level, provisional_minor)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-                    &[
-                        &sql_id(p.id),
-                        &p.item,
-                        &p.brand,
-                        &p.sell.minor_units(),
-                        &buy,
-                        &i32::try_from(stock).unwrap(),
-                        &i32::try_from(p.reorder_level).unwrap(),
-                        &provisional,
-                    ],
-                )
-                .expect("seed product");
-            let lots = seed
-                .open_stock_lots(Role::Owner, ProductId::new(p.id))
-                .expect("seed lots");
-            for lot in &lots.rows {
-                client
-                    .execute(
-                        "INSERT INTO public.product_lots (product_id, received_on, remaining, unit_cost_minor)
-                         VALUES ($1, $2::text::date, $3, $4)",
-                        &[
-                            &sql_id(p.id),
-                            &lot.date.map(|d| d.to_string()),
-                            &i32::try_from(lot.remaining.get()).unwrap(),
-                            &lot.unit_cost.map(alm_core::Money::minor_units),
-                        ],
-                    )
-                    .expect("seed lot");
-            }
-        }
-        for c in &snapshot.customers {
-            assert_eq!(c.balance.minor_units(), 0, "seed customers start settled");
-            client
-                .execute(
-                    "INSERT INTO public.customers (id, name) VALUES ($1, $2)",
-                    &[&c.id, &c.name],
-                )
-                .expect("seed customer");
-        }
-        for s in &snapshot.suppliers {
-            client
-                .execute(
-                    "INSERT INTO public.suppliers (id, name) VALUES ($1, $2)",
-                    &[&sql_id(s.id), &s.name],
-                )
-                .expect("seed supplier");
-        }
-        for (product, supplier, rate) in &owner.supplier_prices {
-            client
-                .execute(
-                    "INSERT INTO public.supplier_prices (product_id, supplier_id, rate_minor) VALUES ($1, $2, $3)",
-                    &[&sql_id(*product), &sql_id(*supplier), &rate.minor_units()],
-                )
-                .expect("seed quote");
-        }
+        seed_shop(&mut client, seed);
         Some(Self(RefCell::new(client)))
     }
 

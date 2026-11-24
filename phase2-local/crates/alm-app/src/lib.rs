@@ -18,6 +18,7 @@ mod commands;
 mod copy;
 mod crates;
 mod customers;
+mod dev_authority;
 mod device;
 #[cfg(test)]
 mod device_tests;
@@ -111,6 +112,8 @@ pub fn run() {
             bill_entry::commands::bill_customer_search,
             bill_entry::commands::bill_item_search,
             commands::review_role,
+            dev_authority::settings_rest,
+            dev_authority::settings_rest_off,
             device::account::outbox_check,
             device::account::outbox_retry,
             device::account::account_switch,

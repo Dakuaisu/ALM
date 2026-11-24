@@ -172,3 +172,14 @@ pub enum Outcome {
     /// The authority's identity for a created record (supplier, PO, crate template).
     Created(u64),
 }
+
+/// What the authority holds for a request, checked against the intent the device stored.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Lookup {
+    /// It committed with this intent: the stored outcome.
+    Committed(Outcome),
+    /// Nothing was committed under the request: retrying it with the same ID is safe.
+    NotCommitted,
+    /// The request ID was used for another intent.
+    OtherIntent,
+}

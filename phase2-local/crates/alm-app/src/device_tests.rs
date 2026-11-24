@@ -341,3 +341,41 @@ fn a_revocation_seen_on_pull_purges_the_account_and_blocks_every_command() {
     trial.switch_account("trial-b").unwrap();
     assert!(!trial.revoked);
 }
+
+#[test]
+fn the_owner_can_point_this_device_at_a_rest_authority_and_back() {
+    let root = Root::new("device-rest");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let form = |url: &str| crate::dev_authority::RestForm::new(url, "", "dev-token");
+    trial.set_owner(false).unwrap();
+    assert!(
+        trial.settings_rest(&form("http://127.0.0.1:9")).is_err(),
+        "Owner only"
+    );
+    trial.set_owner(true).unwrap();
+    assert!(trial.settings_rest(&form("ftp://x")).is_err());
+    // Nothing listens on the discard port: the device is offline, never falls back to the
+    // simulation, and a command's outcome is unknown.
+    saved_draft(&mut trial, 1);
+    let serial = review(&mut trial);
+    trial.settings_rest(&form("http://127.0.0.1:9")).unwrap();
+    assert!(root.0.join("dev-authority.txt").exists());
+    let page = trial.render("settings").unwrap();
+    assert!(page.contains("Using the REST authority at <b>http://127.0.0.1:9</b>"));
+    assert!(trial.render("sales").unwrap().contains("not received yet"));
+    let error = trial.sale_confirm(serial).unwrap_err();
+    assert!(error.contains("outcome is unknown"), "{error}");
+    assert_eq!(trial.authority.posted_count(), 0);
+    // A restart keeps the device-local choice.
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert!(trial.rest.is_some());
+    trial.settings_rest_off().unwrap();
+    assert!(trial.rest.is_none() && !root.0.join("dev-authority.txt").exists());
+    assert!(
+        trial
+            .render("settings")
+            .unwrap()
+            .contains("built-in authority simulation")
+    );
+}

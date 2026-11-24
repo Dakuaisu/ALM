@@ -6,14 +6,15 @@
 mod intent;
 #[cfg(feature = "local-authority")]
 mod local;
+mod rest;
 pub mod wire;
 
 use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
 pub use intent::{
-    CrateTerms, Intent, Outcome, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms, SaleIntent,
-    SaleReceipt,
+    CrateTerms, Intent, Lookup, Outcome, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms,
+    SaleIntent, SaleReceipt,
 };
 
 use alm_core::confirmation::StockCountReason;
@@ -46,6 +47,7 @@ pub fn stock_count_reason(code: &str) -> Option<StockCountReason> {
 }
 #[cfg(feature = "local-authority")]
 pub use local::{LocalAuthority, LocalAuthorityError};
+pub use rest::RestAuthority;
 
 /// A client-minted request identity, persisted with its intent before sending: 1–64 ASCII
 /// letters, digits, `-`, `_` or `:` (the Supabase `sale_requests.request_id` bound).
@@ -97,17 +99,6 @@ impl AuthorityError {
     pub const fn is_definite(&self) -> bool {
         !matches!(self, Self::Unavailable)
     }
-}
-
-/// What the authority holds for a request, checked against the intent the device stored.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Lookup {
-    /// It committed with this intent: the stored outcome.
-    Committed(Outcome),
-    /// Nothing was committed under the request: retrying it with the same ID is safe.
-    NotCommitted,
-    /// The request ID was used for another intent.
-    OtherIntent,
 }
 
 /// The server commands the app needs. Every effectful command carries a request ID; an
