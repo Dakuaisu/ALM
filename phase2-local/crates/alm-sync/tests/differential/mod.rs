@@ -203,8 +203,17 @@ pub struct Pair {
 impl Pair {
     /// None without `ALM_PG_URL`.
     pub fn new(scenario: &'static str) -> Option<Self> {
+        Self::new_with(scenario, |_| {})
+    }
+
+    /// As [`Pair::new`], with extra seed terms applied to the shop first.
+    pub fn new_with(
+        scenario: &'static str,
+        terms: impl FnOnce(&mut alm_core::confirmation::ConfirmationFixture),
+    ) -> Option<Self> {
         let mut shop = fixture().unwrap();
         seed_purchasing(&mut shop).unwrap();
+        terms(&mut shop);
         let local = LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000);
         let pg = PgAuthority::connect(&local)?;
         let mut pair = Self {

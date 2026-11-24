@@ -93,6 +93,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         | Intent::DeleteGstBill { .. }
         | Intent::ImportGstBill { .. } => books::apply(state, intent),
         Intent::PostSale(_)
+        | Intent::SellCrate(_)
         | Intent::CancelSale { .. }
         | Intent::RestoreSale { .. }
         | Intent::EditSale { .. }

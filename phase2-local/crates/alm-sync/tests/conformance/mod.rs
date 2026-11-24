@@ -624,6 +624,55 @@ pub fn save_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+fn crate_sale(w: &World, template: u64, draft: u64, quantity: u32, rate: i64) -> Intent {
+    Intent::SellCrate(alm_sync::CrateSale {
+        draft,
+        template,
+        quantity,
+        customer: w.customer.clone(),
+        date: day(),
+        paid: money(20_000),
+        rate: money(rate),
+        components: vec![(w.product, 2, false)],
+    })
+}
+
+/// A crate sold from a saved template takes each component's packets from stock.
+pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let template = created(setup(
+        a,
+        "cratesale",
+        "template",
+        &crate_terms(&w, None, 40_000, true),
+    ));
+    let (product, on_hand) = (w.product, w.on_hand);
+    let outcome = exercise(
+        a,
+        "cratesale",
+        &crate_sale(&w, template, 151, 1, 40_000),
+        &crate_sale(&w, template, 151, 2, 40_000),
+        Some(&crate_sale(&w, template, 152, 1, 41_000)),
+        Some(&crate_sale(&w, template, 153, on_hand + 1_000, 40_000)),
+        |s| stock_of(s, product) == Some(on_hand - 2),
+    );
+    let Outcome::Sale(receipt) = outcome else {
+        panic!("a sale receipt")
+    };
+    assert_eq!(
+        (receipt.draft, receipt.quantity, receipt.total),
+        (151, 2, money(40_000))
+    );
+    assert_eq!(
+        a.submit(
+            Role::Owner,
+            &req("cratesale", "again"),
+            &crate_sale(&w, template, 151, 1, 40_000)
+        ),
+        Err(AuthorityError::AlreadyPosted)
+    );
+}
+
 pub fn delete_crate<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
     let id = created(setup(
@@ -904,7 +953,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, delete_crate, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, delete_crate, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup
         );

@@ -502,3 +502,75 @@ fn new_bill_applies_the_default_loading_charge_through_review_posting_and_restar
             .is_err()
     );
 }
+
+#[test]
+fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
+    let root = Root::new("crate-sale");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.crate_form = Some(crate::views::CrateForm {
+        rows: vec![
+            ("1".into(), "2".into(), "Case".into()),
+            ("2".into(), "3".into(), "Case".into()),
+        ],
+        ..Default::default()
+    });
+    trial
+        .crate_submit(map(&[
+            ("name", "Party Crate"),
+            ("price", "400"),
+            ("product_0", "1"),
+            ("qty_0", "2"),
+            ("unit_0", "Case"),
+            ("product_1", "2"),
+            ("qty_1", "3"),
+            ("unit_1", "Case"),
+            ("intent", "save"),
+        ]))
+        .unwrap();
+    let template = trial.projected().unwrap().snapshot.crates[0].id.to_string();
+    let sell = map(&[
+        ("id", &template),
+        ("customer", "batch1-customer"),
+        ("qty", "2"),
+        ("date", "2025-04-30"),
+        ("paid", "300"),
+    ]);
+    trial.set_owner(false).unwrap();
+    assert!(trial.crate_sell(&sell).is_err(), "Manager denied");
+    trial.set_owner(true).unwrap();
+    trial.crate_sell(&sell).unwrap();
+    assert!(
+        trial.message.contains("Crate bill #1 posted: 10 packets"),
+        "{}",
+        trial.message
+    );
+    let check = |trial: &mut Trial| {
+        let s = trial.projected().unwrap().snapshot;
+        let on_hand = |p: u64| s.stock.iter().find(|r| r.product == p).unwrap().on_hand;
+        assert_eq!((on_hand(1), on_hand(2)), (46, 34));
+        let customer = s
+            .customers
+            .iter()
+            .find(|c| c.id == "batch1-customer")
+            .unwrap();
+        assert_eq!(customer.balance, Money::from_minor_units(50_000));
+        assert_eq!(s.sales_unsupported, Some(1));
+    };
+    check(&mut trial);
+    crate::device::assert_book_view(&mut trial);
+    drop(trial);
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    check(&mut trial);
+    let sent = trial.outbox.entries().unwrap();
+    assert!(
+        sent.iter()
+            .any(|e| e.intent.starts_with("cratesale draft=1 ")
+                && e.status == OutboxStatus::Confirmed)
+    );
+    // Selling again makes a new bill under the next draft number.
+    assert!(trial.crate_sell(&sell).is_ok());
+    assert_eq!(
+        trial.projected().unwrap().snapshot.sales_unsupported,
+        Some(2)
+    );
+}

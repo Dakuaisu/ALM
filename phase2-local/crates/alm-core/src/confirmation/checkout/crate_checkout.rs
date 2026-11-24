@@ -9,6 +9,16 @@ use super::{
 
 impl Review {
     /// Returns the packet demand of each component in its original order.
+    /// A crate dispatched to a named customer (`sell_crate`): an ordinary bill for ledgers, the
+    /// Cash Book and the Dashboard; the Sales list, edits, cancellation and bill images still
+    /// decline it.
+    pub fn is_named_crate_sale(&self) -> bool {
+        self.draft.crate_row().is_some()
+            && self.draft.lines().is_empty()
+            && matches!(self.payment, ProposedPayment::Named(_))
+            && matches!(self.draft.customer(), crate::DraftCustomer::Selected { .. })
+    }
+
     pub fn crate_packet_demands(&self) -> Result<Option<Vec<DraftLine>>, ConfirmationError> {
         let Some(row) = self.draft.crate_row() else {
             return Ok(None);

@@ -192,6 +192,7 @@ pub fn run() {
             crates::crate_submit,
             crates::crate_close,
             crates::crate_delete,
+            crates::crate_sell,
             commands::rate_brand,
             commands::rate_group,
             commands::rate_search,

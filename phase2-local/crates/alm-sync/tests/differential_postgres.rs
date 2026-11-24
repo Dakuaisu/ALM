@@ -11,8 +11,8 @@ use alm_core::Role;
 use alm_sync::{Intent, Outcome};
 use differential::Pair;
 use differential::script::{
-    Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_terms, on_hand, product,
-    purchase, receipt, receive, sale,
+    Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_sale, crate_terms, on_hand,
+    product, purchase, receipt, receive, sale,
 };
 
 fn created(outcome: Option<Outcome>) -> u64 {
@@ -381,7 +381,18 @@ fn l15_cashbook() {
 /// edits up and down, cancel and restore, a count down, and a crate repeating a product.
 #[test]
 fn l10_crate_fifo() {
-    let Some(mut p) = Pair::new("l10") else {
+    // Piece components need the authority's checkout pack: a Lime piece is half a packet.
+    let Some(mut p) = Pair::new_with("l10", |shop| {
+        shop.set_checkout_product(
+            alm_core::ProductId::new(LIME),
+            alm_core::confirmation::ProductTerms {
+                pack: std::num::NonZeroU32::new(2).unwrap(),
+                piece_price: alm_core::Money::from_minor_units(6_100),
+                case_price: alm_core::Money::from_minor_units(12_050),
+            },
+        )
+        .unwrap();
+    }) else {
         return;
     };
     let po = created(p.owner(
@@ -443,6 +454,77 @@ fn l10_crate_fifo() {
             &[(LIME, 1, false), (LIME, 2, true)],
         ),
     );
+    // L10 crate FIFO: a crate repeating a product takes from its lots once per component,
+    // across a fresh dated layer at another cost.
+    let po = created(p.owner(
+        "po for crates",
+        &purchase(
+            "Synthetic Depot",
+            "2025-02-06",
+            &[("Synthetic Lime", Some(LIME), 20, 6_600)],
+        ),
+    ));
+    let core = p.core();
+    p.owner(
+        "receive for crates",
+        &receive(&core, po, Some("2025-02-06"), "2025-02-06", &[(20, 0)]),
+    );
+    let twins = [(LIME, 1, false), (LIME, 2, true)];
+    let template = p.core().crates.last().map(|c| c.id).unwrap();
+    p.owner(
+        "crate sale stale",
+        &crate_sale(7, template, 3, CUSTOMER, 0, 31_000, &twins),
+    );
+    p.owner(
+        "crate sale paid above total",
+        &crate_sale(7, template, 1, CUSTOMER, 40_000, 30_000, &twins),
+    );
+    p.owner(
+        "crate sale typed customer",
+        &crate_sale(7, template, 1, ("walk-in", "Walk In"), 0, 30_000, &twins),
+    );
+    p.owner(
+        "crate sale shortage",
+        &crate_sale(7, template, 500, CUSTOMER, 0, 30_000, &twins),
+    );
+    let sold = p.owner(
+        "crate sale",
+        &crate_sale(7, template, 3, CUSTOMER, 20_000, 30_000, &twins),
+    );
+    assert!(
+        matches!(sold, Some(Outcome::Sale(r)) if r.quantity == 6),
+        "{sold:?}"
+    );
+    p.owner(
+        "crate sale again",
+        &crate_sale(7, template, 3, CUSTOMER, 20_000, 30_000, &twins),
+    );
+    p.owner(
+        "crate sale twice",
+        &crate_sale(8, template, 2, MARKET, 0, 30_000, &twins),
+    );
+    p.owner("crate cancel refused", &Intent::CancelSale { draft: 7 });
+    p.owner(
+        "crate edit refused",
+        &Intent::EditSale {
+            draft: 7,
+            lines: vec![(1, 30_000)],
+        },
+    );
+    p.owner(
+        "receipt after crate",
+        &receipt(CUSTOMER.0, "2025-02-08", 5_000, false),
+    );
+    let solo = created(p.owner(
+        "case crate",
+        &crate_terms(None, "Soda Case", 9_000, &[(SODA, 1, false)]),
+    ));
+    let sold = p.owner(
+        "case crate sale",
+        &crate_sale(9, solo, 2, MARKET, 9_000, 9_000, &[(SODA, 1, false)]),
+    );
+    assert!(matches!(sold, Some(Outcome::Sale(_))), "{sold:?}");
+    assert_eq!(p.core().sales_unsupported, Some(9));
     p.finish();
 }
 

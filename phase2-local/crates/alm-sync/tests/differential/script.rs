@@ -173,6 +173,28 @@ pub fn crate_terms(
     })
 }
 
+/// `crates` of template `template` (with its rate and components as reviewed) for `to`.
+pub fn crate_sale(
+    draft: u64,
+    template: u64,
+    crates: u32,
+    to: (&str, &str),
+    paid: i64,
+    rate: i64,
+    components: &[(u64, u32, bool)],
+) -> Intent {
+    Intent::SellCrate(alm_sync::CrateSale {
+        draft,
+        template,
+        quantity: crates,
+        customer: (to.0.into(), to.1.into()),
+        date: "2025-02-07".parse().unwrap(),
+        paid: rs(paid),
+        rate: rs(rate),
+        components: components.to_vec(),
+    })
+}
+
 pub fn on_hand(core: &ProjectionSnapshot, product: u64) -> u32 {
     core.stock
         .iter()

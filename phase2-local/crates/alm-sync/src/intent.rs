@@ -22,6 +22,8 @@ pub struct SaleIntent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Intent {
     PostSale(SaleIntent),
+    /// A crate sold from a saved template, with the template as reviewed.
+    SellCrate(CrateSale),
     CancelSale {
         draft: u64,
     },
@@ -153,6 +155,21 @@ pub struct CrateTerms {
     pub name: String,
     pub price: Money,
     /// `(product, quantity, piece)`.
+    pub components: Vec<(u64, u32, bool)>,
+}
+
+/// A crate sale: `quantity` crates of saved template `template` for a directory customer, with
+/// the template's rate and components (`(product, quantity, piece)`) as the Owner reviewed them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrateSale {
+    pub draft: u64,
+    pub template: u64,
+    pub quantity: u32,
+    /// `(directory ID, name)`.
+    pub customer: (String, String),
+    pub date: BillDate,
+    pub paid: Money,
+    pub rate: Money,
     pub components: Vec<(u64, u32, bool)>,
 }
 

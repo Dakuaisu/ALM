@@ -57,7 +57,9 @@ impl ConfirmationFixture {
             if bill_date != date {
                 continue;
             }
-            if review.checkout.is_some() || review.draft.crate_row().is_some() {
+            if (review.checkout.is_some() || review.draft.crate_row().is_some())
+                && !review.is_named_crate_sale()
+            {
                 return Err(ConfirmationError::InvalidDraft);
             }
             match (&review.payment, review.draft.customer()) {

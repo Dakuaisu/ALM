@@ -13,8 +13,8 @@ use alm_core::Role;
 use alm_core::projection::ProjectionBatch;
 
 pub use intent::{
-    CrateTerms, Intent, Lookup, Outcome, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms,
-    SaleIntent, SaleReceipt,
+    CrateSale, CrateTerms, Intent, Lookup, Outcome, ProductTerms, PurchaseLineTerms,
+    PurchaseOrderTerms, SaleIntent, SaleReceipt,
 };
 
 use alm_core::confirmation::StockCountReason;
@@ -144,6 +144,25 @@ pub trait SalesAuthority {
         sale: &SaleIntent,
     ) -> Result<SaleReceipt, AuthorityError> {
         match self.submit(role, request, &Intent::PostSale(sale.clone()))? {
+            Outcome::Sale(receipt) => Ok(receipt),
+            Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_) => {
+                Err(AuthorityError::Invalid)
+            }
+        }
+    }
+
+    /// Sells `sale.quantity` crates of a saved template (each component taken from its FIFO
+    /// lots as its own demand).
+    ///
+    /// # Errors
+    /// As [`SalesAuthority::submit`].
+    fn sell_crate(
+        &mut self,
+        role: Role,
+        request: &RequestId,
+        sale: &CrateSale,
+    ) -> Result<SaleReceipt, AuthorityError> {
+        match self.submit(role, request, &Intent::SellCrate(sale.clone()))? {
             Outcome::Sale(receipt) => Ok(receipt),
             Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_) => {
                 Err(AuthorityError::Invalid)

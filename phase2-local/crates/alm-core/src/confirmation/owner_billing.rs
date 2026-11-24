@@ -270,3 +270,45 @@ fn parse_rupees(text: &str) -> Result<Money, ConfirmationError> {
 #[cfg(test)]
 #[path = "owner_billing_tests.rs"]
 mod tests;
+
+/// A crate sold from a saved template: the draft identity, the template and its count, the
+/// directory customer, the bill date and the amount paid.
+#[derive(Clone, Debug)]
+pub struct CrateSaleTerms<'a> {
+    pub draft: crate::DraftId,
+    pub template: super::CrateTemplateId,
+    pub quantity: std::num::NonZeroU32,
+    pub customer: &'a crate::DraftCustomer,
+    pub date: BillDate,
+    pub paid: Money,
+}
+
+/// Posts a crate sale (`dispatchCrate`): the template is copied as the bill's only row, each
+/// component's packets are taken from its FIFO lots as a separate demand (a repeated product
+/// takes from its lots once per component), and the bill is reviewed at the template's rate
+/// with the authority's loading charge. Nothing changes on any rejection.
+///
+/// # Errors
+/// Denies Managers; rejects unknown customers or templates, piece components without
+/// checkout terms, paid amounts above the total, stock shortages and already posted drafts.
+pub fn sell_crate(
+    authority: &mut ConfirmationFixture,
+    directory: &BillingDirectory,
+    role: Role,
+    terms: &CrateSaleTerms<'_>,
+) -> Result<Receipt, OwnerBillingError> {
+    require_owner(role)?;
+    if authority.current_sale(role, terms.draft).is_ok() {
+        return Err(ConfirmationError::DraftAlreadyPosted.into());
+    }
+    directory.check_customer(authority, terms.customer)?;
+    let mut draft = ProvisionalDraft::new(terms.draft, Vec::new())
+        .with_customer(terms.customer.clone())
+        .with_bill_date(Some(terms.date));
+    authority
+        .load_crate_template(role, terms.template, terms.quantity, &mut draft)
+        .map_err(|_| ConfirmationError::InvalidDraft)?;
+    authority.register_draft(draft)?;
+    let review = authority.review_checkout(role, terms.draft, &[], terms.paid)?;
+    Ok(authority.confirm(role, RequestId::new(terms.draft.value()), &review)?)
+}

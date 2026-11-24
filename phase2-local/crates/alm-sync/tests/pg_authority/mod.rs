@@ -165,6 +165,19 @@ pub fn seed_shop(client: &mut Client, seed: &LocalAuthority) {
                 .expect("seed quote");
         }
     }
+    for (product, pack, piece, case) in &book.checkout_terms {
+        client
+            .execute(
+                "INSERT INTO public.checkout_terms VALUES ($1, $2, $3, $4)",
+                &[
+                    &sql_id(*product),
+                    &i32::try_from(*pack).unwrap(),
+                    &piece.minor_units(),
+                    &case.minor_units(),
+                ],
+            )
+            .expect("seed checkout terms");
+    }
     for (product, mrp) in &book.crates.piece_mrps {
         client
             .execute(

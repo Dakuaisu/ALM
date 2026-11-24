@@ -1,7 +1,8 @@
 //! Applies one intent to a copy of the simulated state.
 use alm_core::confirmation::manual_cashbook::{CashBookDeletion, ManualCashBookDraft};
 use alm_core::confirmation::owner_billing::{
-    BillingDirectory, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft, save_receipt_at,
+    BillingDirectory, CrateSaleTerms, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft,
+    save_receipt_at, sell_crate,
 };
 use alm_core::confirmation::{LineEdit, ReceiptMode};
 use alm_core::{DraftId, Role};
@@ -48,6 +49,56 @@ pub(super) fn apply(
             let receipt = posting.confirm(fixture, role, serial).map_err(rejected)?;
             Ok(Outcome::Sale(SaleReceipt {
                 draft: id.value(),
+                invoice: receipt.invoice,
+                quantity: receipt.quantity,
+                total: receipt.total,
+            }))
+        }
+        Intent::SellCrate(c) => {
+            let template = fixture
+                .crate_template_id(role, c.template)
+                .map_err(rejected)?;
+            let current = fixture.crate_template(role, template).map_err(rejected)?;
+            let components: Vec<_> = current
+                .components
+                .iter()
+                .map(|x| {
+                    (
+                        x.product.value(),
+                        x.quantity.get(),
+                        x.unit == alm_core::SaleUnit::Piece,
+                    )
+                })
+                .collect();
+            if current.price != c.rate || components != c.components {
+                return Err(AuthorityError::StaleReview);
+            }
+            let customer = alm_core::DraftCustomer::Selected {
+                id: alm_core::DraftCustomerId::new(c.customer.0.clone()),
+                name: c.customer.1.clone(),
+            };
+            let receipt = sell_crate(
+                fixture,
+                directory,
+                role,
+                &CrateSaleTerms {
+                    draft: DraftId::new(c.draft),
+                    template,
+                    quantity: std::num::NonZeroU32::new(c.quantity)
+                        .ok_or(AuthorityError::Invalid)?,
+                    customer: &customer,
+                    date: c.date,
+                    paid: c.paid,
+                },
+            )
+            .map_err(|e| match e {
+                alm_core::confirmation::owner_billing::OwnerBillingError::Confirmation(
+                    alm_core::confirmation::ConfirmationError::DraftAlreadyPosted,
+                ) => AuthorityError::AlreadyPosted,
+                other => rejected(other),
+            })?;
+            Ok(Outcome::Sale(SaleReceipt {
+                draft: c.draft,
                 invoice: receipt.invoice,
                 quantity: receipt.quantity,
                 total: receipt.total,

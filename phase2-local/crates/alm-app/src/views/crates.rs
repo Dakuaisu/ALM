@@ -24,6 +24,7 @@ pub fn crates_screen(
     directory: &BillingDirectory,
     role: Role,
     form: Option<&CrateForm>,
+    today: alm_core::BillDate,
 ) -> Result<String, CrateTemplateError> {
     let rows = match fixture.crate_template_list(role) {
         Ok(rows) => rows,
@@ -44,15 +45,33 @@ pub fn crates_screen(
         let id = row.id.value();
         let _ = write!(
             html,
-            r#"<tr><td><b>{}</b></td><td class="muted">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num" title="Sum of contents at today's rates">{}</td><td class="num"><button class="btn sm" data-action="crate_edit" data-id="{id}">✎ Edit</button> <details style="display:inline-block"><summary class="btn sm danger">✕</summary><button class="btn sm danger" data-action="crate_delete" data-id="{id}">Delete template</button></details></td></tr>"#,
+            r#"<tr><td><b>{}</b></td><td class="muted">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num" title="Sum of contents at today's rates">{}</td><td class="num"><button class="btn sm" data-action="crate_edit" data-id="{id}">✎ Edit</button> {sell} <details style="display:inline-block"><summary class="btn sm danger">✕</summary><button class="btn sm danger" data-action="crate_delete" data-id="{id}">Delete template</button></details></td></tr>"#,
             esc(&row.template.name),
             esc(&row.contents),
             row.template.components.len(),
             money_r(row.template.price),
-            row.value.map_or_else(|_| "—".to_owned(), money_r)
+            row.value.map_or_else(|_| "—".to_owned(), money_r),
+            sell = sell_form(directory, id, today)
         );
     }
     Ok(html + "</tbody></table></div>")
+}
+
+/// Sells crates of one template to a directory customer (the HTML adds the crate as a New Bill
+/// line; New Bill has no crate rows here).
+fn sell_form(directory: &BillingDirectory, id: u64, today: alm_core::BillDate) -> String {
+    let mut options = String::new();
+    for c in &directory.customers {
+        let _ = write!(
+            options,
+            r#"<option value="{}">{}</option>"#,
+            esc(c.id),
+            esc(c.name)
+        );
+    }
+    format!(
+        r#"<details style="display:inline-block"><summary class="btn sm">Sell</summary><form class="row" style="gap:6px;margin-top:6px" data-action="crate_sell" data-payload="terms"><input type="hidden" name="id" value="{id}"><select class="inp" name="customer" aria-label="Customer"><option value="">Choose customer…</option>{options}</select><input class="inp num" name="qty" inputmode="numeric" value="1" aria-label="Crates" style="width:70px"><input class="inp" type="date" name="date" value="{today}" aria-label="Bill date"><input class="inp num" name="paid" inputmode="decimal" placeholder="Paid ₹" aria-label="Amount paid" style="width:90px"><button class="btn sm primary" type="submit">Sell crate</button></form></details>"#
+    )
 }
 
 fn builder(

@@ -53,6 +53,16 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
             terms["paid_minor"] = json!(sale.paid.minor_units());
             ("post_sale", terms)
         }
+        Intent::SellCrate(c) => (
+            "sell_crate",
+            json!({"draft_id": c.draft.to_string(), "template": c.template,
+                "quantity": c.quantity, "customer_id": c.customer.0, "customer": c.customer.1,
+                "date": day(c.date), "paid_minor": c.paid.minor_units(),
+                "rate_minor": c.rate.minor_units(),
+                "components": c.components.iter().map(|(p, q, piece)|
+                    json!({"product_id": p, "quantity": q, "piece": piece}))
+                    .collect::<Vec<_>>()}),
+        ),
         Intent::CancelSale { draft } => (
             "set_sale_cancelled",
             json!({"draft_id": draft.to_string(), "cancel": true}),

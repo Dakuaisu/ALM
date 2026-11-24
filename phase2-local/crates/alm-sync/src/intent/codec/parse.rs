@@ -1,7 +1,9 @@
 //! Reads the canonical text of the intents `encode` writes.
 use alm_core::{BillDate, Money};
 
-use super::super::{CrateTerms, Intent, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms};
+use super::super::{
+    CrateSale, CrateTerms, Intent, ProductTerms, PurchaseLineTerms, PurchaseOrderTerms,
+};
 use super::{NONE, unescape};
 
 struct Fields<'a>(Vec<(&'a str, &'a str)>);
@@ -43,6 +45,21 @@ impl<'a> Fields<'a> {
         text.split(',')
             .map(|part| item(&part.split(':').collect::<Vec<_>>()))
             .collect()
+    }
+}
+
+fn component(p: &[&str]) -> Option<(u64, u32, bool)> {
+    match p {
+        [product, qty, unit] => Some((
+            product.parse().ok()?,
+            qty.parse().ok()?,
+            match *unit {
+                "piece" => true,
+                "case" => false,
+                _ => return None,
+            },
+        )),
+        _ => None,
     }
 }
 
@@ -126,20 +143,19 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
             id: f.opt("id", |t| t.parse().ok())?,
             name: f.text("name")?,
             price: f.money("price")?,
-            components: f.list("items", |p| match p {
-                [product, qty, unit] => Some((
-                    product.parse().ok()?,
-                    qty.parse().ok()?,
-                    match *unit {
-                        "piece" => true,
-                        "case" => false,
-                        _ => return None,
-                    },
-                )),
-                _ => None,
-            })?,
+            components: f.list("items", component)?,
         }),
         "cratedel" => Intent::DeleteCrate { id: f.num("id")? },
+        "cratesale" => Intent::SellCrate(CrateSale {
+            draft: f.num("draft")?,
+            template: f.num("template")?,
+            quantity: f.num("qty")?,
+            customer: (f.text("customer")?, f.text("name")?),
+            date: f.date("date")?,
+            paid: f.money("paid")?,
+            rate: f.money("rate")?,
+            components: f.list("items", component)?,
+        }),
         "opening" => Intent::SaveOpening {
             customer: f.text("customer")?,
             amount: f.opt("amount", parse_money)?,

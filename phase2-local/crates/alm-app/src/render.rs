@@ -70,6 +70,7 @@ impl Trial {
                 &self.directory,
                 self.role(),
                 self.crate_form.as_ref(),
+                self.today()?,
             )
             .map_err(debug)?,
             "ratelist" => {

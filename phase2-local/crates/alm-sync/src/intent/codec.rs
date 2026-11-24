@@ -116,6 +116,22 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
             ])
         ),
         Intent::DeleteCrate { id } => format!("cratedel id={id}"),
+        Intent::SellCrate(c) => format!(
+            "cratesale draft={} template={} qty={} customer={} name={} date={} paid={} rate={} items={}",
+            c.draft,
+            c.template,
+            c.quantity,
+            escape(&c.customer.0),
+            escape(&c.customer.1),
+            c.date,
+            money(c.paid),
+            money(c.rate),
+            list(&c.components, |(p, q, piece)| vec![
+                p.to_string(),
+                q.to_string(),
+                if *piece { "piece" } else { "case" }.into(),
+            ])
+        ),
         Intent::SaveOpening {
             customer,
             amount,
