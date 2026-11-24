@@ -253,3 +253,76 @@ fn pull_uses_the_hosted_row_format() {
     assert!(owner_keys.iter().any(|k| *k == "book"));
     assert!(!wire.to_string().contains("dev_state"));
 }
+
+/// The reconciliation report for each synthetic legacy file, against what the authority holds
+/// after the import (read back through a pull): every difference is explained by a quarantined
+/// record except the numbering, where the authority's live series would reissue legacy numbers
+/// (OPEN-003); the report computed before the import (dry run) is the same.
+#[test]
+fn legacy_imports_reconcile_against_the_authority_rows() {
+    use alm_core::legacy::{
+        LegacyBackup, LineStatus, MigrateClock, dry_run, live_numbers, reconcile,
+    };
+    let clock = MigrateClock {
+        now_ms: 1_767_900_000_000,
+        today: "2026-01-08",
+    };
+    for (file, bytes, quarantined, unexplained) in [
+        (
+            "rehearsal-a",
+            &include_bytes!("../../alm-core/tests/legacy/rehearsal-a.json")[..],
+            4,
+            2,
+        ),
+        (
+            "rehearsal-b",
+            &include_bytes!("../../alm-core/tests/legacy/rehearsal-b.json")[..],
+            2,
+            1,
+        ),
+    ] {
+        let mut authority = seeded();
+        let backup = LegacyBackup::parse(bytes, clock).unwrap();
+        let book = |a: &LocalAuthority| {
+            a.pull(Role::Owner, None)
+                .unwrap()
+                .snapshot
+                .unwrap()
+                .owner
+                .unwrap()
+                .book
+        };
+        let before = book(&authority);
+        let dry = dry_run(&backup, &before.legacy, live_numbers(&before));
+        let plan = alm_core::legacy::import::plan(&backup);
+        let Ok(Outcome::Created(id)) = authority.submit(
+            Role::Owner,
+            &request(&format!("legacy-{file}")),
+            &Intent::ImportLegacy(Box::new(plan)),
+        ) else {
+            panic!("{file}: imported")
+        };
+        let after = book(&authority);
+        assert_eq!(
+            after.settings, before.settings,
+            "{file}: no live series moved"
+        );
+        assert_eq!(after.sales, before.sales, "{file}: nothing posted");
+        let report = reconcile(&backup, &after.legacy, id, live_numbers(&after)).unwrap();
+        assert_eq!(report, dry, "{file}: the dry run predicted the import");
+        assert_eq!(report.quarantined.len(), quarantined, "{file}");
+        let open: Vec<_> = report
+            .sections
+            .iter()
+            .flat_map(|s| s.lines.iter().map(move |l| (s.name, l)))
+            .filter(|(_, l)| matches!(l.status, LineStatus::Unexplained(_)))
+            .map(|(s, l)| (s, l.key.clone()))
+            .collect();
+        assert_eq!(open.len(), unexplained, "{file}: {open:?}");
+        assert!(
+            open.iter()
+                .all(|(s, _)| *s == "Numbering (shown, not issued)"),
+            "{file}: {open:?}"
+        );
+    }
+}

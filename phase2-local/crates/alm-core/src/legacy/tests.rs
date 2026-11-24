@@ -196,8 +196,8 @@ fn migrate_fixes_every_legacy_shape_as_the_html_does() {
 
 mod import {
     use super::{A, B, CLOCK};
-    use crate::legacy::LegacyBackup;
     use crate::legacy::import::{EntryStatus, LegacyImports, apply, plan};
+    use crate::legacy::{LegacyBackup, LineStatus, dry_run, reconcile};
 
     fn quarantine(imports: &LegacyImports, id: u64) -> Vec<(String, String, String)> {
         imports.manifests[usize::try_from(id - 1).unwrap()]
@@ -291,7 +291,73 @@ mod import {
     }
 
     #[test]
-    fn b_migrated_shapes_import() {
+    fn reconciliation_explains_every_difference_by_quarantine() {
+        let a = LegacyBackup::parse(A, CLOCK).unwrap();
+        let mut imports = LegacyImports::default();
+        let id = apply(&mut imports, &plan(&a));
+        let report = reconcile(&a, &imports, id, (1, 1)).unwrap();
+        assert_eq!(report, dry_run(&a, &LegacyImports::default(), (1, 1)));
+        let unexplained: Vec<_> = report
+            .sections
+            .iter()
+            .flat_map(|s| s.lines.iter().map(move |l| (s.name, l)))
+            .filter(|(_, l)| matches!(l.status, LineStatus::Unexplained(_)))
+            .map(|(s, l)| format!("{s}: {} {:?} {:?}", l.key, l.legacy, l.authority))
+            .collect();
+        // Only the numbering: the authority's live series starts at 1 (OPEN-003).
+        assert_eq!(
+            unexplained,
+            [
+                "Numbering (shown, not issued): invoice: legacy next vs authority live series Some(\"1008\") Some(\"1\")",
+                "Numbering (shown, not issued): GST number: legacy next vs authority live series Some(\"3\") Some(\"1\")",
+            ]
+        );
+        let line = |section: &str, key: &str| {
+            report
+                .sections
+                .iter()
+                .find(|s| s.name == section)
+                .and_then(|s| s.lines.iter().find(|l| l.key == key))
+                .cloned()
+                .unwrap()
+        };
+        let invoice = line("Invoices", "#1007 (b_7)");
+        assert_eq!(invoice.status, LineStatus::Explained);
+        assert_eq!(invoice.authority, None);
+        // Without the quarantined bill the imported series ends at #1006; the numbering line
+        // keeps the legacy file's next number (#1008), so #1007 is never reissued.
+        let next = line("Invoices", "next invoice (not issued)");
+        assert_eq!(
+            (
+                next.legacy.as_deref(),
+                next.authority.as_deref(),
+                next.status
+            ),
+            (Some("#1008"), Some("#1007"), LineStatus::Explained)
+        );
+        let balance = line("Customer balances", "c_cust Synthetic Customer");
+        assert_eq!(balance.legacy.as_deref(), Some("₹190"));
+        assert_eq!(balance.status, LineStatus::Explained);
+        assert_eq!(balance.authority.as_deref(), Some("₹200"));
+        let guava = line("Stock by item and location", "p_guava Synthetic Guava");
+        assert_eq!(guava.status, LineStatus::Explained);
+        assert_eq!(
+            (guava.legacy.as_deref(), guava.authority.as_deref()),
+            (Some("shop 22.5 · fridge 2"), Some("shop 23 · fridge 2"))
+        );
+        assert_eq!(line("Invoices", "#1002 (b_2)").status, LineStatus::Match);
+        assert_eq!(
+            line("FIFO lots and value", "total value").status,
+            LineStatus::Explained
+        );
+        assert_eq!(report.unexplained(), 2);
+        // Live series at or past the legacy next numbers: no unexplained difference.
+        let continued = reconcile(&a, &imports, id, (1008, 3)).unwrap();
+        assert_eq!(continued.unexplained(), 0);
+    }
+
+    #[test]
+    fn b_migrated_shapes_import_and_reconcile() {
         let b = LegacyBackup::parse(B, CLOCK).unwrap();
         let mut imports = LegacyImports::default();
         let id = apply(&mut imports, &plan(&b));
@@ -307,5 +373,10 @@ mod import {
                 ("godown", "godown[0]", "no legacy ID"),
             ]
         );
+        let report = reconcile(&b, &imports, id, (1, 1)).unwrap();
+        // The invoice series only: no GST bills, so the GST numbering matches.
+        assert_eq!(report.unexplained(), 1, "{report:#?}");
+        let continued = reconcile(&b, &imports, id, (9, 1)).unwrap();
+        assert_eq!(continued.unexplained(), 0, "{continued:#?}");
     }
 }

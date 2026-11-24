@@ -6,13 +6,19 @@
 //! record views are computed from it by the core. Synthetic data only (R-8 rehearsal).
 use serde_json::{Map, Value};
 
+mod controls;
 mod digest;
 pub mod import;
 mod js;
 mod migrate;
+mod reconcile;
 mod records;
 
+pub use controls::{ControlLine, ControlSection, controls};
 pub use digest::sha256_hex;
+pub use reconcile::{
+    LineStatus, ReconciledLine, ReconciledSection, Reconciliation, dry_run, live_numbers, reconcile,
+};
 pub use records::{
     LegacyCashDay, LegacyComponent, LegacyCrate, LegacyCustomer, LegacyGodown, LegacyLine,
     LegacyLotSource, LegacyPayment, LegacyProduct, LegacySale, LegacyStockEntry, LegacyStockLog,
