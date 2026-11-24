@@ -163,7 +163,10 @@ test("data-search inputs list Rust options and a pick fills fields then submits 
     closest: (s) => (s === "form" ? form : s === ".autolist" ? list : option),
   };
   h.document.createElement = () => ({ setAttribute() {}, remove() { this.removed = true; } });
-  await h.ids.app.listeners.click({ target: { closest: () => option }, preventDefault() {} });
+  let prevented = false;
+  await h.ids.app.listeners.pointerdown({ target: { closest: () => option }, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, "the box keeps focus");
+  assert.equal(h.ids.app.listeners.click({ target: { closest: () => option } }), undefined, "the click after a pick is ignored");
   assert.equal(boxes.customer.value, "batch1-customer");
   assert.equal(boxes.customer_q.value, "Synthetic Customer");
   const submit = h.calls.find((c) => c.command === "bill_header");
@@ -182,4 +185,15 @@ test("data-copy writes the Rust-provided text to the clipboard", async () => {
   await tick(5);
   assert.deepEqual(h.clipboard, ["*Godown Stock* (30-Apr-2025)"]);
   assert.equal(h.calls.at(-1).command, "godown_copy_text");
+});
+
+test("a search box losing focus closes its list", async () => {
+  const list = { classList: element().classList };
+  list.classList.add("show");
+  const h = harness({});
+  h.ids.app.listeners.focusout({
+    target: { dataset: { search: "x" }, parentNode: { querySelector: () => list } },
+  });
+  await tick(200);
+  assert.equal(list.classList.contains("show"), false);
 });

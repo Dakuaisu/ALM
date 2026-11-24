@@ -16,6 +16,8 @@
 #nav button.navitem.on { background: var(--accent-weak); }
 
 .bill-items { overflow-x: auto; }
+/* Let an open autocomplete list escape the horizontal scroller while its box has focus. */
+.bill-items:focus-within { overflow: visible; }
 .bill-line {
   display: grid;
   grid-template-columns: minmax(140px, 2fr) .85fr .9fr .7fr 1fr 72px;

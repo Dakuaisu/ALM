@@ -145,6 +145,8 @@ async function search(input) {
   try {
     list.innerHTML = await invoke(input.dataset.search, { q: input.value, field: input.name });
     list.classList.toggle("show", list.children.length > 0);
+    // On a phone/tablet the keyboard can cover the list; bring it into the visible area.
+    if (list.children.length && list.scrollIntoView) list.scrollIntoView({ block: "nearest" });
   } catch (error) {
     note(String(error), true);
   }
@@ -186,12 +188,27 @@ function onInput(event) {
   );
 }
 
-function onClick(event) {
-  const option = event.target.closest("[data-fill]");
+// Picks on pointerdown, like the HTML's onmousedown, so the box keeps focus and the list is
+// still there; preventDefault stops the click that follows.
+function onPointerDown(event) {
+  const option = event.target.closest && event.target.closest("[data-fill]");
   if (option && option.dataset.fill != null) {
     if (event.preventDefault) event.preventDefault();
     return pick(option);
   }
+}
+
+// A search box losing focus closes its list (after a pick has had its chance).
+function onFocusOut(event) {
+  const input = event.target;
+  if (!input.dataset || !input.dataset.search) return;
+  const list = input.parentNode && input.parentNode.querySelector(".autolist");
+  if (list) setTimeout(() => list.classList.remove("show"), 150);
+}
+
+function onClick(event) {
+  const option = event.target.closest("[data-fill]");
+  if (option && option.dataset.fill != null) return;
   const target = event.target.closest("button[data-action],button[data-copy]");
   if (target) return act(target);
 }
@@ -201,7 +218,10 @@ function onSubmit(event) {
   act(event.target, event.submitter);
 }
 
-document.getElementById("app").addEventListener("click", onClick);
+const app = document.getElementById("app");
+app.addEventListener("click", onClick);
+app.addEventListener("pointerdown", onPointerDown);
+app.addEventListener("focusout", onFocusOut);
 for (const root of [view, overlay]) {
   if (!root) continue;
   root.addEventListener("submit", onSubmit);

@@ -15,7 +15,7 @@ for (const action of ["draft_open", "sale_confirm", "sale_cancel", "sale_restore
     };
     let click;
     const elements = {
-      app: { addEventListener: (_, listener) => { click = listener; } },
+      app: { addEventListener: (type, listener) => { if (type === "click") click = listener; } },
       view,
       nav: { replaceChildren() {} },
       "top-actions": { replaceChildren() {} },
