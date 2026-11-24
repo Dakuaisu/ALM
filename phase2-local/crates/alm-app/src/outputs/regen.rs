@@ -25,7 +25,16 @@ pub(crate) fn regenerate(
     let id = SaleId::new(sale.to_owned());
     let profile = store.business_profile(role).map_err(debug)?;
     let document = store.latest_estimate(role, &id, today).map_err(debug)?;
-    let image = bill_image_layout(&document, &party(Some(profile)), &crate::image::measure);
+    let details = store
+        .records(role)
+        .map_err(debug)?
+        .bill_image_details(sale)
+        .ok_or("Sale not archived")?;
+    let image = bill_image_layout(
+        &document,
+        &party(Some(profile), &details),
+        &crate::image::measure,
+    );
     let bill_png = crate::image::render_png(&image)?;
     let estimate = store
         .latest_estimate_html(role, &id, today)

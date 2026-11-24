@@ -4,7 +4,7 @@
 use super::estimate::display_date;
 use super::estimate::{EstimateDocument, estimate_document};
 use super::image_handoff::format_amount;
-use super::{BalanceMode, ConfirmationFixture, EstimateError, EstimateRequest};
+use super::{BalanceMode, ConfirmationFixture, EstimateError, EstimateRequest, Money};
 use crate::synthetic_read_model::BusinessProfile;
 
 pub const BILL_IMAGE_WIDTH: i32 = 760;
@@ -83,6 +83,36 @@ impl BillImage {
     }
 }
 
+/// One bill line's product details: the PACK text and what `mrpSavings` needs.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct BillImageLine {
+    pub pack: String,
+    pub packet_quantity: u32,
+    /// Per-piece MRP; a line without one saves nothing.
+    pub mrp: Option<Money>,
+}
+
+/// `mrpSavings(s)`: Σ max(0, qty × packetQty × MRP − amount) over lines with an MRP, rounded
+/// to whole rupees (`Math.round`). Lines beyond `details` have no MRP.
+pub fn mrp_savings(bill: &EstimateDocument<'_>, details: &[BillImageLine]) -> Money {
+    let mut total: i128 = 0;
+    for (row, detail) in bill.lines.iter().zip(details) {
+        let Some(mrp) = detail.mrp.filter(|mrp| mrp.minor_units() > 0) else {
+            continue;
+        };
+        let value = i128::from(row.quantity)
+            * i128::from(detail.packet_quantity.max(1))
+            * i128::from(mrp.minor_units());
+        total += (value - i128::from(row.amount.minor_units())).max(0);
+    }
+    let paise = i64::try_from(total).unwrap_or(i64::MAX);
+    Money::from_minor_units(
+        Money::from_minor_units(paise)
+            .rounded_rupees()
+            .saturating_mul(100),
+    )
+}
+
 /// Shop header text (`DB.meta`) and the customer's contact (`c.mobile`, `c.addr1/addr2`).
 #[derive(Clone, Copy, Debug)]
 pub struct BillImageParty<'a> {
@@ -93,6 +123,8 @@ pub struct BillImageParty<'a> {
     pub profile: Option<&'a BusinessProfile>,
     pub customer_mobile: &'a str,
     pub customer_address: &'a str,
+    /// Per bill line, in bill order.
+    pub lines: &'a [BillImageLine],
 }
 
 fn text(
@@ -208,7 +240,9 @@ pub fn bill_image_layout(
         let total_y = items_bottom + 6;
         let sum_top = total_y + 30;
         let sum_bottom = sum_top + i32::try_from(summary.len()).unwrap_or(0) * 23;
-        let foot_y = sum_bottom + 22;
+        let save = mrp_savings(bill, party.lines);
+        let save_y = sum_bottom + 8;
+        let foot_y = sum_bottom + 22 + if save.minor_units() > 0 { 44 } else { 0 };
         let height = foot_y + 44;
 
         let mut ops = vec![DrawOp::FillRect {
@@ -346,7 +380,14 @@ pub fn bill_image_layout(
                 (i + 1).to_string(),
             );
             text(&mut ops, (c_item, ty), (13, Regular, Left), 0x000000, name);
-            text(&mut ops, (c_pack, ty), (11, Regular, Center), 0x000000, "");
+            let pack = party.lines.get(i).map_or("", |line| line.pack.as_str());
+            text(
+                &mut ops,
+                (c_pack, ty),
+                (11, Regular, Center),
+                0x000000,
+                pack,
+            );
             text(
                 &mut ops,
                 (c_rate, ty),
@@ -432,6 +473,31 @@ pub fn bill_image_layout(
             text(&mut ops, (lx, sy), (13, style, Left), color, label);
             text(&mut ops, (w - PAD, sy), (13, style, Right), color, value);
             sy += 23;
+        }
+        if save.minor_units() > 0 {
+            ops.push(DrawOp::FillRect {
+                x: PAD,
+                y: save_y,
+                w: w - 2 * PAD,
+                h: 32,
+                color: 0xf0fdf4,
+            });
+            ops.push(DrawOp::StrokeRect {
+                x: PAD,
+                y: save_y,
+                w: w - 2 * PAD,
+                h: 32,
+                color: 0x15803d,
+                width: 15,
+                dash: Some((5, 3)),
+            });
+            text(
+                &mut ops,
+                (w / 2, save_y + 22),
+                (16, Bold, Center),
+                0x15803d,
+                format!("You saved ₹{} on MRP!", format_amount(save)),
+            );
         }
         text(
             &mut ops,

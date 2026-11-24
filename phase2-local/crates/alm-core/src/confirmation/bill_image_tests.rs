@@ -23,6 +23,7 @@ const PARTY: BillImageParty<'static> = BillImageParty {
     profile: None,
     customer_mobile: "",
     customer_address: "",
+    lines: &[],
 };
 
 const LABELS: [EstimateLineDisplay<'static>; 1] = [EstimateLineDisplay {
@@ -112,4 +113,64 @@ fn latest_mode_and_manager_denial() {
         ),
         Err(EstimateError::Preview(ConfirmationError::AccessDenied))
     );
+}
+
+#[test]
+fn pack_mrp_savings_and_customer_contact_follow_bill_image_canvas() {
+    let f = posted();
+    let details = directory().bill_image_details("Synthetic Customer", [ProductId::new(1)]);
+    assert_eq!(details.customer_mobile, "90000 00001");
+    assert_eq!(details.customer_address, "12 Synthetic Lane, Kanpur");
+    assert_eq!(details.lines[0].pack, "600 ml Crate");
+    let party = BillImageParty {
+        customer_mobile: &details.customer_mobile,
+        customer_address: &details.customer_address,
+        lines: &details.lines,
+        ..PARTY
+    };
+    let image = f
+        .bill_image(
+            request(Role::Owner, BalanceMode::AsOnBillDate),
+            &party,
+            &measure,
+        )
+        .unwrap();
+    // One address line (16) and the savings box (44) on top of the 427 px fixture bill.
+    assert_eq!(image.height, 427 + 16 + 44);
+    let texts: Vec<_> = image
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            DrawOp::Text { text, style, .. } => Some((text.as_str(), *style)),
+            _ => None,
+        })
+        .collect();
+    // 2 crates × 24 × ₹6 = ₹288 MRP against ₹241 billed.
+    assert!(texts.contains(&("You saved ₹47 on MRP!", FontStyle::Bold)));
+    assert!(texts.contains(&("600 ml Crate", FontStyle::Regular)));
+    assert!(texts.contains(&("   90000 00001", FontStyle::Regular)));
+    assert!(texts.contains(&("12 Synthetic Lane, Kanpur", FontStyle::Regular)));
+    assert!(image.ops.iter().any(|op| matches!(
+        op,
+        DrawOp::StrokeRect {
+            color: 0x15803d,
+            dash: Some((5, 3)),
+            ..
+        }
+    )));
+    let no_mrp = [super::BillImageLine {
+        mrp: None,
+        ..details.lines[0].clone()
+    }];
+    let quiet = f
+        .bill_image(
+            request(Role::Owner, BalanceMode::AsOnBillDate),
+            &BillImageParty {
+                lines: &no_mrp,
+                ..party
+            },
+            &measure,
+        )
+        .unwrap();
+    assert_eq!(quiet.height, 427 + 16);
 }

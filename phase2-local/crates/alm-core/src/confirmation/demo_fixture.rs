@@ -14,10 +14,16 @@ const CUSTOMERS: [DirectoryCustomer; 2] = [
     DirectoryCustomer {
         id: "batch1-customer",
         name: CUSTOMER,
+        mobile: "90000 00001",
+        addr1: "12 Synthetic Lane",
+        addr2: "Kanpur",
     },
     DirectoryCustomer {
         id: "batch1-market",
         name: "Synthetic Market",
+        mobile: "",
+        addr1: "",
+        addr2: "",
     },
 ];
 
@@ -35,6 +41,10 @@ const PRODUCTS: [Seed; 2] = [
             name: LIME_NAME,
             provisional_rate: LIME_INCLUSIVE_PRICE,
             gst_basis_points: LIME_GST_BASIS_POINTS,
+            pack_size: "600 ml",
+            uom: "Crate",
+            packet_quantity: 24,
+            mrp: Some(Money::from_minor_units(600)),
         },
         sale_rate: Money::from_minor_units(12_050),
         cost: Money::from_minor_units(7_000),
@@ -46,6 +56,10 @@ const PRODUCTS: [Seed; 2] = [
             name: "Synthetic Soda",
             provisional_rate: Money::from_minor_units(5_900),
             gst_basis_points: 1_800,
+            pack_size: "1.25 L",
+            uom: "Case",
+            packet_quantity: 12,
+            mrp: None,
         },
         sale_rate: Money::from_minor_units(6_250),
         cost: Money::from_minor_units(3_800),

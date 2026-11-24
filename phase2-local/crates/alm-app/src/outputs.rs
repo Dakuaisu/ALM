@@ -2,7 +2,9 @@
 //! output folder; desktop reveals them, Android hands the path to the share bridge.
 use alm_core::DraftId;
 use alm_core::confirmation::bill_image::BillImageParty;
-use alm_core::confirmation::{EstimateDisplay, EstimateLineDisplay, EstimateRequest};
+use alm_core::confirmation::{
+    BillImageDetails, EstimateDisplay, EstimateLineDisplay, EstimateRequest,
+};
 use alm_core::synthetic_read_model::BusinessProfile;
 
 use crate::{Trial, debug};
@@ -52,7 +54,13 @@ impl Trial {
                 lines: &lines,
             },
         };
-        let party = party(Some(self.shop.business_profile(role).map_err(debug)?));
+        let details = self
+            .directory
+            .bill_image_details(&bill.customer, bill.lines.iter().map(|line| line.product));
+        let party = party(
+            Some(self.shop.business_profile(role).map_err(debug)?),
+            &details,
+        );
         let image = self
             .authority
             .bill_image(request, &party, &crate::image::measure)
@@ -138,7 +146,10 @@ impl Trial {
 }
 
 /// The shop header the bill image prints (trial seller; the profile adds FSSAI/GSTIN lines).
-pub(crate) fn party(profile: Option<&BusinessProfile>) -> BillImageParty<'_> {
+pub(crate) fn party<'a>(
+    profile: Option<&'a BusinessProfile>,
+    details: &'a BillImageDetails,
+) -> BillImageParty<'a> {
     let fallback = [crate::SELLER.name, "", crate::SELLER.address, ""];
     let [business, tagline, address, mobile] =
         profile.map_or(fallback, |profile| profile.header(fallback));
@@ -148,7 +159,8 @@ pub(crate) fn party(profile: Option<&BusinessProfile>) -> BillImageParty<'_> {
         address,
         mobile,
         profile,
-        customer_mobile: "",
-        customer_address: "",
+        customer_mobile: &details.customer_mobile,
+        customer_address: &details.customer_address,
+        lines: &details.lines,
     }
 }

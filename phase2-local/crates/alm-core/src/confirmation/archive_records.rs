@@ -4,7 +4,7 @@
 use super::owner_billing::BillingDirectory;
 use super::{ConfirmationError, ConfirmationFixture, ReceiptMode};
 use crate::synthetic_read_model::{Customer, Line, LineKind, Product, Receipt, Records, Sale};
-use crate::{DraftCustomer, DraftCustomerId, Role};
+use crate::{DraftCustomer, DraftCustomerId, Money, Role};
 
 fn mode(mode: ReceiptMode) -> &'static str {
     match mode {
@@ -38,22 +38,25 @@ impl ConfirmationFixture {
             .rows;
         let products = rows
             .into_iter()
-            .map(|row| Product {
-                reorder: levels
-                    .get(&row.product.value())
-                    .copied()
-                    .unwrap_or(self.product_reorder_default),
-                item: row.item,
-                company: row.brand,
-                pack: String::new(),
-                uom: String::new(),
-                packet_quantity: 1,
-                mrp_minor: 0,
-                buy_minor: row.buy.minor_units(),
-                sell_minor: row.sell.minor_units(),
-                purchased: 0,
-                sold: 0,
-                on_hand: i64::from(row.on_hand),
+            .map(|row| {
+                let detail = directory.products.iter().find(|p| p.id == row.product);
+                Product {
+                    reorder: levels
+                        .get(&row.product.value())
+                        .copied()
+                        .unwrap_or(self.product_reorder_default),
+                    item: row.item,
+                    company: row.brand,
+                    pack: detail.map_or_else(String::new, |d| d.pack_size.to_owned()),
+                    uom: detail.map_or_else(String::new, |d| d.uom.to_owned()),
+                    packet_quantity: detail.map_or(1, |d| d.packet_quantity.max(1)),
+                    mrp_minor: detail.and_then(|d| d.mrp).map_or(0, Money::minor_units),
+                    buy_minor: row.buy.minor_units(),
+                    sell_minor: row.sell.minor_units(),
+                    purchased: 0,
+                    sold: 0,
+                    on_hand: i64::from(row.on_hand),
+                }
             })
             .collect();
         let mut customers = Vec::new();
@@ -61,8 +64,8 @@ impl ConfirmationFixture {
             let ledger = self.customer_ledger(role, &DraftCustomerId::new(customer.id.into()))?;
             customers.push(Customer {
                 name: customer.name.into(),
-                mobile: String::new(),
-                address: String::new(),
+                mobile: customer.mobile.into(),
+                address: customer.address(),
                 balance_minor: ledger.closing.minor_units(),
             });
         }
@@ -84,6 +87,10 @@ impl ConfirmationFixture {
             let mut lines = Vec::new();
             for (index, line) in review.draft.lines().iter().enumerate() {
                 let (quantity, price) = review.line_values(index)?;
+                let detail = directory
+                    .products
+                    .iter()
+                    .find(|p| p.id == line.product_id());
                 let amount = price
                     .minor_units()
                     .checked_mul(i64::from(quantity))
@@ -94,9 +101,9 @@ impl ConfirmationFixture {
                         .item_name(line.product_id())
                         .unwrap_or_default()
                         .to_owned(),
-                    pack: String::new(),
-                    uom: String::new(),
-                    packet_quantity: 1,
+                    pack: detail.map_or_else(String::new, |d| d.pack_size.to_owned()),
+                    uom: detail.map_or_else(String::new, |d| d.uom.to_owned()),
+                    packet_quantity: detail.map_or(1, |d| d.packet_quantity.max(1)),
                     kind: LineKind::Item,
                     rate_minor: price.minor_units(),
                     quantity,

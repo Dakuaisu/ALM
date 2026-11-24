@@ -61,7 +61,8 @@ fn settings_port_every_html_card_and_profile_field() {
             .reorder_default,
         5
     );
-    let party = crate::outputs::party(Some(profile));
+    let details = alm_core::confirmation::BillImageDetails::default();
+    let party = crate::outputs::party(Some(profile), &details);
     assert_eq!(
         (party.business, party.tagline, party.address, party.mobile),
         (

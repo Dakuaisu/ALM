@@ -953,7 +953,8 @@ fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
     assert_eq!(name, "Bill-1.png");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
     let decoded = tiny_skia::Pixmap::decode_png(&png).unwrap();
-    assert_eq!((decoded.width(), decoded.height()), (1520, 854));
+    // 427 CSS px + one customer-address line (16) + the "You saved" box (44), at ×2.
+    assert_eq!((decoded.width(), decoded.height()), (1520, 974));
     let corner = decoded.pixel(0, 0).unwrap();
     assert_eq!(
         (corner.red(), corner.green(), corner.blue()),
@@ -978,7 +979,13 @@ fn rasterizer_measures_the_rupee_glyph_with_the_bundled_font() {
     let rupee = crate::image::measure("₹", 13, FontStyle::Regular);
     let one = crate::image::measure("1", 13, FontStyle::Regular);
     assert!(rupee > 4.0 && one > 4.0, "{rupee} {one}");
-    assert!(crate::image::measure("₹1", 13, FontStyle::Bold) > rupee + one);
+    let bold = |text| crate::image::measure(text, 13, FontStyle::Bold);
+    let regular = |text| crate::image::measure(text, 13, FontStyle::Regular);
+    assert!(bold("₹1") > 8.0);
+    assert!(
+        bold("Synthetic Customer") > regular("Synthetic Customer") + 1.0,
+        "bold text is measured with the bundled bold face"
+    );
 }
 
 #[test]
@@ -1113,7 +1120,7 @@ fn structured_exports_follow_the_read_model_and_deny_the_manager() {
     );
     let row = lines.next().unwrap();
     assert!(
-        row.starts_with("2025-04-30,1,Synthetic Customer,Credit,Synthetic Lime,,120.5"),
+        row.starts_with("2025-04-30,1,Synthetic Customer,Credit,Synthetic Lime,600 mlCrate,120.5"),
         "{row}"
     );
     let (name, xls) = trial.export(Export::Workbook).unwrap();

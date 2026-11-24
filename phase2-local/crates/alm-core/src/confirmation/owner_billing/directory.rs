@@ -9,6 +9,22 @@ use super::{ConfirmationFixture, OwnerBillingError};
 pub struct DirectoryCustomer {
     pub id: &'static str,
     pub name: &'static str,
+    pub mobile: &'static str,
+    pub addr1: &'static str,
+    pub addr2: &'static str,
+}
+
+impl DirectoryCustomer {
+    /// The bill's customer address: `addr1` then `", " + addr2`, blank without `addr1`.
+    pub fn address(&self) -> String {
+        if self.addr1.is_empty() {
+            String::new()
+        } else if self.addr2.is_empty() {
+            self.addr1.to_owned()
+        } else {
+            format!("{}, {}", self.addr1, self.addr2)
+        }
+    }
 }
 
 /// A product offered on New Bill with its provisional (Manager-visible) GST-inclusive rate.
@@ -18,6 +34,19 @@ pub struct DirectoryProduct {
     pub name: &'static str,
     pub provisional_rate: Money,
     pub gst_basis_points: u32,
+    pub pack_size: &'static str,
+    pub uom: &'static str,
+    /// Pieces per packet (`packetQty`), at least 1.
+    pub packet_quantity: u32,
+    /// Per-piece MRP; `None` when the product has none.
+    pub mrp: Option<Money>,
+}
+
+impl DirectoryProduct {
+    /// The PACK column: `(packSize + " " + uom).trim()`.
+    pub fn pack(&self) -> String {
+        format!("{} {}", self.pack_size, self.uom).trim().to_owned()
+    }
 }
 
 /// Customers and products a bill may select; only entries the authority knows are offered.

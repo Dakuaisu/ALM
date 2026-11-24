@@ -1,5 +1,5 @@
-//! Rasterizes a core bill-image display list to PNG bytes with the bundled Noto Sans
-//! (OFL, `assets/fonts`). Only drawing happens here: positions, text and colours come from core.
+//! Rasterizes a core bill-image display list to PNG bytes with the bundled Noto Sans Regular
+//! and Bold (OFL, `assets/fonts/OFL.txt`). Only drawing happens here: positions, text and colours come from core.
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use alm_core::confirmation::bill_image::{BillImage, DrawOp, FontStyle, TextAlign};
 use tiny_skia::{
@@ -7,9 +7,16 @@ use tiny_skia::{
 };
 
 const FONT: &[u8] = include_bytes!("../assets/fonts/NotoSans-Regular.ttf");
+const BOLD: &[u8] = include_bytes!("../assets/fonts/NotoSans-Bold.ttf");
 
-fn font() -> Result<FontRef<'static>, String> {
-    FontRef::try_from_slice(FONT).map_err(|error| error.to_string())
+/// The face for a style: Noto Sans Bold for bold and semibold (the nearest bundled weight),
+/// Regular otherwise; italic is slanted from Regular.
+fn font(style: FontStyle) -> Result<FontRef<'static>, String> {
+    let bytes = match style {
+        FontStyle::Bold | FontStyle::SemiBold => BOLD,
+        FontStyle::Regular | FontStyle::Italic => FONT,
+    };
+    FontRef::try_from_slice(bytes).map_err(|error| error.to_string())
 }
 
 /// CSS `Npx` font size as an ab_glyph scale (em size, not line height).
@@ -18,9 +25,9 @@ fn scale(font: &FontRef<'_>, size_px: f32) -> PxScale {
     PxScale::from(size_px * font.height_unscaled() / em)
 }
 
-/// Text advance width in CSS pixels, as `measureText(text).width`; bold is drawn wider by 1 px.
+/// Text advance width in CSS pixels, as `measureText(text).width`, in the style's face.
 pub fn measure(text: &str, size: u32, style: FontStyle) -> f32 {
-    let Ok(font) = font() else { return 0.0 };
+    let Ok(font) = font(style) else { return 0.0 };
     #[allow(clippy::cast_precision_loss)]
     let scaled = font.as_scaled(scale(&font, size as f32));
     let mut width = 0.0;
@@ -32,9 +39,6 @@ pub fn measure(text: &str, size: u32, style: FontStyle) -> f32 {
         }
         width += scaled.h_advance(id);
         previous = Some(id);
-    }
-    if matches!(style, FontStyle::Bold) && !text.is_empty() {
-        width += 1.0;
     }
     width
 }
@@ -63,11 +67,11 @@ fn px(value: i32) -> f32 {
 )]
 fn draw_text(
     pixmap: &mut Pixmap,
-    font: &FontRef<'_>,
     factor: f32,
     op: (i32, i32, u32, FontStyle, TextAlign, u32, &str),
-) {
+) -> Result<(), String> {
     let (x, y, size, style, align, rgb, text) = op;
+    let font = &font(style)?;
     let width = measure(text, size, style);
     let left = match align {
         TextAlign::Left => px(x),
@@ -80,15 +84,10 @@ fn draw_text(
     } else {
         0.0
     };
-    let passes: &[f32] = match style {
-        FontStyle::Bold => &[0.0, 0.5, 1.0],
-        FontStyle::SemiBold => &[0.0, 0.5],
-        FontStyle::Regular | FontStyle::Italic => &[0.0],
-    };
     let [_, r, g, b] = rgb.to_be_bytes();
     let (w, h) = (pixmap.width(), pixmap.height());
-    for offset in passes {
-        let mut caret = left * factor + offset * factor;
+    {
+        let mut caret = left * factor;
         let baseline = px(y) * factor;
         let mut previous = None;
         for c in text.chars() {
@@ -128,6 +127,7 @@ fn draw_text(
             });
         }
     }
+    Ok(())
 }
 
 /// Draws every operation at the image's scale and encodes the result as PNG.
@@ -135,7 +135,6 @@ pub fn render_png(image: &BillImage) -> Result<Vec<u8>, String> {
     let (width, height) = image.pixels();
     let mut pixmap = Pixmap::new(width, height).ok_or("Image size out of range.")?;
     pixmap.fill(Color::WHITE);
-    let font = font()?;
     #[allow(clippy::cast_precision_loss)]
     let factor = image.scale as f32;
     let transform = Transform::from_scale(factor, factor);
@@ -200,10 +199,9 @@ pub fn render_png(image: &BillImage) -> Result<Vec<u8>, String> {
             } => {
                 draw_text(
                     &mut pixmap,
-                    &font,
                     factor,
                     (*x, *y, *size, *style, *align, *color, text),
-                );
+                )?;
             }
         }
     }

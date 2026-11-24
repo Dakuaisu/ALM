@@ -107,7 +107,8 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
         .unwrap();
     assert_eq!(png_name, "Bill-1.png");
     let decoded = tiny_skia::Pixmap::decode_png(&png).unwrap();
-    assert_eq!((decoded.width(), decoded.height()), (1520, 854));
+    // The customer-address line and the "You saved" box add 60 CSS px to 427 (×2).
+    assert_eq!((decoded.width(), decoded.height()), (1520, 974));
     assert!(
         estimate.contains("FSSAI: 12345678901234") && estimate.contains("GSTIN: 09ABCDE1234F1Z5")
     );
