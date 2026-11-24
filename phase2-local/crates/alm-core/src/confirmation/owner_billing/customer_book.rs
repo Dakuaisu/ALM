@@ -27,7 +27,7 @@ impl BalanceSide {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CustomerFilter {
     All,
-    /// Only customers who are debtors under the Counter rule.
+    /// The Customers screen's "Only Due" (`custQ === "__due"`): raw balance > 0, no rounding.
     Due,
     /// Case-insensitive name match.
     Name(String),
@@ -117,7 +117,7 @@ impl BillingDirectory {
             }
             let keep = match filter {
                 CustomerFilter::All => true,
-                CustomerFilter::Due => is_debtor(balance),
+                CustomerFilter::Due => balance.minor_units() > 0,
                 CustomerFilter::Name(_) => customer.name.to_lowercase().contains(&needle),
             };
             if keep {

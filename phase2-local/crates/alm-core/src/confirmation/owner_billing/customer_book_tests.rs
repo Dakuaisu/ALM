@@ -102,3 +102,26 @@ fn balance_side_keeps_the_exact_paise() {
         Err(ConfirmationError::Overflow)
     );
 }
+
+#[test]
+fn only_due_uses_the_raw_balance_while_the_debtor_count_keeps_the_counter_rule() {
+    let mut authority = fixture().unwrap();
+    let directory = directory();
+    authority
+        .save_customer_opening(
+            Role::Owner,
+            &DraftCustomerId::new("batch1-market".into()),
+            OpeningBalance {
+                amount: Some(Money::from_minor_units(40)),
+                date: None,
+            },
+        )
+        .unwrap();
+    let due = directory
+        .customer_book(&authority, Role::Owner, &CustomerFilter::Due)
+        .unwrap();
+    let ids: Vec<_> = due.rows.iter().map(|row| row.customer.id).collect();
+    assert_eq!(ids, ["batch1-market"]);
+    assert_eq!(due.debtors, 0);
+    assert!(due.top_debtors(6).is_empty());
+}
