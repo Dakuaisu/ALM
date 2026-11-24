@@ -302,6 +302,11 @@ impl Pair {
         snapshot(&self.local, Role::Owner)
     }
 
+    /// The Owner book rows as SQL has them.
+    pub fn sql_book(&self) -> OwnerBook {
+        snapshot(&self.pg, Role::Owner).owner.unwrap().book
+    }
+
     /// Fails with every difference seen.
     pub fn finish(self) {
         assert!(

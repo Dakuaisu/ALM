@@ -672,3 +672,39 @@ fn gst_bills() {
     );
     p.finish();
 }
+
+/// Legacy import: both synthetic files, the same file again under a new request, a file that
+/// changed one record (quarantined, no duplicate); the manifests, records and quarantine are
+/// identical, and so is the reconciliation report computed from each authority's rows.
+#[test]
+fn legacy_import() {
+    use alm_core::legacy::{LegacyBackup, MigrateClock, live_numbers, reconcile};
+    let Some(mut p) = Pair::new("legacy") else {
+        return;
+    };
+    let clock = MigrateClock {
+        now_ms: 1_767_900_000_000,
+        today: "2026-01-08",
+    };
+    let a = LegacyBackup::parse(conformance::LEGACY_A, clock).unwrap();
+    let b = LegacyBackup::parse(conformance::LEGACY_B, clock).unwrap();
+    let edited = String::from_utf8(conformance::LEGACY_A.to_vec())
+        .unwrap()
+        .replace("\"amount\": 91,", "\"amount\": 92,");
+    let edited = LegacyBackup::parse(edited.as_bytes(), clock).unwrap();
+    let import = |backup: &LegacyBackup| {
+        Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(backup)))
+    };
+    assert_eq!(created(p.owner("import a", &import(&a))), 1);
+    assert_eq!(created(p.owner("import a again", &import(&a))), 1);
+    assert_eq!(created(p.owner("import edited a", &import(&edited))), 2);
+    assert_eq!(created(p.owner("import b", &import(&b))), 3);
+    let core = p.core().owner.unwrap().book;
+    let sql = p.sql_book();
+    for (backup, id) in [(&a, 1), (&edited, 2), (&b, 3)] {
+        let from_core = reconcile(backup, &core.legacy, id, live_numbers(&core)).unwrap();
+        let from_sql = reconcile(backup, &sql.legacy, id, live_numbers(&sql)).unwrap();
+        assert_eq!(from_core, from_sql, "manifest {id}");
+    }
+    p.finish();
+}

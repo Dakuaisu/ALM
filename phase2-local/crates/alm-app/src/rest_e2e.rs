@@ -493,6 +493,40 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     assert!(log.iter().all(|row| row.account == subject), "{log:?}");
     assert_ne!(subject, "trial");
 
+    // A legacy backup import through REST: manifest, quarantine, no duplicates on a second
+    // import, and the reconciliation from the REST book rows equals the dry run.
+    let clock = alm_core::legacy::MigrateClock {
+        now_ms: 1_767_900_000_000,
+        today: "2026-01-08",
+    };
+    let legacy = alm_core::legacy::LegacyBackup::parse(
+        include_bytes!("../../alm-core/tests/legacy/rehearsal-a.json"),
+        clock,
+    )
+    .unwrap();
+    let book = |trial: &mut Trial| trial.projected().unwrap().snapshot.owner.unwrap().book;
+    let before = book(&mut trial);
+    let dry = alm_core::legacy::dry_run(
+        &legacy,
+        &before.legacy,
+        alm_core::legacy::live_numbers(&before),
+    );
+    let import = alm_sync::Intent::ImportLegacy(Box::new(alm_core::legacy::import::plan(&legacy)));
+    assert_eq!(trial.send(&import), Ok(Outcome::Created(1)));
+    let after = book(&mut trial);
+    let report = alm_core::legacy::reconcile(
+        &legacy,
+        &after.legacy,
+        1,
+        alm_core::legacy::live_numbers(&after),
+    )
+    .unwrap();
+    assert_eq!(report, dry);
+    assert_eq!(report.quarantined.len(), 4);
+    assert_eq!(trial.send(&import), Ok(Outcome::Created(1)));
+    assert_eq!(book(&mut trial).legacy, after.legacy, "no duplicates");
+    assert_eq!(after.sales, before.sales, "the import posts nothing");
+
     // The Manager: denied, and its projection file holds no cost field or value.
     trial.set_owner(false).unwrap();
     assert!(
@@ -518,7 +552,8 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     let text = String::from_utf8_lossy(&bytes).to_lowercase();
     assert!(text.contains("synthetic lime"));
     for word in [
-        "cost", "margin", "fifo", "profit", "owner_", "buy", "6900", "7150",
+        "cost", "margin", "fifo", "profit", "owner_", "buy", "6900", "7150", "legacy", "buyrate",
+        "avgcost",
     ] {
         assert!(!text.contains(word), "{word} in the Manager projection");
     }
