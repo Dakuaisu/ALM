@@ -11,6 +11,7 @@ Use this checklist for one combined owner request when needed. The numbered entr
 - [ ] **Migration, accounting, and cutover — OPEN-002, OPEN-003, OPEN-007:** Authorize migration rehearsal with protected copies separately. Obtain owner and accounting sign-off on reconciliation and invoice continuity, agree the write pause and rollback authority, and obtain a distinct production cutover authorization before switching. Approval to rehearse is not approval to switch.
 - [ ] **Repeated-product crate valuation — [OPEN-010](#open-010-repeated-product-crate-valuation-l10-01):** After verified OPEN-008 containment and frozen-runtime evidence, decide the L10-01 release costing and report-rounding rule with the accounting reviewer. Neither candidate is approved.
 - [ ] **Unattributed working-tree files — [OPEN-011](#open-011-unattributed-working-tree-files):** Decide for each listed file whether to commit, ignore or delete it. None is used as evidence.
+- [ ] **App screen departures — [OPEN-013](#open-013-app-screen-departures-from-the-html):** Approve, reject or schedule a fix for each listed departure in the ported screens.
 
 ## OPEN-001 Deployed baseline and dependencies
 - Status: OWNER-BLOCKED
@@ -24,6 +25,68 @@ Continue the [static record crosswalk](PHASE1_DISCOVERY.md#per-record-source-cro
 ## OPEN-004 Permission and draft conflict decisions
 - Status: OWNER-BLOCKED
 The owner must approve the role and data matrix, provisioned device rules, and who may resolve stale price, tax, stock, or credit terms. The proposals remain unapproved under DEC-015; unapproved operations remain denied.
+
+Screen-access questions from the app ports (recorded at `66dfcfe`; not decided). The core currently denies the Manager on each:
+
+- Counter: the HTML shows it to everyone, with no amounts.
+- Customers balances and ledger.
+- Cash Book.
+- Dashboard.
+- Reorder: the HTML shows it to everyone, costs included.
+- Stock quantities without values.
+- The manual Godown list.
+- Sales and Receive Payment: unchanged, still Owner-only.
+
+Added at `bc657e5` (batch 2 and Reports ports):
+
+- GST Sales.
+- Products: the HTML shows buy rates and margins to everyone.
+- Supplier names without their rates.
+- Order Planner.
+- Purchase Orders and receiving goods.
+- Crates.
+- Rate List, which shows sell rates only.
+- Reports.
+
+Added at `e23a8aa` (Settings, backup, bill image ports):
+
+- Settings, including this device's appearance.
+- Backup & Restore.
+- Sharing the bill image.
+- The estimate and purchase-order print views.
+
+Added at `9411965` (device data layer):
+
+- What a Manager's device projection may hold (currently only the product list).
+- Who may check or retry a confirmation whose outcome is unknown.
+- Whether that check or retry may happen after an account switch.
+
+Added at `f777be0`:
+
+- Manager drafts start with a 0 loading charge because Settings (and its loading default) is Owner-only in core. Should the Manager receive the loading default?
+
+Added at `d69804a` (unknown outcomes, revocation, REST); implemented conservatively, not decided:
+
+- On downgrade or revocation, must Manager drafts, the account's device GST tables, shop settings and full backups also be purged? (Kept now.)
+- May a downgraded Owner's queued or unknown confirmations be dropped (purged now) or handed to another Owner device?
+- Who may resolve an unknown confirmation after the device switches authority?
+- May a Manager look up the status of its own requests? (Owner only now.)
+- May a Manager see the authority's per-screen rows beyond the product catalog?
+
+Added at `2a6ff3e` (Owner book rows, crate sales, activity log); implemented conservatively, not decided:
+
+- Who may read the activity log (Owner only now), and should entries name the account by its login identity?
+- May a Manager sell crates? (Denied.)
+- May a Manager see customer mobile and address? (Manager rows hold none.)
+- May a Manager change the default reorder level? (Denied.)
+
+Added at `dce16b0` (request identity, crate bills, legacy import rehearsal); implemented conservatively, not decided:
+
+- May a Manager add a crate row on New Bill? (Denied, as crate sales.)
+- Who may run a legacy import and see its manifest and quarantine? (Owner only; the rows include buy rates and costs.)
+- Should the server parse the raw legacy file itself instead of trusting the device's mapped plan? (SQL checks only the plan's shape.)
+- Who resolves quarantined legacy records, and on what evidence? (Ties to OPEN-003.)
+- Should a device ID be bound to a provisioned device rather than drawn by the install?
 ## OPEN-005 Targets and output handoff
 - Status: OWNER-BLOCKED
 The owner must confirm Windows and macOS laptop and Android tablet models and OS versions, and approve WhatsApp test accounts or recipients. Local image, print, PDF and simulated share are development only; they do not establish actual handoff or platform acceptance (DEC-014).
@@ -81,3 +144,52 @@ Owner note: the HTML's HSN handling is known to be flimsy. The owner chose not t
 - Plain soda (18%) and packaged water (5%) share HSN `22011010`.
 - The product-level `hsn`, `gstRate` and `cess` overrides are found by exact item name (`prodByItem`), not product ID, so renaming a product can lose its override.
 - On standalone GST bills, the line HSN is free text with no format check (4, 6 or 8 digits), and the invoice falls back to the keyword guess when it is blank.
+
+## OPEN-013 App screen departures from the HTML
+- Status: OWNER-BLOCKED
+
+Recorded at `66dfcfe` from the batch 1 and partial batch 2 screen ports in `phase2-local/crates/alm-app`. None is approved; each needs a written owner decision to keep, or a fix to match the HTML. Every unported sub-action is listed per screen in the commits and in [RESULTS.md](RESULTS.md#review-fixes-batch-1-book-screens-batch-1-integrated-check-and-partial-batch-2).
+
+- Modals (customer ledger, Cash Book entry, stock lots) are shown inline on the page.
+- Dates show as ISO (2026-11-23), not the HTML's display format.
+- The Cash Book difference updates when you press Check, not as you type.
+- Customers "Only Due" uses the Counter's rule (balance due after rounding to whole rupees), not the HTML's raw balance > 0.
+- Negative opening balances (advances) can't be entered, because the parser takes only non-negative amounts.
+- Reorder Copy List shows the text in a box to copy by hand instead of writing to the clipboard.
+- Dashboard deltas, charts, percentages and top products/customers are not ported.
+
+Added at `bc657e5`:
+
+- Editing a posted bill adds a line; the core can't change an existing line's quantity.
+- On Products, a typed sell rate wins over the HTML's live "buy keeps margin" recalculation.
+- Reports shows Misc and Salary as separate columns instead of a summed "Other Expenses".
+- Autocompletes are replaced by native pickers or a "Fill from items" button.
+- Rate List print/PDF and opening WhatsApp are not ported; the message text is shown instead.
+- Purchase Orders "Close remaining" is covered by a Rust test only; it was not pressed in the macOS smoke.
+
+Status at `e23a8aa`: closed (now match the HTML): posted bill edit in place, Reports "Other Expenses" column, Products "buy keeps margin", display dates, modals, live Cash Book difference, autocompletes, Reorder/Rate List/godown clipboard, Rate List print/PDF and WhatsApp. Still open or added:
+
+- The bill image follows the HTML's canvas layout; the full-invoice HTML-to-PNG path isn't ported.
+- Pack, MRP savings and customer contact are blank on the bill image; bold/italic are imitated from the one bundled font.
+- Restore opens the backup read-only; it doesn't replace today's in-memory billing.
+- Settings has only GSTIN, FSSAI, the show-on-bill switches and the reorder default.
+- On the Android tablet, New Bill item suggestions open under the keyboard until it is dismissed.
+- Carried over: "Only Due" rule, negative opening balances, Dashboard charts and deltas, GST customer autocomplete, "Close remaining" never pressed in a smoke.
+
+Status at `f777be0`: closed since `e23a8aa`: Only Due rule, negative opening balances, full Settings, bill image pack/MRP/contact with real bold font, Dashboard charts and deltas, GST customer autocomplete, Android keyboard suggestions, "Close remaining" pressed on Android, default loading charge on New Bill. Added:
+
+- Deleting a product that appears on a posted bill is refused; the HTML deletes it anyway.
+- The server SQL rules are simplified and checked only by the conformance suite, not against the core's fixtures.
+
+Status at `d69804a`: SQL now matches the core in a differential suite (16 differences fixed); crate sales are not yet an authority command and not compared. Still open: Owner screens outside the projected ones read the simulation's internal state, so with the REST switch they are empty and posting through REST from the app isn't possible yet; Customers list without mobile/address; crate picker lists directory products only; stock count form sits in the lots modal; hosted sync, activity log and Clear All are inert.
+
+Status at `2a6ff3e`: closed: Owner screens read server rows (REST works end to end), crate sales through the authority, customer mobile/address, crate picker, stock Adjust dialog, reorder default through the authority, activity log. Still open:
+
+- Crate sales are made from a Sell form on Crates, not as a crate row on New Bill.
+- With a crate bill, Sales shows the "unsupported" notice, and crate bills can't be edited, cancelled or imaged.
+- Activity times show in UTC (`dd-Mon-yyyy hh:mm`); the HTML uses device-local en-IN time.
+- The HTML's restore, clear and sync log entries are not recorded.
+- Manager New Bill drafting still reads the simulation's catalog, also with REST.
+- Bill image canvas layout and slanted italic; Latest-balance-only archive regeneration; product delete refused on posted bills; Clear All and hosted sync / Google Sheets / folder cards inert.
+- Status at `dce16b0`: closed: crate bills listed, viewed, edited, cancelled and restored in Sales; crate row on New Bill; activity times in local en-IN; restore log entry; Manager New Bill from its pulled catalog. Still open, added: a Manager's customer picker still comes from the device directory (Manager rows hold no customers); a legacy file must be placed in the app's `legacy-import` folder (no file picker).
+- (Found at `fe5db4e`) A crate bill can hold only its crate. The HTML's New Bill mixes crate rows and ordinary lines on one bill (`draft.items` rendered as `crateRow` or `lineRow`, HTML L3640).
