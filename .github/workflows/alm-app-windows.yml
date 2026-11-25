@@ -43,9 +43,9 @@ jobs:
         env:
           ALM_SKIP_PERF: "1"
         run: |
-          cargo test --locked --workspace --exclude alm-store
+          cargo test --locked --no-fail-fast --workspace --exclude alm-store
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Invoke-Expression "cargo test --locked -p alm-store --lib ${{ steps.targets.outputs.store }}"
+          Invoke-Expression "cargo test --locked --no-fail-fast -p alm-store --lib ${{ steps.targets.outputs.store }}"
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tauri CLI

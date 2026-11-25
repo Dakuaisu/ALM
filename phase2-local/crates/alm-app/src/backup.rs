@@ -97,7 +97,7 @@ impl Trial {
         let live = self.device_root.join("shop.json");
         let staged = self.device_root.join("shop.json.restoring");
         fs::copy(&path, &staged)
-            .and_then(|_| fs::File::open(&staged)?.sync_all())
+            .and_then(|_| OpenOptions::new().write(true).open(&staged)?.sync_all())
             .map_err(|e| e.to_string())?;
         fs::rename(&staged, &live).map_err(|e| e.to_string())?;
         self.shop = Store::open(&live, role).map_err(debug)?;

@@ -40,10 +40,9 @@ impl Preferences {
         self.state.set(preference, |key, value| {
             let stage = directory.join(format!("{key}.stage"));
             if let Ok(mut file) = OpenOptions::new().write(true).create_new(true).open(&stage) {
-                let saved = file
-                    .write_all(value)
-                    .and_then(|()| file.sync_all())
-                    .and_then(|()| fs::rename(&stage, directory.join(key)));
+                let written = file.write_all(value).and_then(|()| file.sync_all());
+                drop(file);
+                let saved = written.and_then(|()| fs::rename(&stage, directory.join(key)));
                 if saved.is_err() {
                     let _ = fs::remove_file(stage);
                 }

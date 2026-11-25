@@ -154,10 +154,9 @@ fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         .write(true)
         .create_new(true)
         .open(&staging)?;
-    let result = file
-        .write_all(bytes)
-        .and_then(|()| file.sync_all())
-        .and_then(|()| fs::rename(&staging, path));
+    let written = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    let result = written.and_then(|()| fs::rename(&staging, path));
     if result.is_err() {
         let _ = fs::remove_file(staging);
     }
