@@ -107,7 +107,8 @@ fn authority() -> Option<PgAuthority> {
     let mut client = Client::connect(&url, NoTls).expect("connect to test database");
     client
         .batch_execute(
-            "BEGIN; SELECT set_config('request.jwt.claims', '{\"app_metadata\": {\"role\": \"owner\"}}', true)",
+            "BEGIN; SELECT set_config('request.jwt.claims', '{\"app_metadata\": {\"role\": \"owner\"}}', true),
+                 set_config('alm.allow_claim_roles', 'on', true)",
         )
         .expect("begin as the owner");
     client

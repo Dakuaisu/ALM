@@ -229,6 +229,7 @@ impl PgAuthority {
         client
             .execute(
                 "SELECT set_config('request.jwt.claims', $1, true),
+                     set_config('alm.allow_claim_roles', 'on', true),
                      set_config('request.headers', '{\"x-alm-device\": \"diff-device\"}', true)",
                 &[&claims],
             )

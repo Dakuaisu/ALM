@@ -3,7 +3,8 @@
 //! `ALM_JWT_OWNER` / `ALM_JWT_MANAGER` (tokens for the same account, Owner and Manager role) on
 //! a freshly seeded database (`alm-sync` test `reset_and_seed_for_the_app` with `ALM_RESET_ONLY`);
 //! without them the test returns early. A local proxy drops one `post_sale` response to give a
-//! lost response.
+//! lost response. Such tokens name no GoTrue user: their role claim counts only on a database
+//! with `alm.allow_claim_roles` on (the plain-Postgres test bootstrap sets it).
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};

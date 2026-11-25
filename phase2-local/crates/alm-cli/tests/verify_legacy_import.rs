@@ -114,10 +114,12 @@ fn a_tampered_plan_is_caught_in_postgres() {
     let mut client = postgres::Client::connect(&url, postgres::NoTls).unwrap();
     client
         .batch_execute(
-            "TRUNCATE public.legacy_records, public.legacy_manifests, public.legacy_sources;
+            "TRUNCATE public.legacy_resolutions, public.legacy_records, public.legacy_manifests,
+                 public.legacy_sources;
              DELETE FROM public.command_requests WHERE request_id LIKE 'cli-verify-%';
              SELECT set_config('request.jwt.claims',
-                 '{\"app_metadata\": {\"role\": \"owner\"}}', false);",
+                 '{\"app_metadata\": {\"role\": \"owner\"}}', false);
+             SELECT set_config('alm.allow_claim_roles', 'on', false);",
         )
         .unwrap();
     for (tag, plan) in [("a", plan_file(A).unwrap().1), ("b", tampered_b())] {

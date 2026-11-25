@@ -3,7 +3,9 @@
 //! `ALM_PG_URL` (to reset and seed the database before each case) and either `ALM_JWT_OWNER`
 //! and `ALM_JWT_MANAGER` or `ALM_JWT_SECRET` (the tests then mint both tokens themselves);
 //! `ALM_REST_APIKEY` is sent as the `apikey` header when set. Without them every test returns
-//! early. The cases share one database, so they run one at a time.
+//! early. The cases share one database, so they run one at a time. The minted tokens name no
+//! GoTrue user, so their role claim counts only on a database with `alm.allow_claim_roles` on
+//! (`supabase/tests/plain_postgres/bootstrap.sql` sets it; migration 20261128060000).
 #![forbid(unsafe_code)]
 
 mod conformance;

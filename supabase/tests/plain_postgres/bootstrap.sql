@@ -18,3 +18,7 @@ grant usage on schema public to anon, authenticated, service_role;
 create schema extensions;
 create extension pgtap with schema extensions;
 alter database postgres set search_path = "$user", public, extensions;
+-- The tests' development tokens (minted with the server's secret, no GoTrue user) carry their
+-- role as a claim; migration 20261128060000 reads such a claim only with this setting on.
+-- Test databases only: no migration sets it, so a hosted project refuses claim-only tokens.
+alter database postgres set alm.allow_claim_roles = on;
