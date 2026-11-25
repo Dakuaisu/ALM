@@ -171,6 +171,7 @@ fn review_screen_amounts_equal_the_core_projection() {
     let priced = alm_core::confirmation::owner_billing::priced_draft(&fixture, Role::Owner, &draft)
         .expect("priced");
     let html = views::review_screen(&views::ReviewView {
+        signed_in: None,
         role_is_owner: true,
         draft: Some(&draft),
         priced: Ok(priced.clone()),
@@ -181,6 +182,7 @@ fn review_screen_amounts_equal_the_core_projection() {
     assert_eq!(priced.total.minor_units(), 48_650);
     assert!(html.contains("<b>Owner total ₹486.50</b>"), "{html}");
     let denied = views::review_screen(&views::ReviewView {
+        signed_in: None,
         role_is_owner: false,
         draft: Some(&draft),
         priced: alm_core::confirmation::owner_billing::priced_draft(

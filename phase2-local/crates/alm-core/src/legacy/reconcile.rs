@@ -202,8 +202,18 @@ pub fn live_numbers(book: &crate::projection::book::OwnerBook) -> (u64, u64) {
 /// A dry run: the report as it would be if `plan` were imported into `imports` now; nothing
 /// is changed.
 pub fn dry_run(backup: &LegacyBackup, imports: &LegacyImports, live: (u64, u64)) -> Reconciliation {
+    dry_run_plan(backup, &super::import::plan(backup), imports, live)
+}
+
+/// [`dry_run`] for the plan that will be sent (with each record's place in the file).
+pub fn dry_run_plan(
+    backup: &LegacyBackup,
+    plan: &super::import::ImportPlan,
+    imports: &LegacyImports,
+    live: (u64, u64),
+) -> Reconciliation {
     let mut scratch = imports.clone();
-    let id = super::import::apply(&mut scratch, &super::import::plan(backup));
+    let id = super::import::apply(&mut scratch, plan);
     reconcile(backup, &scratch, id, live).unwrap_or_else(|| Reconciliation {
         digest: backup.digest.clone(),
         version: super::import::MAPPING_VERSION.into(),

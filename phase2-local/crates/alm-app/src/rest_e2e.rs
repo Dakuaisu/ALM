@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use alm_core::{BillDate, DraftId, Money, Role};
-use alm_store::OutboxStatus;
+use alm_store::{OutboxStatus, ProjectionStore};
 use alm_sync::{Outcome, RestAuthority};
 
 use crate::Trial;
@@ -408,9 +408,11 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     // A second device of the same account pulls the same rows.
     let device_b = Root::new("rest-e2e-b");
     let mut other = Trial::open(&device_b.0, Some(day())).unwrap();
-    other
-        .settings_rest(&crate::dev_authority::RestForm::new(&url, "", &owner))
-        .unwrap();
+    let device_b_id = other.device_id.clone();
+    use_rest(
+        &mut other,
+        rest(&url, &owner, &manager).with_device(&device_b_id),
+    );
     let b = other.projected().unwrap().snapshot;
     assert_eq!(a, b, "identical projections on both devices");
     for screen in [
@@ -560,4 +562,99 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     ] {
         assert!(!text.contains(word), "{word} in the Manager projection");
     }
+}
+
+/// Real accounts on the device (opt-in): `ALM_REST_URL`, `ALM_GOTRUE_URL` and two GoTrue users
+/// on a freshly seeded database, `ALM_OWNER_EMAIL` and `ALM_MANAGER_EMAIL` (role in
+/// `app_metadata`), with the password in `ALM_TEST_PASSWORD`. The sign-in screen replaces the
+/// synthetic role switch; the role comes from the token; signing out removes the account's
+/// posted data from the device; after a restart the person signs in again.
+#[test]
+fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
+    use crate::dev_authority::{LoginForm, RestForm};
+    let (Some(url), Some(auth), Some(owner), Some(manager), Some(password)) = (
+        env("ALM_REST_URL"),
+        env("ALM_GOTRUE_URL"),
+        env("ALM_OWNER_EMAIL"),
+        env("ALM_MANAGER_EMAIL"),
+        env("ALM_TEST_PASSWORD"),
+    ) else {
+        return;
+    };
+    let device = Root::new("rest-login");
+    let mut trial = Trial::open(&device.0, Some(day())).unwrap();
+    trial
+        .settings_rest(&RestForm::new(&url, &auth, ""))
+        .unwrap();
+    assert!(trial.signed_out());
+    let page = trial.render("review").unwrap();
+    assert!(page.contains(r#"data-action="rest_login""#) && !page.contains("review_role"));
+    assert!(
+        trial
+            .rest_login(&LoginForm::new(&manager, "wrong"))
+            .unwrap_err()
+            .starts_with("Sign-in refused")
+    );
+
+    // The Manager: Manager projection only, no Owner screens or commands, no role switch.
+    trial
+        .rest_login(&LoginForm::new(&manager, &password))
+        .unwrap();
+    assert_eq!(trial.role(), Role::Manager);
+    let review = trial.render("review").unwrap();
+    assert!(
+        review.contains("Signed in as") && !review.contains("review_role"),
+        "{review}"
+    );
+    assert!(trial.projected().unwrap().snapshot.owner.is_none());
+    assert!(trial.render("sales").unwrap().contains("role=\"alert\""));
+    let manager_account = trial.account.clone();
+    trial.rest_logout().unwrap();
+    assert!(trial.signed_out());
+
+    // The Owner, on the same device: its own account tables; a sale through Owner review.
+    trial
+        .rest_login(&LoginForm::new(&owner, &password))
+        .unwrap();
+    assert_eq!(trial.role(), Role::Owner);
+    assert_ne!(trial.account, manager_account);
+    let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
+    trial.drafts.save_draft(draft.clone()).unwrap();
+    trial.current = Some((draft, true));
+    trial
+        .sale_prepare(&crate::billing::Terms {
+            date: "2025-04-30".into(),
+            paid: "20".into(),
+        })
+        .unwrap();
+    let serial = trial.posting.pending(Role::Owner).unwrap().serial();
+    let invoice = trial.sale_confirm(serial).unwrap();
+    let owner_account = trial.account.clone();
+    assert!(
+        ProjectionStore::open_scoped(&device.0, &owner_account, Role::Owner)
+            .unwrap()
+            .load()
+            .unwrap()
+            .is_some()
+    );
+    trial.rest_logout().unwrap();
+    assert!(
+        ProjectionStore::open_scoped(&device.0, &owner_account, Role::Owner)
+            .unwrap()
+            .load()
+            .unwrap()
+            .is_none(),
+        "signing out removes the account's posted data from the device"
+    );
+
+    // Tokens are in memory only: after a restart the Owner signs in again and finds the bill.
+    drop(trial);
+    let mut trial = Trial::open(&device.0, Some(day())).unwrap();
+    assert!(trial.signed_out());
+    trial
+        .rest_login(&LoginForm::new(&owner, &password))
+        .unwrap();
+    let sales = trial.projected().unwrap().snapshot.sales;
+    assert!(sales.iter().any(|s| s.invoice == invoice));
+    trial.rest_logout().unwrap();
 }

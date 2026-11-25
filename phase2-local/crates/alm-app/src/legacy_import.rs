@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use alm_core::legacy::import::{EntryStatus, ImportManifest, ImportPlan, plan_file};
 use alm_core::legacy::resolve::{Decision, QuarantineDecision, map_corrected_text, source_record};
 use alm_core::legacy::{
-    LegacyBackup, LegacyError, Reconciliation, dry_run, live_numbers, reconcile,
+    LegacyBackup, LegacyError, Reconciliation, dry_run_plan, live_numbers, reconcile,
 };
 use alm_sync::{Intent, Outcome};
 use tauri::State;
@@ -86,7 +86,7 @@ impl Trial {
             }
         })?;
         let book = self.owner_book()?;
-        let report = dry_run(&backup, &book.legacy, live_numbers(&book));
+        let report = dry_run_plan(&backup, &plan, &book.legacy, live_numbers(&book));
         self.legacy = Some(Review {
             name: name.to_owned(),
             plan,

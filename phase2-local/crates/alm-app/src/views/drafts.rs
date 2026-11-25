@@ -21,6 +21,8 @@ pub fn customer(draft: &ProvisionalDraft) -> &str {
 
 pub struct ReviewView<'a> {
     pub role_is_owner: bool,
+    /// The signed-in account (REST authority); `None` in the built-in simulation.
+    pub signed_in: Option<&'a str>,
     pub draft: Option<&'a ProvisionalDraft>,
     pub priced: Result<PricedDraft, ConfirmationError>,
 }
@@ -31,9 +33,21 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
     } else {
         ("btn", "btn primary")
     };
-    let mut html = format!(
-        "<div class=\"card\"><h3>Owner review</h3><div class=\"row\" style=\"gap:6px;margin:8px 0\"><span class=\"help\">Synthetic role (not a login):</span><button class=\"{owner}\" data-action=\"review_role\" data-owner=\"true\">Owner</button><button class=\"{manager}\" data-action=\"review_role\" data-owner=\"false\">Manager</button></div>"
-    );
+    let mut html = match view.signed_in {
+        // The role comes from the account's token: no switch, only signing out.
+        Some(email) => format!(
+            "<div class=\"card\"><h3>Owner review</h3><div class=\"row\" style=\"gap:6px;margin:8px 0\"><span class=\"help\">Signed in as <b>{}</b> ({}).</span><button class=\"btn\" data-action=\"rest_logout\">Sign out / switch account</button></div>",
+            esc(email),
+            if view.role_is_owner {
+                "Owner"
+            } else {
+                "Manager"
+            }
+        ),
+        None => format!(
+            "<div class=\"card\"><h3>Owner review</h3><div class=\"row\" style=\"gap:6px;margin:8px 0\"><span class=\"help\">Development simulation only: synthetic role (not a login):</span><button class=\"{owner}\" data-action=\"review_role\" data-owner=\"true\">Owner</button><button class=\"{manager}\" data-action=\"review_role\" data-owner=\"false\">Manager</button></div>"
+        ),
+    };
     let Some(draft) = view.draft else {
         return html + "<div class=\"help\">Open or save a Manager draft first.</div></div>";
     };

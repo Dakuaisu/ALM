@@ -67,9 +67,13 @@ pub(crate) struct Trial {
     pub(crate) reviewed: Option<SaleIntent>,
     pub(crate) current: Option<(ProvisionalDraft, bool)>,
     pub(crate) owner: bool,
-    /// Development only: a REST authority the Owner pointed this device at in Settings; the
-    /// local simulation otherwise.
+    /// Development only: the REST authority this device sends to while a person is signed in
+    /// to it; the local simulation otherwise.
     pub(crate) rest: Option<alm_sync::RestAuthority>,
+    /// The REST authority (and its sign-in service) the Owner chose in Settings, if any.
+    pub(crate) rest_config: Option<crate::dev_authority::RestConfig>,
+    /// The signed-in person's session (memory only: sign in again after each launch).
+    pub(crate) session: Option<alm_sync::GoTrueSession>,
     /// The authority revoked this account: every command is blocked.
     pub(crate) revoked: bool,
     pub(crate) message: String,
@@ -172,7 +176,9 @@ impl Trial {
             current: None,
             owner: true,
             revoked: false,
-            rest: crate::dev_authority::load(device_root),
+            rest: None,
+            rest_config: crate::dev_authority::read(device_root),
+            session: None,
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),

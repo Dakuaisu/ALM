@@ -1,22 +1,37 @@
 //! DEVELOPMENT ONLY: an Owner may point this device at a REST authority (a local PostgREST over
-//! the migrated schema) instead of the built-in simulation. The URL, public key and token are
-//! kept in this device's data folder only; never put real credentials in the repository.
+//! the migrated schema, with its GoTrue auth service) instead of the built-in simulation. The
+//! REST and auth URLs and the public key are kept in this device's data folder; each person
+//! then signs in with their own email and password and the role comes only from their token.
+//! Tokens are kept in memory only (sign in again after each launch): secure credential storage
+//! is not done yet. Never put real credentials in the repository.
 use std::path::Path;
 
 use alm_core::Role;
-use alm_sync::{RestAuthority, SalesAuthority};
+use alm_sync::{AuthError, GoTrueSession, RestAuthority, SalesAuthority};
 use tauri::State;
 
 use crate::gst_print::esc;
 use crate::{AppState, Trial, text, with};
 
-/// Three lines: URL, public key, token.
-const FILE: &str = "dev-authority.txt";
+/// Three lines: REST URL, auth URL, public key. No token is ever written.
+const FILE: &str = "rest-authority.txt";
 
-fn read(device_root: &Path) -> Option<[String; 3]> {
+/// The REST authority this device signs in to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RestConfig {
+    pub(crate) url: String,
+    pub(crate) auth: String,
+    pub(crate) apikey: String,
+}
+
+pub(crate) fn read(device_root: &Path) -> Option<RestConfig> {
     let text = std::fs::read_to_string(device_root.join(FILE)).ok()?;
     let mut lines = text.lines().map(str::to_owned);
-    Some([lines.next()?, lines.next()?, lines.next()?])
+    Some(RestConfig {
+        url: lines.next()?,
+        auth: lines.next()?,
+        apikey: lines.next().unwrap_or_default(),
+    })
 }
 
 /// This device install's identity: in its request IDs and the authority's activity log. Made
@@ -54,30 +69,45 @@ fn random_u64() -> u64 {
     first ^ hasher.finish().rotate_left(29)
 }
 
-/// The REST authority saved on this device, if any. The device presents its one token whatever
-/// role it acts as; the authority decides from the token.
-pub(crate) fn load(device_root: &Path) -> Option<RestAuthority> {
-    let [url, apikey, token] = read(device_root)?;
-    let device = device_id(device_root).ok()?;
-    Some(
-        RestAuthority::new(&url, &apikey)
-            .with_token(Role::Owner, &token)
-            .with_token(Role::Manager, &token)
-            .with_device(&device),
+/// The Settings card (Owner only).
+pub(crate) fn card(device_root: &Path, signed_in: Option<(&str, Role)>) -> String {
+    let config = read(device_root);
+    let status = match (&config, signed_in) {
+        (None, _) => "Using the built-in authority simulation.".to_owned(),
+        (Some(c), Some((email, role))) => format!(
+            "Using the REST authority at <b>{}</b>, signed in as <b>{}</b> ({}).",
+            esc(&c.url),
+            esc(email),
+            role_name(role)
+        ),
+        (Some(c), None) => format!("Using the REST authority at <b>{}</b>.", esc(&c.url)),
+    };
+    let (url, auth) = config.map(|c| (c.url, c.auth)).unwrap_or_default();
+    format!(
+        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🧪 Development authority (REST)</div><p class="help">Development only, this device only: send commands and pulls to a PostgREST URL instead of the built-in simulation; each person then signs in with their own account and their role comes from the authority. Never enter real credentials. {status}</p><form data-action="settings_rest" data-payload="terms"><div class="f2"><div><label>REST URL <input class="inp" name="url" placeholder="http://127.0.0.1:3000" value="{}"></label></div><div><label>Sign-in (auth) URL <input class="inp" name="auth" placeholder="http://127.0.0.1:9999" value="{}"></label></div></div><div class="field"><label>API key <input class="inp" name="apikey" placeholder="public (anon) key"></label></div><div class="row"><button class="btn primary" type="submit">Use this REST authority</button><button class="btn" type="button" data-action="settings_rest_off">Use the built-in simulation</button></div></form></div>"#,
+        esc(&url),
+        esc(&auth)
     )
 }
 
-/// The Settings card (Owner only).
-pub(crate) fn card(device_root: &Path) -> String {
-    let url = read(device_root).map(|[url, _, _]| url).unwrap_or_default();
-    let status = if url.is_empty() {
-        "Using the built-in authority simulation.".to_owned()
-    } else {
-        format!("Using the REST authority at <b>{}</b>.", esc(&url))
-    };
+const fn role_name(role: Role) -> &'static str {
+    match role {
+        Role::Owner => "Owner",
+        Role::Manager => "Manager",
+    }
+}
+
+/// The sign-in screen shown for every tab while this device uses a REST authority and nobody
+/// is signed in. The role is never chosen here: it comes from the account's token.
+pub(crate) fn login_screen(config: &RestConfig, message: &str) -> String {
     format!(
-        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🧪 Development authority (REST)</div><p class="help">Development only, this device only: send commands and pulls to a PostgREST URL instead of the built-in simulation. Never enter real credentials. {status}</p><form data-action="settings_rest" data-payload="terms"><div class="f2"><div><label>REST URL <input class="inp" name="url" placeholder="http://127.0.0.1:3000" value="{}"></label></div><div><label>API key <input class="inp" name="apikey" placeholder="public (anon) key"></label></div></div><div class="field"><label>Token (JWT) <input class="inp" name="token" type="password" autocomplete="off"></label></div><div class="row"><button class="btn primary" type="submit">Use this REST authority</button><button class="btn" type="button" data-action="settings_rest_off">Use the built-in simulation</button></div></form></div>"#,
-        esc(&url)
+        r#"<div class="card" style="max-width:420px;margin:24px auto"><div class="sectit">Sign in</div><p class="help">REST authority <b>{}</b> (development). Sign in with your own account; what you may do comes from the role the Owner gave it. You sign in again after each launch.</p>{}<form data-action="rest_login" data-payload="terms"><div class="field"><label>Email <input class="inp" name="email" type="email" autocomplete="username" required></label></div><div class="field"><label>Password <input class="inp" name="password" type="password" autocomplete="current-password" required></label></div><div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn" type="button" data-action="settings_rest_off_signed_out">Use the built-in simulation</button></div></form></div>"#,
+        esc(&config.url),
+        if message.is_empty() {
+            String::new()
+        } else {
+            format!(r#"<div class="help" role="status">{}</div>"#, esc(message))
+        }
     )
 }
 
@@ -100,21 +130,39 @@ pub(crate) fn allocate_gst(
 pub struct RestForm {
     url: String,
     #[serde(default)]
-    apikey: String,
+    auth: String,
     #[serde(default)]
-    token: String,
+    apikey: String,
 }
 
 #[cfg(test)]
 impl RestForm {
-    pub(crate) fn new(url: &str, apikey: &str, token: &str) -> Self {
+    pub(crate) fn new(url: &str, auth: &str, apikey: &str) -> Self {
         Self {
             url: url.into(),
+            auth: auth.into(),
             apikey: apikey.into(),
-            token: token.into(),
         }
     }
 }
+
+#[derive(serde::Deserialize)]
+pub struct LoginForm {
+    email: String,
+    password: String,
+}
+
+#[cfg(test)]
+impl LoginForm {
+    pub(crate) fn new(email: &str, password: &str) -> Self {
+        Self {
+            email: email.into(),
+            password: password.into(),
+        }
+    }
+}
+
+const SESSION_ENDED: &str = "Your session ended: sign in again.";
 
 impl Trial {
     /// The authority commands and pulls go to.
@@ -127,10 +175,47 @@ impl Trial {
 
     /// Where commands go, for confirmation messages.
     pub(crate) const fn authority_name(&self) -> &'static str {
-        if self.rest.is_some() {
+        if self.rest.is_some() || self.rest_config.is_some() {
             "by the REST authority (development)"
         } else {
             "in the local simulation"
+        }
+    }
+
+    /// This device uses a REST authority and nobody is signed in: only the sign-in screen.
+    pub(crate) const fn signed_out(&self) -> bool {
+        self.rest_config.is_some() && self.session.is_none()
+    }
+
+    /// The signed-in account's email and role, if a person signed in.
+    pub(crate) fn signed_in(&self) -> Option<(&str, Role)> {
+        self.session.as_ref().map(|s| (s.email(), self.role()))
+    }
+
+    /// Before talking to the REST authority: refuses while signed out, and presents a fresh
+    /// token (refreshed near expiry). A refresh the auth service refuses ends the session.
+    pub(crate) fn session_token(&mut self) -> Result<(), String> {
+        if self.signed_out() {
+            return Err("Sign in first.".into());
+        }
+        let Some(session) = self.session.as_mut() else {
+            return Ok(());
+        };
+        match session.access_token() {
+            Ok(token) => {
+                let token = token.to_owned();
+                let role = self.role();
+                if let Some(rest) = self.rest.as_mut() {
+                    rest.set_token(role, &token);
+                }
+                Ok(())
+            }
+            // Offline: the request will find no answer either.
+            Err(AuthError::Unavailable) => Ok(()),
+            Err(AuthError::Refused(_) | AuthError::Invalid) => {
+                self.end_session(SESSION_ENDED)?;
+                Err(SESSION_ENDED.into())
+            }
         }
     }
 
@@ -146,29 +231,115 @@ impl Trial {
     pub(crate) fn settings_rest(&mut self, form: &RestForm) -> Result<(), String> {
         self.require_owner()?;
         let url = form.url.trim();
-        if !(url.starts_with("http://") || url.starts_with("https://")) || form.token.is_empty() {
-            return Err("Enter an http(s) REST URL and a token.".into());
+        let auth = form.auth.trim();
+        let http = |u: &str| u.starts_with("http://") || u.starts_with("https://");
+        if !http(url) || !http(auth) {
+            return Err("Enter the http(s) REST URL and sign-in URL.".into());
         }
-        let fields = [url, form.apikey.trim(), form.token.trim()];
+        let fields = [url, auth, form.apikey.trim()];
         if fields.iter().any(|f| f.contains(['\n', '\r'])) {
             return Err("Enter each value on one line.".into());
         }
         std::fs::write(self.device_root.join(FILE), fields.join("\n") + "\n").map_err(text)?;
-        let rest = load(&self.device_root);
-        self.use_authority(
-            rest,
-            "This device now uses the REST authority (development).",
-        )
+        self.end_session("This device now uses the REST authority (development): sign in.")?;
+        self.rest_config = read(&self.device_root);
+        self.rest = None;
+        self.projection.clear().map_err(text)?;
+        self.posted = crate::device::Posted::empty()?;
+        Ok(())
     }
 
     pub(crate) fn settings_rest_off(&mut self) -> Result<(), String> {
-        self.require_owner()?;
+        if !self.signed_out() {
+            self.require_owner()?;
+        }
         match std::fs::remove_file(self.device_root.join(FILE)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(text(error)),
         }
+        self.end_session("")?;
+        self.rest_config = None;
+        if self.account != crate::trial::ACCOUNT {
+            self.switch_account(crate::trial::ACCOUNT)?;
+        }
+        self.owner = true;
         self.use_authority(None, "This device uses the built-in authority simulation.")
+    }
+
+    /// Signs a person in: their token's role decides what this device may do, and their
+    /// account's own device tables open (another account's stay closed).
+    pub(crate) fn rest_login(&mut self, form: &LoginForm) -> Result<(), String> {
+        let config = self
+            .rest_config
+            .clone()
+            .ok_or("This device uses the built-in simulation.")?;
+        let mut session = GoTrueSession::sign_in(
+            &config.auth,
+            &config.apikey,
+            form.email.trim(),
+            &form.password,
+        )
+        .map_err(|error| match error {
+            AuthError::Refused(reason) => format!("Sign-in refused: {reason}."),
+            AuthError::Unavailable => "No answer from the sign-in service.".to_owned(),
+            AuthError::Invalid => "The sign-in service sent no session.".to_owned(),
+        })?;
+        let Some(role) = session.role() else {
+            let _ = session.sign_out();
+            return Err("This account has no role at the authority: ask the Owner.".into());
+        };
+        let token = session
+            .access_token()
+            .map_err(|_| SESSION_ENDED)?
+            .to_owned();
+        let device = device_id(&self.device_root)?;
+        let account = session.user_id().to_owned();
+        self.rest = Some(
+            RestAuthority::new(&config.url, &config.apikey)
+                .with_token(role, &token)
+                .with_device(&device),
+        );
+        self.owner = role == Role::Owner;
+        self.session = Some(session);
+        self.switch_account(&account)?;
+        self.message = format!(
+            "Signed in as {} ({}).",
+            self.session.as_ref().map_or("", |s| s.email()),
+            role_name(role)
+        );
+        Ok(())
+    }
+
+    /// Signs out (the auth service ends the session) and removes the account's posted data
+    /// from this device, as a revocation does; its drafts and queued actions stay in its own
+    /// tables for its next sign-in.
+    pub(crate) fn rest_logout(&mut self) -> Result<(), String> {
+        self.end_session("Signed out. Sign in to continue.")
+    }
+
+    fn end_session(&mut self, message: &str) -> Result<(), String> {
+        if let Some(session) = self.session.take() {
+            let _ = session.sign_out();
+            for role in [Role::Owner, Role::Manager] {
+                alm_store::ProjectionStore::remove_scoped(&self.device_root, &self.account, role)
+                    .map_err(text)?;
+            }
+            self.projection = alm_store::ProjectionStore::open_scoped(
+                &self.device_root,
+                &self.account,
+                self.role(),
+            )
+            .map_err(text)?;
+            self.posted = crate::device::Posted::empty()?;
+            self.current = None;
+            self.reviewed = None;
+            self.posting.invalidate();
+            self.legacy = None;
+        }
+        self.rest = None;
+        message.clone_into(&mut self.message);
+        Ok(())
     }
 }
 
@@ -180,4 +351,19 @@ pub fn settings_rest(state: State<'_, AppState>, terms: RestForm) -> Result<Stri
 #[tauri::command(async)]
 pub fn settings_rest_off(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "settings", Trial::settings_rest_off)
+}
+
+#[tauri::command(async)]
+pub fn settings_rest_off_signed_out(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "review", Trial::settings_rest_off)
+}
+
+#[tauri::command(async)]
+pub fn rest_login(state: State<'_, AppState>, terms: LoginForm) -> Result<String, String> {
+    with(&state, "review", |trial| trial.rest_login(&terms))
+}
+
+#[tauri::command(async)]
+pub fn rest_logout(state: State<'_, AppState>) -> Result<String, String> {
+    with(&state, "review", Trial::rest_logout)
 }

@@ -8,6 +8,9 @@ impl Trial {
     pub(crate) fn render(&mut self, tab: &str) -> Result<String, String> {
         self.refresh()?;
         let tab = if tab == "draft" { "bill" } else { tab };
+        if let (true, Some(config)) = (self.signed_out(), self.rest_config.as_ref()) {
+            return Ok(crate::dev_authority::login_screen(config, &self.message));
+        }
         let body = match tab {
             _ if self.revoked => format!(
                 r#"<div class="card" role="alert"><b>{}</b><div class="help">Nothing of this account is kept on the device. Choose another account:</div></div>{}"#,
@@ -126,7 +129,7 @@ impl Trial {
                     });
                     views::backup_section(&self.backups(), restored.as_ref().map(|(n, s)| (*n, s)))
                         + &views::legacy_card(&self.legacy_files(), legacy)
-                        + &crate::dev_authority::card(&self.device_root)
+                        + &crate::dev_authority::card(&self.device_root, self.signed_in())
                 } else {
                     String::new()
                 };
@@ -174,8 +177,10 @@ impl Trial {
                     Some(draft) => owner_billing::priced_draft(&self.posted, role, draft),
                     None => Err(alm_core::confirmation::ConfirmationError::DraftNotFound),
                 };
+                let signed_in = self.session.as_ref().map(|s| s.email().to_owned());
                 let mut html = views::review_screen(&views::ReviewView {
                     role_is_owner: self.owner,
+                    signed_in: signed_in.as_deref(),
                     draft,
                     priced,
                 });

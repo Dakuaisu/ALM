@@ -19,7 +19,8 @@ pub mod verify;
 pub use controls::{ControlLine, ControlSection, controls};
 pub use digest::sha256_hex;
 pub use reconcile::{
-    LineStatus, ReconciledLine, ReconciledSection, Reconciliation, dry_run, live_numbers, reconcile,
+    LineStatus, ReconciledLine, ReconciledSection, Reconciliation, dry_run, dry_run_plan,
+    live_numbers, reconcile,
 };
 pub use records::{
     LegacyCashDay, LegacyComponent, LegacyCrate, LegacyCustomer, LegacyGodown, LegacyLine,

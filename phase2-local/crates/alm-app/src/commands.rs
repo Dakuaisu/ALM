@@ -93,6 +93,11 @@ pub fn start(
 #[tauri::command(async)]
 pub fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, String> {
     with(&state, "review", |trial| {
+        if trial.session.is_some() {
+            return Err(
+                "The role comes from your account: sign in as another account to change it.".into(),
+            );
+        }
         if trial.owner != owner {
             trial.posting.invalidate();
         }

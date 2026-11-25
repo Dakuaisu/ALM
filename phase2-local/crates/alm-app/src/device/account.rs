@@ -35,7 +35,8 @@ impl Trial {
         self.sales_filter = crate::views::Filter::default();
         self.restored = None;
         self.print_view = None;
-        self.message = format!("Switched to synthetic account {account}.");
+        self.legacy = None;
+        self.message = format!("Switched to account {account}.");
         self.reconnect()?;
         self.migrate_gst_tables()
     }
@@ -92,13 +93,22 @@ pub fn outbox_retry(state: State<'_, AppState>, q: String) -> Result<String, Str
 pub fn account_switch(state: State<'_, AppState>, q: String) -> Result<String, String> {
     // Allowed after a revocation too: it is how the device leaves the revoked account.
     let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    if trial.rest_config.is_some() {
+        return Err("Sign out to switch accounts.".into());
+    }
     trial.switch_account(&q)?;
     trial.render("review")
 }
 
 impl Trial {
     pub(crate) fn account_pills(&self) -> String {
-        let mut html = r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Synthetic account (development, not a login):</span>"#.to_owned();
+        if let Some(session) = &self.session {
+            return format!(
+                r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Signed in as <b>{}</b></span><button class="pill" data-action="rest_logout">Sign out / switch account</button></div>"#,
+                crate::gst_print::esc(session.email())
+            );
+        }
+        let mut html = r#"<div class="row no-print" style="gap:6px;margin:8px 0"><span class="help">Development simulation only: synthetic account (not a login):</span>"#.to_owned();
         for account in crate::trial::ACCOUNTS {
             let on = if *account == self.account {
                 "pill on"

@@ -346,7 +346,7 @@ fn a_revocation_seen_on_pull_purges_the_account_and_blocks_every_command() {
 fn the_owner_can_point_this_device_at_a_rest_authority_and_back() {
     let root = Root::new("device-rest");
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
-    let form = |url: &str| crate::dev_authority::RestForm::new(url, "", "dev-token");
+    let form = |url: &str| crate::dev_authority::RestForm::new(url, "http://127.0.0.1:9", "");
     trial.set_owner(false).unwrap();
     assert!(
         trial.settings_rest(&form("http://127.0.0.1:9")).is_err(),
@@ -354,24 +354,48 @@ fn the_owner_can_point_this_device_at_a_rest_authority_and_back() {
     );
     trial.set_owner(true).unwrap();
     assert!(trial.settings_rest(&form("ftp://x")).is_err());
-    // Nothing listens on the discard port: the device is offline, never falls back to the
-    // simulation, and a command's outcome is unknown.
+    assert!(
+        trial
+            .settings_rest(&crate::dev_authority::RestForm::new(
+                "http://127.0.0.1:9",
+                "",
+                ""
+            ))
+            .is_err(),
+        "a sign-in URL is needed"
+    );
+    // Nothing listens on the discard port. The device never falls back to the simulation:
+    // every screen is the sign-in screen, nothing is sent, and sign-in finds no service.
     saved_draft(&mut trial, 1);
     let serial = review(&mut trial);
     trial.settings_rest(&form("http://127.0.0.1:9")).unwrap();
-    assert!(root.0.join("dev-authority.txt").exists());
-    let page = trial.render("settings").unwrap();
-    assert!(page.contains("Using the REST authority at <b>http://127.0.0.1:9</b>"));
-    assert!(trial.render("sales").unwrap().contains("not received yet"));
-    let error = trial.sale_confirm(serial).unwrap_err();
-    assert!(error.contains("outcome is unknown"), "{error}");
+    let saved = std::fs::read_to_string(root.0.join("rest-authority.txt")).unwrap();
+    assert_eq!(
+        saved, "http://127.0.0.1:9\nhttp://127.0.0.1:9\n\n",
+        "no token is kept"
+    );
+    for tab in ["sales", "settings", "review"] {
+        let page = trial.render(tab).unwrap();
+        assert!(
+            page.contains(r#"data-action="rest_login""#) && !page.contains("review_role"),
+            "{page}"
+        );
+    }
+    assert_eq!(trial.sale_confirm(serial).unwrap_err(), "Sign in first.");
     assert_eq!(trial.authority.posted_count(), 0);
-    // A restart keeps the device-local choice.
+    assert_eq!(
+        trial
+            .rest_login(&crate::dev_authority::LoginForm::new("x@example.test", "x"))
+            .unwrap_err(),
+        "No answer from the sign-in service."
+    );
+    // A restart keeps the device-local choice and asks for a sign-in again.
     drop(trial);
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
-    assert!(trial.rest.is_some());
+    assert!(trial.signed_out());
+    assert!(trial.render("bill").unwrap().contains("Sign in"));
     trial.settings_rest_off().unwrap();
-    assert!(trial.rest.is_none() && !root.0.join("dev-authority.txt").exists());
+    assert!(trial.rest.is_none() && !root.0.join("rest-authority.txt").exists());
     assert!(
         trial
             .render("settings")

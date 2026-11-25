@@ -144,6 +144,7 @@ impl Trial {
         intent: &Intent,
     ) -> Result<Outcome, String> {
         let id = RequestId::new(request).map_err(debug)?;
+        self.session_token()?;
         let (device, account) = (self.device_id.clone(), self.account.clone());
         self.authority.set_caller(&device, &account);
         match self.sales_authority().submit(role, &id, intent) {
@@ -214,6 +215,14 @@ impl Trial {
     /// Pulls from the stored checkpoint and applies it; opens the projection of the current
     /// role first if the role changed.
     pub(crate) fn refresh(&mut self) -> Result<(), String> {
+        // Signed out of the REST authority: nothing to pull until someone signs in.
+        if self.signed_out() {
+            return Ok(());
+        }
+        if let Err(error) = self.session_token() {
+            self.message = error;
+            return Ok(());
+        }
         let role = self.role();
         if self.projection.role() != role {
             self.projection = ProjectionStore::open_scoped(&self.device_root, &self.account, role)
@@ -239,6 +248,10 @@ impl Trial {
             },
             // Offline: keep showing the stored projection with its "as of" time.
             Err(AuthorityError::Unavailable) => {}
+            // The session expired at the authority: sign in again (not a revocation).
+            Err(AuthorityError::SignedOut) => {
+                return self.rest_logout();
+            }
             Err(error) => return Err(refused(&error)),
         }
         self.rebuild_posted()
