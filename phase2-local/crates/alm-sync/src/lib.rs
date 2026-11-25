@@ -3,6 +3,7 @@
 //! `LocalAuthority` is a development simulation over the synthetic fixture, not a server.
 #![forbid(unsafe_code)]
 
+mod auth;
 mod intent;
 #[cfg(feature = "local-authority")]
 mod local;
@@ -33,6 +34,7 @@ pub fn stock_count_code(reason: StockCountReason) -> &'static str {
 pub fn stock_count_reason(code: &str) -> Option<StockCountReason> {
     alm_core::projection::book::reason_from_code(code)
 }
+pub use auth::{AuthError, GoTrueSession, token_claims, token_role};
 #[cfg(feature = "local-authority")]
 pub use local::{LegacyStore, LocalAuthority, LocalAuthorityError};
 pub use rest::RestAuthority;
@@ -95,6 +97,9 @@ pub enum AuthorityError {
     /// No response: the command may or may not have committed. Resolve by status lookup
     /// or an explicit retry with the same request ID.
     Unavailable,
+    /// The account's session token was missing, expired or not accepted (HTTP 401 without a
+    /// command's code): nothing was committed; sign in again. Not a revocation.
+    SignedOut,
 }
 
 impl AuthorityError {

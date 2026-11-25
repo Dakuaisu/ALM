@@ -195,3 +195,13 @@ fn hmac_matches_rfc_4231_case_2() {
     );
     assert_eq!(base64url(b"any carnal pleas"), "YW55IGNhcm5hbCBwbGVhcw");
 }
+
+/// A token with exactly `claims` (e.g. a `service_role` token for an auth admin call, or an
+/// expired one), signed with `secret`.
+pub fn mint_claims(secret: &str, claims: &serde_json::Value) -> String {
+    let header = base64url(br#"{"alg":"HS256","typ":"JWT"}"#);
+    let payload = base64url(claims.to_string().as_bytes());
+    let signed = format!("{header}.{payload}");
+    let signature = base64url(&hmac_sha256(secret.as_bytes(), signed.as_bytes()));
+    format!("{signed}.{signature}")
+}

@@ -46,6 +46,12 @@ impl RestAuthority {
         self
     }
 
+    /// Replaces the JWT presented as `role` (a refreshed session token).
+    pub fn set_token(&mut self, role: Role, jwt: &str) {
+        self.tokens.retain(|(r, _)| *r != role);
+        self.tokens.push((role, jwt.to_owned()));
+    }
+
     /// Names this device in every request (`x-alm-device`).
     #[must_use]
     pub fn with_device(mut self, device: &str) -> Self {
@@ -98,6 +104,9 @@ fn refusal(status: u16, value: &Value) -> AuthorityError {
         Some(code) if code.starts_with("ALM") || code == "42501" => {
             wire::refusal(code, value["message"].as_str().unwrap_or_default())
         }
+        // PostgREST's JWT errors: PGRST301 invalid, PGRST302 none sent, PGRST303 expired or a
+        // claim not valid.
+        Some("PGRST301" | "PGRST302" | "PGRST303") => AuthorityError::SignedOut,
         _ => match status {
             401 | 403 => AuthorityError::Denied,
             400 | 404 | 409 | 422 => AuthorityError::Invalid,

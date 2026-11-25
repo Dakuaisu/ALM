@@ -22,6 +22,9 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
         AuthorityError::Unavailable => {
             "No answer from the authority: the outcome is unknown. Check status, or retry with the same request.".into()
         }
+        AuthorityError::SignedOut => {
+            "Your session ended: sign in again. Nothing was sent.".into()
+        }
     }
 }
 
