@@ -1,8 +1,9 @@
 # Windows leg of the Tauri trial: runs the Rust tests and clippy, then builds the NSIS installer
 # with the Tauri CLI and keeps it as the run's artifact. Launching the app on a real PC remains a
 # manual check. The alm-store test `milestone_d_replay` compares the bill output with the frozen
-# HTML (ALM_Business_Manager.html), which is not in the repository, so it runs only on a
-# machine that holds that file (docs/RESULTS.md lists it as not run here).
+# HTML (ALM_Business_Manager.html, read when the test runs), which is not in the repository, so
+# it is built and linted here but runs only on a machine that holds that file. The scale tests'
+# 5x timing checks compare with the development Mac's debug times, so they are skipped here.
 name: alm-app windows build
 
 on:
@@ -39,15 +40,14 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Tests
+        env:
+          ALM_SKIP_PERF: "1"
         run: |
           cargo test --locked --workspace --exclude alm-store
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           Invoke-Expression "cargo test --locked -p alm-store --lib ${{ steps.targets.outputs.store }}"
       - name: Clippy
-        run: |
-          cargo clippy --locked --workspace --exclude alm-store --all-targets -- -D warnings
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Invoke-Expression "cargo clippy --locked -p alm-store --lib ${{ steps.targets.outputs.store }} -- -D warnings"
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tauri CLI
         run: cargo install tauri-cli --version 2.12.6 --locked
       - name: Build the installer

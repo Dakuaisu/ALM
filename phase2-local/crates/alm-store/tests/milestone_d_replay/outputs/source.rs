@@ -1,4 +1,20 @@
-const FROZEN_SOURCE: &str = include_str!("/Users/apple/ALM/ALM_Business_Manager.html");
+/// The frozen HTML, read when the test runs: `ALM_FROZEN_HTML`, else `ALM_Business_Manager.html`
+/// at the repository root. It is not in the repository, so the test fails without it.
+fn frozen_source() -> String {
+    let path = std::env::var_os("ALM_FROZEN_HTML").map_or_else(
+        || {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../ALM_Business_Manager.html")
+        },
+        std::path::PathBuf::from,
+    );
+    std::fs::read_to_string(&path).unwrap_or_else(|error| {
+        panic!(
+            "the frozen HTML {} is needed for this comparison: {error}",
+            path.display()
+        )
+    })
+}
 
 fn in_order(value: &str, fragments: &[&str]) {
     let mut remaining = value;
@@ -11,7 +27,8 @@ fn in_order(value: &str, fragments: &[&str]) {
 }
 
 pub(super) fn compare(html: &str, svg: &str) {
-    let number_format = FROZEN_SOURCE
+    let frozen = frozen_source();
+    let number_format = frozen
         .split_once("const fmtN = n =>")
         .unwrap()
         .1
@@ -20,7 +37,7 @@ pub(super) fn compare(html: &str, svg: &str) {
         .0;
     assert!(number_format.contains("toLocaleString(\"en-IN\""));
     assert!(number_format.contains("maximumFractionDigits: 2"));
-    let invoice = FROZEN_SOURCE
+    let invoice = frozen
         .split_once("function invoiceHTML(s, simple, live)")
         .unwrap()
         .1
@@ -82,7 +99,7 @@ pub(super) fn compare(html: &str, svg: &str) {
             "<g id=\"footer\">",
         ],
     );
-    let print = FROZEN_SOURCE
+    let print = frozen
         .split_once("function printInvoice(s)")
         .unwrap()
         .1
@@ -97,7 +114,7 @@ pub(super) fn compare(html: &str, svg: &str) {
             "window.onload=function(){window.print();}",
         ],
     );
-    let pdf = FROZEN_SOURCE
+    let pdf = frozen
         .split_once("function pdfInvoice(s)")
         .unwrap()
         .1
@@ -108,7 +125,7 @@ pub(super) fn compare(html: &str, svg: &str) {
         pdf,
         &["\"_pdf\"", "${invoiceHTML(s)}", "window.print();},350)"],
     );
-    let handoff = FROZEN_SOURCE
+    let handoff = frozen
         .split_once("function waInvoice(s)")
         .unwrap()
         .1

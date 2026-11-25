@@ -380,6 +380,7 @@ fn the_owner_can_point_this_device_at_a_rest_authority_and_back() {
             page.contains(r#"data-action="rest_login""#) && !page.contains("review_role"),
             "{page}"
         );
+        assert!(page.contains(r#"<template id="screen-nav""#), "{page}");
     }
     assert_eq!(trial.sale_confirm(serial).unwrap_err(), "Sign in first.");
     assert_eq!(trial.authority.posted_count(), 0);

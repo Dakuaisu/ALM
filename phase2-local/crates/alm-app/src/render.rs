@@ -9,7 +9,9 @@ impl Trial {
         self.refresh()?;
         let tab = if tab == "draft" { "bill" } else { tab };
         if let (true, Some(config)) = (self.signed_out(), self.rest_config.as_ref()) {
-            return Ok(crate::dev_authority::login_screen(config, &self.message));
+            return Ok(
+                views::tabs(tab) + &crate::dev_authority::login_screen(config, &self.message)
+            );
         }
         let body = match tab {
             _ if self.revoked => format!(
