@@ -54,6 +54,11 @@ pub fn verify(source: &[u8], manifest: &ImportManifest, imports: &LegacyImports)
         Ok((_, plan)) => plan,
         Err(error) => return vec![file(format!("the stored file does not parse: {error:?}"))],
     };
+    let by_id: std::collections::BTreeMap<&str, &super::import::ImportedRecord> = imports
+        .records
+        .iter()
+        .map(|r| (r.authority_id.as_str(), r))
+        .collect();
     let mut findings = Vec::new();
     if plan.version != manifest.version {
         findings.push(file(format!(
@@ -126,8 +131,8 @@ pub fn verify(source: &[u8], manifest: &ImportManifest, imports: &LegacyImports)
             (Expected::Record(body), EntryStatus::Imported | EntryStatus::Already) => {
                 let stored = entry
                     .authority_id
-                    .as_ref()
-                    .and_then(|id| imports.records.iter().find(|r| &r.authority_id == id));
+                    .as_deref()
+                    .and_then(|id| by_id.get(id).copied());
                 match stored {
                     None => add("the manifest names no stored record".into()),
                     Some(record) if &&record.body != body => add(format!(
@@ -141,13 +146,7 @@ pub fn verify(source: &[u8], manifest: &ImportManifest, imports: &LegacyImports)
                 let differs = entry
                     .reason
                     .strip_prefix("differs from the imported record ")
-                    .map(|id| {
-                        imports
-                            .records
-                            .iter()
-                            .find(|r| r.authority_id == id)
-                            .is_none_or(|r| &&r.body != body)
-                    });
+                    .map(|id| by_id.get(id).is_none_or(|r| &&r.body != body));
                 let unresolved = entry.reason.starts_with("unresolved reference ");
                 if differs != Some(true) && !unresolved {
                     add(format!(

@@ -1,7 +1,7 @@
 //! Applies one intent to a copy of the simulated state.
 use alm_core::confirmation::manual_cashbook::{CashBookDeletion, ManualCashBookDraft};
 use alm_core::confirmation::owner_billing::{
-    BillingDirectory, CrateSaleTerms, OwnerPosting, ReceiptTerms, SaleTerms, priced_draft,
+    BillingDirectory, CrateSaleTerms, ReceiptTerms, SaleTerms, post_saved_sale, priced_draft,
     save_receipt_at, sell_crate,
 };
 use alm_core::confirmation::{LineEdit, ReceiptMode};
@@ -44,24 +44,18 @@ pub(super) fn apply(
             if current != sale.prices {
                 return Err(AuthorityError::StaleReview);
             }
-            let mut posting = OwnerPosting::default();
-            posting
-                .prepare(
-                    fixture,
-                    directory,
-                    role,
-                    Some(&sale.draft),
-                    SaleTerms {
-                        date: &sale.date.to_string(),
-                        paid: &sale.paid.to_rupee_text(),
-                    },
-                )
-                .map_err(rejected)?;
-            let serial = posting
-                .pending(role)
-                .map(|p| p.serial())
-                .ok_or(AuthorityError::Invalid)?;
-            let receipt = posting.confirm(fixture, role, serial).map_err(rejected)?;
+            // Atomic in the core: refused, it leaves no effect (see `commit`'s in-place path).
+            let receipt = post_saved_sale(
+                fixture,
+                directory,
+                role,
+                &sale.draft,
+                SaleTerms {
+                    date: &sale.date.to_string(),
+                    paid: &sale.paid.to_rupee_text(),
+                },
+            )
+            .map_err(rejected)?;
             Ok(Outcome::Sale(SaleReceipt {
                 draft: id.value(),
                 invoice: receipt.invoice,

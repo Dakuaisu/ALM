@@ -41,6 +41,8 @@ mod rest_e2e;
 #[cfg(test)]
 mod restart_tests;
 #[cfg(test)]
+mod scale_tests;
+#[cfg(test)]
 mod screen_tests;
 mod settings;
 #[cfg(test)]

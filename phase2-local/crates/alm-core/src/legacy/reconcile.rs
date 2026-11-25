@@ -61,12 +61,13 @@ impl Reconciliation {
     }
 }
 
-fn value<'a>(section: Option<&'a ControlSection>, key: &str) -> Option<&'a str> {
-    section?
-        .lines
-        .iter()
-        .find(|l| l.key == key)
-        .map(|l| l.value.as_str())
+/// A section's values by key (the first line with a key wins, as a scan would find it).
+fn values(section: Option<&ControlSection>) -> std::collections::HashMap<&str, &str> {
+    let mut map = std::collections::HashMap::new();
+    for line in section.into_iter().flat_map(|s| &s.lines) {
+        map.entry(line.key.as_str()).or_insert(line.value.as_str());
+    }
+    map
 }
 
 /// The report for manifest `id`; `live` is the authority's live next invoice and next GST
@@ -84,21 +85,26 @@ pub fn reconcile(
     let mut sections = Vec::new();
     for (index, section) in legacy.iter().enumerate() {
         let theirs = authority.get(index);
-        let cleaned = cleaned.get(index);
+        let (ours, authority_values, cleaned) = (
+            values(Some(section)),
+            values(theirs),
+            values(cleaned.get(index)),
+        );
         let mut keys: Vec<&str> = section.lines.iter().map(|l| l.key.as_str()).collect();
+        let mut seen: std::collections::HashSet<&str> = keys.iter().copied().collect();
         for line in theirs.into_iter().flat_map(|s| &s.lines) {
-            if !keys.contains(&line.key.as_str()) {
+            if seen.insert(line.key.as_str()) {
                 keys.push(&line.key);
             }
         }
         let lines = keys
             .into_iter()
             .map(|key| {
-                let l = value(Some(section), key);
-                let a = value(theirs, key);
+                let l = ours.get(key).copied();
+                let a = authority_values.get(key).copied();
                 let status = if l == a {
                     LineStatus::Match
-                } else if value(cleaned, key) == a {
+                } else if cleaned.get(key).copied() == a {
                     LineStatus::Explained
                 } else {
                     LineStatus::Unexplained(

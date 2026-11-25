@@ -5,7 +5,7 @@
 //! dropped or merged. [`apply`] is the authority's rule: same file again changes nothing; a
 //! legacy record already imported with the same body maps to its authority record; with another
 //! body, or with a reference that resolves to no imported record, it is quarantined.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -702,6 +702,16 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
         return m.id;
     }
     let id = imports.manifests.iter().map(|m| m.id).max().unwrap_or(0) + 1;
+    // Records by (kind, legacy ID) and the count per kind, kept as records are added: one
+    // lookup per record instead of a scan of every record held.
+    let mut placed: BTreeMap<(String, String), usize> = BTreeMap::new();
+    let mut per_kind: BTreeMap<String, usize> = BTreeMap::new();
+    for (index, r) in imports.records.iter().enumerate() {
+        placed
+            .entry((r.kind.clone(), r.legacy_id.clone()))
+            .or_insert(index);
+        *per_kind.entry(r.kind.clone()).or_default() += 1;
+    }
     let mut entries: Vec<ManifestEntry> = plan
         .quarantine
         .iter()
@@ -723,11 +733,8 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
             reason,
             source: record.source.clone(),
         };
-        if let Some(existing) = imports
-            .records
-            .iter()
-            .find(|r| r.kind == record.kind && r.legacy_id == record.legacy_id)
-        {
+        let key = (record.kind.clone(), record.legacy_id.clone());
+        if let Some(existing) = placed.get(&key).map(|&i| &imports.records[i]) {
             entries.push(if existing.body == record.body {
                 entry(
                     Some(existing.authority_id.clone()),
@@ -743,12 +750,11 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
             });
             continue;
         }
-        if let Some((kind, legacy)) = record.refs.iter().find(|(kind, legacy)| {
-            !imports
-                .records
-                .iter()
-                .any(|r| &r.kind == kind && &r.legacy_id == legacy)
-        }) {
+        if let Some((kind, legacy)) = record
+            .refs
+            .iter()
+            .find(|(kind, legacy)| !placed.contains_key(&(kind.clone(), legacy.clone())))
+        {
             entries.push(entry(
                 None,
                 EntryStatus::Quarantined,
@@ -756,13 +762,10 @@ pub fn apply(imports: &mut LegacyImports, plan: &ImportPlan) -> u64 {
             ));
             continue;
         }
-        let n = imports
-            .records
-            .iter()
-            .filter(|r| r.kind == record.kind)
-            .count()
-            + 1;
-        let authority_id = format!("{}-{n}", record.kind);
+        let count = per_kind.entry(record.kind.clone()).or_default();
+        *count += 1;
+        let authority_id = format!("{}-{count}", record.kind);
+        placed.insert(key, imports.records.len());
         imports.records.push(ImportedRecord {
             authority_id: authority_id.clone(),
             kind: record.kind.clone(),
@@ -799,12 +802,13 @@ pub fn rebuilt(imports: &LegacyImports, id: u64) -> Option<LegacyBackup> {
             },
         );
     }
+    let by_id: BTreeMap<&str, &ImportedRecord> = imports
+        .records
+        .iter()
+        .map(|r| (r.authority_id.as_str(), r))
+        .collect();
     for entry in &manifest.entries {
-        let Some(record) = entry
-            .authority_id
-            .as_ref()
-            .and_then(|a| imports.records.iter().find(|r| &r.authority_id == a))
-        else {
+        let Some(&record) = entry.authority_id.as_deref().and_then(|a| by_id.get(a)) else {
             continue;
         };
         let Some(&(_, collection, fields)) = KINDS.iter().find(|(k, ..)| *k == record.kind) else {

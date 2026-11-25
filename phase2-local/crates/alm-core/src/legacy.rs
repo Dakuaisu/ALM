@@ -25,7 +25,7 @@ pub use reconcile::{
 pub use records::{
     LegacyCashDay, LegacyComponent, LegacyCrate, LegacyCustomer, LegacyGodown, LegacyLine,
     LegacyLotSource, LegacyPayment, LegacyProduct, LegacySale, LegacyStockEntry, LegacyStockLog,
-    LegacySupplier,
+    LegacySupplier, ProductIndex,
 };
 
 /// Every collection `freshDB()` holds, in its order; `stock` and `meta` are objects.

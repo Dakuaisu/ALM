@@ -20,6 +20,24 @@ pub struct SaleEdit {
 }
 
 impl ConfirmationFixture {
+    /// A posted bill's invoice number, customer name, total and whether it is cancelled.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects an unknown bill.
+    pub fn sale_summary(
+        &self,
+        role: Role,
+        id: DraftId,
+    ) -> Result<(u64, String, Money, bool), ConfirmationError> {
+        let (review, receipt) = self.current_sale(role, id)?;
+        let name = match review.draft.customer() {
+            DraftCustomer::Selected { name, .. } | DraftCustomer::Typed(name) => name.clone(),
+            DraftCustomer::Unassigned => String::new(),
+        };
+        let cancelled = self.lifecycle.get(&id).is_some_and(|(c, _)| *c);
+        Ok((receipt.invoice, name, receipt.total, cancelled))
+    }
+
     pub fn current_sale(
         &self,
         role: Role,

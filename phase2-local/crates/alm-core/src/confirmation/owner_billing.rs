@@ -222,6 +222,44 @@ impl OwnerPosting {
     }
 }
 
+/// Prepares and confirms a saved sale in one step, as the authority's `post_sale` does:
+/// nothing changes when it is refused (a draft registered by the review is taken back).
+///
+/// # Errors
+/// As [`OwnerPosting::prepare`] and [`OwnerPosting::confirm`].
+pub fn post_saved_sale(
+    authority: &mut ConfirmationFixture,
+    directory: &BillingDirectory,
+    role: Role,
+    draft: &ProvisionalDraft,
+    terms: SaleTerms<'_>,
+) -> Result<Receipt, OwnerBillingError> {
+    let id = draft.id();
+    let before = (authority.drafts.get(&id).cloned(), authority.draft_revision);
+    let mut posting = OwnerPosting::default();
+    let result = posting
+        .prepare(authority, directory, role, Some(draft), terms)
+        .and_then(|()| {
+            let serial = posting
+                .pending(role)
+                .map(PostingReview::serial)
+                .ok_or(OwnerBillingError::NoReview)?;
+            posting.confirm(authority, role, serial)
+        });
+    if result.is_err() {
+        match before.0 {
+            Some(previous) => {
+                authority.drafts.insert(id, previous);
+            }
+            None => {
+                authority.drafts.remove(&id);
+            }
+        }
+        authority.draft_revision = before.1;
+    }
+    result
+}
+
 /// Records a standalone receipt for a directory customer, dated independently of any bill.
 pub fn save_receipt(
     authority: &mut ConfirmationFixture,

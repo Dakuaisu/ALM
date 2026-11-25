@@ -10,19 +10,14 @@ fn book(state: &State) -> Option<OwnerBook> {
     state.fixture.owner_book(Role::Owner, &state.cashbook).ok()
 }
 
-/// A bill's `#no customer` and total, and whether it is cancelled.
-fn bill(book: &OwnerBook, draft: u64) -> Option<(String, alm_core::Money, bool)> {
-    let sale = book.sales.iter().find(|s| s.draft == draft)?;
-    let name = match &sale.customer {
-        alm_core::projection::book::BookCustomerRef::Selected { name, .. }
-        | alm_core::projection::book::BookCustomerRef::Typed(name) => name.clone(),
-        alm_core::projection::book::BookCustomerRef::Unassigned => String::new(),
-    };
-    Some((
-        format!("#{} {name}", sale.invoice),
-        sale.total,
-        sale.cancelled,
-    ))
+/// A bill's `#no customer` and total, and whether it is cancelled (read from the bill itself,
+/// not by building the whole book).
+fn bill(state: &State, draft: u64) -> Option<(String, alm_core::Money, bool)> {
+    let (invoice, name, total, cancelled) = state
+        .fixture
+        .sale_summary(Role::Owner, alm_core::DraftId::new(draft))
+        .ok()?;
+    Some((format!("#{invoice} {name}"), total, cancelled))
 }
 
 fn gst(book: &OwnerBook, id: u64) -> Option<(String, bool)> {
@@ -57,24 +52,24 @@ fn entry(
     let none = String::new;
     Some(match (intent, outcome) {
         (Intent::PostSale(_) | Intent::SellCrate(_), Outcome::Sale(r)) => {
-            let (subject, ..) = bill(&book(after)?, r.draft)?;
+            let (subject, ..) = bill(after, r.draft)?;
             ("bill-save", subject, Some(r.total), none())
         }
         (Intent::EditSale { draft, .. }, Outcome::Sale(r)) => {
-            let (subject, ..) = bill(&book(after)?, *draft)?;
+            let (subject, ..) = bill(after, *draft)?;
             ("bill-edit", subject, Some(r.total), none())
         }
         (Intent::CancelSale { draft }, _) => {
-            let (_, _, was) = bill(&book(before)?, *draft)?;
-            let (subject, total, now) = bill(&book(after)?, *draft)?;
+            let (_, _, was) = bill(before, *draft)?;
+            let (subject, total, now) = bill(after, *draft)?;
             if was || !now {
                 return None;
             }
             ("bill-cancel", subject, Some(total), none())
         }
         (Intent::RestoreSale { draft }, _) => {
-            let (_, _, was) = bill(&book(before)?, *draft)?;
-            let (subject, _, now) = bill(&book(after)?, *draft)?;
+            let (_, _, was) = bill(before, *draft)?;
+            let (subject, _, now) = bill(after, *draft)?;
             if !was || now {
                 return None;
             }

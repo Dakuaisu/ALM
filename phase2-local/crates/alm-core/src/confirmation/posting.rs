@@ -135,7 +135,7 @@ impl ConfirmationFixture {
             return Err(ConfirmationError::StaleReview);
         }
         validate_bill(&review.draft)?;
-        let (catalog, quantity, total) = self.catalog.stage(review)?;
+        let (staged, quantity, total) = self.catalog.stage_sale(review)?;
         let financial = payment::stage(review, total, &self.customer_balances)?;
         let received_ledger = self
             .received_ledger
@@ -179,9 +179,9 @@ impl ConfirmationFixture {
             .map(|component| component.product);
         let items = products
             .chain(components)
-            .map(|id| PostedLineItem::capture(&catalog, id))
+            .map(|id| PostedLineItem::capture(&self.catalog, id))
             .collect();
-        self.catalog = catalog;
+        self.catalog.commit_sale(staged);
         self.ledger = ledger;
         self.received_ledger = received_ledger;
         if let Some((customer, balance)) = financial.balance {

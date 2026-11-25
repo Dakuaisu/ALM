@@ -353,69 +353,45 @@ impl LegacyBackup {
 
     /// `prodByItem`: the first product with exactly this name.
     pub fn product_by_item(&self, item: &str) -> Option<LegacyProduct> {
-        self.products().into_iter().find(|p| p.item == item)
+        self.product_index().by_item(item).cloned()
     }
 
     /// `keyOfName`: the product's ID, or `n:<name>` for a free-text item.
     pub fn key_of_name(&self, item: &str) -> String {
-        self.product_by_item(item)
-            .map_or_else(|| format!("n:{item}"), |p| p.id)
+        self.product_index().key_of_name(item)
     }
 
     /// `prodOfLine`: by `pid`, else by exact name.
     pub fn product_of(&self, pid: Option<&str>, item: &str) -> Option<LegacyProduct> {
-        let products = self.products();
-        pid.and_then(|pid| products.iter().find(|p| p.id == pid).cloned())
-            .or_else(|| {
-                (!item.is_empty())
-                    .then(|| self.product_by_item(item))
-                    .flatten()
-            })
-    }
-
-    fn key_of(&self, pid: Option<&str>, item: &str) -> String {
-        pid.map(str::to_owned)
-            .or_else(|| self.product_of(None, item).map(|p| p.id))
-            .unwrap_or_else(|| format!("n:{item}"))
+        self.product_index().product_of(pid, item).cloned()
     }
 
     /// `linePackets(li)`: `(key, item, packets)` for each product the line moves.
     pub fn line_packets(&self, line: &LegacyLine) -> Vec<(String, String, f64)> {
-        let packets = |pid: Option<&str>, item: &str, unit: &str, packet_qty: f64, q: f64| {
-            let product = self.product_of(pid, item);
-            let pq = if packet_qty != 0.0 {
-                packet_qty
-            } else {
-                product
-                    .as_ref()
-                    .map(|p| p.packet_qty)
-                    .filter(|q| *q != 0.0)
-                    .unwrap_or(1.0)
-            };
-            (
-                self.key_of(pid, item),
-                item.to_owned(),
-                if unit == "Piece" { q / pq } else { q },
-            )
-        };
-        match &line.crate_line {
-            Some((_, components)) => components
-                .iter()
-                .map(|c| packets(c.pid.as_deref(), &c.item, &c.unit, 0.0, c.qty * line.qty))
-                .collect(),
-            None => vec![packets(
-                line.pid.as_deref(),
-                &line.item,
-                &line.unit,
-                line.packet_qty,
-                line.qty,
-            )],
+        self.product_index().line_packets(line)
+    }
+
+    /// The products with lookups by ID and by name (the first product wins, as the HTML's
+    /// `find` does), for loops over many lines.
+    pub fn product_index(&self) -> ProductIndex {
+        let list = self.products();
+        let mut by_id = std::collections::HashMap::new();
+        let mut by_item = std::collections::HashMap::new();
+        for (index, product) in list.iter().enumerate() {
+            by_id.entry(product.id.clone()).or_insert(index);
+            by_item.entry(product.item.clone()).or_insert(index);
+        }
+        ProductIndex {
+            list,
+            by_id,
+            by_item,
         }
     }
 
     /// Every lot `lotsMapAll` builds from purchases and purchase-order receipts, in record
     /// order (before the date sort).
     pub fn purchase_lots(&self) -> Vec<LegacyLotSource> {
+        let products = self.product_index();
         let mut lots = Vec::new();
         for purchase in self.collection("purchases") {
             let pid = id(purchase);
@@ -430,7 +406,7 @@ impl LegacyBackup {
                 .enumerate()
             {
                 let li = line_of(item);
-                for (key, _, packets) in self.line_packets(&li) {
+                for (key, _, packets) in products.line_packets(&li) {
                     if packets > 0.0 {
                         lots.push(LegacyLotSource {
                             legacy_key: format!("purchases:{pid}:{n}"),
@@ -456,7 +432,10 @@ impl LegacyBackup {
                 .enumerate()
             {
                 let li = line_of(item);
-                let key = li.pid.clone().unwrap_or_else(|| self.key_of_name(&li.item));
+                let key = li
+                    .pid
+                    .clone()
+                    .unwrap_or_else(|| products.key_of_name(&li.item));
                 let receipts = item
                     .get("receipts")
                     .and_then(Value::as_array)
@@ -499,5 +478,69 @@ impl LegacyBackup {
             }
         }
         lots
+    }
+}
+
+/// [`LegacyBackup::product_index`].
+pub struct ProductIndex {
+    list: Vec<LegacyProduct>,
+    by_id: std::collections::HashMap<String, usize>,
+    by_item: std::collections::HashMap<String, usize>,
+}
+
+impl ProductIndex {
+    fn by_item(&self, item: &str) -> Option<&LegacyProduct> {
+        self.by_item.get(item).map(|&i| &self.list[i])
+    }
+
+    /// `keyOfName`: the product's ID, or `n:<name>` for a free-text item.
+    pub fn key_of_name(&self, item: &str) -> String {
+        self.by_item(item)
+            .map_or_else(|| format!("n:{item}"), |p| p.id.clone())
+    }
+
+    /// `prodOfLine`: by `pid`, else by exact name.
+    pub fn product_of(&self, pid: Option<&str>, item: &str) -> Option<&LegacyProduct> {
+        pid.and_then(|pid| self.by_id.get(pid).map(|&i| &self.list[i]))
+            .or_else(|| (!item.is_empty()).then(|| self.by_item(item)).flatten())
+    }
+
+    fn key_of(&self, pid: Option<&str>, item: &str) -> String {
+        pid.map(str::to_owned)
+            .or_else(|| self.product_of(None, item).map(|p| p.id.clone()))
+            .unwrap_or_else(|| format!("n:{item}"))
+    }
+
+    /// `linePackets(li)`: `(key, item, packets)` for each product the line moves.
+    pub fn line_packets(&self, line: &LegacyLine) -> Vec<(String, String, f64)> {
+        let packets = |pid: Option<&str>, item: &str, unit: &str, packet_qty: f64, q: f64| {
+            let product = self.product_of(pid, item);
+            let pq = if packet_qty != 0.0 {
+                packet_qty
+            } else {
+                product
+                    .map(|p| p.packet_qty)
+                    .filter(|q| *q != 0.0)
+                    .unwrap_or(1.0)
+            };
+            (
+                self.key_of(pid, item),
+                item.to_owned(),
+                if unit == "Piece" { q / pq } else { q },
+            )
+        };
+        match &line.crate_line {
+            Some((_, components)) => components
+                .iter()
+                .map(|c| packets(c.pid.as_deref(), &c.item, &c.unit, 0.0, c.qty * line.qty))
+                .collect(),
+            None => vec![packets(
+                line.pid.as_deref(),
+                &line.item,
+                &line.unit,
+                line.packet_qty,
+                line.qty,
+            )],
+        }
     }
 }

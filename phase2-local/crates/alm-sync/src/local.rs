@@ -283,19 +283,37 @@ impl LocalAuthority {
                 Err(AuthorityError::Conflict)
             };
         }
-        let mut next = self.state.clone();
-        let outcome = apply(&mut next, &self.directory, intent, stamp)?;
-        if let Some(row) = activity::record(
-            &self.state,
-            &next,
-            &self.directory,
-            intent,
-            &outcome,
-            (stamp, &self.caller.0, &self.caller.1),
-        ) {
-            next.activity.push(row);
-        }
-        self.state = next;
+        let outcome = if matches!(intent, Intent::PostSale(_)) {
+            // A sale is checked before anything changes (core `post_saved_sale`), so it applies
+            // in place: copying the whole state for every bill made posting quadratic.
+            let outcome = apply(&mut self.state, &self.directory, intent, stamp)?;
+            if let Some(row) = activity::record(
+                &self.state,
+                &self.state,
+                &self.directory,
+                intent,
+                &outcome,
+                (stamp, &self.caller.0, &self.caller.1),
+            ) {
+                self.state.activity.push(row);
+            }
+            outcome
+        } else {
+            let mut next = self.state.clone();
+            let outcome = apply(&mut next, &self.directory, intent, stamp)?;
+            if let Some(row) = activity::record(
+                &self.state,
+                &next,
+                &self.directory,
+                intent,
+                &outcome,
+                (stamp, &self.caller.0, &self.caller.1),
+            ) {
+                next.activity.push(row);
+            }
+            self.state = next;
+            outcome
+        };
         self.requests.insert(
             request.as_str().to_owned(),
             (canonical, outcome.canonical()),

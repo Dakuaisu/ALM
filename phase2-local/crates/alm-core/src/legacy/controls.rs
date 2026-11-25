@@ -243,6 +243,7 @@ pub fn controls(b: &LegacyBackup) -> Vec<ControlSection> {
     });
 
     // Stock by item and location (shop on hand, fridge, godown).
+    let index = b.product_index();
     let mut purchased: BTreeMap<String, f64> = BTreeMap::new();
     let mut sold: BTreeMap<String, f64> = BTreeMap::new();
     let mut adj: BTreeMap<String, f64> = BTreeMap::new();
@@ -253,7 +254,7 @@ pub fn controls(b: &LegacyBackup) -> Vec<ControlSection> {
             .into_iter()
             .flatten()
         {
-            for (key, _, packets) in b.line_packets(&super::records::line_of(li)) {
+            for (key, _, packets) in index.line_packets(&super::records::line_of(li)) {
                 *purchased.entry(key).or_default() += packets;
             }
         }
@@ -269,13 +270,13 @@ pub fn controls(b: &LegacyBackup) -> Vec<ControlSection> {
                 .get("pid")
                 .filter(|v| super::js::truthy(v))
                 .map(super::js::string);
-            let key = pid.unwrap_or_else(|| b.key_of_name(&super::js::text(li, "item")));
+            let key = pid.unwrap_or_else(|| index.key_of_name(&super::js::text(li, "item")));
             *purchased.entry(key).or_default() += super::js::field(li, "received");
         }
     }
     for s in sales.iter().filter(|s| !s.cancelled) {
         for li in &s.lines {
-            for (key, _, packets) in b.line_packets(li) {
+            for (key, _, packets) in index.line_packets(li) {
                 *sold.entry(key).or_default() += packets;
             }
         }

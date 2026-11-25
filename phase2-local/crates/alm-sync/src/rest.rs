@@ -10,6 +10,12 @@ use serde_json::{Value, json};
 
 use crate::{AuthorityError, Intent, Lookup, Outcome, RequestId, SalesAuthority, wire};
 
+/// The largest answer read (a full projection of 20,000 bills is about 21 MB).
+const MAX_ANSWER_BYTES: u64 = 512 * 1024 * 1024;
+
+/// The overall time limit of a full projection pull.
+const FULL_PULL_LIMIT: Duration = Duration::from_secs(180);
+
 pub struct RestAuthority {
     base: String,
     apikey: String,
@@ -64,15 +70,28 @@ impl RestAuthority {
     /// # Errors
     /// The function's refusal as a typed error; `Unavailable` when no answer arrived.
     pub fn rpc(&self, role: Role, function: &str, args: &Value) -> Result<Value, AuthorityError> {
+        self.rpc_within(role, function, args, None)
+    }
+
+    /// [`Self::rpc`] with its own overall time limit instead of the agent's 20 seconds.
+    fn rpc_within(
+        &self,
+        role: Role,
+        function: &str,
+        args: &Value,
+        limit: Option<Duration>,
+    ) -> Result<Value, AuthorityError> {
         let token = self
             .tokens
             .iter()
             .find(|(r, _)| *r == role)
             .map(|(_, t)| t)
             .ok_or(AuthorityError::Denied)?;
-        let mut response = self
-            .agent
-            .post(&format!("{}/rpc/{function}", self.base))
+        let mut request = self.agent.post(&format!("{}/rpc/{function}", self.base));
+        if let Some(limit) = limit {
+            request = request.config().timeout_global(Some(limit)).build();
+        }
+        let mut response = request
             .header("apikey", &self.apikey)
             .header("Authorization", &format!("Bearer {token}"))
             .header("Content-Type", "application/json")
@@ -81,8 +100,11 @@ impl RestAuthority {
             .send(args.to_string())
             .map_err(|_| AuthorityError::Unavailable)?;
         let status = response.status().as_u16();
+        // ureq reads at most 10 MB by default; a shop's full projection is larger.
         let body = response
             .body_mut()
+            .with_config()
+            .limit(MAX_ANSWER_BYTES)
             .read_to_string()
             .map_err(|_| AuthorityError::Unavailable)?;
         let value: Value = if body.trim().is_empty() {
@@ -166,14 +188,22 @@ impl SalesAuthority for RestAuthority {
     }
 
     fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
-        let mut value = self.rpc(
+        let limit = checkpoint.is_none().then_some(FULL_PULL_LIMIT);
+        let mut value = self.rpc_within(
             role,
             "pull_projection",
             &json!({"p_checkpoint": checkpoint}),
+            limit,
         )?;
         if !value["rows"].is_null() && value["full"] != json!(true) {
-            // Something changed: the device applies full replacements, so read everything.
-            value = self.rpc(role, "pull_projection", &json!({"p_checkpoint": null}))?;
+            // Something changed: the device applies full replacements, so read everything. A
+            // shop's full projection is tens of megabytes: it gets more time than a command.
+            value = self.rpc_within(
+                role,
+                "pull_projection",
+                &json!({"p_checkpoint": null}),
+                Some(FULL_PULL_LIMIT),
+            )?;
         }
         wire::decode_batch(&value, role)
     }

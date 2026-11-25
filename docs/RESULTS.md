@@ -3268,3 +3268,44 @@ Development evidence only, synthetic data. `LocalAuthority` stays a journaled de
 **Clean-worktree check:** `git worktree add` at `2a8103f` (last code commit), separate target dir: fmt clean, clippy `-D warnings` clean, full workspace tests **833/0/3**. The final commit (this section only) is checked the same way before the final message.
 
 **NOT RUN:** Windows; Supabase CLI stack; hosted Supabase (REST and auth); real WhatsApp handoff; real legacy data or protected copies (OPEN-002); the frozen HTML runtime (OPEN-008), so `migrate()` and the control arithmetic are ported from the source, not observed; on macOS the legacy import confirmation (dry run only; the confirmed import ran in the Rust and REST end-to-end tests) and crate bill edit/cancel from the Sales screen; on Android the legacy import confirmation and crate bill edit/cancel.
+
+## Mixed bills, legacy import integrity, real accounts, file picker, scale, default-deny roles and release builds
+
+Development evidence only, synthetic data. The SQL functions, PostgREST and GoTrue ran only in disposable local containers on 127.0.0.1 (`postgres:17` with its defaults, pgTAP installed from the distribution's package; `postgrest/postgrest`; `supabase/gotrue` v2.198.0); JWT secret, GoTrue role password and test-user password generated per run in a temporary folder, tokens minted locally, nothing committed; containers and network removed afterwards. No server tuning: `max_locks_per_transaction` stays 64 and no `shared_preload_libraries` (pg_stat_statements was loaded for diagnosis only, then `ALTER SYSTEM RESET ALL`, restart, and every suite rerun on a new default container). Manager stays provisional-only; no cost, buy rate, FIFO value or margin reaches a Manager. No new dependencies; `Cargo.lock` unchanged this round except as recorded at `c511dff`.
+
+| Step | Commits / tests | Platforms | Result |
+|---|---|---|---|
+| 1. Mixed bills | `6151b5d` | Rust; postgres:17; PostgREST | Crate rows beside item lines on one New Bill (HTML `draft.items`); SQL `post_sale`/`edit_sale`/`crate_rows`; conformance `mixed_sale_lifecycle`, differential `l10_mixed_bills`. |
+| 2a–c. Legacy integrity | `0b17687`, `9c790f8`, `d14a2f1` | Rust; postgres:17; PostgREST | Raw file uploaded and hashed by the authority (ALM05 on a digest mismatch), entry pointers; `alm-cli verify-legacy-import`; Owner-only quarantine resolution (keep excluded / import corrected). |
+| 3a–c. Real accounts | `53540a8`, `c6f6209`, `974046f` | Rust; postgres:17; PostgREST; GoTrue | Role from `auth.users.raw_app_meta_data` for live GoTrue users; `GoTrueSession` (sign-in, refresh, sign-out, `SignedOut`); the app's REST mode signs people in, tokens in memory only. |
+| 3d. File picker | `c511dff` | Rust; JS glue | Platform file dialog for backups and legacy files, copied into the app's folder first; Android `content://` copy-in. |
+| 5. Scale | step 5 commit (below) | Rust; default postgres:17; PostgREST | 20,000 bills post, import, reconcile, pull and render on a default server; details below. |
+
+**Scale (step 5).** Synthetic shop: generated legacy file (`alm-core/tests/legacy/scale.rs`: 500 products, 1,000 customers, 20,000 bills of which one in ten mixed and one in twenty crate bills, some cancelled or walk-in, 2,000 purchases, 300 GST bills, 2,000 payments, 20 crate templates, 365 Cash Book days; 26,689 records to import) and a shop of 500 products and 1,000 customers that posts 20,000 bills (`alm-sync/tests/scale/shop.rs`). Debug builds on the development Mac (Apple M1 Pro), one run each:
+
+| Step | ms |
+|---|---|
+| Parse the legacy file (`parse_for_import`) | 1,882 |
+| Plan (`plan_file`: map + attach the source) | 3,172 |
+| Import, LocalAuthority | 7,055 |
+| Import, Postgres (`import_legacy`, one call) | 4,894 (5,134–5,387 over three repeats) |
+| Reconciliation (`reconcile` from the pulled book) | 1,395 |
+| Full `pull_projection` after the import, LocalAuthority / Postgres | 2,222 / 2,428 |
+| Post 20,000 bills, LocalAuthority (app) | 7,164 |
+| Full pull of 20,000 bills, LocalAuthority (app) | 4,308 |
+| Post 20,000 bills through PostgREST (one transaction per call) | 54,831 (56,809 on the first container) |
+| Full `pull_projection` of 20,000 bills through PostgREST | 8,057 (7,762) |
+| Post 20,000 bills in one Postgres transaction (PgAuthority, opt-in `ALM_SCALE_ONE_TRANSACTION`) | 758,269 and 1,261,809 |
+| Full pull after that, same transaction | 14,320 and 48,547 |
+| Render Sales / Customers / Stock / Dashboard at 20,000 bills | 3,008 / 2,411 / 2,423 / 5,487 |
+
+Each step asserts at most 5x its recorded time (`BASELINE_MS` in `alm-sync/tests/scale.rs` and `alm-app/src/scale_tests.rs`); `ALM_SKIP_PERF` skips the assertion.
+
+- **Lock blow-up, cause:** every command took a transaction-scoped advisory lock keyed by its request ID (`replay`, `post_sale` bodies) and another keyed by its draft ID; such locks live until the transaction ends, so a transaction running many commands (the dev `PgAuthority` keeps one transaction per test) held one or two per command. On a default postgres:17 one transaction ran out of the shared lock table (SQLSTATE 53200, "out of shared memory") between 12,000 and 14,000 distinct advisory locks (measured: 12,000 fit, 14,000 failed; 20,000 bills need about 40,000). Hosted Supabase cannot raise `max_locks_per_transaction`.
+- **Fix:** migration `20261128040000_bounded_locks`: `alm_private.xact_lock(space, key)` takes the two-key advisory lock `(space, hashtext(key) & 1023)`; request locks use space 1, draft locks space 2, so a transaction holds at most 2,048 of them whatever it runs; requests that share a bucket wait briefly; the order (request before draft) is unchanged. pgTAP `bounded_locks`: 20,000 commands in one transaction live and hold at most 1,024 request locks (29 s). The remaining advisory locks are fixed single keys (`suppliers`, `gst_bill_numbers`, `legacy_import`).
+- **Second finding, fixed:** `import_legacy` sometimes took 62–69 s instead of 4 s. pg_stat_statements showed 64 s in `select * from legacy_records where kind = … and legacy_id = …`: PL/pgSQL switches to a cached generic plan after five calls, built while `legacy_records` looked empty (after a vacuum), i.e. a sequential scan, and keeps it as the table grows to 26,689 rows inside the call. `import_legacy` now has `set plan_cache_mode = force_custom_plan` (migration `20261128050000_scale`): 5.1–5.4 s whatever the table's statistics.
+- **Quadratic steps removed earlier in step 5 (same results, checked by conformance and differential):** core posting applies a checked sale in place instead of copying the whole state per bill (`Catalog::stage_sale`/`commit_sale`, `post_saved_sale`); allocation lookups by range; legacy records indexed by (kind, legacy ID) with counts per kind; product lookups by ID and name for line loops; Sales list reads each bill's header directly. SQL (`20261128050000_scale`): `import_legacy` appends entries to an array and counts per kind as it goes; `crate_rows` in one pass; indexes on `sales.customer_id` and `receipts.customer_id`, each customer's balance computed once per pull; the owner book numbers lots once. `RestAuthority` reads answers up to 512 MB and gives a full pull 180 s (a full projection of 20,000 bills is about 21 MB).
+- **One transaction, 20,000 bills:** no longer fails, but takes 13–21 minutes (38–63 ms per bill, rising): the same rows (`authority_state`, `invoice_counters`, the products and lots) are updated tens of thousands of times inside one transaction, and Postgres cannot prune those row versions until it ends. This is a harness shape only: a device's call is its own transaction (PostgREST: 2.7–2.8 ms per bill, flat). The test runs only with `ALM_SCALE_ONE_TRANSACTION`.
+- **Harness:** the REST scale test now empties the public tables after itself too, so later opt-in suites start from the migrated state.
+
+Opt-in suites on the default container at the step 5 commit: pgTAP 326 + 2 + 8 + 17 + 6; conformance Postgres 37/37, differential 11/11, `postgres_authority` 2/2, `postgres_replay` 4/4, REST 41/41, `gotrue_session` 2/2, REST end to end 1/1 and `people_sign_in…` 1/1 (each on a freshly seeded database; run together they share one seed and the second fails), scale 3/3 (the import, REST and one-transaction tests, plus the JWT case), app scale 1/1. Workspace **863 passed, 0 failed, 3 ignored**.

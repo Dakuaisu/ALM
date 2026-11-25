@@ -68,16 +68,17 @@ impl Catalog {
     ) -> Result<SaleCosts, ConfirmationError> {
         let a = &self.allocations;
         let cost = money(a.sale_costs.get(&sale).copied().flatten());
+        // The sale's own entries only (keys start with the sale): a range, not a full scan.
         let units = a
             .line_units
-            .iter()
-            .filter(|((s, _), _)| *s == sale)
+            .range((sale, 0)..)
+            .take_while(|((s, _), _)| *s == sale)
             .map(|(&(_, line), unit)| Ok((index(line)?, money(*unit))))
             .collect::<Result<_, ConfirmationError>>()?;
         let allocations = a
             .records
-            .iter()
-            .filter(|((s, ..), _)| *s == sale)
+            .range((sale, 0, 0, 0)..)
+            .take_while(|((s, ..), _)| *s == sale)
             .map(|(&(_, line, product, lot), &(quantity, cost))| {
                 Ok(BookAllocation {
                     line: index(line)?,

@@ -103,6 +103,14 @@ struct AllocationState {
 
 type Allocation = (u32, Option<i64>);
 
+/// A bill's checked stock and lot moves, applied by [`Catalog::commit_sale`].
+pub(super) struct StagedSale {
+    products: BTreeMap<u64, Product>,
+    records: Vec<((u64, usize, u64, usize), Allocation)>,
+    sale: u64,
+    cost: Option<i64>,
+}
+
 #[derive(Clone)]
 #[cfg_attr(any(test, feature = "test-support"), derive(Debug, Eq, PartialEq))]
 #[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
@@ -214,8 +222,14 @@ impl Catalog {
             .collect()
     }
 
-    pub(super) fn stage(&self, review: &Review) -> Result<(Self, u32, i64), ConfirmationError> {
-        let mut staged = self.clone();
+    /// A bill's stock and lot moves, checked against a copy of the products only; the
+    /// allocation records are not copied (they grow with every bill), only added on commit.
+    pub(super) fn stage_sale(
+        &self,
+        review: &Review,
+    ) -> Result<(StagedSale, u32, i64), ConfirmationError> {
+        let mut products = self.products.clone();
+        let mut records = Vec::new();
         let amounts = review.amounts()?;
         let mut sale_cost = 0_i64;
         let mut cost_known = true;
@@ -229,8 +243,7 @@ impl Catalog {
             } else {
                 line.quantity().get()
             };
-            let product = staged
-                .products
+            let product = products
                 .get_mut(&line.product_id().value())
                 .ok_or(ConfirmationError::InvalidDraft)?;
             product.stock = product
@@ -266,7 +279,7 @@ impl Catalog {
                 remaining = remaining
                     .checked_sub(taken)
                     .ok_or(ConfirmationError::Overflow)?;
-                staged.allocations.records.insert(
+                records.push((
                     (
                         review.draft.id().value(),
                         line_index,
@@ -274,7 +287,7 @@ impl Catalog {
                         lot_index,
                     ),
                     (taken, cost),
-                );
+                ));
                 if remaining == 0 {
                     break;
                 }
@@ -283,11 +296,31 @@ impl Catalog {
                 return Err(ConfirmationError::InsufficientStock);
             }
         }
-        staged
-            .allocations
-            .sale_costs
-            .insert(review.draft.id().value(), cost_known.then_some(sale_cost));
-        Ok((staged, amounts.packets, amounts.total.minor_units()))
+        Ok((
+            StagedSale {
+                products,
+                records,
+                sale: review.draft.id().value(),
+                cost: cost_known.then_some(sale_cost),
+            },
+            amounts.packets,
+            amounts.total.minor_units(),
+        ))
+    }
+
+    /// Applies a staged bill.
+    pub(super) fn commit_sale(&mut self, staged: StagedSale) {
+        self.products = staged.products;
+        self.allocations.records.extend(staged.records);
+        self.allocations.sale_costs.insert(staged.sale, staged.cost);
+    }
+
+    /// [`Self::stage_sale`] applied to a copy of the whole catalog.
+    pub(super) fn stage(&self, review: &Review) -> Result<(Self, u32, i64), ConfirmationError> {
+        let (sale, quantity, total) = self.stage_sale(review)?;
+        let mut staged = self.clone();
+        staged.commit_sale(sale);
+        Ok((staged, quantity, total))
     }
 
     pub fn seed_lots(
