@@ -20,7 +20,7 @@ pub fn backup_section(
     restored: Option<(&str, &RestoredSummary)>,
 ) -> String {
     let mut html = String::from(
-        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">💾 Backup &amp; Restore</div><div class="help">A full backup holds every record, standalone GST bill and shared setting. Backups are saved in this app's data folder. Restoring checks the backup at a fresh place first, so a bad file cannot damage your data; a good one replaces the shop settings and the posted data is reloaded from the authority.</div><div class="row" style="margin:10px 0"><button class="btn primary" type="button" data-action="backup_create">⬇ Full Backup (.json)</button></div><div class="tbl-wrap"><table><thead><tr><th>Backup</th><th class="num">Size</th><th class="num">Actions</th></tr></thead><tbody>"#,
+        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">💾 Backup &amp; Restore</div><div class="help">A full backup holds every record, standalone GST bill and shared setting. Backups are saved in this app's data folder. Restoring checks the backup at a fresh place first, so a bad file cannot damage your data; a good one replaces the shop settings and the posted data is reloaded from the authority.</div><div class="row" style="margin:10px 0;gap:8px"><button class="btn primary" type="button" data-action="backup_create">⬇ Full Backup (.json)</button><button class="btn" type="button" data-action="file_pick" data-q="backup">📂 Choose a backup file…</button></div><div class="tbl-wrap"><table><thead><tr><th>Backup</th><th class="num">Size</th><th class="num">Actions</th></tr></thead><tbody>"#,
     );
     if backups.is_empty() {
         html += r#"<tr><td colspan="3"><div class="empty">No backups yet</div></td></tr>"#;

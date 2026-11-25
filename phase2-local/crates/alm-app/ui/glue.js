@@ -24,8 +24,13 @@ function syncModal() {
 }
 
 async function run(command, args) {
+  return show(invoke(command, args));
+}
+
+// Shows a screen Rust rendered (or the error it refused with).
+async function show(pending) {
   try {
-    view.innerHTML = await invoke(command, args);
+    view.innerHTML = await pending;
     const screen = view.querySelector("#screen-nav");
     nav.replaceChildren(screen.content);
     document.getElementById("ttl").textContent = screen.dataset.title;
@@ -84,6 +89,23 @@ async function act(element, submitter) {
     if (window.AlmAndroid) return window.AlmAndroid.share(text);
     if (navigator.share) return navigator.share({ text });
     return navigator.clipboard.writeText(text);
+  }
+  if (action === "file_pick") {
+    // Rust opens the platform's file dialog and copies the chosen file into the app's folder.
+    // Android answers with a content URI and the path Rust chose: the platform bridge copies it.
+    let out;
+    try {
+      out = await invoke("file_pick", { q: data.q });
+    } catch (error) {
+      return note(String(error), true);
+    }
+    if (!out) return;
+    if (!out.startsWith("COPY\t")) return show(Promise.resolve(out));
+    const [, uri, dest, picked] = out.split("\t");
+    if (!(window.AlmAndroid && window.AlmAndroid.copyIn(uri, dest))) {
+      return note("The chosen file could not be copied.", true);
+    }
+    return run("file_picked", { q: picked });
   }
   if (action === "share_file") {
     try {

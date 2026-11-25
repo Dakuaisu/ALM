@@ -25,3 +25,4 @@ alm-sync = { workspace = true, features = ["local-authority"] }
 serde = { workspace = true }
 tiny-skia = { workspace = true }
 tauri = { version = "=2.12.7", features = [] }
+tauri-plugin-dialog = { workspace = true }

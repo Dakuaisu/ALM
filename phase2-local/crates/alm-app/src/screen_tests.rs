@@ -1601,3 +1601,63 @@ fn an_owner_imports_a_legacy_backup_only_after_a_dry_run_and_a_confirmation() {
     assert_eq!(book(&mut trial).legacy, imported);
     trial.legacy_close();
 }
+
+#[test]
+fn a_chosen_file_is_copied_into_the_app_folder_before_the_validated_paths_read_it() {
+    let root = Root::new("file-pick");
+    let elsewhere = Root::new("file-pick-elsewhere");
+    let mut trial = crate::Trial::open(&root.0, Some(super::billing_tests::day())).unwrap();
+    let html = trial.render("settings").unwrap();
+    assert!(html.contains(r#"data-action="file_pick" data-q="backup""#));
+    assert!(html.contains(r#"data-action="file_pick" data-q="legacy""#));
+
+    // A legacy file chosen outside the app folder: copied under its own name, then dry run.
+    let chosen = elsewhere.0.join("ALM_backup_2026-01-08.json");
+    std::fs::write(
+        &chosen,
+        include_bytes!("../../alm-core/tests/legacy/rehearsal-a.json"),
+    )
+    .unwrap();
+    let name = trial.file_copy_in("legacy", &chosen).unwrap();
+    assert_eq!(name, "ALM_backup_2026-01-08.json");
+    assert!(root.0.join("legacy-import").join(&name).is_file());
+    assert!(chosen.is_file(), "the chosen file is left where it was");
+    assert!(
+        trial
+            .render("settings")
+            .unwrap()
+            .contains("Dry run: ALM_backup_2026-01-08.json (nothing imported)")
+    );
+    // The same name again gets a fresh one; an unsafe name is replaced.
+    assert_eq!(
+        trial.file_copy_in("legacy", &chosen).unwrap(),
+        "picked-legacy-1.json"
+    );
+    let odd = elsewhere.0.join("my backup (1).json");
+    std::fs::write(&odd, b"{\"meta\": {}}").unwrap();
+    assert_eq!(
+        trial.file_copy_in("legacy", &odd).unwrap_err(),
+        "Not a legacy backup: it has no products (restoreJSON's check)."
+    );
+
+    // A backup: copied, listed, and restored only through the existing Restore.
+    let backup = trial.backup_create().unwrap();
+    let outside = elsewhere.0.join("from-another-phone.json");
+    std::fs::copy(root.0.join("backups").join(&backup), &outside).unwrap();
+    let copied = trial.file_copy_in("backup", &outside).unwrap();
+    assert_eq!(copied, "from-another-phone.json");
+    assert!(
+        trial.message.contains("press ⬆ Restore"),
+        "{}",
+        trial.message
+    );
+    assert!(trial.backups().iter().any(|(n, _)| *n == copied));
+    trial.backup_restore(&copied).unwrap();
+
+    // Only files in the app folder continue; a Manager cannot pick.
+    assert!(trial.file_picked("legacy/../shop.json").is_err());
+    assert!(trial.file_picked("legacy/absent.json").is_err());
+    assert!(trial.file_picked("other/x.json").is_err());
+    trial.set_owner(false).unwrap();
+    assert!(trial.file_copy_in("legacy", &chosen).is_err());
+}

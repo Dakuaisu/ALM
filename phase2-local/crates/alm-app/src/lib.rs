@@ -22,6 +22,7 @@ mod dev_authority;
 mod device;
 #[cfg(test)]
 mod device_tests;
+mod file_pick;
 mod godown;
 mod gst_migration;
 mod gst_print;
@@ -90,6 +91,7 @@ fn with<T>(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
@@ -208,6 +210,8 @@ pub fn run() {
             legacy_import::legacy_import_confirm,
             legacy_import::legacy_close,
             legacy_import::legacy_resolve,
+            file_pick::file_pick,
+            file_pick::file_picked,
             commands::rate_brand,
             commands::rate_group,
             commands::rate_search,

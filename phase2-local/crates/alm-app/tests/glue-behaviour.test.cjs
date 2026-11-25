@@ -257,3 +257,38 @@ test("a click alone picks an option (assistive technology) and the box reports i
   assert.equal(list.classList.contains("show"), false);
   assert.equal(attributes["aria-expanded"], "false");
 });
+
+test("file_pick shows the desktop answer, and on Android the bridge copies before file_picked", async () => {
+  const click = (h, dataset) =>
+    h.ids.app.listeners.click({
+      target: { closest: (s) => (s.includes("data-fill") ? null : { tagName: "BUTTON", dataset }) },
+    });
+  const desktop = harness({ file_pick: "<p>dry run</p>" });
+  await tick(5);
+  await click(desktop, { action: "file_pick", q: "legacy" });
+  assert.equal(desktop.view.innerHTML, "<p>dry run</p>");
+  assert.deepEqual(desktop.calls.at(-1), { command: "file_pick", args: { q: "legacy" } });
+
+  const copies = [];
+  const android = harness(
+    {
+      file_pick: "COPY\tcontent://docs/1\t/data/app/legacy-import/picked-legacy-1.json\tlegacy/picked-legacy-1.json",
+      file_picked: "<p>picked</p>",
+    },
+    { AlmAndroid: { copyIn: (uri, dest) => copies.push([uri, dest]) > 0 } },
+  );
+  await tick(5);
+  await click(android, { action: "file_pick", q: "legacy" });
+  assert.deepEqual(copies, [["content://docs/1", "/data/app/legacy-import/picked-legacy-1.json"]]);
+  assert.deepEqual(android.calls.at(-1), {
+    command: "file_picked",
+    args: { q: "legacy/picked-legacy-1.json" },
+  });
+  assert.equal(android.view.innerHTML, "<p>picked</p>");
+
+  const closed = harness({ file_pick: "" });
+  await tick(5);
+  const before = closed.calls.length;
+  await click(closed, { action: "file_pick", q: "backup" });
+  assert.equal(closed.calls.length, before + 1, "a closed dialog sends nothing more");
+});

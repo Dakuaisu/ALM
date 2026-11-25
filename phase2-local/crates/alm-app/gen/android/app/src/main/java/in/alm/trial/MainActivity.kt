@@ -89,6 +89,31 @@ class PlatformBridge(private val activity: MainActivity, private val webView: We
     }
   }
 
+  /**
+   * Copies a file the user picked in the system file dialog (a content URI) to [dest], which
+   * must lie inside this app's own data folder. Returns false when it cannot.
+   */
+  @JavascriptInterface
+  fun copyIn(uri: String, dest: String): Boolean {
+    val target = java.io.File(dest)
+    if (!uri.startsWith("content://") ||
+      !target.canonicalPath.startsWith(activity.dataDir.canonicalPath + "/")
+    ) {
+      return false
+    }
+    return try {
+      activity.contentResolver.openInputStream(Uri.parse(uri)).use { input ->
+        if (input == null) return false
+        target.parentFile?.mkdirs()
+        java.io.FileOutputStream(target).use { output -> input.copyTo(output) }
+      }
+      true
+    } catch (error: Exception) {
+      target.delete()
+      false
+    }
+  }
+
   /** Opens a WhatsApp link (wa.me only) in WhatsApp or the browser. */
   @JavascriptInterface
   fun openUrl(url: String) {
