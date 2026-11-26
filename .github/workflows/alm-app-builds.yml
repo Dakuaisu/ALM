@@ -1,0 +1,90 @@
+# macOS and Android legs of the Tauri trial. macOS: the workspace tests (without the frozen HTML
+# replay, as on Windows; 5x timing checks off), then the .app and .dmg as the run's artifact.
+# Android: the release APK for aarch64, unsigned, as the run's artifact. No signing secrets.
+name: alm-app builds
+
+on:
+  push:
+    paths: ["phase2-local/**", ".github/workflows/alm-app-builds.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: phase2-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+      - name: Fetch crates
+        run: cargo fetch --locked
+      - name: Tests
+        env:
+          ALM_SKIP_PERF: "1"
+        run: |
+          store=$(cargo metadata --no-deps --format-version 1 --locked --offline | python3 -c '
+          import json, sys
+          pkg = next(p for p in json.load(sys.stdin)["packages"] if p["name"] == "alm-store")
+          print(" ".join("--test " + t["name"] for t in pkg["targets"]
+                         if "test" in t["kind"] and t["name"] != "milestone_d_replay"))')
+          cargo test --locked --offline --no-fail-fast --workspace --exclude alm-store
+          cargo test --locked --offline --no-fail-fast -p alm-store --lib $store
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version 2.12.6 --locked
+      - name: Build the app and disk image
+        working-directory: phase2-local/crates/alm-app
+        run: cargo tauri build --bundles app,dmg -- --locked --offline
+      - name: Sizes
+        run: |
+          du -sk target/release/bundle/macos/*.app
+          ls -l target/release/bundle/dmg/*.dmg
+          cd target/release/bundle/macos && ditto -c -k --keepParent *.app ../../alm-app-macos.app.zip
+          ls -l ../../alm-app-macos.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alm-app-macos
+          path: |
+            phase2-local/target/release/bundle/dmg/*.dmg
+            phase2-local/target/release/alm-app-macos.app.zip
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: phase2-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          targets: aarch64-linux-android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK packages
+        run: sdkmanager "ndk;28.2.13676358" "platforms;android-37.0" "build-tools;36.0.0" >/dev/null
+      - name: Fetch crates
+        run: cargo fetch --locked
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version 2.12.6 --locked
+      - name: Build the release APK
+        working-directory: phase2-local/crates/alm-app
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          cargo tauri android build --apk --target aarch64 -- --locked --offline
+      - name: Size
+        run: ls -l crates/alm-app/gen/android/app/build/outputs/apk/universal/release/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alm-app-android-apk
+          path: phase2-local/crates/alm-app/gen/android/app/build/outputs/apk/universal/release/*.apk
+          if-no-files-found: error
