@@ -21,7 +21,7 @@ pub mod script;
 
 /// What one step leaves behind, read the same way from both authorities.
 #[derive(Debug, PartialEq)]
-struct Effects {
+pub struct Effects {
     owner: ProjectionSnapshot,
     manager: ProjectionSnapshot,
     lots: BTreeMap<u64, Vec<Lot>>,
@@ -29,7 +29,7 @@ struct Effects {
 }
 
 /// An outcome with rejections compared by kind (the core and SQL word reasons differently).
-fn kind(result: &Result<Outcome, AuthorityError>) -> String {
+pub fn kind(result: &Result<Outcome, AuthorityError>) -> String {
     match result {
         Ok(outcome) => format!("{outcome:?}"),
         Err(AuthorityError::Rejected(_)) => "Rejected".into(),
@@ -48,7 +48,7 @@ fn products(s: &ProjectionSnapshot) -> Vec<u64> {
     s.products.iter().map(|p| p.id).collect()
 }
 
-fn local_effects(a: &LocalAuthority) -> Effects {
+pub fn local_effects(a: &LocalAuthority) -> Effects {
     let owner = snapshot(a, Role::Owner);
     let ids = products(&owner);
     Effects {
@@ -87,7 +87,7 @@ fn local_effects(a: &LocalAuthority) -> Effects {
     }
 }
 
-fn pg_effects(a: &PgAuthority) -> Effects {
+pub fn pg_effects(a: &PgAuthority) -> Effects {
     let owner = snapshot(a, Role::Owner);
     let ids = products(&owner);
     Effects {
@@ -104,7 +104,7 @@ fn differ<T: PartialEq + Debug>(out: &mut Vec<String>, what: &str, core: &T, sql
     }
 }
 
-fn compare(core: &Effects, sql: &Effects) -> Vec<String> {
+pub fn compare(core: &Effects, sql: &Effects) -> Vec<String> {
     let mut out = Vec::new();
     let (c, s) = (&core.owner, &sql.owner);
     differ(

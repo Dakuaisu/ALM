@@ -33,7 +33,7 @@ jobs:
         run: |
           cargo test --locked --offline --no-run -p alm-sync \
             --test conformance_postgres --test differential_postgres --test postgres_authority \
-            --test postgres_replay --test rest_authority --test gotrue_session
+            --test postgres_replay --test rest_authority --test gotrue_session --test randomized
           cargo test --locked --offline --no-run -p alm-app --lib
       - name: Server checks
         env:
