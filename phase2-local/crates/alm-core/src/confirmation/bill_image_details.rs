@@ -10,6 +10,8 @@ pub struct BillImageDetails {
     pub lines: Vec<BillImageLine>,
     pub customer_mobile: String,
     pub customer_address: String,
+    /// The bill's loading charge per packet (`s.loadingRate`); `None` when unknown.
+    pub loading_rate: Option<Money>,
 }
 
 impl BillingDirectory {
@@ -29,6 +31,7 @@ impl BillingDirectory {
                         pack: product.pack(),
                         packet_quantity: product.packet_quantity.max(1),
                         mrp: product.mrp,
+                        contents: String::new(),
                     })
             })
             .collect();
@@ -37,6 +40,7 @@ impl BillingDirectory {
             lines,
             customer_mobile: contact.map_or_else(String::new, |c| c.mobile.to_owned()),
             customer_address: contact.map_or_else(String::new, |c| c.address()),
+            loading_rate: None,
         }
     }
 }
@@ -57,6 +61,16 @@ impl Records {
                     mrp: product
                         .map(|p| Money::from_minor_units(p.mrp_minor))
                         .filter(|mrp| mrp.minor_units() > 0),
+                    contents: match &line.kind {
+                        crate::synthetic_read_model::LineKind::Item => String::new(),
+                        crate::synthetic_read_model::LineKind::Crate { components } => {
+                            super::bill_image::crate_contents(
+                                components
+                                    .iter()
+                                    .map(|c| (c.item.as_str(), c.quantity, c.piece)),
+                            )
+                        }
+                    },
                 }
             })
             .collect();
@@ -65,6 +79,39 @@ impl Records {
             lines,
             customer_mobile: contact.map_or_else(String::new, |c| c.mobile.clone()),
             customer_address: contact.map_or_else(String::new, |c| c.address.clone()),
+            loading_rate: sale.loading_rate_minor.map(Money::from_minor_units),
         })
+    }
+}
+
+impl super::ConfirmationFixture {
+    /// Fills a posted bill's loading charge per packet and its crate lines' contents into
+    /// `details` (lines in bill order: item lines, then crate rows).
+    ///
+    /// # Errors
+    /// Denies Managers; rejects unknown bills.
+    pub fn bill_image_extras(
+        &self,
+        role: crate::Role,
+        id: super::DraftId,
+        details: &mut BillImageDetails,
+    ) -> Result<(), super::ConfirmationError> {
+        let (review, _) = self.current_sale(role, id)?;
+        let draft = review.draft();
+        details.loading_rate = Some(review.loading_rate());
+        let ordinary = draft.lines().len();
+        for (index, row) in draft.crate_rows().iter().enumerate() {
+            let contents = super::bill_image::crate_contents(row.components().iter().map(|c| {
+                (
+                    self.catalog.item_name(c.product).unwrap_or_default(),
+                    c.quantity.get(),
+                    c.unit == crate::SaleUnit::Piece,
+                )
+            }));
+            if let Some(line) = details.lines.get_mut(ordinary + index) {
+                line.contents = contents;
+            }
+        }
+        Ok(())
     }
 }

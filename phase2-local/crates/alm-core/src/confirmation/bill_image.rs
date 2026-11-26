@@ -55,6 +55,18 @@ pub enum DrawOp {
         color: u32,
         width: u32,
     },
+    /// A rounded rectangle (`border-radius`): filled, then stroked (`(colour, width in tenths)`,
+    /// `dash` as `border-style: dashed`).
+    RoundRect {
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        radius: u32,
+        fill: Option<u32>,
+        stroke: Option<(u32, u32)>,
+        dash: Option<(u32, u32)>,
+    },
     /// Alphabetic baseline at `y`.
     Text {
         x: i32,
@@ -90,6 +102,20 @@ pub struct BillImageLine {
     pub packet_quantity: u32,
     /// Per-piece MRP; a line without one saves nothing.
     pub mrp: Option<Money>,
+    /// A crate line's contents (`2cs Lime + 3pc Soda`); empty on an item line.
+    pub contents: String,
+}
+
+/// A crate's contents as the full invoice lists them: `fmtN(qty)` then `pc` or `cs`, the item,
+/// joined with ` + `.
+pub fn crate_contents<'a>(components: impl IntoIterator<Item = (&'a str, u32, bool)>) -> String {
+    components
+        .into_iter()
+        .map(|(item, quantity, piece)| {
+            format!("{quantity}{} {item}", if piece { "pc" } else { "cs" })
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
 }
 
 /// `mrpSavings(s)`: Σ max(0, qty × packetQty × MRP − amount) over lines with an MRP, rounded

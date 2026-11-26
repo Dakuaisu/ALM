@@ -131,6 +131,7 @@ impl ConfirmationFixture {
                                     .unwrap_or_default()
                                     .to_owned(),
                                 quantity: component.quantity.get(),
+                                piece: component.unit == crate::SaleUnit::Piece,
                             })
                             .collect(),
                     },
@@ -169,6 +170,7 @@ impl ConfirmationFixture {
                             .map_or(0, |previous| previous.amount.minor_units()),
                         previous_date: bill.previous_balance.and_then(|previous| previous.date),
                     }),
+                loading_rate_minor: Some(review.loading_rate().minor_units()),
             });
         }
         sales.sort_by_key(|sale| sale.number);

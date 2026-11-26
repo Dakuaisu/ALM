@@ -119,11 +119,16 @@ fn image_total(trial: &Trial, bill: DraftId) -> i64 {
         (*y, paise(value.2))
     };
     let (items_y, items) = at("Items Total");
-    let amount_x = texts.iter().find(|t| t.2 == "AMOUNT").unwrap().0;
-    let header_y = texts.iter().find(|t| t.2 == "AMOUNT").unwrap().1;
+    // The shared image is the full invoice (`invoiceHTML`: "Amount"); the canvas says "AMOUNT".
+    let amount = |t: &&(i32, i32, &str)| t.2 == "Amount" || t.2 == "AMOUNT";
+    let amount_x = texts.iter().find(amount).unwrap().0;
+    let header_y = texts.iter().find(amount).unwrap().1;
     let rows: i64 = texts
         .iter()
-        .filter(|t| t.0 == amount_x && t.1 > header_y && t.1 < items_y && t.2.starts_with('₹'))
+        // Right-aligned in the column (th padding 7px, td 8px: the edges differ by a pixel).
+        .filter(|t| {
+            (t.0 - amount_x).abs() <= 1 && t.1 > header_y && t.1 < items_y && t.2.starts_with('₹')
+        })
         .map(|t| paise(t.2))
         .sum();
     let (_, loading) = at("Loading/Delivery");

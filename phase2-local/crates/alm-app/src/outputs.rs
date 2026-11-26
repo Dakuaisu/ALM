@@ -65,16 +65,26 @@ impl Trial {
                 lines: &lines,
             },
         };
-        let details = self
+        let mut details = self
             .directory
             .bill_image_details(&bill.customer, bill.lines.iter().map(|line| line.product));
+        self.posted
+            .bill_image_extras(role, id, &mut details)
+            .map_err(refusal)?;
         let party = party(
             Some(self.shop.business_profile(role).map_err(refusal)?),
             &details,
         );
+        // The image the HTML shares (`waInvoice`: `invoiceHTML(s, true)` through `htmlToPNG`).
         let image = self
             .posted
-            .bill_image(request, &party, &crate::image::measure)
+            .invoice_image(
+                request,
+                &party,
+                details.loading_rate,
+                true,
+                &crate::image::measure,
+            )
             .map_err(refusal)?;
         Ok((format!("Bill-{}.png", bill.invoice), image))
     }

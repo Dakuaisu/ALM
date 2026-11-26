@@ -7,6 +7,7 @@ use crate::{DraftId, Money, ProductId, ProvisionalDraft, Role};
 mod archive_records;
 pub mod bill_image;
 mod bill_image_details;
+pub mod invoice_image;
 pub use bill_image_details::BillImageDetails;
 mod cancellation;
 mod cashbook;

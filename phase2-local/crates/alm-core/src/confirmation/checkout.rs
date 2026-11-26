@@ -45,6 +45,14 @@ impl Review {
         self.checkout.as_ref()
     }
 
+    /// The loading charge per packet the bill was charged at (`s.loadingRate`): the checkout's
+    /// for a crate checkout, else the draft's.
+    pub fn loading_rate(&self) -> Money {
+        self.checkout
+            .as_ref()
+            .map_or_else(|| self.draft.loading_rate(), |terms| terms.loading_rate)
+    }
+
     pub fn amounts(&self) -> Result<CheckoutAmounts, ConfirmationError> {
         let (mut packets, mut subtotal) = self.crate_totals()?;
         for (index, line) in self.draft.lines().iter().enumerate() {
@@ -69,10 +77,7 @@ impl Review {
         packets: u32,
         subtotal: i64,
     ) -> Result<CheckoutAmounts, ConfirmationError> {
-        let rate = self.checkout.as_ref().map_or_else(
-            || self.draft.loading_rate().minor_units(),
-            |terms| terms.loading_rate.minor_units(),
-        );
+        let rate = self.loading_rate().minor_units();
         let loading = rate
             .checked_mul(i64::from(packets))
             .ok_or(ConfirmationError::Overflow)?;

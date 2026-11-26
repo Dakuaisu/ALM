@@ -213,6 +213,9 @@ pub struct Sale {
     /// Archives written before it existed regenerate the Latest balance only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub as_on_bill_date: Option<AsOnBillDate>,
+    /// The bill's loading charge per packet (`s.loadingRate`), copied; absent in older archives.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loading_rate_minor: Option<i64>,
 }
 
 /// A bill's balance before itself (`custBalanceBefore`, rounded to whole rupees) and the date
@@ -253,6 +256,9 @@ pub enum LineKind {
 pub struct Component {
     pub item: String,
     pub quantity: u32,
+    /// Sold by the piece (`unit === "Piece"`); absent (by the case) in older archives.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub piece: bool,
 }
 
 impl Line {

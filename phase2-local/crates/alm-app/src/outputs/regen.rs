@@ -61,7 +61,7 @@ pub(crate) fn bill_png(
     today: alm_core::BillDate,
     mode: alm_core::confirmation::BalanceMode,
 ) -> Result<Vec<u8>, String> {
-    use alm_core::confirmation::bill_image::bill_image_layout;
+    use alm_core::confirmation::invoice_image::invoice_image_layout;
     let id = alm_core::synthetic_read_model::SaleId::new(sale.to_owned());
     let profile = store.business_profile(role).map_err(refusal)?;
     let document = store
@@ -72,9 +72,11 @@ pub(crate) fn bill_png(
         .map_err(refusal)?
         .bill_image_details(sale)
         .ok_or("Sale not archived")?;
-    let image = bill_image_layout(
+    let image = invoice_image_layout(
         &document,
         &party(Some(profile), &details),
+        details.loading_rate,
+        true,
         &crate::image::measure,
     );
     crate::image::render_png(&image)

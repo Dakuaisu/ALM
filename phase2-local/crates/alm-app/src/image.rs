@@ -130,6 +130,23 @@ fn draw_text(
     Ok(())
 }
 
+/// A rectangle with quarter-circle corners of `r` (approximated by quadratic curves).
+fn rounded(x: f32, y: f32, w: f32, h: f32, r: f32) -> Option<tiny_skia::Path> {
+    let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
+    let mut b = PathBuilder::new();
+    b.move_to(x + r, y);
+    b.line_to(x + w - r, y);
+    b.quad_to(x + w, y, x + w, y + r);
+    b.line_to(x + w, y + h - r);
+    b.quad_to(x + w, y + h, x + w - r, y + h);
+    b.line_to(x + r, y + h);
+    b.quad_to(x, y + h, x, y + h - r);
+    b.line_to(x, y + r);
+    b.quad_to(x, y, x + r, y);
+    b.close();
+    b.finish()
+}
+
 /// Draws every operation at the image's scale and encodes the result as PNG.
 pub fn render_png(image: &BillImage) -> Result<Vec<u8>, String> {
     let (width, height) = image.pixels();
@@ -166,6 +183,40 @@ pub fn render_png(image: &BillImage) -> Result<Vec<u8>, String> {
                         stroke.dash = StrokeDash::new(vec![*on as f32, *off as f32], 0.0);
                     }
                     pixmap.stroke_path(&path, &paint(*color), &stroke, transform, None);
+                }
+            }
+            DrawOp::RoundRect {
+                x,
+                y,
+                w,
+                h,
+                radius,
+                fill,
+                stroke,
+                dash,
+            } => {
+                if let Some(path) = rounded(px(*x), px(*y), px(*w), px(*h), px(*radius as i32)) {
+                    if let Some(color) = fill {
+                        pixmap.fill_path(
+                            &path,
+                            &paint(*color),
+                            tiny_skia::FillRule::Winding,
+                            transform,
+                            None,
+                        );
+                    }
+                    if let Some((color, width)) = stroke {
+                        #[allow(clippy::cast_precision_loss)]
+                        let mut line = Stroke {
+                            width: *width as f32 / 10.0,
+                            ..Stroke::default()
+                        };
+                        #[allow(clippy::cast_precision_loss)]
+                        if let Some((on, off)) = dash {
+                            line.dash = StrokeDash::new(vec![*on as f32, *off as f32], 0.0);
+                        }
+                        pixmap.stroke_path(&path, &paint(*color), &line, transform, None);
+                    }
                 }
             }
             DrawOp::Line {

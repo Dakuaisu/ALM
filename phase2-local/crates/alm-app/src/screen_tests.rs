@@ -977,8 +977,9 @@ fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
     assert_eq!(name, "Bill-1.png");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
     let decoded = tiny_skia::Pixmap::decode_png(&png).unwrap();
-    // 427 CSS px + one customer-address line (16) + the "You saved" box (44), at ×2.
-    assert_eq!((decoded.width(), decoded.height()), (1520, 974));
+    // The shared image is the full invoice (`invoiceHTML(s, true)` through `htmlToPNG`, 760 CSS
+    // px wide at ×2): one item row, the customer's address and the "You saved" box.
+    assert_eq!((decoded.width(), decoded.height()), (1520, 1166));
     let corner = decoded.pixel(0, 0).unwrap();
     assert_eq!(
         (corner.red(), corner.green(), corner.blue()),

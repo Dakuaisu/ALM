@@ -37,6 +37,7 @@ pub(super) fn capture(fixture: &ConfirmationFixture) -> (Records, HistoricalGst)
         paid_minor: receipt.received.unwrap().minor_units(),
         cancelled: true,
         as_on_bill_date: None,
+        loading_rate_minor: None,
     };
     let active = Sale {
         id: "sale-active-id".into(),
@@ -64,6 +65,7 @@ pub(super) fn capture(fixture: &ConfirmationFixture) -> (Records, HistoricalGst)
                     components: vec![Component {
                         item: "hidden-component-id".into(),
                         quantity: 3,
+                        piece: false,
                     }],
                 },
                 rate_minor: 250,
@@ -75,6 +77,7 @@ pub(super) fn capture(fixture: &ConfirmationFixture) -> (Records, HistoricalGst)
         paid_minor: 300,
         cancelled: false,
         as_on_bill_date: None,
+        loading_rate_minor: None,
     };
     let ledger = fixture
         .customer_ledger(Role::Owner, &DraftCustomerId::new(BUYER_ID.into()))
