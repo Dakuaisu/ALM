@@ -12,11 +12,8 @@ fn book(state: &State) -> Option<OwnerBook> {
 
 /// A bill's `#no customer` and total, and whether it is cancelled (read from the bill itself,
 /// not by building the whole book).
-fn bill(state: &State, draft: u64) -> Option<(String, alm_core::Money, bool)> {
-    let (invoice, name, total, cancelled) = state
-        .fixture
-        .sale_summary(Role::Owner, alm_core::DraftId::new(draft))
-        .ok()?;
+fn bill(state: &State, draft: alm_core::DraftId) -> Option<(String, alm_core::Money, bool)> {
+    let (invoice, name, total, cancelled) = state.fixture.sale_summary(Role::Owner, draft).ok()?;
     Some((format!("#{invoice} {name}"), total, cancelled))
 }
 

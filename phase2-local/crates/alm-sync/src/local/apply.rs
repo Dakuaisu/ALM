@@ -1,11 +1,11 @@
 //! Applies one intent to a copy of the simulated state.
+use alm_core::Role;
 use alm_core::confirmation::manual_cashbook::{CashBookDeletion, ManualCashBookDraft};
 use alm_core::confirmation::owner_billing::{
     BillingDirectory, CrateSaleTerms, ReceiptTerms, SaleTerms, post_saved_sale, priced_draft,
     save_receipt_at, sell_crate,
 };
 use alm_core::confirmation::{LineEdit, ReceiptMode};
-use alm_core::{DraftId, Role};
 
 use super::{State, commands, rejected};
 use crate::{AuthorityError, Intent, Outcome, SaleReceipt};
@@ -57,7 +57,7 @@ pub(super) fn apply(
             )
             .map_err(rejected)?;
             Ok(Outcome::Sale(SaleReceipt {
-                draft: id.value(),
+                draft: id,
                 invoice: receipt.invoice,
                 quantity: receipt.quantity,
                 total: receipt.total,
@@ -91,7 +91,7 @@ pub(super) fn apply(
                 directory,
                 role,
                 &CrateSaleTerms {
-                    draft: DraftId::new(c.draft),
+                    draft: c.draft,
                     template,
                     quantity: std::num::NonZeroU32::new(c.quantity)
                         .ok_or(AuthorityError::Invalid)?,
@@ -114,11 +114,11 @@ pub(super) fn apply(
             }))
         }
         Intent::CancelSale { draft } => fixture
-            .cancel_sale(role, DraftId::new(*draft))
+            .cancel_sale(role, *draft)
             .map(|()| Outcome::Done)
             .map_err(rejected),
         Intent::RestoreSale { draft } => fixture
-            .undo_cancel_sale(role, DraftId::new(*draft))
+            .undo_cancel_sale(role, *draft)
             .map(|()| Outcome::Done)
             .map_err(rejected),
         Intent::EditSale { draft, lines } => {
@@ -132,7 +132,7 @@ pub(super) fn apply(
                 })
                 .collect::<Option<Vec<_>>>()
                 .ok_or(AuthorityError::Invalid)?;
-            let id = DraftId::new(*draft);
+            let id = *draft;
             let receipt = fixture
                 .edit_posted_lines(role, id, &edits)
                 .map_err(rejected)?;

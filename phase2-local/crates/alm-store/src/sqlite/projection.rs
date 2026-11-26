@@ -19,7 +19,10 @@ mod read;
 mod schema;
 mod write;
 use read::{date, id, money, read_snapshot};
-use schema::{BOOK_TABLES, OWNER_BOOK_TABLES, OWNER_TABLES, SHARED_TABLES, clear_rows};
+use schema::{
+    BOOK_TABLES, DRAFT_TEXT_TABLES, OWNER_BOOK_TABLES, OWNER_TABLES, SHARED_TABLES, clear_rows,
+    has_numeric_draft_ids,
+};
 use write::write_snapshot;
 
 const DIRECTORY: &str = "projections";
@@ -139,6 +142,19 @@ impl ProjectionStore {
             tx.execute_batch(BOOK_TABLES)?;
             if role == Role::Owner {
                 tx.execute_batch(OWNER_BOOK_TABLES)?;
+            }
+            clear_rows(&tx, role)?;
+            tx.execute("DELETE FROM projection_checkpoint", [])?;
+            tx.commit()?;
+        }
+        if has_numeric_draft_ids(&conn)? {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            for table in DRAFT_TEXT_TABLES {
+                tx.execute(&format!("DROP TABLE IF EXISTS {table}"), [])?;
+            }
+            tx.execute_batch(&schema::tables_named(SHARED_TABLES, &DRAFT_TEXT_TABLES))?;
+            if role == Role::Owner {
+                tx.execute_batch(&schema::tables_named(OWNER_TABLES, &DRAFT_TEXT_TABLES))?;
             }
             clear_rows(&tx, role)?;
             tx.execute("DELETE FROM projection_checkpoint", [])?;

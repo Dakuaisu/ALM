@@ -235,15 +235,23 @@ impl Trial {
                 views::gst_screen(&html, &title)
             }
             "estimate" => {
-                let id = self.print_view.ok_or("No bill selected.")?;
-                let html = self.estimate_html(DraftId::new(id))?;
-                views::gst_screen(&html, &format!("Estimate-{id}")).replace(
+                let id = self
+                    .print_view
+                    .as_deref()
+                    .and_then(|text| DraftId::parse(text).ok())
+                    .ok_or("No bill selected.")?;
+                let html = self.estimate_html(id)?;
+                views::gst_screen(&html, &format!("Estimate-{}", id.value())).replace(
                     "Standalone GST tax invoice — not linked to stock or dues.",
                     "Estimate (not a tax invoice).",
                 )
             }
             "poprint" => {
-                let number = self.print_view.ok_or("No purchase order selected.")?;
+                let number = self
+                    .print_view
+                    .as_deref()
+                    .and_then(|text| text.parse::<u64>().ok())
+                    .ok_or("No purchase order selected.")?;
                 let html = self.po_print_html(number)?;
                 views::gst_screen(&html, &format!("PO-{number:03}")).replace(
                     "Standalone GST tax invoice — not linked to stock or dues.",

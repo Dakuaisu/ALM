@@ -21,7 +21,7 @@ pub fn sale_edit_form(
         r#"<div class="help" style="margin-bottom:10px">Editing bill #{} — {}. Saving replaces it and recalculates stock and the customer's balance.</div><form data-action="sale_edit_save" data-payload="terms"><input type="hidden" name="id" value="{}"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate ₹</th><th class="num">Amount</th></tr></thead><tbody>"#,
         bill.invoice,
         bill.date.display(),
-        id.value()
+        id
     );
     for (i, line) in bill.lines.iter().enumerate() {
         let name = line.label.clone().unwrap_or_else(|| {

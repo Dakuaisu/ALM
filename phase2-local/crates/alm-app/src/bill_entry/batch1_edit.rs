@@ -6,7 +6,7 @@ use alm_core::confirmation::owner_billing::SaleTerms;
 use alm_core::confirmation::{
     BalanceMode, ConfirmationError, DashboardPeriod, EditChanges, ReceiptMode,
 };
-use alm_core::{BillDate, DraftCustomerId, DraftId, DraftLine, Money, ProductId, Role};
+use alm_core::{BillDate, DraftCustomerId, DraftLine, Money, ProductId, Role};
 
 use super::{Header, Intent, quantity};
 use crate::Trial;
@@ -97,13 +97,13 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     assert_eq!(
         trial
             .authority
-            .begin_edit(Role::Manager, DraftId::new(1), changes)
+            .begin_edit(Role::Manager, trial.local_draft(1), changes)
             .err(),
         Some(ConfirmationError::AccessDenied)
     );
     let edit = trial
         .authority
-        .begin_edit(Role::Owner, DraftId::new(1), changes)
+        .begin_edit(Role::Owner, trial.local_draft(1), changes)
         .unwrap();
     let edited = trial.authority.save_edit(Role::Owner, &edit).unwrap();
     assert_eq!(
@@ -147,11 +147,11 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     .unwrap();
     let as_on = trial
         .authority
-        .bill_preview(Role::Owner, DraftId::new(1), BalanceMode::AsOnBillDate)
+        .bill_preview(Role::Owner, trial.local_draft(1), BalanceMode::AsOnBillDate)
         .unwrap();
     let latest = trial
         .authority
-        .bill_preview(Role::Owner, DraftId::new(1), BalanceMode::Latest)
+        .bill_preview(Role::Owner, trial.local_draft(1), BalanceMode::Latest)
         .unwrap();
     assert_eq!(
         (
@@ -170,7 +170,7 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     assert!(
         trial
             .authority
-            .bill_preview(Role::Manager, DraftId::new(1), BalanceMode::Latest)
+            .bill_preview(Role::Manager, trial.local_draft(1), BalanceMode::Latest)
             .is_err()
     );
 
@@ -212,7 +212,7 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     assert!(
         trial
             .authority
-            .begin_edit(Role::Owner, DraftId::new(1), changes)
+            .begin_edit(Role::Owner, trial.local_draft(1), changes)
             .is_err()
     );
     assert_eq!(effects(&trial), before);
@@ -252,11 +252,12 @@ fn in_place_line_edit_flows_through_sales_customers_cash_book_and_dashboard() {
         )
     );
 
-    trial.sale_edit = Some(DraftId::new(1));
+    trial.sale_edit = Some(trial.local_draft(1));
     let form = trial.render("sales").unwrap();
     assert!(form.contains(r#"name="qty_0" inputmode="numeric" aria-label="Edit quantity Synthetic Lime" value="2""#), "{form}");
+    let bill = trial.local_draft(1).to_string();
     let terms = |qty: &str, rate: &str| -> HashMap<String, String> {
-        [("id", "1"), ("qty_0", qty), ("rate_0", rate)]
+        [("id", bill.as_str()), ("qty_0", qty), ("rate_0", rate)]
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .collect()

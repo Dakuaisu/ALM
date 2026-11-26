@@ -71,7 +71,7 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
 
     let mut trial = Trial::open(&root.0, Some(crate::billing_tests::day())).unwrap();
     trial.set_owner(false).unwrap();
-    trial.bill_open(DraftId::new(1)).unwrap();
+    trial.bill_open(trial.local_draft(1)).unwrap();
     let html = trial.render("bill").unwrap();
     for markup in [
         r#"name="customer_q" data-search="bill_customer_search" placeholder="Search customer…" autocomplete="off" value="Synthetic Market"><input type="hidden" name="customer" value="batch1-market">"#,
@@ -132,7 +132,7 @@ fn invalid_or_disconnected_choices_do_not_mutate_the_open_or_saved_draft() {
     trial.refresh().unwrap();
     assert_eq!(trial.current, before);
     assert_eq!(effects(&trial), ordinary);
-    trial.bill_open(DraftId::new(1)).unwrap();
+    trial.bill_open(trial.local_draft(1)).unwrap();
     assert_eq!(trial.current, before);
 }
 

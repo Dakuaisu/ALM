@@ -1,8 +1,7 @@
 //! Platform handoff: reveal on desktop, share path on Android, WhatsApp links.
-use alm_core::DraftId;
 use tauri::State;
 
-use crate::{AppState, ipc::IpcId};
+use crate::{AppState, ipc::IpcDraft};
 
 #[cfg(desktop)]
 pub(super) fn reveal(path: &std::path::Path) {
@@ -21,9 +20,9 @@ pub(super) fn reveal(path: &std::path::Path) {
 
 /// Writes the bill image and returns its path; desktop reveals it, Android shares it.
 #[tauri::command(async)]
-pub fn bill_image_share(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+pub fn bill_image_share(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
     let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
-    let (name, png) = trial.bill_image_png(DraftId::new(id.value()))?;
+    let (name, png) = trial.bill_image_png(id.value())?;
     let path = trial.save_output(&name, &png)?;
     #[cfg(desktop)]
     reveal(&path);

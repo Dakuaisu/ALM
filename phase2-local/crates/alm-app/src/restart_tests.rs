@@ -455,7 +455,7 @@ fn new_bill_applies_the_default_loading_charge_through_review_posting_and_restar
     drop(trial);
 
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
-    trial.bill_open(alm_core::DraftId::new(1)).unwrap();
+    trial.bill_open(trial.local_draft(1)).unwrap();
     assert_eq!(
         trial.current.as_ref().unwrap().0.loading_rate(),
         Money::from_minor_units(150),
@@ -566,11 +566,11 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
     check(&mut trial);
     let sent = trial.outbox.entries().unwrap();
-    assert!(
-        sent.iter()
-            .any(|e| e.intent.starts_with("cratesale draft=1 ")
-                && e.status == OutboxStatus::Confirmed)
-    );
+    assert!(sent.iter().any(|e| {
+        e.intent
+            .starts_with(&format!("cratesale draft={} ", trial.local_draft(1)))
+            && e.status == OutboxStatus::Confirmed
+    }));
     // Selling again makes a new bill under the next draft number.
     assert!(sell(&mut trial).is_ok());
     assert_eq!(trial.projected().unwrap().snapshot.sales.len(), 2);
@@ -616,7 +616,10 @@ fn a_crate_bill_is_listed_viewed_edited_cancelled_restored_and_imaged_in_sales()
         sales.contains("<b>#1</b>") && sales.contains("1 items · 10 pkt"),
         "{sales}"
     );
-    assert!(sales.contains(r#"data-action="sale_edit_open" data-id="1""#));
+    assert!(sales.contains(&format!(
+        r#"data-action="sale_edit_open" data-id="{}""#,
+        trial.local_draft(1)
+    )));
     trial.message.clear();
     trial.sales_filter.q = "party".into();
     assert!(
@@ -631,21 +634,25 @@ fn a_crate_bill_is_listed_viewed_edited_cancelled_restored_and_imaged_in_sales()
     trial.sales_filter.q.clear();
 
     // View (estimate) and bill image name the crate line as the HTML does.
-    let estimate = trial.estimate_html(alm_core::DraftId::new(1)).unwrap();
+    let estimate = trial.estimate_html(trial.local_draft(1)).unwrap();
     assert!(estimate.contains("Crate: Party Crate"), "{estimate}");
-    let (name, png) = trial.bill_image_png(alm_core::DraftId::new(1)).unwrap();
+    let (name, png) = trial.bill_image_png(trial.local_draft(1)).unwrap();
     assert_eq!(name, "Bill-1.png");
     assert!(png.starts_with(b"\x89PNG"));
 
     // Edit: 3 crates at ₹380 (15 packets: Lime 6, Soda 9).
-    trial.sale_edit = Some(alm_core::DraftId::new(1));
+    trial.sale_edit = Some(trial.local_draft(1));
     let form = trial.render("sales").unwrap();
     assert!(
         form.contains("Crate: Party Crate") && form.contains(r#"name="qty_0""#),
         "{form}"
     );
     trial
-        .sale_edit_save(map(&[("id", "1"), ("qty_0", "3"), ("rate_0", "380")]))
+        .sale_edit_save(map(&[
+            ("id", &trial.local_draft(1).to_string()),
+            ("qty_0", "3"),
+            ("rate_0", "380"),
+        ]))
         .unwrap();
     let stock = |trial: &mut Trial| {
         let s = trial.projected().unwrap().snapshot;
@@ -663,19 +670,27 @@ fn a_crate_bill_is_listed_viewed_edited_cancelled_restored_and_imaged_in_sales()
     );
     assert!(
         trial
-            .sale_edit_save(map(&[("id", "1"), ("qty_0", "1"), ("rate_0", "1")]))
+            .sale_edit_save(map(&[
+                ("id", &trial.local_draft(1).to_string()),
+                ("qty_0", "1"),
+                ("rate_0", "1"),
+            ]))
             .unwrap_err()
             .contains("below the amount already paid")
     );
     trial
-        .send(&alm_sync::Intent::CancelSale { draft: 1 })
+        .send(&alm_sync::Intent::CancelSale {
+            draft: trial.local_draft(1),
+        })
         .unwrap();
     assert_eq!(
         stock(&mut trial),
         (50, 40, Money::from_minor_units(114_000), true)
     );
     trial
-        .send(&alm_sync::Intent::RestoreSale { draft: 1 })
+        .send(&alm_sync::Intent::RestoreSale {
+            draft: trial.local_draft(1),
+        })
         .unwrap();
     assert_eq!(
         stock(&mut trial),
@@ -969,10 +984,10 @@ fn new_bill_takes_a_crate_row_and_posts_it_through_the_crate_sale_command() {
     let on_hand = |p: u64| s.stock.iter().find(|r| r.product == p).unwrap().on_hand;
     assert_eq!((on_hand(1), on_hand(2)), (44, 31));
     let sent = trial.outbox.entries().unwrap();
-    assert!(
-        sent.iter()
-            .any(|e| e.intent.starts_with("cratesale draft=1 "))
-    );
+    assert!(sent.iter().any(|e| {
+        e.intent
+            .starts_with(&format!("cratesale draft={} ", trial.local_draft(1)))
+    }));
     // A new bill starts empty; removing a crate row empties the bill.
     let html = trial.render("bill").unwrap();
     assert!(!html.contains("📦 Party Crate"));
@@ -1084,7 +1099,7 @@ fn new_bill_mixes_item_lines_and_crate_rows_and_posts_them_as_one_sale() {
         s.stock.iter().find(|r| r.product == p).unwrap().on_hand
     };
     assert_eq!((on_hand(&s, 1), on_hand(&s, 2)), (44, 34));
-    let bill = alm_core::DraftId::new(s.sales[0].draft_id);
+    let bill = s.sales[0].draft_id;
     let estimate = trial.estimate_html(bill).unwrap();
     assert!(
         estimate.contains("Crate: Party Crate") && estimate.contains("Synthetic Lime"),

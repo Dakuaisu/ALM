@@ -13,7 +13,7 @@ pub mod book;
 /// A posted bill as the Sales screen lists it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectedSale {
-    pub draft_id: u64,
+    pub draft_id: crate::DraftId,
     pub invoice: u64,
     pub date: BillDate,
     pub customer: String,
@@ -156,7 +156,7 @@ pub struct ProjectedPurchaseOrder {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct OwnerValues {
     /// Per active bill: its revenue and frozen FIFO cost; `None` when a cost is unknown.
-    pub sale_costs: Vec<(u64, Money, Option<Money>)>,
+    pub sale_costs: Vec<(crate::DraftId, Money, Option<Money>)>,
     /// Total FIFO stock value; `None` when any lot cost is unknown.
     pub stock_value: Option<Money>,
     /// `(product, buy rate)`.
@@ -173,7 +173,7 @@ pub struct OwnerValues {
 pub struct ProjectionSnapshot {
     /// A posted bill the sales list cannot represent yet (a checkout bill other than a named
     /// crate bill); the Sales screen reports it instead of listing a partial history.
-    pub sales_unsupported: Option<u64>,
+    pub sales_unsupported: Option<crate::DraftId>,
     pub sales: Vec<ProjectedSale>,
     pub receipts: Vec<ProjectedReceipt>,
     pub customers: Vec<ProjectedCustomer>,
@@ -253,9 +253,7 @@ impl ProjectionSnapshot {
             return Err(ConfirmationError::AccessDenied);
         }
         if let Some(id) = self.sales_unsupported {
-            return Err(ConfirmationError::UnsupportedSalesRecord(
-                crate::DraftId::new(id),
-            ));
+            return Err(ConfirmationError::UnsupportedSalesRecord(id));
         }
         let bounds = match period {
             SalesPeriod::Today => (Some(today), Some(today)),

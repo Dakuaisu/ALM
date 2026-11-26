@@ -1,7 +1,7 @@
 //! Structured exports and the estimate / PO print views.
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId};
+use crate::{AppState, Trial, debug};
 
 /// The structured exports (`exportSalesCSV`, `exportExcel`) over the live archive records.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,13 +35,18 @@ impl Trial {
 
 /// Opens the estimate (`tab` "estimate", bill draft ID) or PO print (`tab` "poprint", PO number).
 #[tauri::command(async)]
-pub fn print_open(state: State<'_, AppState>, id: IpcId, q: String) -> Result<String, String> {
-    if q != "estimate" && q != "poprint" {
+pub fn print_open(state: State<'_, AppState>, id: String, q: String) -> Result<String, String> {
+    let valid = match q.as_str() {
+        "estimate" => alm_core::DraftId::parse(&id).is_ok(),
+        "poprint" => !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()),
+        _ => return Err("Unknown print view.".into()),
+    };
+    if !valid {
         return Err("Unknown print view.".into());
     }
     crate::with(&state, &q, |trial| {
         trial.require_owner()?;
-        trial.print_view = Some(id.value());
+        trial.print_view = Some(id);
         Ok(())
     })
 }

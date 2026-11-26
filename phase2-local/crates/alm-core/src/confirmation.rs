@@ -126,17 +126,22 @@ pub use sales_output::{SalesOutput, SalesOutputRow, SalesPreview};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
-pub struct RequestId(pub(crate) u64);
+pub struct RequestId(pub(crate) DraftId);
 
 impl RequestId {
     pub const fn new(value: u64) -> Self {
-        Self(value)
+        Self(DraftId::new(value))
+    }
+
+    /// The request that posts `draft` itself, as the authority's `post_sale` does.
+    pub const fn for_draft(draft: DraftId) -> Self {
+        Self(draft)
     }
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub const fn value(self) -> u64 {
-        self.0
+        self.0.value()
     }
 }
 

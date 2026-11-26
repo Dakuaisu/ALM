@@ -22,8 +22,8 @@ pub use bill_date::{BillDate, InvalidBillDate, month_label};
 pub use crate_row_codec::{decode as decode_crate_row, encode as encode_crate_row};
 pub use draft_store::{DraftStoreFailure, DurableDraftStore, InvalidStoredText};
 pub use drafts::{
-    CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftId, DraftLine, ProductId,
-    ProvisionalDraft, SaleUnit,
+    CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftId, DraftLine, InvalidDraftId,
+    ProductId, ProvisionalDraft, SaleUnit,
 };
 
 /// Amount in minor currency units; a profit may be negative.

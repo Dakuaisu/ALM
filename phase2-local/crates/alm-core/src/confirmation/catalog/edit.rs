@@ -5,7 +5,7 @@ impl Catalog {
         &self,
         review: &Review,
     ) -> Result<Self, ConfirmationError> {
-        let id = review.draft.id().value();
+        let id = review.draft.id();
         let old_cost = self
             .allocations
             .sale_costs

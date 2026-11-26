@@ -20,7 +20,7 @@ use crate::projection::book::{
     BookSaleLine, BookSettings, OwnerBook,
 };
 use crate::{
-    CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
+    CrateComponent, CrateRow, DraftCustomer, DraftCustomerId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role, SaleUnit,
 };
 
@@ -133,9 +133,9 @@ impl ConfirmationFixture {
                 .get(id)
                 .ok_or(ConfirmationError::InvalidDraft)?;
             let (cancelled, epoch) = self.lifecycle.get(id).copied().unwrap_or((false, 0));
-            let (cost, line_units, allocations) = self.catalog.book_sale_costs(id.value())?;
+            let (cost, line_units, allocations) = self.catalog.book_sale_costs(*id)?;
             sales.push(BookSale {
-                draft: id.value(),
+                draft: *id,
                 invoice: receipt.invoice,
                 customer: customer_ref(review.draft.customer()),
                 date: review.draft.bill_date(),
@@ -320,7 +320,7 @@ impl ConfirmationFixture {
             );
         }
         for sale in &book.sales {
-            let id = DraftId::new(sale.draft);
+            let id = sale.draft;
             let lines = sale
                 .lines
                 .iter()

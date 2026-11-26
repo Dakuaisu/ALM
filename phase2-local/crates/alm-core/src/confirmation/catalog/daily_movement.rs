@@ -129,7 +129,7 @@ impl ConfirmationFixture {
                 .draft
                 .bill_date()
                 .ok_or(DailyMovementError::MissingSaleDate)?;
-            let sale = id.value();
+            let sale = id;
             let keys = (sale, 0, 0, 0)..=(sale, usize::MAX, u64::MAX, usize::MAX);
             for (&(_, _, product, _), &(packets, _)) in self.catalog.allocations.records.range(keys)
             {

@@ -91,13 +91,15 @@ impl Trial {
             catalog: catalog.as_deref(),
         }))
     }
-    pub(super) fn fresh_bill(&mut self, saved_ids: &[u64]) -> Result<(), String> {
-        let id = saved_ids
-            .last()
-            .copied()
+    pub(super) fn fresh_bill(&mut self, saved_ids: &[DraftId]) -> Result<(), String> {
+        let next = saved_ids
+            .iter()
+            .map(|id| id.value())
+            .max()
             .unwrap_or(0)
             .checked_add(1)
             .ok_or("Draft limit reached.")?;
+        let id = DraftId::scoped(&self.draft_origin(), next).map_err(debug)?;
         let date = self.today()?;
         // `newDraft`: loadingRate starts at the business default (Settings, Owner only).
         let loading = match self.role() {
@@ -108,7 +110,7 @@ impl Trial {
                 .loading_charge(),
             alm_core::Role::Manager => alm_core::Money::from_minor_units(0),
         };
-        let draft = ProvisionalDraft::new(DraftId::new(id), Vec::new())
+        let draft = ProvisionalDraft::new(id, Vec::new())
             .with_bill_date(Some(date))
             .with_loading_rate(loading);
         self.current = Some((draft, false));

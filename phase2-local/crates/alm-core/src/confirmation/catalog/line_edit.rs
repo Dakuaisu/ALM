@@ -3,6 +3,7 @@
 //! this line's newest lots first. Profit keeps the line's frozen unit cost
 //! (`costAtSale = round(cost / qty, 2)`) times the new quantity, as the HTML does.
 use super::{Catalog, ConfirmationError};
+use crate::DraftId;
 
 /// Rounds `cost / qty` to whole paise, halves away from zero (`Math.round` on positive costs).
 fn unit_cost(cost: i64, quantity: u32) -> Option<i64> {
@@ -18,7 +19,7 @@ impl Catalog {
     /// the per-line frozen unit costs of `quantities` (every ordinary line, in order).
     pub(in crate::confirmation) fn stage_line_edit(
         &self,
-        sale: u64,
+        sale: DraftId,
         lines: &[(u64, u32, u32)],
     ) -> Result<Self, ConfirmationError> {
         let mut staged = self.clone();
@@ -48,7 +49,7 @@ impl Catalog {
         Ok(staged)
     }
 
-    fn line_cost(&self, sale: u64, line: usize) -> Option<i64> {
+    fn line_cost(&self, sale: DraftId, line: usize) -> Option<i64> {
         self.allocations
             .records
             .iter()
@@ -58,7 +59,7 @@ impl Catalog {
 
     fn take(
         &mut self,
-        sale: u64,
+        sale: DraftId,
         line: usize,
         product: u64,
         packets: u32,
@@ -109,7 +110,7 @@ impl Catalog {
 
     fn release(
         &mut self,
-        sale: u64,
+        sale: DraftId,
         line: usize,
         product: u64,
         packets: u32,

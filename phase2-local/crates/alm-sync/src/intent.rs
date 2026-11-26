@@ -7,7 +7,7 @@ mod tests;
 mod text;
 
 use alm_core::confirmation::manual_cashbook::CashBookAmounts;
-use alm_core::{BillDate, Money, ProvisionalDraft};
+use alm_core::{BillDate, DraftId, Money, ProvisionalDraft};
 
 /// A reviewed sale: the saved draft, the confirmed date and payment, and the unit price of
 /// every line as reviewed. The authority rejects it as stale if any price changed.
@@ -25,14 +25,14 @@ pub enum Intent {
     /// A crate sold from a saved template, with the template as reviewed.
     SellCrate(CrateSale),
     CancelSale {
-        draft: u64,
+        draft: DraftId,
     },
     RestoreSale {
-        draft: u64,
+        draft: DraftId,
     },
     /// `(quantity, rate in paise)` per existing line.
     EditSale {
-        draft: u64,
+        draft: DraftId,
         lines: Vec<(u32, i64)>,
     },
     RecordReceipt {
@@ -174,7 +174,7 @@ pub struct CrateTerms {
 /// the template's rate and components (`(product, quantity, piece)`) as the Owner reviewed them.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrateSale {
-    pub draft: u64,
+    pub draft: DraftId,
     pub template: u64,
     pub quantity: u32,
     /// `(directory ID, name)`.
@@ -187,7 +187,7 @@ pub struct CrateSale {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SaleReceipt {
-    pub draft: u64,
+    pub draft: DraftId,
     pub invoice: u64,
     pub quantity: u32,
     pub total: Money,

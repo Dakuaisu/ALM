@@ -12,13 +12,13 @@ pub(super) fn decode_owner(o: &Value) -> Result<OwnerValues, AuthorityError> {
         sale_costs: list(&o["sale_costs"])
             .iter()
             .map(|r| {
-                (
-                    number(&r[0]),
+                Ok((
+                    alm_core::DraftId::from_json(&r[0]).ok_or(AuthorityError::Invalid)?,
                     money(&r[1]),
                     r[2].as_i64().map(Money::from_minor_units),
-                )
+                ))
             })
-            .collect(),
+            .collect::<Result<_, AuthorityError>>()?,
         stock_value: o["stock_value"].as_i64().map(Money::from_minor_units),
         buy_rates: list(&o["buy_rates"])
             .iter()

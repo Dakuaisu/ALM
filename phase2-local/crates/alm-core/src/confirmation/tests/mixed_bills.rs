@@ -128,7 +128,7 @@ fn a_mixed_bill_posts_lines_then_each_crate_component_from_fifo() {
     let book = shop
         .owner_book(Role::Owner, &ManualCashBook::default())
         .unwrap();
-    let sale = book.sales.iter().find(|s| s.draft == BILL.value()).unwrap();
+    let sale = book.sales.iter().find(|s| s.draft == BILL).unwrap();
     let taken: Vec<_> = sale
         .allocations
         .iter()
@@ -170,11 +170,7 @@ fn a_mixed_bill_is_listed_imaged_and_archived_with_one_line_per_item_and_crate()
     let snapshot = shop
         .projection(Role::Owner, &directory(), &ManualCashBook::default())
         .unwrap();
-    let listed = snapshot
-        .sales
-        .iter()
-        .find(|s| s.draft_id == BILL.value())
-        .unwrap();
+    let listed = snapshot.sales.iter().find(|s| s.draft_id == BILL).unwrap();
     assert_eq!(
         (listed.lines, listed.items.as_slice()),
         (

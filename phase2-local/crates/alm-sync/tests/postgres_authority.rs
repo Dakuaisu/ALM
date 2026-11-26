@@ -151,7 +151,7 @@ fn trait_post_sale_replays_and_conflicts_against_the_schema() {
         .expect("post");
     assert_eq!(
         (first.draft, first.quantity, first.total.minor_units()),
-        (9_001, 2, 250)
+        (alm_core::DraftId::new(9_001), 2, 250)
     );
     assert_eq!(
         pg.post_sale(Role::Owner, &request, &sale(9_001, 2, 125)),

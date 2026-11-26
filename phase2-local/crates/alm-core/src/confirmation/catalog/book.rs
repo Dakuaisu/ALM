@@ -1,6 +1,8 @@
 //! The catalog as Owner book rows, and back.
 use std::collections::BTreeMap;
 
+use crate::DraftId;
+
 use super::physical_count::PhysicalCountState;
 use super::product_entry::ProductDetails;
 use super::{AllocationState, Catalog, Lot, Product, ProductPricing};
@@ -64,7 +66,7 @@ impl Catalog {
 
     pub(in crate::confirmation) fn book_sale_costs(
         &self,
-        sale: u64,
+        sale: DraftId,
     ) -> Result<SaleCosts, ConfirmationError> {
         let a = &self.allocations;
         let cost = money(a.sale_costs.get(&sale).copied().flatten());

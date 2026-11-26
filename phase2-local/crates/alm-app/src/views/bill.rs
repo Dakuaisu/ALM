@@ -13,7 +13,7 @@ pub struct BillView<'a> {
     pub directory: &'a BillingDirectory,
     pub draft: &'a ProvisionalDraft,
     pub saved: bool,
-    pub saved_ids: &'a [u64],
+    pub saved_ids: &'a [alm_core::DraftId],
     pub role: Role,
     /// Saved crate templates the Owner may add (`(id, name)`); none for a Manager.
     pub crates: &'a [(u64, String)],
@@ -263,7 +263,8 @@ fn header(html: &mut String, view: &BillView<'_>) {
         for id in view.saved_ids {
             let _ = write!(
                 html,
-                r#"<button class="btn sm" type="button" data-action="bill_open" data-id="{id}">Open #{id}</button>"#
+                r#"<button class="btn sm" type="button" data-action="bill_open" data-id="{id}">Open #{}</button>"#,
+                id.value()
             );
         }
         html.push_str("</div>");

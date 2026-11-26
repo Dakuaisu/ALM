@@ -43,7 +43,10 @@ fn date(value: &Value) -> Result<BillDate, AuthorityError> {
 #[allow(clippy::too_many_lines)]
 fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, AuthorityError> {
     let mut s = ProjectionSnapshot {
-        sales_unsupported: d["sales_unsupported"].as_u64(),
+        sales_unsupported: match &d["sales_unsupported"] {
+            Value::Null => None,
+            id => Some(alm_core::DraftId::from_json(id).ok_or(AuthorityError::Invalid)?),
+        },
         catalog: list(&d["catalog"])
             .iter()
             .map(|r| ProjectedProduct {
@@ -97,7 +100,8 @@ fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, AuthorityErr
         .iter()
         .map(|r| {
             Ok(ProjectedSale {
-                draft_id: number(&r["draft_id"]),
+                draft_id: alm_core::DraftId::from_json(&r["draft_id"])
+                    .ok_or(AuthorityError::Invalid)?,
                 invoice: number(&r["invoice"]),
                 date: date(&r["date"])?,
                 customer: text(&r["customer"]),

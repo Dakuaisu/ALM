@@ -64,7 +64,7 @@ impl SalesSession<'_> {
         let DraftStore::Durable(store) = &mut self.sales.drafts else {
             return Err(PendingError::DurableStoreRequired);
         };
-        store.save_pending(id.0, &encode(review))?;
+        store.save_pending(id.0.value(), &encode(review))?;
         Ok(send(id, review))
     }
 
@@ -83,7 +83,9 @@ impl SalesSession<'_> {
         let DraftStore::Durable(store) = &self.sales.drafts else {
             return Err(PendingError::DurableStoreRequired);
         };
-        let snapshot = store.load_pending(id.0)?.ok_or(PendingError::NotFound)?;
+        let snapshot = store
+            .load_pending(id.0.value())?
+            .ok_or(PendingError::NotFound)?;
         let review = decode(&snapshot)?;
         Ok(send(id, &review))
     }
@@ -184,7 +186,7 @@ fn encode_undated(review: &Review) -> String {
         .join(",");
     let base = format!(
         "2|{}|{}|{}|{}|{}|{}",
-        review.draft.id().value(),
+        review.draft.id(),
         review.draft_revision,
         review.terms_revision,
         prices,
@@ -295,7 +297,7 @@ fn decode_undated(snapshot: &str) -> Result<Review, InvalidStoredText> {
         return Err(invalid());
     }
     Ok(Review {
-        draft: ProvisionalDraft::new(DraftId::new(id.parse().map_err(|_| invalid())?), decoded)
+        draft: ProvisionalDraft::new(DraftId::parse(id).map_err(|_| invalid())?, decoded)
             .with_customer(customer),
         draft_revision: draft_revision.parse().map_err(|_| invalid())?,
         terms_revision: terms_revision.parse().map_err(|_| invalid())?,

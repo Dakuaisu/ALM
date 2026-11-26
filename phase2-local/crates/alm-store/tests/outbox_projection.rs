@@ -36,7 +36,7 @@ fn owner_snapshot() -> ProjectionSnapshot {
     ProjectionSnapshot {
         sales_unsupported: None,
         sales: vec![ProjectedSale {
-            draft_id: 1,
+            draft_id: alm_core::DraftId::new(1),
             invoice: 1,
             date: day,
             customer: "Synthetic Customer".into(),
@@ -108,7 +108,11 @@ fn owner_snapshot() -> ProjectionSnapshot {
             cancelled: false,
         }],
         owner: Some(OwnerValues {
-            sale_costs: vec![(1, money(30_350), Some(money(17_777)))],
+            sale_costs: vec![(
+                alm_core::DraftId::new(1),
+                money(30_350),
+                Some(money(17_777)),
+            )],
             stock_value: Some(money(333_333)),
             buy_rates: vec![(1, money(7_000))],
             supplier_prices: vec![(1, 0, money(6_900))],
@@ -297,4 +301,43 @@ fn an_older_projection_file_is_upgraded_and_rebuilt() {
         .apply(&batch(Role::Owner, 4, Some(owner_snapshot())))
         .unwrap();
     assert_eq!(store.load().unwrap().unwrap().snapshot, owner_snapshot());
+}
+
+/// A file from before drafts carried their device (draft IDs in INTEGER columns) is recreated
+/// with text draft IDs and rebuilt on the next pull; a device's draft ID then round-trips.
+#[test]
+fn a_projection_file_with_numeric_draft_ids_is_rebuilt_with_device_draft_ids() {
+    let root = Root::new("numeric-drafts");
+    drop(ProjectionStore::open_scoped(&root.0, "trial", Role::Owner).unwrap());
+    let file = std::fs::read_dir(root.0.join("projections"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.to_string_lossy().ends_with("-owner.sqlite3"))
+        .unwrap();
+    let conn = rusqlite::Connection::open(&file).unwrap();
+    conn.execute_batch(
+        "DROP TABLE projected_sales; DROP TABLE owner_sale_costs; DROP TABLE projected_notes;
+         CREATE TABLE projected_notes (id INTEGER PRIMARY KEY CHECK (id = 1),
+             sales_unsupported INTEGER) STRICT;
+         CREATE TABLE projected_sales (position INTEGER PRIMARY KEY, draft_id INTEGER NOT NULL,
+             invoice INTEGER NOT NULL, date TEXT NOT NULL, customer TEXT NOT NULL,
+             items TEXT NOT NULL, lines INTEGER NOT NULL, packets INTEGER NOT NULL,
+             total INTEGER NOT NULL, paid INTEGER NOT NULL, online INTEGER NOT NULL,
+             cancelled INTEGER NOT NULL, balance INTEGER NOT NULL) STRICT;
+         CREATE TABLE owner_sale_costs (draft_id INTEGER PRIMARY KEY, revenue INTEGER NOT NULL,
+             cost INTEGER) STRICT;
+         INSERT INTO projection_checkpoint VALUES (1, 5, 0);",
+    )
+    .unwrap();
+    drop(conn);
+    let mut store = ProjectionStore::open_scoped(&root.0, "trial", Role::Owner).unwrap();
+    assert_eq!(store.load().unwrap(), None, "rebuilt from the authority");
+    let device = alm_core::DraftId::scoped("trial:dev-00000000000000aa", 1).unwrap();
+    let mut snapshot = owner_snapshot();
+    snapshot.sales[0].draft_id = device;
+    snapshot.owner.as_mut().unwrap().sale_costs[0].0 = device;
+    store
+        .apply(&batch(Role::Owner, 6, Some(snapshot.clone())))
+        .unwrap();
+    assert_eq!(store.load().unwrap().unwrap().snapshot, snapshot);
 }

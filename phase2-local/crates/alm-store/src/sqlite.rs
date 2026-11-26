@@ -197,6 +197,24 @@ impl SqliteDraftStore {
         Ok(())
     }
 
+    /// Every saved draft's local number (as an origin-less ID). A draft file belongs to one
+    /// account on one install, so the number identifies the draft; the caller supplies the
+    /// install's origin, and a draft is saved and reopened under the ID it is given.
+    pub(crate) fn draft_ids(&self) -> Result<Vec<DraftId>, DraftStorageError> {
+        let mut query = self.conn.prepare("SELECT id FROM provisional_drafts")?;
+        let mut rows = query.query([])?;
+        let mut ids = Vec::new();
+        while let Some(row) = rows.next()? {
+            let seq: u64 = row
+                .get::<_, String>(0)?
+                .parse()
+                .map_err(|_| DraftStorageError::InvalidOutput)?;
+            ids.push(DraftId::new(seq));
+        }
+        ids.sort_unstable();
+        Ok(ids)
+    }
+
     pub(crate) fn reopen_rows(
         &self,
         id: DraftId,

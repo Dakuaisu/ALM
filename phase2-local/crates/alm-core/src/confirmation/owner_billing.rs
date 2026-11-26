@@ -218,7 +218,7 @@ impl OwnerPosting {
             return Err(ConfirmationError::StaleReview.into());
         }
         let review = pending.review();
-        Ok(authority.confirm(role, RequestId::new(review.draft().id().value()), review)?)
+        Ok(authority.confirm(role, RequestId::for_draft(review.draft().id()), review)?)
     }
 }
 
@@ -380,5 +380,5 @@ pub fn sell_crate(
         .map_err(|_| ConfirmationError::InvalidDraft)?;
     authority.register_draft(draft)?;
     let review = authority.review_checkout(role, terms.draft, &[], terms.paid)?;
-    Ok(authority.confirm(role, RequestId::new(terms.draft.value()), &review)?)
+    Ok(authority.confirm(role, RequestId::for_draft(terms.draft), &review)?)
 }

@@ -35,8 +35,7 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
                         "unit_price_minor": price.minor_units()})
                 })
                 .collect();
-            let mut terms =
-                json!({"draft_id": sale.draft.id().value().to_string(), "lines": lines});
+            let mut terms = json!({"draft_id": sale.draft.id().to_string(), "lines": lines});
             let load = sale.draft.loading_rate().minor_units();
             if load != 0 {
                 terms["loading_minor"] = json!(load);
@@ -216,7 +215,8 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
 pub fn outcome(value: &Value) -> Result<Outcome, AuthorityError> {
     if value.get("invoice").is_some() {
         return Ok(Outcome::Sale(SaleReceipt {
-            draft: number(&value["draft_id"]),
+            draft: alm_core::DraftId::from_json(&value["draft_id"])
+                .ok_or(AuthorityError::Invalid)?,
             invoice: number(&value["invoice"]),
             quantity: u32::try_from(number(&value["quantity"]))
                 .map_err(|_| AuthorityError::Invalid)?,

@@ -1,11 +1,15 @@
 //! New Bill commands.
 use std::num::NonZeroUsize;
 
-use alm_core::{DraftId, ProductId};
+use alm_core::ProductId;
 use tauri::State;
 
 use super::{Header, Line, quantity};
-use crate::{AppState, ipc::IpcId, with};
+use crate::{
+    AppState,
+    ipc::{IpcDraft, IpcId},
+    with,
+};
 
 #[tauri::command(async)]
 pub fn bill_live(state: State<'_, AppState>, line: String, qty: String) -> Result<String, String> {
@@ -80,8 +84,6 @@ pub fn bill_remove(state: State<'_, AppState>, id: IpcId) -> Result<String, Stri
 }
 
 #[tauri::command(async)]
-pub fn bill_open(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
-    with(&state, "bill", |trial| {
-        trial.bill_open(DraftId::new(id.value()))
-    })
+pub fn bill_open(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
+    with(&state, "bill", |trial| trial.bill_open(id.value()))
 }

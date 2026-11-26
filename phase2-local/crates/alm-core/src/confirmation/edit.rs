@@ -371,7 +371,7 @@ impl ConfirmationFixture {
                 )
             })
             .collect();
-        let catalog = self.catalog.stage_line_edit(id.value(), &moves)?;
+        let catalog = self.catalog.stage_line_edit(id, &moves)?;
         let movement = self
             .movement_epoch
             .checked_add(1)

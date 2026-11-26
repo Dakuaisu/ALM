@@ -232,7 +232,9 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         Money::from_minor_units(36_150 - 2_000 - 1_000)
     );
     trial
-        .send(&alm_sync::Intent::CancelSale { draft: 1 })
+        .send(&alm_sync::Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        })
         .unwrap();
     assert_eq!(customer(&mut trial), Money::from_minor_units(-1_000));
 
@@ -495,6 +497,32 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     let subject = jwt_subject(&owner);
     assert!(log.iter().all(|row| row.account == subject), "{log:?}");
     assert_ne!(subject, "trial");
+
+    // Device B's first draft is numbered 1, like device A's posted bill #1, but carries device
+    // B's origin: the authority posts it under its own invoice instead of refusing it as
+    // already posted (the defect the Android smoke found).
+    let first = other.local_draft(1);
+    let base = crate::billing_tests::draft();
+    let draft = alm_core::ProvisionalDraft::new(first, base.lines().to_vec())
+        .with_customer(base.customer().clone())
+        .with_bill_date(Some(day()));
+    other.drafts.save_draft(draft.clone()).unwrap();
+    other.current = Some((other.drafts.reopen_draft(first).unwrap().unwrap(), true));
+    other.sale_prepare(&terms("20")).unwrap();
+    let serial = other.posting.pending(Role::Owner).unwrap().serial();
+    let invoice = other.sale_confirm(serial).unwrap();
+    assert!(invoice > 1, "a new invoice, not #1");
+    let posted = other.projected().unwrap().snapshot.sales;
+    assert!(
+        posted
+            .iter()
+            .any(|s| s.draft_id == first && s.invoice == invoice)
+    );
+    assert!(
+        posted
+            .iter()
+            .any(|s| s.draft_id == DraftId::new(1) && s.invoice == 1)
+    );
 
     // A legacy backup import through REST from Settings: dry run, explicit confirmation,
     // manifest and quarantine; the reconciliation from the REST book rows equals the dry run;

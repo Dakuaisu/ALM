@@ -14,14 +14,14 @@ pub(super) fn write_snapshot(
 ) -> Result<(), ProjectionError> {
     clear_rows(tx, role)?;
     let m = |money: Money| money.minor_units();
-    let unsupported = s.sales_unsupported.map(signed).transpose()?;
+    let unsupported = s.sales_unsupported.map(|id| id.to_string());
     tx.execute("INSERT INTO projected_notes VALUES (1, ?1)", [unsupported])?;
     for (i, r) in s.sales.iter().enumerate() {
         tx.execute(
             "INSERT INTO projected_sales VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             rusqlite::params![
                 signed(i as u64)?,
-                signed(r.draft_id)?,
+                r.draft_id.to_string(),
                 signed(r.invoice)?,
                 r.date.to_string(),
                 r.customer,
@@ -99,10 +99,15 @@ pub(super) fn write_snapshot(
     write_books(tx, s)?;
     match (&s.owner, role) {
         (Some(owner), Role::Owner) => {
-            for (draft, revenue, cost) in &owner.sale_costs {
+            for (i, (draft, revenue, cost)) in owner.sale_costs.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO owner_sale_costs VALUES (?1, ?2, ?3)",
-                    (signed(*draft)?, m(*revenue), cost.map(m)),
+                    "INSERT INTO owner_sale_costs VALUES (?1, ?2, ?3, ?4)",
+                    (
+                        signed(i as u64)?,
+                        draft.to_string(),
+                        m(*revenue),
+                        cost.map(m),
+                    ),
                 )?;
             }
             tx.execute(

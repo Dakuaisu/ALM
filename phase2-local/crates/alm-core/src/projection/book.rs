@@ -131,7 +131,7 @@ pub struct BookCheckout {
 /// A posted bill as the authority holds it now (after any edit), in first-posting order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BookSale {
-    pub draft: u64,
+    pub draft: crate::DraftId,
     pub invoice: u64,
     pub customer: BookCustomerRef,
     pub date: Option<BillDate>,

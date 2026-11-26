@@ -152,13 +152,28 @@ fn journal_replay_restores_state_requests_and_gst_numbers() {
         )
         .unwrap();
     authority
-        .set_cancelled(Role::Owner, &request("trial-3"), 1, true)
+        .set_cancelled(
+            Role::Owner,
+            &request("trial-3"),
+            alm_core::DraftId::new(1),
+            true,
+        )
         .unwrap();
     authority
-        .set_cancelled(Role::Owner, &request("trial-4"), 1, false)
+        .set_cancelled(
+            Role::Owner,
+            &request("trial-4"),
+            alm_core::DraftId::new(1),
+            false,
+        )
         .unwrap();
     let edited = authority
-        .edit_sale(Role::Owner, &request("trial-5"), 1, vec![(3, 11_800)])
+        .edit_sale(
+            Role::Owner,
+            &request("trial-5"),
+            alm_core::DraftId::new(1),
+            vec![(3, 11_800)],
+        )
         .unwrap();
     assert_eq!(edited.total.minor_units(), 35_400);
     let gst = authority
@@ -219,7 +234,9 @@ fn the_manager_pull_holds_only_the_catalog() {
     assert!(manager.owner.is_none());
     assert!(manager.sales.is_empty() && manager.customers.is_empty() && manager.stock.is_empty());
     assert_eq!(manager.catalog.len(), 2);
-    let _ = Intent::CancelSale { draft: 1 };
+    let _ = Intent::CancelSale {
+        draft: alm_core::DraftId::new(1),
+    };
 }
 
 /// The simulation's pull carries the `pull_projection` rows: the same sections, and only the

@@ -11,10 +11,10 @@ CREATE TABLE projection_checkpoint (
     as_of_ms INTEGER NOT NULL CHECK (as_of_ms >= 0)
 ) STRICT;
 CREATE TABLE projected_notes (
-    id INTEGER PRIMARY KEY CHECK (id = 1), sales_unsupported INTEGER
+    id INTEGER PRIMARY KEY CHECK (id = 1), sales_unsupported TEXT
 ) STRICT;
 CREATE TABLE projected_sales (
-    position INTEGER PRIMARY KEY, draft_id INTEGER NOT NULL, invoice INTEGER NOT NULL,
+    position INTEGER PRIMARY KEY, draft_id TEXT NOT NULL, invoice INTEGER NOT NULL,
     date TEXT NOT NULL, customer TEXT NOT NULL, items TEXT NOT NULL, lines INTEGER NOT NULL,
     packets INTEGER NOT NULL, total INTEGER NOT NULL, paid INTEGER NOT NULL,
     online INTEGER NOT NULL, cancelled INTEGER NOT NULL, balance INTEGER NOT NULL
@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS owner_state_sections (section TEXT PRIMARY KEY, body 
 
 pub(super) const OWNER_TABLES: &str = "
 CREATE TABLE owner_sale_costs (
-    draft_id INTEGER PRIMARY KEY, revenue INTEGER NOT NULL, cost INTEGER
+    position INTEGER PRIMARY KEY, draft_id TEXT NOT NULL UNIQUE, revenue INTEGER NOT NULL,
+    cost INTEGER
 ) STRICT;
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
@@ -116,6 +117,21 @@ const OWNER_PROJECTED: [&str; 7] = [
     "owner_state_sections",
 ];
 
+/// Tables whose draft IDs were numbers before drafts carried their device; a file with the
+/// numeric layout gets them recreated and is rebuilt from the authority on the next pull.
+pub(super) const DRAFT_TEXT_TABLES: [&str; 3] =
+    ["projected_notes", "projected_sales", "owner_sale_costs"];
+
+pub(super) fn has_numeric_draft_ids(conn: &Connection) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT count(*) FROM pragma_table_info('projected_sales')
+         WHERE name = 'draft_id' AND type = 'INTEGER'",
+        [],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|count| count > 0)
+}
+
 pub(super) fn clear_rows(tx: &Transaction<'_>, role: Role) -> rusqlite::Result<()> {
     for table in PROJECTED {
         if table_exists(tx, table)? {
@@ -139,4 +155,16 @@ fn table_exists(conn: &Connection, table: &str) -> rusqlite::Result<bool> {
         |row| row.get::<_, i64>(0),
     )
     .map(|count| count > 0)
+}
+
+/// The `CREATE TABLE` statements of `script` for the named tables only.
+pub(super) fn tables_named(script: &str, names: &[&str]) -> String {
+    script
+        .split_inclusive(';')
+        .filter(|statement| {
+            names
+                .iter()
+                .any(|name| statement.contains(&format!("CREATE TABLE {name} (")))
+        })
+        .collect()
 }

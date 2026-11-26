@@ -38,9 +38,7 @@ impl ConfirmationFixture {
         let (history, sales_unsupported) =
             match self.sales_history(role, any_day, SalesPeriod::All, "") {
                 Ok(history) => (history.rows, None),
-                Err(ConfirmationError::UnsupportedSalesRecord(id)) => {
-                    (Vec::new(), Some(id.value()))
-                }
+                Err(ConfirmationError::UnsupportedSalesRecord(id)) => (Vec::new(), Some(id)),
                 Err(error) => return Err(error),
             };
         let zero = Money::from_minor_units(0);
@@ -73,7 +71,7 @@ impl ConfirmationFixture {
                 })
                 .unwrap_or_default();
             sales.push(ProjectedSale {
-                draft_id: id.value(),
+                draft_id: id,
                 invoice: row.bill.invoice,
                 date: row.date,
                 customer: customer_name(review.draft.customer()),
@@ -89,7 +87,7 @@ impl ConfirmationFixture {
             });
             if !row.cancelled {
                 let cost = self.catalog.frozen_cost(id)?.map(Money::from_minor_units);
-                sale_costs.push((id.value(), review.amounts()?.subtotal, cost));
+                sale_costs.push((id, review.amounts()?.subtotal, cost));
             }
         }
         let receipts = self

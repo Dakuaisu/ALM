@@ -19,6 +19,24 @@ impl<'de> Deserialize<'de> for IpcId {
     }
 }
 
+/// A draft or posted bill's ID as its text (`7`, or `<account>:<device>-<n>`).
+pub(crate) struct IpcDraft(alm_core::DraftId);
+
+impl IpcDraft {
+    pub(crate) const fn value(self) -> alm_core::DraftId {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for IpcDraft {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        alm_core::DraftId::parse(&text)
+            .map(Self)
+            .map_err(|_| de::Error::custom("expected a draft ID"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::IpcId;

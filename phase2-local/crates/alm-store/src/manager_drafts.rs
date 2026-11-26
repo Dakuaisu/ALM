@@ -58,6 +58,14 @@ impl ManagerDraftStore {
         self.0.save_rows(&draft)
     }
 
+    /// Every saved draft's local number (as an origin-less ID), ascending.
+    ///
+    /// # Errors
+    /// Fails on storage errors or a stored ID that is not a draft ID.
+    pub fn draft_ids(&self) -> Result<Vec<DraftId>, DraftStorageError> {
+        self.0.draft_ids()
+    }
+
     pub fn reopen_draft(&self, id: DraftId) -> Result<Option<ProvisionalDraft>, DraftStorageError> {
         self.0.reopen_rows(id)
     }

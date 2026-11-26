@@ -106,7 +106,7 @@ pub(crate) struct Trial {
     /// The last restored backup, opened read-only at a fresh path.
     pub(crate) restored: Option<(String, alm_store::synthetic_read_model::Store)>,
     /// The bill or PO number shown on the estimate / PO print views.
-    pub(crate) print_view: Option<u64>,
+    pub(crate) print_view: Option<String>,
     /// The legacy backup under review (dry run or imported).
     pub(crate) legacy: Option<crate::legacy_import::Review>,
 }
@@ -210,19 +210,27 @@ impl Trial {
         Ok(trial)
     }
 
-    pub(crate) fn saved_ids(&self) -> Result<Vec<u64>, String> {
-        let mut ids = Vec::new();
-        let mut id = 1;
-        while self
-            .drafts
-            .reopen_draft(DraftId::new(id))
+    /// The saved drafts as this install's drafts: a draft file is one account on one install,
+    /// so a draft saved before drafts carried their origin becomes this device's draft too.
+    pub(crate) fn saved_ids(&self) -> Result<Vec<DraftId>, String> {
+        let origin = self.draft_origin();
+        self.drafts
+            .draft_ids()
             .map_err(text)?
-            .is_some()
-        {
-            ids.push(id);
-            id += 1;
-        }
-        Ok(ids)
+            .into_iter()
+            .map(|id| DraftId::scoped(&origin, id.value()).map_err(|_| "Invalid draft.".to_owned()))
+            .collect()
+    }
+
+    /// This install's draft `n` (tests name the drafts the app made by their local number).
+    #[cfg(test)]
+    pub(crate) fn local_draft(&self, n: u64) -> DraftId {
+        DraftId::scoped(&self.draft_origin(), n).unwrap()
+    }
+
+    /// `<account>:<device>`: the origin this install gives its drafts, as its request IDs.
+    pub(crate) fn draft_origin(&self) -> String {
+        alm_sync::request_prefix(&self.account, &self.device_id)
     }
 
     pub(crate) fn today(&self) -> Result<BillDate, String> {

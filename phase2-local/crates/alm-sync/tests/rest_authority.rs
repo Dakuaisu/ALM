@@ -186,16 +186,16 @@ fn manager_is_denied_and_receives_no_owner_fields() {
     }
 }
 
-/// Two devices of one account (one Owner token, own device IDs) post at the same moment from
-/// two threads: both commit with distinct invoices, and each device's identical retry returns its
-/// own receipt.
+/// Two devices of one account (one Owner token, own device IDs) post their first draft (draft 1
+/// on each) at the same moment from two threads: both commit with distinct invoices, and each
+/// device's identical retry returns its own receipt.
 #[test]
 fn two_devices_of_one_account_post_at_the_same_time() {
     let Some(a) = rest() else { return };
     let w = conformance::world(&a);
     let (owner, _) = tokens().unwrap();
     let url = env("ALM_REST_URL").unwrap();
-    let post = |device: &str, draft: u64| {
+    let post = |device: &str| {
         let mut client = RestAuthority::new(&url, &env("ALM_REST_APIKEY").unwrap_or_default())
             .with_token(Role::Owner, &owner)
             .with_device(device);
@@ -204,7 +204,10 @@ fn two_devices_of_one_account_post_at_the_same_time() {
             alm_sync::request_prefix("rest-shop", device)
         ))
         .unwrap();
-        let intent = conformance::sale(&w, draft, 1, w.sell);
+        // Each device's first draft: numbered 1 on both, told apart by the device's origin.
+        let origin = alm_sync::request_prefix("rest-shop", device);
+        let draft = alm_core::DraftId::scoped(&origin, 1).unwrap();
+        let intent = conformance::draft_sale(&w, draft, 1, w.sell);
         let first = client.submit(Role::Owner, &request, &intent);
         let retry = client.submit(Role::Owner, &request, &intent);
         (first, retry)
@@ -213,11 +216,11 @@ fn two_devices_of_one_account_post_at_the_same_time() {
     let (one, two) = std::thread::scope(|scope| {
         let one = scope.spawn(|| {
             barrier.wait();
-            post("dev-00000000000000c1", 171)
+            post("dev-00000000000000c1")
         });
         let two = scope.spawn(|| {
             barrier.wait();
-            post("dev-00000000000000d2", 172)
+            post("dev-00000000000000d2")
         });
         (one.join().unwrap(), two.join().unwrap())
     });

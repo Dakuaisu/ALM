@@ -71,6 +71,25 @@ pub fn sale(core: &ProjectionSnapshot, bill: &Bill<'_>) -> Intent {
     })
 }
 
+/// `intent` (a [`sale`]) as made on a device: its draft keeps its number and carries `origin`
+/// (`<account>:<device>`).
+pub fn on_device(intent: Intent, origin: &str) -> Intent {
+    let Intent::PostSale(mut sale) = intent else {
+        panic!("a sale")
+    };
+    let id = DraftId::scoped(origin, sale.draft.id().value()).unwrap();
+    let draft = &sale.draft;
+    let mut moved = ProvisionalDraft::new(id, draft.lines().to_vec())
+        .with_customer(draft.customer().clone())
+        .with_bill_date(draft.bill_date())
+        .with_loading_rate(draft.loading_rate());
+    for row in draft.crate_rows() {
+        moved.add_crate_row(row.clone());
+    }
+    sale.draft = moved;
+    Intent::PostSale(sale)
+}
+
 /// A crate row copied onto a bill: `(name, rate, crates, components)`; no name leaves it
 /// unpriced.
 pub type CrateLine<'a> = (Option<&'a str>, i64, u32, &'a [(u64, u32, bool)]);
@@ -219,7 +238,7 @@ pub fn crate_sale(
     components: &[(u64, u32, bool)],
 ) -> Intent {
     Intent::SellCrate(alm_sync::CrateSale {
-        draft,
+        draft: alm_core::DraftId::new(draft),
         template,
         quantity: crates,
         customer: (to.0.into(), to.1.into()),

@@ -12,7 +12,7 @@ use alm_sync::{Intent, Outcome};
 use differential::Pair;
 use differential::script::{
     Bill, CUSTOMER, For, LIME, MARKET, SODA, cash_day, count, crate_sale, crate_terms, mixed_sale,
-    on_hand, product, purchase, receipt, receive, sale,
+    on_device, on_hand, product, purchase, receipt, receive, sale,
 };
 
 fn created(outcome: Option<Outcome>) -> u64 {
@@ -42,11 +42,36 @@ fn batch1() {
     p.owner("receipt", &receipt(CUSTOMER.0, "2025-05-02", 3_050, true));
     p.owner("close 30 Apr", &cash_day(None, "2025-04-30", 5_000, 0, 0));
     p.owner("close 2 May", &cash_day(None, "2025-05-02", 0, 3_100, 0));
-    p.owner("cancel", &Intent::CancelSale { draft: 1 });
-    p.owner("restore", &Intent::RestoreSale { draft: 1 });
-    p.owner("cancel again", &Intent::CancelSale { draft: 1 });
-    p.owner("restore twice", &Intent::RestoreSale { draft: 1 });
-    p.owner("restore again refused", &Intent::RestoreSale { draft: 1 });
+    p.owner(
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    p.owner(
+        "restore",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    p.owner(
+        "cancel again",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    p.owner(
+        "restore twice",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    p.owner(
+        "restore again refused",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
     let log: Vec<String> = p
         .core()
         .owner
@@ -291,12 +316,22 @@ fn batch4() {
             },
         ),
     );
-    p.owner("cancel unpaid refused", &Intent::CancelSale { draft: 2 });
+    p.owner(
+        "cancel unpaid refused",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(2),
+        },
+    );
     p.owner(
         "receipt moves no stock",
         &receipt(CUSTOMER.0, "2025-06-02", 100, true),
     );
-    p.owner("cancel after movement", &Intent::CancelSale { draft: 1 });
+    p.owner(
+        "cancel after movement",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
     p.finish();
 }
 
@@ -321,7 +356,9 @@ fn milestone_c() {
     p.run(
         Role::Manager,
         "manager cancel",
-        &Intent::CancelSale { draft: 1 },
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
     );
     p.finish();
 }
@@ -361,7 +398,7 @@ fn l14_ledger() {
     p.owner(
         "edit down",
         &Intent::EditSale {
-            draft: 1,
+            draft: alm_core::DraftId::new(1),
             lines: vec![(1, 11_050)],
         },
     );
@@ -375,7 +412,12 @@ fn l14_ledger() {
         loading: 0,
     };
     p.owner("fully paid", &sale(&core, &paid));
-    p.owner("cancel paid", &Intent::CancelSale { draft: 2 });
+    p.owner(
+        "cancel paid",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(2),
+        },
+    );
     p.owner("clear opening", &opening(CUSTOMER.0, None, None));
     p.owner(
         "unknown customer",
@@ -449,19 +491,29 @@ fn l10_crate_fifo() {
     p.owner(
         "edit down",
         &Intent::EditSale {
-            draft: 1,
+            draft: alm_core::DraftId::new(1),
             lines: vec![(52, 12_050)],
         },
     );
     p.owner(
         "edit up",
         &Intent::EditSale {
-            draft: 1,
+            draft: alm_core::DraftId::new(1),
             lines: vec![(58, 12_050)],
         },
     );
-    p.owner("cancel", &Intent::CancelSale { draft: 1 });
-    p.owner("restore", &Intent::RestoreSale { draft: 1 });
+    p.owner(
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    p.owner(
+        "restore",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
     let core = p.core();
     let lime = on_hand(&core, LIME);
     p.owner(
@@ -528,7 +580,7 @@ fn l10_crate_fifo() {
     );
     // Crate bills are edited (crates and rate), cancelled and restored like any bill.
     let edit = |crates: u32, rate: i64| Intent::EditSale {
-        draft: 7,
+        draft: alm_core::DraftId::new(7),
         lines: vec![(crates, rate)],
     };
     assert!(p.owner("crate edit up", &edit(4, 31_000)).is_some());
@@ -538,22 +590,37 @@ fn l10_crate_fifo() {
     p.owner(
         "crate edit two lines",
         &Intent::EditSale {
-            draft: 7,
+            draft: alm_core::DraftId::new(7),
             lines: vec![(1, 30_000), (1, 30_000)],
         },
     );
     assert!(
-        p.owner("crate cancel", &Intent::CancelSale { draft: 7 })
-            .is_some()
+        p.owner(
+            "crate cancel",
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(7)
+            }
+        )
+        .is_some()
     );
     p.owner("crate edit cancelled", &edit(3, 30_000));
     assert!(
-        p.owner("crate restore", &Intent::RestoreSale { draft: 7 })
-            .is_some()
+        p.owner(
+            "crate restore",
+            &Intent::RestoreSale {
+                draft: alm_core::DraftId::new(7)
+            }
+        )
+        .is_some()
     );
     assert!(
-        p.owner("crate cancel unpaid", &Intent::CancelSale { draft: 8 })
-            .is_none()
+        p.owner(
+            "crate cancel unpaid",
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(8)
+            }
+        )
+        .is_none()
     );
     p.owner(
         "receipt after crate",
@@ -707,7 +774,7 @@ fn l10_mixed_bills() {
     };
     let lime = price(&p.core(), LIME);
     let edit = |line: u32, crates: u32, rate: i64| Intent::EditSale {
-        draft: 11,
+        draft: alm_core::DraftId::new(11),
         lines: vec![(line, lime), (crates, rate)],
     };
     assert!(p.owner("mixed edit up", &edit(3, 4, 31_000)).is_some());
@@ -720,18 +787,28 @@ fn l10_mixed_bills() {
     p.owner(
         "mixed edit one entry",
         &Intent::EditSale {
-            draft: 11,
+            draft: alm_core::DraftId::new(11),
             lines: vec![(1, lime)],
         },
     );
     assert!(
-        p.owner("mixed cancel", &Intent::CancelSale { draft: 11 })
-            .is_some()
+        p.owner(
+            "mixed cancel",
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(11)
+            }
+        )
+        .is_some()
     );
     p.owner("mixed edit cancelled", &edit(2, 2, 30_000));
     assert!(
-        p.owner("mixed restore", &Intent::RestoreSale { draft: 11 })
-            .is_some()
+        p.owner(
+            "mixed restore",
+            &Intent::RestoreSale {
+                draft: alm_core::DraftId::new(11)
+            }
+        )
+        .is_some()
     );
     p.owner(
         "receipt after mixed",
@@ -966,5 +1043,69 @@ fn legacy_import() {
         );
         assert_eq!(p.core().owner.unwrap().book.legacy.resolutions.len(), 2);
     }
+    p.finish();
+}
+
+/// Two devices of one account each post their draft 1 beside the earlier bare draft 1: three
+/// bills with three invoices; cancelling, editing and restoring one device's bill touches only
+/// that bill; a second post of a device's draft 1 is refused as already posted.
+#[test]
+fn two_devices_first_drafts() {
+    let Some(mut p) = Pair::new("two_devices_first_drafts") else {
+        return;
+    };
+    let core = p.core();
+    let bill = Bill {
+        draft: 1,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 2)],
+        date: "2025-04-30",
+        paid: 5_000,
+        loading: 0,
+    };
+    let (a, b) = (
+        alm_sync::request_prefix("diff-shop", "dev-00000000000000a1"),
+        alm_sync::request_prefix("diff-shop", "dev-00000000000000b2"),
+    );
+    let id = |origin: &str| alm_core::DraftId::scoped(origin, 1).unwrap();
+    p.owner("bare draft 1", &sale(&core, &bill));
+    p.owner("device A draft 1", &on_device(sale(&core, &bill), &a));
+    p.owner(
+        "device B draft 1",
+        &on_device(
+            sale(
+                &core,
+                &Bill {
+                    draft: 1,
+                    to: For::Customer(CUSTOMER),
+                    lines: &[(SODA, 1)],
+                    date: "2025-04-30",
+                    paid: 5_000,
+                    loading: 0,
+                },
+            ),
+            &b,
+        ),
+    );
+    p.owner("device B draft 1 again", &on_device(sale(&core, &bill), &b));
+    p.owner("cancel device A", &Intent::CancelSale { draft: id(&a) });
+    p.owner(
+        "edit device B",
+        &Intent::EditSale {
+            draft: id(&b),
+            lines: vec![(3, 4_000)],
+        },
+    );
+    p.owner("restore device A", &Intent::RestoreSale { draft: id(&a) });
+    p.owner(
+        "cancel bare",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(1),
+        },
+    );
+    let sales = p.core().sales;
+    assert_eq!(sales.len(), 3);
+    let invoices: std::collections::BTreeSet<_> = sales.iter().map(|s| s.invoice).collect();
+    assert_eq!(invoices.len(), 3, "{sales:?}");
     p.finish();
 }

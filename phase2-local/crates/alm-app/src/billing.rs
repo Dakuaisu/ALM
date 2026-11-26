@@ -3,7 +3,7 @@ use alm_core::confirmation::owner_billing::{self, OwnerBillingError, SaleTerms};
 use alm_sync::{Intent, Outcome, SaleIntent};
 use tauri::State;
 
-use crate::ipc::IpcId;
+use crate::ipc::{IpcDraft, IpcId};
 use crate::{AppState, debug, views, with};
 
 #[derive(serde::Deserialize)]
@@ -123,7 +123,7 @@ pub fn sales_filter(
 }
 
 #[tauri::command(async)]
-pub fn sale_cancel(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+pub fn sale_cancel(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
         trial.send(&Intent::CancelSale { draft: id }).map(drop)
@@ -138,8 +138,7 @@ impl crate::Trial {
         let role = self.require_owner()?;
         let id = terms
             .remove("id")
-            .and_then(|text| text.parse().ok())
-            .map(alm_core::DraftId::new)
+            .and_then(|text| alm_core::DraftId::parse(&text).ok())
             .ok_or("Unknown bill.")?;
         let draft = self.posted.current_sale(role, id).map_err(debug)?.0.draft();
         // Ordinary lines, then each crate line (crates and rate).
@@ -159,10 +158,7 @@ impl crate::Trial {
             .map(|edit| (edit.quantity.get(), edit.price.minor_units()))
             .collect();
         let outcome = self
-            .send(&Intent::EditSale {
-                draft: id.value(),
-                lines,
-            })
+            .send(&Intent::EditSale { draft: id, lines })
             .map_err(|error| {
                 if error.contains("InvalidAmount") {
                     "The new total is below the amount already paid.".to_owned()
@@ -179,8 +175,8 @@ impl crate::Trial {
 }
 
 #[tauri::command(async)]
-pub fn sale_edit_open(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
-    let id = alm_core::DraftId::new(id.value());
+pub fn sale_edit_open(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
+    let id = id.value();
     with(&state, "sales", |trial| {
         let role = trial.require_owner()?;
         trial.posted.current_sale(role, id).map_err(debug)?;
@@ -206,7 +202,7 @@ pub fn sale_edit_save(
 }
 
 #[tauri::command(async)]
-pub fn sale_restore(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
+pub fn sale_restore(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
         trial.send(&Intent::RestoreSale { draft: id }).map(drop)

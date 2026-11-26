@@ -10,7 +10,7 @@ impl Catalog {
         let mut staged = self.clone();
         let mut found = false;
         for (&(sale, _, product, lot), &(quantity, _)) in &self.allocations.records {
-            if sale != id.value() {
+            if sale != id {
                 continue;
             }
             found = true;
@@ -54,7 +54,7 @@ impl Catalog {
     ) -> Result<Option<i64>, ConfirmationError> {
         self.allocations
             .sale_costs
-            .get(&id.value())
+            .get(&id)
             .copied()
             .ok_or(ConfirmationError::InvalidDraft)
     }

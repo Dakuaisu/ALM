@@ -31,7 +31,10 @@ impl Outcome {
         };
         let outcome = match kind {
             "sale" => Self::Sale(SaleReceipt {
-                draft: u64::try_from(num("draft")?).ok()?,
+                draft: fields
+                    .iter()
+                    .find(|(k, _)| *k == "draft")
+                    .and_then(|(_, v)| alm_core::DraftId::parse(v).ok())?,
                 invoice: u64::try_from(num("invoice")?).ok()?,
                 quantity: u32::try_from(num("quantity")?).ok()?,
                 total: Money::from_minor_units(num("total")?),

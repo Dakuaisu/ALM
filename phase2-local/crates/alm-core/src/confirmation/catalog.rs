@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{ConfirmationError, Money, ProductId, ProvisionalDraft, Review};
+use super::{ConfirmationError, DraftId, Money, ProductId, ProvisionalDraft, Review};
 
 mod book;
 mod cancellation;
@@ -91,14 +91,14 @@ struct AllocationState {
         feature = "demo-fixture",
         serde(with = "crate::confirmation::serde_pairs::pairs")
     )]
-    records: BTreeMap<(u64, usize, u64, usize), Allocation>,
-    sale_costs: BTreeMap<u64, Option<i64>>,
+    records: BTreeMap<(DraftId, usize, u64, usize), Allocation>,
+    sale_costs: BTreeMap<DraftId, Option<i64>>,
     /// Per-line unit cost frozen by the first in-place edit (`costAtSale`), in paise.
     #[cfg_attr(
         feature = "demo-fixture",
         serde(with = "crate::confirmation::serde_pairs::pairs")
     )]
-    line_units: BTreeMap<(u64, usize), Option<i64>>,
+    line_units: BTreeMap<(DraftId, usize), Option<i64>>,
 }
 
 type Allocation = (u32, Option<i64>);
@@ -106,8 +106,8 @@ type Allocation = (u32, Option<i64>);
 /// A bill's checked stock and lot moves, applied by [`Catalog::commit_sale`].
 pub(super) struct StagedSale {
     products: BTreeMap<u64, Product>,
-    records: Vec<((u64, usize, u64, usize), Allocation)>,
-    sale: u64,
+    records: Vec<((DraftId, usize, u64, usize), Allocation)>,
+    sale: DraftId,
     cost: Option<i64>,
 }
 
@@ -281,7 +281,7 @@ impl Catalog {
                     .ok_or(ConfirmationError::Overflow)?;
                 records.push((
                     (
-                        review.draft.id().value(),
+                        review.draft.id(),
                         line_index,
                         line.product_id().value(),
                         lot_index,
@@ -300,7 +300,7 @@ impl Catalog {
             StagedSale {
                 products,
                 records,
-                sale: review.draft.id().value(),
+                sale: review.draft.id(),
                 cost: cost_known.then_some(sale_cost),
             },
             amounts.packets,
@@ -368,13 +368,15 @@ impl Catalog {
         self.allocations
             .records
             .iter()
-            .map(|(&(draft, line, _, lot), &(quantity, cost))| (draft, line, lot, quantity, cost))
+            .map(|(&(draft, line, _, lot), &(quantity, cost))| {
+                (draft.value(), line, lot, quantity, cost)
+            })
             .collect()
     }
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn allocated_cost(&self, id: super::DraftId) -> Option<Option<i64>> {
-        self.allocations.sale_costs.get(&id.value()).copied()
+        self.allocations.sale_costs.get(&id).copied()
     }
 }
 

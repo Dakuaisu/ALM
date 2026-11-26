@@ -122,7 +122,7 @@ impl Trial {
         })
         .map_err(|_| "Enter the amount paid in rupees.")?;
         let outcome = self.send(&Intent::SellCrate(CrateSale {
-            draft: draft.id().value(),
+            draft: draft.id(),
             template: template.value(),
             quantity: row.quantity().get(),
             customer: (id.value().to_owned(), name.clone()),

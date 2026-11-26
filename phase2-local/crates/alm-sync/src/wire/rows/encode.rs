@@ -13,7 +13,7 @@ fn m(value: Money) -> i64 {
 #[allow(clippy::too_many_lines)]
 fn encode_rows(s: &ProjectionSnapshot) -> Value {
     let mut rows = json!({
-        "sales_unsupported": s.sales_unsupported,
+        "sales_unsupported": s.sales_unsupported.map(alm_core::DraftId::to_json),
         "catalog": s.catalog.iter().map(|r| json!({"id": r.id, "name": r.name, "rate": m(r.rate)}))
             .collect::<Vec<_>>(),
         "products": s.products.iter().map(|r| json!({"id": r.id, "item": r.item,
@@ -25,7 +25,7 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
         "customers": s.customers.iter().map(|r| json!({"id": r.id, "name": r.name,
             "balance": m(r.balance), "mobile": r.mobile, "addr1": r.addr1, "addr2": r.addr2}))
             .collect::<Vec<_>>(),
-        "sales": s.sales.iter().map(|r| json!({"draft_id": r.draft_id, "invoice": r.invoice,
+        "sales": s.sales.iter().map(|r| json!({"draft_id": r.draft_id.to_json(), "invoice": r.invoice,
             "date": r.date.to_string(), "customer": r.customer, "items": r.items,
             "lines": r.lines, "packets": r.packets, "total": m(r.total), "paid": m(r.paid),
             "online": r.online, "cancelled": r.cancelled, "balance": m(r.balance)}))
@@ -51,7 +51,7 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
     });
     if let Some(o) = &s.owner {
         rows["owner"] = json!({
-            "sale_costs": o.sale_costs.iter().map(|(d, r, c)| json!([d, m(*r), c.map(m)]))
+            "sale_costs": o.sale_costs.iter().map(|(d, r, c)| json!([d.to_json(), m(*r), c.map(m)]))
                 .collect::<Vec<_>>(),
             "stock_value": o.stock_value.map(m),
             "buy_rates": o.buy_rates.iter().map(|(p, b)| json!([p, m(*b)])).collect::<Vec<_>>(),

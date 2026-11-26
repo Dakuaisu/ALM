@@ -33,7 +33,7 @@ fn cancelled(trial: &mut Trial, draft: u64) -> Option<bool> {
         .snapshot
         .sales
         .iter()
-        .find(|sale| sale.draft_id == draft)
+        .find(|sale| sale.draft_id.value() == draft)
         .map(|sale| sale.cancelled)
 }
 
@@ -59,9 +59,13 @@ fn outbox_resolves_lost_responses_and_restarts_without_ever_posting_by_itself() 
     let intent = Intent::parse(&lost.intent).unwrap();
     let request = RequestId::new(&lost.request_id).unwrap();
     assert!(matches!(
-        trial
-            .authority
-            .submit(Role::Owner, &request, &Intent::CancelSale { draft: 1 }),
+        trial.authority.submit(
+            Role::Owner,
+            &request,
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(1)
+            }
+        ),
         Err(alm_sync::AuthorityError::Conflict)
     ));
 
@@ -69,7 +73,13 @@ fn outbox_resolves_lost_responses_and_restarts_without_ever_posting_by_itself() 
     let pending = trial.outbox.next_request_id("trial").unwrap();
     trial
         .outbox
-        .record(&pending, &Intent::CancelSale { draft: 1 }.canonical())
+        .record(
+            &pending,
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(1),
+            }
+            .canonical(),
+        )
         .unwrap();
     saved_draft(&mut trial, 2);
     drop(trial);
@@ -288,7 +298,13 @@ fn a_downgrade_seen_on_pull_purges_owner_data_and_blocks_owner_commands() {
     let page = trial.render("sales").unwrap();
     assert_eq!(trial.role(), Role::Manager);
     assert!(page.contains("no longer an Owner"), "{page}");
-    assert!(trial.send(&Intent::CancelSale { draft: 1 }).is_err());
+    assert!(
+        trial
+            .send(&Intent::CancelSale {
+                draft: alm_core::DraftId::new(1)
+            })
+            .is_err()
+    );
     let projections = root.0.join("projections");
     assert!(
         files(&projections)
@@ -319,7 +335,13 @@ fn a_revocation_seen_on_pull_purges_the_account_and_blocks_every_command() {
     assert!(page.contains("revoked"), "{page}");
     assert!(!page.contains('₹'), "{page}");
     assert!(trial.require_owner().is_err());
-    assert!(trial.send(&Intent::CancelSale { draft: 1 }).is_err());
+    assert!(
+        trial
+            .send(&Intent::CancelSale {
+                draft: alm_core::DraftId::new(1)
+            })
+            .is_err()
+    );
     assert!(
         trial
             .bill_add(
@@ -425,7 +447,13 @@ fn request_ids_name_the_account_and_this_device_install_and_old_ids_stay_resolva
     // An intent stored under the earlier `account-n` form before an upgrade.
     trial
         .outbox
-        .record("trial-2", &Intent::CancelSale { draft: 1 }.canonical())
+        .record(
+            "trial-2",
+            &Intent::CancelSale {
+                draft: alm_core::DraftId::new(1),
+            }
+            .canonical(),
+        )
         .unwrap();
     drop(trial);
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
@@ -433,7 +461,9 @@ fn request_ids_name_the_account_and_this_device_install_and_old_ids_stay_resolva
     assert_eq!(trial.retry("trial-2"), Ok(Outcome::Done));
     assert_eq!(cancelled(&mut trial, 1), Some(true));
     assert_eq!(
-        trial.send(&Intent::RestoreSale { draft: 1 }),
+        trial.send(&Intent::RestoreSale {
+            draft: alm_core::DraftId::new(1)
+        }),
         Ok(Outcome::Done)
     );
     let ids: Vec<_> = trial

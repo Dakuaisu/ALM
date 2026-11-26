@@ -2,20 +2,222 @@ use std::num::{NonZeroU32, NonZeroUsize};
 
 use crate::{BillDate, Money};
 
-/// Identity of a draft; not an invoice number.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "demo-fixture", derive(serde::Serialize, serde::Deserialize))]
-pub struct DraftId(u64);
+/// Longest origin (`<account>:<device>`) a draft ID carries; with `-` and a 20-digit sequence
+/// the text stays within the 64 bytes a request ID may use.
+pub const DRAFT_ORIGIN_MAX: usize = 43;
+
+/// Identity of a draft; not an invoice number. A draft made on a device carries its origin
+/// (`<account>:<device>`, as request IDs do) and that device's local sequence, so drafts are
+/// unique across the shop. An origin-less ID is the earlier per-device number, kept readable.
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+pub struct DraftId {
+    origin: [u8; DRAFT_ORIGIN_MAX],
+    origin_len: u8,
+    seq: u64,
+}
+
+/// Draft ID text that is neither a decimal number nor `<origin>-<sequence>`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidDraftId;
 
 impl DraftId {
-    /// Wraps a synthetic local identifier.
+    /// An origin-less ID: the earlier per-device numbering, also used by fixtures.
     pub const fn new(value: u64) -> Self {
-        Self(value)
+        Self {
+            origin: [0; DRAFT_ORIGIN_MAX],
+            origin_len: 0,
+            seq: value,
+        }
     }
 
+    /// A shop-wide ID: `origin` is `<account>:<device>` (ASCII letters, digits, `_`, `-`, one
+    /// `:` inside), `seq` the device's local draft number.
+    ///
+    /// # Errors
+    /// Rejects an empty, malformed or over-long origin.
+    pub fn scoped(origin: &str, seq: u64) -> Result<Self, InvalidDraftId> {
+        let bytes = origin.as_bytes();
+        let valid_byte = |b: &u8| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b':');
+        let colon = origin.split_once(':');
+        if bytes.is_empty()
+            || bytes.len() > DRAFT_ORIGIN_MAX
+            || !bytes.iter().all(valid_byte)
+            || bytes.iter().filter(|b| **b == b':').count() != 1
+            || colon.is_none_or(|(_, device)| device.is_empty())
+        {
+            return Err(InvalidDraftId);
+        }
+        let mut stored = [0; DRAFT_ORIGIN_MAX];
+        stored[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            origin: stored,
+            origin_len: bytes.len() as u8,
+            seq,
+        })
+    }
+
+    /// Reads the text [`Display`](std::fmt::Display) writes: digits, or `<origin>-<sequence>`.
+    ///
+    /// # Errors
+    /// Rejects any other text.
+    pub fn parse(text: &str) -> Result<Self, InvalidDraftId> {
+        let digits = |t: &str| {
+            !t.is_empty()
+                && t.len() <= 20
+                && t.bytes().all(|b| b.is_ascii_digit())
+                && (t == "0" || !t.starts_with('0'))
+        };
+        if digits(text) {
+            return text.parse().map(Self::new).map_err(|_| InvalidDraftId);
+        }
+        let (origin, seq) = text.rsplit_once('-').ok_or(InvalidDraftId)?;
+        if !digits(seq) {
+            return Err(InvalidDraftId);
+        }
+        Self::scoped(origin, seq.parse().map_err(|_| InvalidDraftId)?)
+    }
+
+    /// The device's local draft number (what the bill form shows as `Draft #n`).
     #[doc(hidden)]
     pub const fn value(self) -> u64 {
-        self.0
+        self.seq
+    }
+
+    /// `<account>:<device>`, or empty for an origin-less ID.
+    pub fn origin(&self) -> &str {
+        std::str::from_utf8(&self.origin[..usize::from(self.origin_len)]).unwrap_or_default()
+    }
+
+    /// Row form: an origin-less ID stays the number it always was, a scoped one is its text.
+    #[doc(hidden)]
+    pub fn to_json(self) -> serde_json::Value {
+        match self.origin() {
+            "" => serde_json::Value::from(self.seq),
+            _ => serde_json::Value::from(self.to_string()),
+        }
+    }
+
+    /// Reads [`Self::to_json`], or a number written as text.
+    #[doc(hidden)]
+    pub fn from_json(value: &serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::Number(n) => n.as_u64().map(Self::new),
+            serde_json::Value::String(text) => Self::parse(text).ok(),
+            _ => None,
+        }
+    }
+
+    /// The same origin with another local sequence.
+    #[must_use]
+    pub const fn with_value(self, seq: u64) -> Self {
+        Self { seq, ..self }
+    }
+}
+
+impl Ord for DraftId {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.origin(), self.seq).cmp(&(other.origin(), other.seq))
+    }
+}
+
+impl PartialOrd for DraftId {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::fmt::Display for DraftId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.origin() {
+            "" => write!(f, "{}", self.seq),
+            origin => write!(f, "{origin}-{}", self.seq),
+        }
+    }
+}
+
+impl std::fmt::Debug for DraftId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DraftId({self})")
+    }
+}
+
+impl std::str::FromStr for DraftId {
+    type Err = InvalidDraftId;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        Self::parse(text)
+    }
+}
+
+/// An origin-less ID serializes as the number it always was; a scoped one as its text. Both
+/// forms are read back, so journals written by earlier builds stay readable.
+#[cfg(feature = "demo-fixture")]
+impl serde::Serialize for DraftId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.origin() {
+            "" => serializer.serialize_u64(self.seq),
+            _ => serializer.collect_str(self),
+        }
+    }
+}
+
+#[cfg(feature = "demo-fixture")]
+impl<'de> serde::Deserialize<'de> for DraftId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = DraftId;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a draft number or <origin>-<sequence>")
+            }
+            fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<DraftId, E> {
+                Ok(DraftId::new(value))
+            }
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<DraftId, E> {
+                DraftId::parse(text).map_err(|_| E::custom("invalid draft ID"))
+            }
+        }
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
+#[cfg(test)]
+mod id_tests {
+    use super::DraftId;
+
+    #[test]
+    fn draft_ids_carry_their_origin_and_read_back_from_text() {
+        let a = DraftId::scoped("owner:dev-00000000000000aa", 1).unwrap();
+        let b = DraftId::scoped("owner:dev-00000000000000bb", 1).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(a, DraftId::new(1));
+        assert_eq!(a.value(), 1);
+        assert_eq!(a.to_string(), "owner:dev-00000000000000aa-1");
+        assert_eq!(DraftId::parse(&a.to_string()), Ok(a));
+        assert_eq!(DraftId::parse("7"), Ok(DraftId::new(7)));
+        assert_eq!(DraftId::new(7).to_string(), "7");
+        assert_eq!(a.with_value(9).to_string(), "owner:dev-00000000000000aa-9");
+        for bad in [
+            "",
+            "-1",
+            "07",
+            "owner:dev-x-01",
+            "a-1",
+            "owner:dev-x-",
+            "owner:dev-x-+1",
+            ":-1",
+            "owner:-1",
+            "a:b:c-1",
+            "owner:dev x-1",
+            "18446744073709551616",
+        ] {
+            assert!(DraftId::parse(bad).is_err(), "{bad}");
+        }
+        let longest = format!("{}:{}", "a".repeat(22), "dev-0123456789abcdef");
+        let id = DraftId::scoped(&longest, u64::MAX).unwrap();
+        assert!(id.to_string().len() <= 64);
+        assert!(DraftId::scoped(&format!("{longest}x"), 1).is_err());
+        assert!(DraftId::new(1) < a);
     }
 }
 

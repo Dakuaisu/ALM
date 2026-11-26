@@ -67,7 +67,7 @@ impl Intent {
                 };
                 format!(
                     "sale draft={} customer={customer} billdate={} date={} paid={} lines={lines}{load}{crates}",
-                    draft.id().value(),
+                    draft.id(),
                     draft
                         .bill_date()
                         .map_or_else(|| "-".into(), |d| d.to_string()),
@@ -113,6 +113,7 @@ impl Intent {
         let fields: Vec<(&str, &str)> = words.map(|w| w.split_once('=')).collect::<Option<_>>()?;
         let get = |key: &str| fields.iter().find(|(k, _)| *k == key).map(|(_, v)| *v);
         let num = |key: &str| get(key)?.parse::<u64>().ok();
+        let draft_id = |key: &str| DraftId::parse(get(key)?).ok();
         let date = |key: &str| get(key)?.parse::<BillDate>().ok();
         let intent = match kind {
             "sale" => {
@@ -145,7 +146,7 @@ impl Intent {
                     Some(text) => Money::from_minor_units(text.parse().ok()?),
                     None => Money::from_minor_units(0),
                 };
-                let mut draft = ProvisionalDraft::new(DraftId::new(num("draft")?), lines)
+                let mut draft = ProvisionalDraft::new(draft_id("draft")?, lines)
                     .with_customer(customer)
                     .with_bill_date(bill_date)
                     .with_loading_rate(load);
@@ -162,13 +163,13 @@ impl Intent {
                 })
             }
             "cancel" => Self::CancelSale {
-                draft: num("draft")?,
+                draft: draft_id("draft")?,
             },
             "restore" => Self::RestoreSale {
-                draft: num("draft")?,
+                draft: draft_id("draft")?,
             },
             "edit" => Self::EditSale {
-                draft: num("draft")?,
+                draft: draft_id("draft")?,
                 lines: get("lines")?
                     .split(',')
                     .map(|part| {
@@ -245,7 +246,7 @@ impl Intent {
         };
         Some(format!(
             r#"{{"draft_id": "{}", "lines": [{lines}]{load}}}"#,
-            sale.draft.id().value()
+            sale.draft.id()
         ))
     }
 }

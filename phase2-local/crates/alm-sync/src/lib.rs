@@ -198,7 +198,7 @@ pub trait SalesAuthority {
         &mut self,
         role: Role,
         request: &RequestId,
-        draft: u64,
+        draft: alm_core::DraftId,
         cancel: bool,
     ) -> Result<(), AuthorityError> {
         let intent = if cancel {
@@ -217,7 +217,7 @@ pub trait SalesAuthority {
         &mut self,
         role: Role,
         request: &RequestId,
-        draft: u64,
+        draft: alm_core::DraftId,
         lines: Vec<(u32, i64)>,
     ) -> Result<SaleReceipt, AuthorityError> {
         match self.submit(role, request, &Intent::EditSale { draft, lines })? {

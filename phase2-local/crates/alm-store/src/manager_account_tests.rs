@@ -199,3 +199,18 @@ fn scoped_open_does_not_follow_links_for_namespace_database_or_sidecar() {
     assert_eq!(fs::read(&sentinel).unwrap(), b"untouched");
     assert_eq!(fs::read_dir(&target).unwrap().count(), 1);
 }
+
+#[test]
+fn a_device_draft_is_kept_by_its_local_number_and_reopens_under_its_device_id() {
+    let root = DeviceRoot::new();
+    let mut store = LocalSales::open_manager_account(&root.0, "trial").unwrap();
+    let device = DraftId::scoped("trial:dev-00000000000000aa", 2).unwrap();
+    let made_here =
+        ProvisionalDraft::new(device, vec![]).with_customer(DraftCustomer::Typed("Device".into()));
+    store.save_draft(draft("Earlier")).unwrap();
+    store.save_draft(made_here.clone()).unwrap();
+    drop(store);
+    let store = LocalSales::open_manager_account(&root.0, "trial").unwrap();
+    assert_eq!(store.draft_ids().unwrap(), [DRAFT, DraftId::new(2)]);
+    assert_eq!(store.reopen_draft(device).unwrap(), Some(made_here));
+}

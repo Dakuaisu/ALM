@@ -74,9 +74,13 @@ pub fn world<A: SalesAuthority>(a: &A) -> World {
 }
 
 pub fn sale(w: &World, draft: u64, quantity: u32, price: Money) -> Intent {
+    draft_sale(w, DraftId::new(draft), quantity, price)
+}
+
+pub fn draft_sale(w: &World, draft: DraftId, quantity: u32, price: Money) -> Intent {
     Intent::PostSale(SaleIntent {
         draft: ProvisionalDraft::new(
-            DraftId::new(draft),
+            draft,
             vec![DraftLine::new(
                 ProductId::new(w.product),
                 std::num::NonZeroU32::new(quantity).unwrap(),
@@ -177,7 +181,9 @@ fn exercise<A: SalesAuthority>(
 }
 
 fn sale_of(s: &ProjectionSnapshot, draft: u64) -> Option<&alm_core::projection::ProjectedSale> {
-    s.sales.iter().find(|x| x.draft_id == draft)
+    s.sales
+        .iter()
+        .find(|x| x.draft_id == alm_core::DraftId::new(draft))
 }
 
 fn stock_of(s: &ProjectionSnapshot, product: u64) -> Option<u32> {
@@ -204,7 +210,11 @@ pub fn post_sale<A: SalesAuthority>(a: &mut A) {
     };
     assert_eq!(
         (receipt.draft, receipt.quantity, receipt.total),
-        (101, 2, money(w.sell.minor_units() * 2))
+        (
+            alm_core::DraftId::new(101),
+            2,
+            money(w.sell.minor_units() * 2)
+        )
     );
     assert_eq!(
         a.submit(
@@ -222,10 +232,16 @@ pub fn cancel_sale<A: SalesAuthority>(a: &mut A) {
     exercise(
         a,
         "cancel",
-        &Intent::CancelSale { draft: 111 },
-        &Intent::RestoreSale { draft: 111 },
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(111),
+        },
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(111),
+        },
         None,
-        Some(&Intent::CancelSale { draft: 999 }),
+        Some(&Intent::CancelSale {
+            draft: alm_core::DraftId::new(999),
+        }),
         |s| sale_of(s, 111).is_some_and(|x| x.cancelled),
     );
 }
@@ -233,14 +249,27 @@ pub fn cancel_sale<A: SalesAuthority>(a: &mut A) {
 pub fn restore_sale<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
     setup(a, "restore", "setup", &sale(&w, 111, 2, w.sell));
-    setup(a, "restore", "cancel", &Intent::CancelSale { draft: 111 });
+    setup(
+        a,
+        "restore",
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(111),
+        },
+    );
     exercise(
         a,
         "restore",
-        &Intent::RestoreSale { draft: 111 },
-        &Intent::CancelSale { draft: 111 },
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(111),
+        },
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(111),
+        },
         None,
-        Some(&Intent::RestoreSale { draft: 998 }),
+        Some(&Intent::RestoreSale {
+            draft: alm_core::DraftId::new(998),
+        }),
         |s| sale_of(s, 111).is_some_and(|x| !x.cancelled),
     );
 }
@@ -253,16 +282,16 @@ pub fn edit_sale<A: SalesAuthority>(a: &mut A) {
         a,
         "edit",
         &Intent::EditSale {
-            draft: 121,
+            draft: alm_core::DraftId::new(121),
             lines: vec![(3, rate)],
         },
         &Intent::EditSale {
-            draft: 121,
+            draft: alm_core::DraftId::new(121),
             lines: vec![(4, rate)],
         },
         None,
         Some(&Intent::EditSale {
-            draft: 121,
+            draft: alm_core::DraftId::new(121),
             lines: vec![(3, rate), (1, rate)],
         }),
         |s| sale_of(s, 121).is_some_and(|x| x.total == money(rate * 3)),
@@ -626,7 +655,7 @@ pub fn save_crate<A: SalesAuthority>(a: &mut A) {
 
 fn crate_sale(w: &World, template: u64, draft: u64, quantity: u32, rate: i64) -> Intent {
     Intent::SellCrate(alm_sync::CrateSale {
-        draft,
+        draft: alm_core::DraftId::new(draft),
         template,
         quantity,
         customer: w.customer.clone(),
@@ -661,7 +690,7 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     };
     assert_eq!(
         (receipt.draft, receipt.quantity, receipt.total),
-        (151, 2, money(40_000))
+        (alm_core::DraftId::new(151), 2, money(40_000))
     );
     assert_eq!(
         a.submit(
@@ -913,7 +942,7 @@ pub fn edit_crate_sale<A: SalesAuthority>(a: &mut A) {
     );
     let (product, on_hand) = (w.product, stock_of(&state(a).1, w.product).unwrap());
     let edit = |crates: u32, rate: i64| Intent::EditSale {
-        draft: 155,
+        draft: alm_core::DraftId::new(155),
         lines: vec![(crates, rate)],
     };
     let outcome = exercise(
@@ -956,10 +985,16 @@ pub fn cancel_crate_sale<A: SalesAuthority>(a: &mut A) {
     exercise(
         a,
         "cratecancel",
-        &Intent::CancelSale { draft: 156 },
-        &Intent::RestoreSale { draft: 156 },
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(156),
+        },
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(156),
+        },
         None,
-        Some(&Intent::CancelSale { draft: 997 }),
+        Some(&Intent::CancelSale {
+            draft: alm_core::DraftId::new(997),
+        }),
         |s| {
             sale_of(s, 156).is_some_and(|x| x.cancelled)
                 && stock_of(s, product) == Some(on_hand + 2)
@@ -969,7 +1004,9 @@ pub fn cancel_crate_sale<A: SalesAuthority>(a: &mut A) {
         a,
         "cratecancel",
         "restore",
-        &Intent::RestoreSale { draft: 156 },
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(156),
+        },
     );
     assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
 }
@@ -1020,7 +1057,7 @@ pub fn mixed_sale_lifecycle<A: SalesAuthority>(a: &mut A) {
         (2, &[w.item.clone(), "Conformance Crate".to_owned()][..])
     );
     let edit = |line: u32, crates: u32| Intent::EditSale {
-        draft: 171,
+        draft: alm_core::DraftId::new(171),
         lines: vec![(line, w.sell.minor_units()), (crates, 41_000)],
     };
     exercise(
@@ -1030,16 +1067,30 @@ pub fn mixed_sale_lifecycle<A: SalesAuthority>(a: &mut A) {
         &edit(1, 2),
         None,
         Some(&Intent::EditSale {
-            draft: 171,
+            draft: alm_core::DraftId::new(171),
             lines: vec![(3, w.sell.minor_units())],
         }),
         |s| stock_of(s, product) == Some(on_hand - 7),
     );
     let total = money(3 * w.sell.minor_units() + 82_000);
     assert_eq!(sale_of(&state(a).1, 171).map(|x| x.total), Some(total));
-    setup(a, "mixed", "cancel", &Intent::CancelSale { draft: 171 });
+    setup(
+        a,
+        "mixed",
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(171),
+        },
+    );
     assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
-    setup(a, "mixed", "restore", &Intent::RestoreSale { draft: 171 });
+    setup(
+        a,
+        "mixed",
+        "restore",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(171),
+        },
+    );
     assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 7));
 }
 
@@ -1390,6 +1441,87 @@ pub fn two_devices<A: SalesAuthority>(a: &mut A) {
     assert_ne!(after, before);
 }
 
+/// Two devices of one account each post their first draft: both are numbered 1 on their device
+/// but carry the device's origin, so neither is refused as already posted and each gets its
+/// own invoice. The same draft again (new request) is already posted; cancelling device B's
+/// draft 1 leaves device A's and the earlier bare draft 1 alone.
+pub fn two_devices_first_draft<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let origin = |device: &str| alm_sync::request_prefix("conf-shop", device);
+    let first_draft =
+        |device: &str| DraftId::scoped(&origin(device), 1).expect("a device's draft ID");
+    let (draft_a, draft_b) = (
+        first_draft("dev-00000000000000e1"),
+        first_draft("dev-00000000000000f2"),
+    );
+    assert_eq!((draft_a.value(), draft_b.value()), (1, 1));
+    assert_ne!(draft_a, draft_b);
+    let legacy = setup(a, "firstdraft", "legacy", &sale(&w, 1, 1, w.sell));
+    let request = |device: &str| {
+        RequestId::new(&format!("{}-1", origin(device))).expect("a device's request ID")
+    };
+    let Ok(Outcome::Sale(receipt_a)) = a.submit(
+        Role::Owner,
+        &request("dev-00000000000000e1"),
+        &draft_sale(&w, draft_a, 2, w.sell),
+    ) else {
+        panic!("device A's first draft posts")
+    };
+    let Ok(Outcome::Sale(receipt_b)) = a.submit(
+        Role::Owner,
+        &request("dev-00000000000000f2"),
+        &draft_sale(&w, draft_b, 2, w.sell),
+    ) else {
+        panic!("device B's first draft posts too")
+    };
+    let Outcome::Sale(legacy) = legacy else {
+        panic!("a sale receipt")
+    };
+    assert_eq!((receipt_a.draft, receipt_b.draft), (draft_a, draft_b));
+    assert_ne!(receipt_a.invoice, receipt_b.invoice);
+    assert_ne!(receipt_a.invoice, legacy.invoice);
+    let before = state(a);
+    assert_eq!(
+        a.submit(
+            Role::Owner,
+            &req("firstdraft", "again"),
+            &draft_sale(&w, draft_b, 2, w.sell)
+        ),
+        Err(AuthorityError::AlreadyPosted)
+    );
+    assert_eq!(state(a), before);
+    let (_, s) = &before;
+    for (draft, receipt) in [(draft_a, receipt_a), (draft_b, receipt_b)] {
+        let row = s
+            .sales
+            .iter()
+            .find(|x| x.draft_id == draft)
+            .expect("listed");
+        assert_eq!(
+            (row.invoice, row.packets),
+            (receipt.invoice, receipt.quantity)
+        );
+    }
+    // The core cancels only the latest stock movement: the last-posted bill, device B's.
+    setup(
+        a,
+        "firstdraft",
+        "cancel",
+        &Intent::CancelSale { draft: draft_b },
+    );
+    let (_, s) = state(a);
+    let cancelled = |draft: DraftId| {
+        s.sales
+            .iter()
+            .find(|x| x.draft_id == draft)
+            .unwrap()
+            .cancelled
+    };
+    assert!(cancelled(draft_b));
+    assert!(!cancelled(draft_a));
+    assert!(!cancelled(DraftId::new(1)));
+}
+
 /// One `#[test]` per case for an authority built by `$make`.
 #[macro_export]
 macro_rules! conformance_tests {
@@ -1401,7 +1533,7 @@ macro_rules! conformance_tests {
             set_supplier_prices, save_purchase_order, receive_purchase_order,
             close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
-            import_gst_bill, manager_pull, lookup, two_devices
+            import_gst_bill, manager_pull, lookup, two_devices, two_devices_first_draft
         );
     };
     ($make:expr; $($case:ident),+ $(,)?) => {

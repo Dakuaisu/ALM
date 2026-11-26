@@ -3,7 +3,7 @@
 //! Dashboard. Exact paise are asserted from core; rendered rupees are checked separately.
 use alm_core::confirmation::DashboardPeriod;
 use alm_core::confirmation::owner_billing::{CustomerFilter, SaleTerms};
-use alm_core::{BillDate, DraftCustomerId, DraftId, Money, ProductId, Role};
+use alm_core::{BillDate, DraftCustomerId, Money, ProductId, Role};
 
 use super::{Header, Intent, quantity};
 use crate::Trial;
@@ -61,7 +61,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
 
     // Reopened after a restart, still provisional; the Owner reviews changed (Owner) prices.
     let mut trial = Trial::open(&root.0, Some(date(BILL_DAY))).unwrap();
-    trial.bill_open(DraftId::new(1)).unwrap();
+    trial.bill_open(trial.local_draft(1)).unwrap();
     assert_eq!(trial.authority.posted_count(), 0);
     let review = trial.render("review").unwrap();
     assert!(review.contains("<b>Owner total ₹241.00</b>"), "{review}");
@@ -163,10 +163,8 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     assert_eq!(before.current.receipts.minor_units(), 3_050);
 
     // Cancel the bill: the receipt survives, balances, Cash Book and Dashboard follow.
-    trial
-        .authority
-        .cancel_sale(Role::Owner, DraftId::new(1))
-        .unwrap();
+    let bill = trial.local_draft(1);
+    trial.authority.cancel_sale(Role::Owner, bill).unwrap();
     assert_eq!(balance(&trial).minor_units(), -3_050);
     assert_eq!(day_close(&trial, BILL_DAY), (0, 0, 0));
     assert_eq!(day_close(&trial, RECEIPT_DAY), (0, 3_050, 1));

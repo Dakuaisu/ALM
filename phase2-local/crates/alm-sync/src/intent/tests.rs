@@ -42,9 +42,11 @@ fn canonical_text_round_trips_and_rejects_other_text() {
         r#"{"draft_id": "7", "lines": [{"product_id": 1, "quantity": 2, "unit_price_minor": 12050}]}"#
     );
     for intent in [
-        Intent::CancelSale { draft: 7 },
+        Intent::CancelSale {
+            draft: alm_core::DraftId::new(7),
+        },
         Intent::EditSale {
-            draft: 7,
+            draft: alm_core::DraftId::new(7),
             lines: vec![(3, 11_800)],
         },
         Intent::RecordReceipt {
@@ -175,7 +177,7 @@ fn canonical_text_round_trips_and_rejects_other_text() {
     assert_eq!(Intent::parse("cancel draft=7 extra=1"), None);
     assert_eq!(Intent::parse("cancel draft=07"), None);
     let outcome = Outcome::Sale(SaleReceipt {
-        draft: 7,
+        draft: alm_core::DraftId::new(7),
         invoice: 3,
         quantity: 2,
         total: Money::from_minor_units(24_100),

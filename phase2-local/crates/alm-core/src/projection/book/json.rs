@@ -187,7 +187,7 @@ fn encode_sale(s: &BookSale) -> Value {
         BookPayment::WalkInCash(a) => json!({"kind": "walk_in", "amount": m(a)}),
     };
     json!({
-        "draft": s.draft, "invoice": s.invoice, "customer": customer, "date": od(s.date),
+        "draft": s.draft.to_json(), "invoice": s.invoice, "customer": customer, "date": od(s.date),
         "loading": m(s.loading_rate),
         "lines": s.lines.iter().map(|l| json!([l.product, l.quantity])).collect::<Vec<_>>(),
         "prices": s.prices.iter().map(|p| m(*p)).collect::<Vec<_>>(),
@@ -244,7 +244,7 @@ fn decode_sale(r: &Value) -> R<BookSale> {
         _ => return Err(BookFormatError),
     };
     Ok(BookSale {
-        draft: number(&r["draft"]),
+        draft: crate::DraftId::from_json(&r["draft"]).ok_or(BookFormatError)?,
         invoice: number(&r["invoice"]),
         customer,
         date: opt_date(&r["date"])?,

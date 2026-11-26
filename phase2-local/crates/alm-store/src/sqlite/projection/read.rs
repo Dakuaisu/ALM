@@ -6,7 +6,7 @@ use alm_core::projection::{
     OwnerValues, ProjectedCashDay, ProjectedCustomer, ProjectedProduct, ProjectedReceipt,
     ProjectedSale, ProjectedStock, ProjectionSnapshot,
 };
-use alm_core::{BillDate, Money, Role};
+use alm_core::{BillDate, DraftId, Money, Role};
 
 use super::books::{read_books, read_owner_books};
 use super::{DraftStorageError, unsigned};
@@ -35,7 +35,7 @@ pub(super) fn read_snapshot(
         |r| {
             let items: String = r.get(4)?;
             Ok(ProjectedSale {
-                draft_id: id(r, 0)?,
+                draft_id: draft(r, 0)?,
                 invoice: id(r, 1)?,
                 date: date(r, 2)?,
                 customer: r.get(3)?,
@@ -130,10 +130,14 @@ pub(super) fn read_snapshot(
     let owner = if role == Role::Owner {
         let sale_costs = rows(
             conn,
-            "SELECT draft_id, revenue, cost FROM owner_sale_costs ORDER BY draft_id",
+            "SELECT draft_id, revenue, cost FROM owner_sale_costs ORDER BY position",
             |r| {
                 let cost: Option<i64> = r.get(2)?;
-                Ok((id(r, 0)?, money(r, 1)?, cost.map(Money::from_minor_units)))
+                Ok((
+                    draft(r, 0)?,
+                    money(r, 1)?,
+                    cost.map(Money::from_minor_units),
+                ))
             },
         )?;
         let value: Option<Option<i64>> = conn
@@ -152,13 +156,16 @@ pub(super) fn read_snapshot(
         Some(owner) => Some(read_owner_books(conn, owner)?),
         None => None,
     };
-    let unsupported: Option<Option<i64>> = conn
+    let unsupported: Option<Option<String>> = conn
         .query_row("SELECT sales_unsupported FROM projected_notes", [], |r| {
             r.get(0)
         })
         .optional()?;
     Ok(ProjectionSnapshot {
-        sales_unsupported: unsupported.flatten().map(unsigned).transpose()?,
+        sales_unsupported: unsupported
+            .flatten()
+            .map(|text| DraftId::parse(&text).map_err(|_| DraftStorageError::InvalidOutput))
+            .transpose()?,
         sales,
         receipts,
         customers,
@@ -182,4 +189,8 @@ pub(super) fn money(row: &rusqlite::Row<'_>, index: usize) -> Result<Money, Draf
 
 pub(super) fn id(row: &rusqlite::Row<'_>, index: usize) -> Result<u64, DraftStorageError> {
     unsigned(row.get(index)?)
+}
+
+fn draft(row: &rusqlite::Row<'_>, index: usize) -> Result<DraftId, DraftStorageError> {
+    DraftId::parse(&row.get::<_, String>(index)?).map_err(|_| DraftStorageError::InvalidOutput)
 }
