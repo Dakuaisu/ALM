@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS projected_gst_bills (
     position INTEGER PRIMARY KEY, id INTEGER NOT NULL, number INTEGER NOT NULL,
     date TEXT NOT NULL, customer TEXT NOT NULL, cancelled INTEGER NOT NULL
 ) STRICT;
+CREATE TABLE IF NOT EXISTS projected_customer_names (
+    position INTEGER PRIMARY KEY, id TEXT NOT NULL, name TEXT NOT NULL
+) STRICT;
 ";
 
 pub(super) const OWNER_BOOK_TABLES: &str = "
@@ -103,7 +106,7 @@ CREATE TABLE owner_sale_costs (
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
 
-const PROJECTED: [&str; 15] = [
+const PROJECTED: [&str; 16] = [
     "projection_raw_skeleton",
     "projection_raw_rows",
     "projected_notes",
@@ -119,6 +122,7 @@ const PROJECTED: [&str; 15] = [
     "projected_crates",
     "projected_godown",
     "projected_gst_bills",
+    "projected_customer_names",
 ];
 
 const OWNER_PROJECTED: [&str; 7] = [

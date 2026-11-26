@@ -3,10 +3,10 @@ use super::manual_cashbook::ManualCashBook;
 use super::owner_billing::{BillingDirectory, CustomerFilter};
 use super::{ConfirmationError, ConfirmationFixture, SalesPeriod};
 use crate::projection::{
-    OwnerValues, ProjectedCashDay, ProjectedCrate, ProjectedCustomer, ProjectedGodownRow,
-    ProjectedGstBill, ProjectedProduct, ProjectedProductTerms, ProjectedPurchaseLine,
-    ProjectedPurchaseOrder, ProjectedReceipt, ProjectedSale, ProjectedStock, ProjectedSupplier,
-    ProjectionSnapshot, customer_name, online,
+    OwnerValues, ProjectedCashDay, ProjectedCrate, ProjectedCustomer, ProjectedCustomerName,
+    ProjectedGodownRow, ProjectedGstBill, ProjectedProduct, ProjectedProductTerms,
+    ProjectedPurchaseLine, ProjectedPurchaseOrder, ProjectedReceipt, ProjectedSale, ProjectedStock,
+    ProjectedSupplier, ProjectionSnapshot, customer_name, online,
 };
 use crate::{BillDate, Money, Role};
 
@@ -28,8 +28,19 @@ impl ConfirmationFixture {
             })
             .collect();
         if role != Role::Owner {
+            // Names only, in the Customers list's order; balances stay with the Owner.
+            let customer_names = directory
+                .customer_book(self, Role::Owner, &CustomerFilter::All)?
+                .rows
+                .into_iter()
+                .map(|row| ProjectedCustomerName {
+                    id: row.customer.id.to_owned(),
+                    name: row.customer.name.to_owned(),
+                })
+                .collect();
             return Ok(ProjectionSnapshot {
                 catalog,
+                customer_names,
                 ..ProjectionSnapshot::default()
             });
         }

@@ -312,7 +312,14 @@ fn a_downgrade_seen_on_pull_purges_owner_data_and_blocks_owner_commands() {
             .all(|(path, _)| !path.to_string_lossy().contains("-owner.sqlite3")),
         "the Owner projection file is gone"
     );
-    assert!(holds(&projections, "Synthetic Customer").is_empty());
+    // The Manager file holds the catalog and customer names, never contacts, balances or bills.
+    for needle in ["90000 00001", "12 Synthetic Lane", "Kanpur", "sale draft=1"] {
+        assert!(holds(&projections, needle).is_empty(), "{needle}");
+    }
+    assert!(
+        !holds(&projections, "Synthetic Customer").is_empty(),
+        "the Manager's customer names"
+    );
     assert!(
         !holds(&projections, "Synthetic Lime").is_empty(),
         "the Manager catalog"
@@ -626,4 +633,77 @@ fn rebuilds_and_revocations_are_logged_as_this_devices_sync_entries() {
     // A Manager sees no log.
     trial.set_owner(false).unwrap();
     assert!(!trial.render("settings").unwrap().contains("<td>sync</td>"));
+}
+
+/// A Manager's customer picker comes from the names its device pulled (no balance, mobile or
+/// address), not from the device directory.
+#[test]
+fn a_manager_picks_customers_from_the_names_its_device_pulled() {
+    let root = Root::new("manager-customers");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.set_owner(false).unwrap();
+    let stored = trial.projection.load().unwrap().unwrap();
+    let names: Vec<_> = stored
+        .snapshot
+        .customer_names
+        .iter()
+        .map(|c| (c.id.as_str(), c.name.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("batch1-customer", "Synthetic Customer"),
+            ("batch1-market", "Synthetic Market")
+        ]
+    );
+    assert!(
+        stored.snapshot.customers.is_empty(),
+        "no balances or contacts"
+    );
+    let mut snapshot = stored.snapshot.clone();
+    snapshot.customer_names[0].name = "Projected Customer".into();
+    trial
+        .projection
+        .apply(&alm_core::projection::ProjectionBatch {
+            role: Role::Manager,
+            checkpoint: stored.checkpoint + 1,
+            as_of_ms: stored.as_of_ms,
+            snapshot: Some(snapshot),
+            rows: None,
+        })
+        .unwrap();
+    let found = trial.bill_customer_search("projected");
+    assert!(found.contains("Projected Customer"), "{found}");
+    assert!(
+        !trial
+            .bill_customer_search("synthetic customer")
+            .contains("Synthetic Customer")
+    );
+    assert!(!found.contains("90000") && !found.contains("Synthetic Lane"));
+    trial.current = Some((
+        alm_core::ProvisionalDraft::new(DraftId::new(1), Vec::new()).with_bill_date(Some(day())),
+        false,
+    ));
+    trial
+        .bill_header(crate::bill_entry::Header::new(
+            "batch1-customer",
+            "2025-04-30",
+            None,
+            crate::bill_entry::HeaderIntent::Select,
+        ))
+        .unwrap();
+    assert!(matches!(
+        trial.current.as_ref().unwrap().0.customer(),
+        alm_core::DraftCustomer::Selected { name, .. } if name == "Projected Customer"
+    ));
+    assert!(
+        trial
+            .bill_header(crate::bill_entry::Header::new(
+                "not-listed",
+                "2025-04-30",
+                None,
+                crate::bill_entry::HeaderIntent::Select,
+            ))
+            .is_err()
+    );
 }

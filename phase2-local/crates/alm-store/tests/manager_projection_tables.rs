@@ -303,7 +303,7 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
             );
         }
     }
-    // The Manager rows are the catalog it drafts with, and nothing else.
+    // The Manager rows are the catalog and customer names it drafts with, and nothing else.
     let filled: BTreeSet<&str> = manager
         .iter()
         .filter(|(_, column, _)| !column.is_empty())
@@ -313,6 +313,7 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
         filled,
         [
             "projected_catalog",
+            "projected_customer_names",
             "projection_checkpoint",
             "projection_scope",
             "projected_notes"

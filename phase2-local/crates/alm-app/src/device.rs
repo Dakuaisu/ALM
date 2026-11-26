@@ -78,6 +78,21 @@ impl Trial {
         })
     }
 
+    /// The Manager's customer names as its device pulled them (names only); `None` for the
+    /// Owner.
+    pub(crate) fn manager_customers(
+        &self,
+    ) -> Option<Vec<alm_core::projection::ProjectedCustomerName>> {
+        (self.role() == Role::Manager).then(|| {
+            self.projection
+                .load()
+                .ok()
+                .flatten()
+                .map(|stored| stored.snapshot.customer_names)
+                .unwrap_or_default()
+        })
+    }
+
     pub(crate) fn drafting(&self) -> &ConfirmationFixture {
         match self.role() {
             Role::Owner => &self.posted.fixture,

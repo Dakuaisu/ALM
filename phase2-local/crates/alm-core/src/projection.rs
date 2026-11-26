@@ -46,6 +46,13 @@ pub struct ProjectedReceipt {
     pub online: bool,
 }
 
+/// A customer a Manager may pick on New Bill: the name only, no balance or contact (OPEN-004).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedCustomerName {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectedCustomer {
     pub id: String,
@@ -177,6 +184,8 @@ pub struct ProjectionSnapshot {
     pub sales: Vec<ProjectedSale>,
     pub receipts: Vec<ProjectedReceipt>,
     pub customers: Vec<ProjectedCustomer>,
+    /// Manager only, by name: the customers its New Bill may select.
+    pub customer_names: Vec<ProjectedCustomerName>,
     pub stock: Vec<ProjectedStock>,
     pub catalog: Vec<ProjectedProduct>,
     pub cash_days: Vec<ProjectedCashDay>,

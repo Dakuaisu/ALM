@@ -1,9 +1,9 @@
 //! The per-screen projection rows of `pull_projection`, both ways.
 use alm_core::confirmation::manual_cashbook::CashBookAmounts;
 use alm_core::projection::{
-    ProjectedCashDay, ProjectedCrate, ProjectedCustomer, ProjectedGodownRow, ProjectedGstBill,
-    ProjectedProduct, ProjectedProductTerms, ProjectedReceipt, ProjectedSale, ProjectedStock,
-    ProjectedSupplier, ProjectionBatch, ProjectionSnapshot,
+    ProjectedCashDay, ProjectedCrate, ProjectedCustomer, ProjectedCustomerName, ProjectedGodownRow,
+    ProjectedGstBill, ProjectedProduct, ProjectedProductTerms, ProjectedReceipt, ProjectedSale,
+    ProjectedStock, ProjectedSupplier, ProjectionBatch, ProjectionSnapshot,
 };
 use alm_core::{BillDate, Money, Role};
 use serde_json::Value;
@@ -62,7 +62,14 @@ pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, Authorit
         ..ProjectionSnapshot::default()
     };
     if role != Role::Owner {
-        // A Manager file must never hold more than the catalog, whatever was sent.
+        // A Manager file holds the catalog and customer names only, whatever was sent.
+        s.customer_names = list(&d["customer_names"])
+            .iter()
+            .map(|r| ProjectedCustomerName {
+                id: text(&r["id"]),
+                name: text(&r["name"]),
+            })
+            .collect();
         return Ok(s);
     }
     s.products = list(&d["products"])

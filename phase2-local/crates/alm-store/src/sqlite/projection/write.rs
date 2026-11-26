@@ -59,6 +59,12 @@ pub(super) fn write_snapshot(
             rusqlite::params![signed(i as u64)?, r.mobile, r.addr1, r.addr2],
         )?;
     }
+    for (i, r) in s.customer_names.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO projected_customer_names VALUES (?1, ?2, ?3)",
+            rusqlite::params![signed(i as u64)?, r.id, r.name],
+        )?;
+    }
     for (i, r) in s.stock.iter().enumerate() {
         tx.execute(
             "INSERT INTO projected_stock VALUES (?1, ?2, ?3, ?4, ?5, ?6)",

@@ -58,6 +58,7 @@ fn owner_snapshot() -> ProjectionSnapshot {
             addr1: "12 Synthetic Lane".into(),
             addr2: "Kanpur".into(),
         }],
+        customer_names: Vec::new(),
         stock: vec![ProjectedStock {
             product: 1,
             item: "Synthetic Lime".into(),

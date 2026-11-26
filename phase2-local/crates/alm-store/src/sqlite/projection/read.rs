@@ -3,8 +3,8 @@ use rusqlite::{Connection, OptionalExtension};
 
 use alm_core::confirmation::manual_cashbook::CashBookAmounts;
 use alm_core::projection::{
-    OwnerValues, ProjectedCashDay, ProjectedCustomer, ProjectedProduct, ProjectedReceipt,
-    ProjectedSale, ProjectedStock, ProjectionSnapshot,
+    OwnerValues, ProjectedCashDay, ProjectedCustomer, ProjectedCustomerName, ProjectedProduct,
+    ProjectedReceipt, ProjectedSale, ProjectedStock, ProjectionSnapshot,
 };
 use alm_core::{BillDate, DraftId, Money, Role};
 
@@ -108,6 +108,16 @@ pub(super) fn read_snapshot(
             })
         },
     )?;
+    let customer_names = rows(
+        conn,
+        "SELECT id, name FROM projected_customer_names ORDER BY position",
+        |r| {
+            Ok(ProjectedCustomerName {
+                id: r.get(0)?,
+                name: r.get(1)?,
+            })
+        },
+    )?;
     let cash_days = rows(
         conn,
         "SELECT id, date, cash, paytm, phonepe, goods, misc, salary, debt FROM projected_cash_days ORDER BY position",
@@ -169,6 +179,7 @@ pub(super) fn read_snapshot(
         sales,
         receipts,
         customers,
+        customer_names,
         stock,
         catalog,
         cash_days,

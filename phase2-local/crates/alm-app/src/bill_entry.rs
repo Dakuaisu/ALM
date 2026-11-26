@@ -1,5 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
+use alm_core::confirmation::owner_billing::BillingDirectory;
 use alm_core::{DraftId, ProductId, ProvisionalDraft};
 
 use crate::{Trial, refusal, text, views};
@@ -153,10 +154,13 @@ impl Trial {
         if self.revoked {
             return Err(crate::trial::REVOKED.into());
         }
-        let customer = self
-            .directory
-            .select_customer(self.drafting(), &header.customer)
-            .map_err(|_| "Select a connected customer.".to_owned())?;
+        let customer = match self.manager_customers() {
+            Some(names) => BillingDirectory::select_listed_customer(&names, &header.customer),
+            None => self
+                .directory
+                .select_customer(self.drafting(), &header.customer),
+        }
+        .map_err(|_| "Select a connected customer.".to_owned())?;
         let date = header
             .date
             .parse()

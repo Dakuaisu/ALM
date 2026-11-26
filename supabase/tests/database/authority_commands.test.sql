@@ -234,7 +234,12 @@ select is(pg_temp.call('owner', 'select public.pull_projection(null)') #> '{rows
 select is(
     (select array_agg(k order by k) from jsonb_object_keys(
         pg_temp.call('manager', 'select public.pull_projection(null)') -> 'rows') k),
-    array['catalog'], 'a Manager pull holds only the catalog');
+    array['catalog', 'customer_names'], 'a Manager pull holds only the catalog and customer names');
+select is(
+    (select array_agg(distinct k order by k) from jsonb_array_elements(
+        pg_temp.call('manager', 'select public.pull_projection(null)') #> '{rows,customer_names}') e,
+        jsonb_object_keys(e) k),
+    array['id', 'name'], 'a Manager''s customer names carry no balance, mobile or address');
 -- Structural: every key at every level, and every value except the pull's clock (`as_of_ms`,
 -- milliseconds, which may hold any digits), carries no cost, buy-rate, FIFO, margin, profit,
 -- quote or stock field, and none of the fixture's Owner-only amounts.

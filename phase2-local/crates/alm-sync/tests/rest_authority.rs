@@ -110,7 +110,8 @@ impl SalesAuthority for Rest {
 conformance_tests!(rest());
 
 /// Through REST a Manager is denied every command, and its pull response (the raw body) holds
-/// only the catalog: no cost, buy-rate, FIFO, margin, profit, quote, stock or balance field.
+/// only the catalog and customer names: no cost, buy-rate, FIFO, margin, profit, quote, stock,
+/// balance or contact field.
 #[test]
 fn manager_is_denied_and_receives_no_owner_fields() {
     let Some(mut a) = rest() else { return };
@@ -162,8 +163,14 @@ fn manager_is_denied_and_receives_no_owner_fields() {
     }
     assert_eq!(
         body["rows"].as_object().unwrap().keys().collect::<Vec<_>>(),
-        ["catalog"]
+        ["catalog", "customer_names"]
     );
+    for customer in body["rows"]["customer_names"].as_array().unwrap() {
+        assert_eq!(
+            customer.as_object().unwrap().keys().collect::<Vec<_>>(),
+            ["id", "name"]
+        );
+    }
     let owner = a
         .inner
         .rpc(

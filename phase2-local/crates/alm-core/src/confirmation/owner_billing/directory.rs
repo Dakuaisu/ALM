@@ -213,6 +213,40 @@ impl BillingDirectory {
             .collect()
     }
 
+    /// The Manager's customer autocomplete from its pulled names: names containing `query`
+    /// (case-insensitive), by name, at most 40.
+    pub fn search_customer_names<'a>(
+        names: &'a [crate::projection::ProjectedCustomerName],
+        query: &str,
+    ) -> Vec<&'a crate::projection::ProjectedCustomerName> {
+        let query = query.trim().to_lowercase();
+        let mut found: Vec<_> = names
+            .iter()
+            .filter(|row| row.name.to_lowercase().contains(&query))
+            .collect();
+        found.sort_by(|a, b| a.name.cmp(&b.name));
+        found.truncate(40);
+        found
+    }
+
+    /// A customer the Manager picked from its pulled names.
+    ///
+    /// # Errors
+    /// `Customer` for an ID not among the names.
+    pub fn select_listed_customer(
+        names: &[crate::projection::ProjectedCustomerName],
+        choice: &str,
+    ) -> Result<DraftCustomer, OwnerBillingError> {
+        let customer = names
+            .iter()
+            .find(|row| row.id == choice)
+            .ok_or(OwnerBillingError::Customer)?;
+        Ok(DraftCustomer::Selected {
+            id: DraftCustomerId::new(customer.id.clone()),
+            name: customer.name.clone(),
+        })
+    }
+
     /// A line for a product in the pulled catalog.
     ///
     /// # Errors
