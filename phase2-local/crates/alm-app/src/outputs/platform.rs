@@ -1,7 +1,38 @@
-//! Platform handoff: reveal on desktop, share path on Android, WhatsApp links.
+//! Platform handoff: generated files, desktop reveal, and WhatsApp links.
 use crate::ipc::State;
 
-use crate::{AppState, ipc::IpcDraft};
+use crate::{AppState, Trial, ipc::IpcDraft};
+
+#[cfg(test)]
+mod tests;
+
+#[derive(Debug, serde::Serialize)]
+#[serde(untagged)]
+pub enum ShareOutput {
+    Saved(String),
+    File(ShareFile),
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ShareFile {
+    pub name: String,
+    pub mime: &'static str,
+    pub bytes: Vec<u8>,
+}
+
+pub(super) fn handoff(
+    trial: &Trial,
+    file: ShareFile,
+    web_share: Option<bool>,
+) -> Result<ShareOutput, String> {
+    if web_share.unwrap_or(false) {
+        return Ok(ShareOutput::File(file));
+    }
+    let path = trial.save_output(&file.name, &file.bytes)?;
+    #[cfg(desktop)]
+    reveal(&path);
+    Ok(ShareOutput::Saved(path.display().to_string()))
+}
 
 #[cfg(desktop)]
 pub(super) fn reveal(path: &std::path::Path) {
@@ -18,15 +49,24 @@ pub(super) fn reveal(path: &std::path::Path) {
     let _ = path;
 }
 
-/// Writes the bill image and returns its path; desktop reveals it, Android shares it.
+/// Generates the bill image for sharing, or saves and reveals it on desktop.
 #[tauri::command(async)]
-pub fn bill_image_share(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
+pub fn bill_image_share(
+    state: State<'_, AppState>,
+    id: IpcDraft,
+    web_share: Option<bool>,
+) -> Result<ShareOutput, String> {
     let trial = state.lock()?;
-    let (name, png) = trial.bill_image_png(id.value())?;
-    let path = trial.save_output(&name, &png)?;
-    #[cfg(desktop)]
-    reveal(&path);
-    Ok(path.display().to_string())
+    let (name, bytes) = trial.bill_image_png(id.value())?;
+    handoff(
+        &trial,
+        ShareFile {
+            name,
+            mime: "image/png",
+            bytes,
+        },
+        web_share,
+    )
 }
 
 /// Opens a WhatsApp link in the desktop browser; only wa.me links are accepted.

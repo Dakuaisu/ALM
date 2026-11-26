@@ -1,6 +1,7 @@
 //! Structured exports and the estimate / PO print views.
 use crate::ipc::State;
 
+use super::platform::{ShareFile, ShareOutput, handoff};
 use crate::{AppState, Trial, refusal};
 
 /// The structured exports (`exportSalesCSV`, `exportExcel`) over the live archive records.
@@ -51,18 +52,27 @@ pub fn print_open(state: State<'_, AppState>, id: String, q: String) -> Result<S
     })
 }
 
-/// Writes an export to the output folder and returns its path (revealed on desktop).
+/// Generates an export for sharing, or saves and reveals it on desktop.
 #[tauri::command(async)]
-pub fn export_file(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let kind = match q.as_str() {
-        "csv" => Export::SalesCsv,
-        "xls" => Export::Workbook,
+pub fn export_file(
+    state: State<'_, AppState>,
+    q: String,
+    web_share: Option<bool>,
+) -> Result<ShareOutput, String> {
+    let (kind, mime) = match q.as_str() {
+        "csv" => (Export::SalesCsv, "text/csv"),
+        "xls" => (Export::Workbook, "application/vnd.ms-excel"),
         _ => return Err("Unknown export.".into()),
     };
     let trial = state.lock()?;
     let (name, text) = trial.export(kind)?;
-    let path = trial.save_output(&name, text.as_bytes())?;
-    #[cfg(desktop)]
-    super::platform::reveal(&path);
-    Ok(path.display().to_string())
+    handoff(
+        &trial,
+        ShareFile {
+            name,
+            mime,
+            bytes: text.into_bytes(),
+        },
+        web_share,
+    )
 }

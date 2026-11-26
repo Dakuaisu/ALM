@@ -115,8 +115,33 @@ async function act(element, submitter) {
   }
   if (action === "share_file") {
     try {
-      const path = await invoke(data.command, { id: data.id || "0", q: data.q || "" });
-      if (window.AlmAndroid) return window.AlmAndroid.shareFile(path);
+      const android = Boolean(window.AlmAndroid);
+      const webShare = !android && typeof File === "function" &&
+        typeof navigator.share === "function" && typeof navigator.canShare === "function";
+      const args = { id: data.id || "0", q: data.q || "" };
+      const output = await invoke(data.command, { ...args, webShare: android || webShare });
+      if (android) {
+        let binary = "";
+        for (let i = 0; i < output.bytes.length; i += 8192) {
+          binary += String.fromCharCode(...output.bytes.slice(i, i + 8192));
+        }
+        if (!window.AlmAndroid.shareFile(output.name, btoa(binary))) {
+          return note("Sharing failed.", true);
+        }
+        return;
+      }
+      if (webShare) {
+        try {
+          const file = new File([new Uint8Array(output.bytes)], output.name, { type: output.mime });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file] });
+            return;
+          }
+        } catch (error) {
+          if (error && error.name === "AbortError") return;
+        }
+      }
+      const path = webShare ? await invoke(data.command, { ...args, webShare: false }) : output;
       return note("Saved " + path);
     } catch (error) {
       return note(String(error), true);
