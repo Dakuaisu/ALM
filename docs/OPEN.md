@@ -102,6 +102,7 @@ Added at `d896e69` (CI and smokes); not decided:
 - May the CI job's short-lived service-role token stand for how Owner accounts are provisioned, or must accounts come from a reviewed admin flow?
 - Should a Manager ever see the Owner-priced total on New Bill once crate rows are involved?
 - (Added at `d12669e`) May a Manager's New Bill show crate rates? How should a Manager's refusals be worded?
+- (Added at `4ad3aaa`) May a Manager hold customer names, and see due amounts or mobiles in the picker? (Names only now.) Is an unremembered (memory-only) session acceptable on a shared device? Who may see this device's sync entries in the activity log? What should Clear All erase?
 ## OPEN-005 Targets and output handoff
 - Status: OWNER-BLOCKED
 The owner must confirm Windows and macOS laptop and Android tablet models and OS versions, and approve WhatsApp test accounts or recipients. Local image, print, PDF and simulated share are development only; they do not establish actual handoff or platform acceptance (DEC-014).
