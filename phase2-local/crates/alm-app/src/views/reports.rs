@@ -23,7 +23,7 @@ pub fn reports_screen(
         Err(ReportsError::Confirmation(ConfirmationError::AccessDenied)) => {
             return Ok(denied("Reports"));
         }
-        Err(error) => return Err(format!("{error:?}")),
+        Err(error) => return Err(crate::refusal(error)),
     };
     let mut html = String::from(
         r#"<div class="card priv"><div class="sectit">Profit &amp; Loss by Month</div><div class="help" style="margin-bottom:8px"><b>Net = Gross Profit − Other Expenses.</b> Gross Profit already has cost of goods deducted (FIFO), so Cash Book Goods (cash) is listed separately.</div><div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Bills</th><th class="num">Sales</th><th class="num">Gross Profit</th><th class="num">Goods (cash)</th><th class="num">Other Expenses</th><th class="num">Net</th></tr></thead><tbody>"#,
@@ -34,9 +34,7 @@ pub fn reports_screen(
         } else {
             money_r(month.goods)
         };
-        let other = month
-            .other_expenses()
-            .map_err(|error| format!("{error:?}"))?;
+        let other = month.other_expenses().map_err(crate::refusal)?;
         let _ = write!(
             html,
             r#"<tr><td>{}</td><td class="num">{}</td><td class="num">{}</td><td class="num pos">{}</td><td class="num muted" title="Cash Book goods purchases — already inside Gross Profit if they came through a Purchase Order">{goods}</td><td class="num neg">{}</td><td class="num" style="font-weight:700">{}</td></tr>"#,
@@ -48,10 +46,10 @@ pub fn reports_screen(
             money_r(month.net)
         );
     }
-    let cutoff = dead_stock_cutoff(today).map_err(|error| format!("{error:?}"))?;
+    let cutoff = dead_stock_cutoff(today).map_err(crate::refusal)?;
     let dead = fixture
         .dead_stock_report(role, cutoff)
-        .map_err(|error| format!("{error:?}"))?;
+        .map_err(crate::refusal)?;
     let _ = write!(
         html,
         r#"</tbody></table></div></div><div class="card priv" style="margin-top:16px"><div class="sectit">Slow-moving / Dead Stock (in stock, not sold in 30+ days)</div><div class="help">Last sold before {}.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">In Stock</th><th>Last Sold</th><th class="num">Locked Value</th></tr></thead><tbody>"#,

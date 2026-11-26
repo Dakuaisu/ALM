@@ -7,7 +7,7 @@ use alm_core::confirmation::{
 };
 use alm_core::synthetic_read_model::BusinessProfile;
 
-use crate::{Trial, debug};
+use crate::{Trial, refusal};
 
 pub mod export;
 pub mod platform;
@@ -34,7 +34,7 @@ impl Trial {
     ) -> Result<(String, alm_core::confirmation::bill_image::BillImage), String> {
         let role = self.require_owner()?;
         let mode = self.prefs.balance_mode();
-        let bill = self.posted.bill_preview(role, id, mode).map_err(debug)?;
+        let bill = self.posted.bill_preview(role, id, mode).map_err(refusal)?;
         let labels: Vec<String> = bill
             .lines
             .iter()
@@ -69,13 +69,13 @@ impl Trial {
             .directory
             .bill_image_details(&bill.customer, bill.lines.iter().map(|line| line.product));
         let party = party(
-            Some(self.shop.business_profile(role).map_err(debug)?),
+            Some(self.shop.business_profile(role).map_err(refusal)?),
             &details,
         );
         let image = self
             .posted
             .bill_image(request, &party, &crate::image::measure)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         Ok((format!("Bill-{}.png", bill.invoice), image))
     }
 
@@ -99,11 +99,11 @@ impl Trial {
                 lines: &lines,
             },
         };
-        let profile = self.shop.business_profile(role).map_err(debug)?;
+        let profile = self.shop.business_profile(role).map_err(refusal)?;
         let mut html = None;
         self.posted
             .print_estimate_with_business(request, profile, &mut |doc| html = Some(doc.html))
-            .map_err(debug)?;
+            .map_err(refusal)?;
         html.ok_or_else(|| "Estimate unavailable.".into())
     }
 
@@ -112,7 +112,7 @@ impl Trial {
         let bill = self
             .posted
             .bill_preview(role, id, alm_core::confirmation::BalanceMode::AsOnBillDate)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         Ok(bill
             .lines
             .iter()
@@ -140,7 +140,7 @@ impl Trial {
             .emit_gst_bill(role, id, &mut |invoice| {
                 page = crate::gst_print::invoice_html(invoice, &crate::SELLER);
             })
-            .map_err(debug)?;
+            .map_err(refusal)?;
         page
     }
 

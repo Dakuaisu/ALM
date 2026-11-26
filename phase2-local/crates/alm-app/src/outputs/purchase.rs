@@ -2,7 +2,7 @@
 use alm_core::confirmation::{PurchaseBusiness, PurchaseOutputRequest, PurchaseProductDisplay};
 use alm_core::synthetic_read_model::{ArchivedPurchaseOrder, PurchaseCapture};
 
-use crate::{Trial, debug};
+use crate::{Trial, refusal};
 
 impl Trial {
     fn purchase_displays(&self) -> Vec<PurchaseProductDisplay<'_>> {
@@ -22,9 +22,9 @@ impl Trial {
     pub(crate) fn archived_orders(&self) -> Result<Vec<ArchivedPurchaseOrder>, String> {
         let role = self.require_owner()?;
         let displays = self.purchase_displays();
-        let orders = self.posted.purchase_orders(role).map_err(debug)?;
+        let orders = self.posted.purchase_orders(role).map_err(refusal)?;
         let mut archived = Vec::new();
-        for row in self.posted.purchase_order_list(role).map_err(debug)?.rows {
+        for row in self.posted.purchase_order_list(role).map_err(refusal)?.rows {
             let order = orders
                 .iter()
                 .find(|order| order.id == row.id)
@@ -32,7 +32,7 @@ impl Trial {
             let view = self
                 .posted
                 .view_purchase_order(row.selection, &displays)
-                .map_err(debug)?;
+                .map_err(refusal)?;
             archived.push(
                 ArchivedPurchaseOrder::capture(
                     role,
@@ -44,7 +44,7 @@ impl Trial {
                         products: &displays,
                     },
                 )
-                .map_err(debug)?,
+                .map_err(refusal)?,
             );
         }
         archived.sort_by_key(|order| order.number);
@@ -58,7 +58,7 @@ impl Trial {
         let row = self
             .posted
             .purchase_order_list(role)
-            .map_err(debug)?
+            .map_err(refusal)?
             .rows
             .into_iter()
             .find(|row| row.selection.number == number)

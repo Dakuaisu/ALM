@@ -1,7 +1,7 @@
 use alm_core::confirmation::OpeningBalance;
 use tauri::State;
 
-use crate::{AppState, debug, with};
+use crate::{AppState, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct Filter {
@@ -37,7 +37,7 @@ pub fn customer_open(state: State<'_, AppState>, id: String) -> Result<String, S
         trial
             .directory
             .customer(&trial.posted, &id)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         trial.customers.open = Some(id);
         Ok(())
     })
@@ -56,14 +56,14 @@ pub fn save_opening(trial: &mut crate::Trial, terms: Opening) -> Result<(), Stri
     let customer = trial
         .directory
         .customer(&trial.posted, &terms.customer)
-        .map_err(debug)?;
+        .map_err(refusal)?;
     let amount = OpeningBalance::parse_amount(&terms.amount).map_err(|_| {
         "Enter an amount with up to two decimal places (negative for an advance).".to_owned()
     })?;
     let date = if terms.date.is_empty() {
         None
     } else {
-        Some(terms.date.parse().map_err(debug)?)
+        Some(terms.date.parse().map_err(refusal)?)
     };
     let (id, name) = (customer.id.to_owned(), customer.name.to_owned());
     trial.send(&alm_sync::Intent::SaveOpening {

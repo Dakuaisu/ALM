@@ -5,7 +5,7 @@ use alm_core::confirmation::owner_billing::{
 use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, ReceiptMode};
 use tauri::State;
 
-use crate::{AppState, debug, with};
+use crate::{AppState, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub enum Mode {
@@ -46,9 +46,9 @@ pub fn save(
         OwnerBillingError::Confirmation(
             ConfirmationError::InvalidAmount | ConfirmationError::Overflow,
         ) => "Enter a positive amount with up to two decimal places.".into(),
-        OwnerBillingError::Date(error) => debug(error),
+        OwnerBillingError::Date(error) => refusal(error),
         OwnerBillingError::Customer => "Choose a customer.".into(),
-        other => debug(other),
+        other => refusal(other),
     })
 }
 
@@ -59,7 +59,7 @@ impl crate::Trial {
         let mut scratch = self.posted.fixture.clone();
         let intent = alm_sync::Intent::RecordReceipt {
             customer: terms.customer.clone(),
-            date: terms.date.parse().map_err(debug)?,
+            date: terms.date.parse().map_err(refusal)?,
             amount: alm_core::Money::parse_rupees(&terms.amount)
                 .map_err(|_| "Enter a positive amount with up to two decimal places.".to_owned())?,
             online: matches!(terms.mode, Mode::Online),

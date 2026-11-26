@@ -5,7 +5,7 @@ use alm_core::{Money, ProductId};
 use tauri::State;
 
 use crate::views::CrateForm;
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 fn blank_row() -> (String, String, String) {
     (String::new(), "1".into(), "Case".into())
@@ -54,7 +54,9 @@ impl Trial {
         let price = Money::parse_rupees(&form.price)
             .map_err(|_| "Enter the crate price in rupees.".to_owned())?;
         if let Some(value) = form.id {
-            self.posted.crate_template_id(role, value).map_err(debug)?;
+            self.posted
+                .crate_template_id(role, value)
+                .map_err(refusal)?;
         }
         self.send(&alm_sync::Intent::SaveCrate(alm_sync::CrateTerms {
             id: form.id,
@@ -95,8 +97,8 @@ pub fn crate_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, Strin
         let id = trial
             .posted
             .crate_template_id(role, id.value())
-            .map_err(debug)?;
-        let template = trial.posted.crate_template(role, id).map_err(debug)?;
+            .map_err(refusal)?;
+        let template = trial.posted.crate_template(role, id).map_err(refusal)?;
         trial.crate_form = Some(CrateForm {
             id: Some(id.value()),
             name: template.name.clone(),
@@ -144,7 +146,7 @@ pub fn crate_delete(state: State<'_, AppState>, id: IpcId) -> Result<String, Str
         let id = trial
             .posted
             .crate_template_id(role, id.value())
-            .map_err(debug)?;
+            .map_err(refusal)?;
         trial
             .send(&alm_sync::Intent::DeleteCrate { id: id.value() })
             .map(drop)

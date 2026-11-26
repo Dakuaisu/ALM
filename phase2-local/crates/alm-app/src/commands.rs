@@ -1,7 +1,7 @@
 //! Small commands: screen switch, start, role switch, Dashboard period, Rate List, print, share.
 use tauri::State;
 
-use crate::{AppState, debug, gst_print, ipc, text, with};
+use crate::{AppState, gst_print, ipc, refusal, text, with};
 
 // Commands run off the UI thread (`async`): a SQLite fsync on a slow device disk
 // otherwise blocks Android's input thread and triggers an ANR.
@@ -42,7 +42,7 @@ pub fn rate_group(state: State<'_, AppState>, q: String) -> Result<String, Strin
         trial
             .posted
             .rate_list_group_toggle(role, &mut trial.rates, &q)
-            .map_err(debug)
+            .map_err(refusal)
     })
 }
 
@@ -139,6 +139,6 @@ pub fn share_text(state: State<'_, AppState>) -> Result<String, String> {
                 gst_print::inr(invoice.totals.total)
             ));
         })
-        .map_err(debug)?;
+        .map_err(refusal)?;
     summary
 }

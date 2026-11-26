@@ -1,7 +1,7 @@
 use alm_core::ProductId;
 use tauri::State;
 
-use crate::{AppState, debug, ipc::IpcId, with};
+use crate::{AppState, ipc::IpcId, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct Filter {
@@ -85,7 +85,10 @@ pub fn stock_adjust(state: State<'_, AppState>, id: IpcId) -> Result<String, Str
     let id = ProductId::new(id.value());
     with(&state, "stock", |trial| {
         let role = trial.require_owner()?;
-        trial.posted.open_physical_count(role, id).map_err(debug)?;
+        trial
+            .posted
+            .open_physical_count(role, id)
+            .map_err(refusal)?;
         trial.stock.adjust = Some(id);
         Ok(())
     })
@@ -112,7 +115,7 @@ pub fn stock_lots(state: State<'_, AppState>, id: IpcId) -> Result<String, Strin
     let id = ProductId::new(id.value());
     with(&state, "stock", |trial| {
         let role = trial.require_owner()?;
-        trial.posted.open_stock_lots(role, id).map_err(debug)?;
+        trial.posted.open_stock_lots(role, id).map_err(refusal)?;
         trial.stock.lots = Some(id);
         Ok(())
     })

@@ -4,7 +4,7 @@ use alm_core::ProductId;
 use alm_core::confirmation::parse_quote;
 use tauri::State;
 
-use crate::{AppState, Trial, debug, with};
+use crate::{AppState, Trial, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct NewSupplier {
@@ -26,7 +26,7 @@ impl Trial {
         let suppliers = self
             .posted
             .purchase_suppliers(role)
-            .map_err(debug)?
+            .map_err(refusal)?
             .to_vec();
         let mut rates = Vec::new();
         for supplier in suppliers {
@@ -39,7 +39,7 @@ impl Trial {
                     supplier.name
                 )
             })?;
-            rates.push((u64::try_from(supplier.id.index()).map_err(debug)?, rate));
+            rates.push((u64::try_from(supplier.id.index()).map_err(refusal)?, rate));
         }
         self.send(&alm_sync::Intent::SetSupplierPrices {
             product: product.value(),

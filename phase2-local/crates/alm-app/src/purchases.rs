@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use alm_core::confirmation::PurchaseOrderId;
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 impl Trial {
     pub(crate) fn purchase_id(&self, index: u64) -> Result<PurchaseOrderId, String> {
         let role = self.require_owner()?;
         self.posted
             .purchase_orders(role)
-            .map_err(debug)?
+            .map_err(refusal)?
             .iter()
             .map(|order| order.id)
             .find(|id| u64::try_from(id.index()).is_ok_and(|i| i == index))
@@ -90,7 +90,7 @@ pub fn po_close(state: State<'_, AppState>, id: IpcId) -> Result<String, String>
         let remaining = trial
             .posted
             .purchase_orders(role)
-            .map_err(debug)?
+            .map_err(refusal)?
             .iter()
             .find(|order| order.id == id)
             .ok_or("Purchase order not found")?

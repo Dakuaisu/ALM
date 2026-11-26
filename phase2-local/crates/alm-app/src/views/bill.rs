@@ -86,7 +86,8 @@ pub fn bill_body(view: &BillView<'_>) -> String {
         Err(error) => {
             let _ = write!(
                 html,
-                r#"<div class="card" role="alert">Preview unavailable: {error:?}. Clear the draft to start again.</div>"#
+                r#"<div class="card" role="alert">Totals unavailable: {}</div>"#,
+                esc(&crate::refusals::pricing(&error))
             );
         }
     }
@@ -182,7 +183,8 @@ fn crate_body(view: &BillView<'_>, row: &alm_core::CrateRow) -> String {
         Err(error) => {
             let _ = write!(
                 html,
-                r#"<div class="card" role="alert">Crate totals unavailable: {error:?}.</div>"#
+                r#"<div class="card" role="alert">Crate totals unavailable: {}</div>"#,
+                esc(&crate::refusals::crate_pricing(&error))
             );
         }
     }

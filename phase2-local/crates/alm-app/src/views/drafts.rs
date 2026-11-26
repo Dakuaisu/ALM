@@ -60,7 +60,8 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
         Err(error) => {
             let _ = write!(
                 html,
-                "<div class=\"help\">Review unavailable: {error:?}</div>"
+                "<div class=\"help\">Review unavailable: {}</div>",
+                esc(&crate::refusal(error))
             );
         }
         Ok(priced) => {

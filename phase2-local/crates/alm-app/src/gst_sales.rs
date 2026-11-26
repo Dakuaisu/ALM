@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use alm_core::confirmation::{GstBillDraft, GstBillError, GstBillId, GstBillNumber, GstLineFields};
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 fn warn(error: GstBillError) -> String {
-    error.warning().map_or_else(|| debug(error), str::to_owned)
+    error
+        .warning()
+        .map_or_else(|| refusal(error), str::to_owned)
 }
 
 fn take(terms: &mut HashMap<String, String>, key: &str) -> String {
@@ -126,7 +128,7 @@ impl Trial {
                     .gst_bill_record(role, &draft)
                     .map_err(warn)?
                     .to_record_text()
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
                 self.send(&alm_sync::Intent::SaveGstBill { bill: record })?;
                 let mut text = String::new();
                 self.posted

@@ -2,7 +2,7 @@ use std::num::{NonZeroU32, NonZeroUsize};
 
 use alm_core::{DraftId, ProductId, ProvisionalDraft};
 
-use crate::{Trial, debug, ipc::IpcId, text, views};
+use crate::{Trial, refusal, text, views};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,10 +36,26 @@ impl Header {
     }
 }
 
+/// The item row's form: the picked product's ID (blank until an item is picked) and quantity.
 #[derive(serde::Deserialize)]
 pub struct Line {
-    product: IpcId,
+    #[serde(default)]
+    product: String,
+    #[serde(default)]
     quantity: String,
+}
+
+impl Line {
+    /// The picked product and its quantity; an empty row is refused in the HTML's words.
+    pub(crate) fn picked(&self) -> Result<(ProductId, NonZeroU32), String> {
+        let product = self
+            .product
+            .trim()
+            .parse()
+            .map(ProductId::new)
+            .map_err(|_| crate::refusals::NO_ITEM.to_owned())?;
+        Ok((product, quantity(&self.quantity)?))
+    }
 }
 
 impl Trial {
@@ -99,14 +115,14 @@ impl Trial {
             .unwrap_or(0)
             .checked_add(1)
             .ok_or("Draft limit reached.")?;
-        let id = DraftId::scoped(&self.draft_origin(), next).map_err(debug)?;
+        let id = DraftId::scoped(&self.draft_origin(), next).map_err(refusal)?;
         let date = self.today()?;
         // `newDraft`: loadingRate starts at the business default (Settings, Owner only).
         let loading = match self.role() {
             alm_core::Role::Owner => self
                 .shop
                 .business_profile(alm_core::Role::Owner)
-                .map_err(debug)?
+                .map_err(refusal)?
                 .loading_charge(),
             alm_core::Role::Manager => alm_core::Money::from_minor_units(0),
         };
@@ -168,7 +184,7 @@ impl Trial {
                     let catalog = self.manager_catalog();
                     self.directory
                         .new_bill_pricing(self.drafting(), catalog.as_deref(), &draft)
-                        .map_err(debug)?;
+                        .map_err(|error| crate::refusals::pricing(&error))?;
                 }
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(

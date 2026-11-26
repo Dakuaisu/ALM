@@ -6,7 +6,7 @@ use alm_core::confirmation::GstBillStore as _;
 use alm_store::OutboxStatus;
 use alm_sync::Intent;
 
-use crate::{Trial, debug, text};
+use crate::{Trial, refusal, text};
 
 impl Trial {
     /// Sends `intent` under a fixed request ID unless that request already has an answer.
@@ -21,7 +21,7 @@ impl Trial {
         }
         self.outbox
             .record(request, &intent.canonical())
-            .map_err(debug)?;
+            .map_err(refusal)?;
         self.deliver(Role::Owner, request, intent).map(drop)
     }
 
@@ -32,12 +32,12 @@ impl Trial {
         if self.role() != Role::Owner {
             return Ok(());
         }
-        let ledger = self.gst_db.load_gst_bills().map_err(debug)?;
+        let ledger = self.gst_db.load_gst_bills().map_err(refusal)?;
         let mut kept = Vec::new();
         for bill in &ledger.bills {
             let request = format!("gstimport:{}:{}", self.account, bill.id.0);
             let intent = Intent::ImportGstBill {
-                bill: Some(bill.to_record_text().map_err(debug)?),
+                bill: Some(bill.to_record_text().map_err(refusal)?),
                 deleted: None,
             };
             if self.send_once(&request, &intent).is_err() {

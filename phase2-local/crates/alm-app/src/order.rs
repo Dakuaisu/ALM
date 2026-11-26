@@ -2,7 +2,7 @@ use alm_core::ProductId;
 use alm_core::confirmation::PurchaseSupplier;
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct Line {
@@ -41,7 +41,7 @@ impl Trial {
     ) -> Result<&mut alm_core::confirmation::order_planner::OrderPlanner, String> {
         let role = self.require_owner()?;
         if self.order.planner.is_none() {
-            self.order.planner = Some(self.posted.open_order_planner(role).map_err(debug)?);
+            self.order.planner = Some(self.posted.open_order_planner(role).map_err(refusal)?);
         }
         self.order
             .planner
@@ -60,7 +60,7 @@ impl Trial {
     pub(crate) fn order_checkout(&mut self) -> Result<(), String> {
         let today = self.today()?;
         let role = self.require_owner()?;
-        let draft = self.planner()?.checkout(role, today).map_err(debug)?;
+        let draft = self.planner()?.checkout(role, today).map_err(refusal)?;
         self.order.draft = Some(draft);
         self.order.warnings.clear();
         Ok(())
@@ -106,7 +106,7 @@ impl Trial {
                         Ok((
                             s.id.map(|id| u64::try_from(id.index()))
                                 .transpose()
-                                .map_err(debug)?,
+                                .map_err(refusal)?,
                             s.name.clone(),
                         ))
                     })

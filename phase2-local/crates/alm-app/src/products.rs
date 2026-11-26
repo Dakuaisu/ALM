@@ -2,7 +2,7 @@ use alm_core::ProductId;
 use alm_core::confirmation::{PriceField, ProductText};
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct Filter {
@@ -38,7 +38,7 @@ impl Trial {
         let failed = |error: alm_core::confirmation::ProductEntryError| {
             error
                 .duplicate_warning_text()
-                .unwrap_or_else(|| debug(error))
+                .unwrap_or_else(|| refusal(error))
         };
         entry.apply_text(&text).map_err(failed)?;
         let (id, new) = entry.target();
@@ -115,8 +115,13 @@ pub fn products_filter(state: State<'_, AppState>, terms: Filter) -> Result<Stri
 pub fn product_new(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "products", |trial| {
         let role = trial.require_owner()?;
-        let id = trial.posted.next_product_id(role).map_err(debug)?;
-        trial.products.form = Some(trial.posted.begin_product_entry(role, id).map_err(debug)?);
+        let id = trial.posted.next_product_id(role).map_err(refusal)?;
+        trial.products.form = Some(
+            trial
+                .posted
+                .begin_product_entry(role, id)
+                .map_err(refusal)?,
+        );
         Ok(())
     })
 }
@@ -126,7 +131,7 @@ pub fn product_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, Str
     let id = ProductId::new(id.value());
     with(&state, "products", |trial| {
         let role = trial.require_owner()?;
-        trial.products.form = Some(trial.posted.open_product_entry(role, id).map_err(debug)?);
+        trial.products.form = Some(trial.posted.open_product_entry(role, id).map_err(refusal)?);
         Ok(())
     })
 }

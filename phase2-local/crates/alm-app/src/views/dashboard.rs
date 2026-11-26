@@ -9,8 +9,8 @@ use alm_core::confirmation::{ConfirmationFixture, DashboardError, DashboardPerio
 use alm_core::{BillDate, Role};
 
 use super::{denied, money_r};
-use crate::debug;
 use crate::gst_print::{esc, indian_digits};
+use crate::refusal;
 
 mod charts;
 
@@ -46,7 +46,7 @@ pub fn dashboard_screen(
     let dashboard = match fixture.dashboard(role, today, period) {
         Ok(dashboard) => dashboard,
         Err(DashboardError::AccessDenied) => return Ok(denied("Dashboard")),
-        Err(error) => return Err(debug(error)),
+        Err(error) => return Err(refusal(error)),
     };
     let (label, prior_label) = match period {
         DashboardPeriod::Today => ("today", "yesterday"),
@@ -56,10 +56,10 @@ pub fn dashboard_screen(
     let cur = &dashboard.current;
     let insights = fixture
         .dashboard_insights(role, today, period)
-        .map_err(debug)?;
+        .map_err(refusal)?;
     let book = directory
         .customer_book(fixture, role, &CustomerFilter::All)
-        .map_err(debug)?;
+        .map_err(refusal)?;
     let mut html = String::from(r#"<div id="dash"><div class="seg">"#);
     for (key, value, text) in [
         (DashboardPeriod::Today, "today", "Today"),
@@ -155,7 +155,7 @@ pub fn dashboard_screen(
         );
     }
     html += r#"</div></div><div class="split" style="margin-top:16px;grid-template-columns:1fr 1fr"><div class="card"><div class="sectit">How old is the udhaar</div>"#;
-    let ageing = fixture.customer_ageing(role, today).map_err(debug)?;
+    let ageing = fixture.customer_ageing(role, today).map_err(refusal)?;
     if ageing.rows.is_empty() {
         html += r#"<div class="empty">Nothing outstanding 🎉</div>"#;
     } else {

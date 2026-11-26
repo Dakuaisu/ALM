@@ -1,7 +1,6 @@
 //! New Bill commands.
 use std::num::NonZeroUsize;
 
-use alm_core::ProductId;
 use tauri::State;
 
 use super::{Header, Line, quantity};
@@ -44,10 +43,8 @@ pub fn bill_header(state: State<'_, AppState>, header: Header) -> Result<String,
 #[tauri::command(async)]
 pub fn bill_add(state: State<'_, AppState>, line: Line) -> Result<String, String> {
     with(&state, "bill", |trial| {
-        trial.bill_add(
-            ProductId::new(line.product.value()),
-            quantity(&line.quantity)?,
-        )
+        let (product, quantity) = line.picked()?;
+        trial.bill_add(product, quantity)
     })
 }
 

@@ -29,7 +29,7 @@ fn below_table(
     interstate: bool,
 ) -> Result<String, String> {
     let totals = invoice.totals;
-    let summary = invoice.hsn_summary().map_err(|e| format!("{e:?}"))?;
+    let summary = invoice.hsn_summary().map_err(crate::refusal)?;
     let rows: String = summary
         .iter()
         .enumerate()
@@ -73,7 +73,7 @@ fn below_table(
 /// last page holds more than 12 rows.
 pub fn invoice_html(invoice: &GstBillInvoice, seller: &Seller<'_>) -> Result<String, String> {
     let interstate = invoice.jurisdiction() == GstJurisdiction::Inter;
-    let lines = invoice.lines().map_err(|e| format!("{e:?}"))?;
+    let lines = invoice.lines().map_err(crate::refusal)?;
     let rows: Vec<String> = lines
         .iter()
         .zip(&invoice.record.lines)

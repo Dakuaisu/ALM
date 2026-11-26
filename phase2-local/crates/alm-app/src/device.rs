@@ -8,7 +8,7 @@ use alm_core::{Money, ProductId, Role};
 use alm_store::{OutboxStatus, ProjectionStore, StoredProjection};
 use alm_sync::{AuthorityError, Intent, Lookup, Outcome, RequestId};
 
-use crate::{Trial, debug, text};
+use crate::{Trial, refusal, text};
 
 pub(crate) fn refused(error: &AuthorityError) -> String {
     match error {
@@ -19,7 +19,7 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
         }
         AuthorityError::Denied => "Access denied: Owner only.".into(),
         AuthorityError::Invalid => "The request was not valid.".into(),
-        AuthorityError::Rejected(reason) => reason.clone(),
+        AuthorityError::Rejected(reason) => crate::refusals::user_message(&format!("{reason:?}")),
         AuthorityError::Unavailable => {
             "No answer from the authority: the outcome is unknown. Check status, or retry with the same request.".into()
         }
@@ -43,7 +43,7 @@ impl Posted {
     pub(crate) fn empty() -> Result<Self, String> {
         Ok(Self {
             fixture: ConfirmationFixture::new(ProductId::new(0), 0, Money::from_minor_units(0))
-                .map_err(debug)?,
+                .map_err(refusal)?,
             cashbook: ManualCashBook::default(),
             built: None,
         })
@@ -100,7 +100,7 @@ impl Trial {
         self.posted = match stored.snapshot.owner.as_ref() {
             Some(owner) if role == Role::Owner => {
                 let (fixture, cashbook) =
-                    ConfirmationFixture::from_owner_book(&owner.book).map_err(debug)?;
+                    ConfirmationFixture::from_owner_book(&owner.book).map_err(refusal)?;
                 Posted {
                     fixture,
                     cashbook,
@@ -134,7 +134,7 @@ impl Trial {
         let request = self.outbox.next_request_id(&prefix).map_err(text)?;
         self.outbox
             .record(&request, &intent.canonical())
-            .map_err(debug)?;
+            .map_err(refusal)?;
         self.deliver(role, &request, intent)
     }
 
@@ -144,7 +144,7 @@ impl Trial {
         request: &str,
         intent: &Intent,
     ) -> Result<Outcome, String> {
-        let id = RequestId::new(request).map_err(debug)?;
+        let id = RequestId::new(request).map_err(refusal)?;
         self.session_token()?;
         let (device, account) = (self.device_id.clone(), self.account.clone());
         self.authority.set_caller(&device, &account);
@@ -152,20 +152,20 @@ impl Trial {
             Ok(outcome) => {
                 self.outbox
                     .mark(request, OutboxStatus::Confirmed, Some(&outcome.canonical()))
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
                 self.refresh()?;
                 Ok(outcome)
             }
             Err(AuthorityError::Unavailable) => {
                 self.outbox
                     .mark(request, OutboxStatus::Unknown, None)
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
                 Err(refused(&AuthorityError::Unavailable))
             }
             Err(error) => {
                 self.outbox
                     .mark(request, OutboxStatus::Rejected, Some(&refused(&error)))
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
                 Err(refused(&error))
             }
         }
@@ -189,7 +189,7 @@ impl Trial {
     pub(crate) fn reconnect(&mut self) -> Result<(), String> {
         if self.role() == Role::Owner {
             for entry in self.outbox.unresolved().map_err(text)? {
-                let id = RequestId::new(&entry.request_id).map_err(debug)?;
+                let id = RequestId::new(&entry.request_id).map_err(refusal)?;
                 let Some(intent) = Intent::parse(&entry.intent) else {
                     continue;
                 };
@@ -207,7 +207,7 @@ impl Trial {
                 };
                 self.outbox
                     .mark(&entry.request_id, status, note.as_deref())
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
             }
         }
         self.refresh()
@@ -244,9 +244,9 @@ impl Trial {
                         .sales_authority()
                         .pull(role, None)
                         .map_err(|e| refused(&e))?;
-                    self.store_batch(&fresh).map_err(debug)?;
+                    self.store_batch(&fresh).map_err(refusal)?;
                 }
-                Err(error) => return Err(debug(error)),
+                Err(error) => return Err(refusal(error)),
             },
             // Offline: keep showing the stored projection with its "as of" time.
             Err(AuthorityError::Unavailable) => {}

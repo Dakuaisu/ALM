@@ -2,7 +2,7 @@
 use alm_core::confirmation::owner_billing;
 use alm_core::{DraftId, Money, Role};
 
-use crate::{SELLER, Trial, backup, debug, gst_print, views};
+use crate::{SELLER, Trial, backup, gst_print, refusal, views};
 
 impl Trial {
     pub(crate) fn render(&mut self, tab: &str) -> Result<String, String> {
@@ -29,7 +29,7 @@ impl Trial {
                         self.role(),
                         &self.customers,
                     )
-                    .map_err(debug)?
+                    .map_err(refusal)?
             }
             "expenses" => views::cashbook_screen(&views::CashBookView {
                 fixture: &self.posted,
@@ -39,7 +39,7 @@ impl Trial {
                 role: self.role(),
                 today: self.today()?,
             })
-            .map_err(debug)?,
+            .map_err(refusal)?,
             "dashboard" => views::dashboard_screen(
                 &self.posted,
                 &self.directory,
@@ -47,31 +47,30 @@ impl Trial {
                 self.today()?,
                 self.dash_period,
             )?,
-            "reorder" => views::reorder_screen(&self.posted, self.role()).map_err(debug)?,
+            "reorder" => views::reorder_screen(&self.posted, self.role()).map_err(refusal)?,
             "stock" => {
                 let stored = self.projected()?;
                 self.freshness(&stored)?
                     + &views::stock_screen(&stored.snapshot, &self.posted, self.role(), &self.stock)
-                        .map_err(debug)?
+                        .map_err(refusal)?
             }
             "godown" => views::godown_screen(&self.posted, self.role(), &self.godown_query)
-                .map_err(debug)?,
+                .map_err(refusal)?,
             "gstsales" => {
                 views::gst_sales_screen(&self.posted, self.role(), self.gst_form.as_ref())
-                    .map_err(debug)?
+                    .map_err(refusal)?
             }
-            "products" => {
-                views::products_screen(&self.posted, self.role(), &self.products).map_err(debug)?
-            }
+            "products" => views::products_screen(&self.posted, self.role(), &self.products)
+                .map_err(refusal)?,
             "suppliers" => views::suppliers_screen(&self.posted, self.role())?,
             "order" => {
-                views::order_screen(&self.posted, self.role(), &self.order).map_err(debug)?
+                views::order_screen(&self.posted, self.role(), &self.order).map_err(refusal)?
             }
             "purchases" => {
                 views::purchases_screen(&self.posted, self.role(), self.receiving, self.today()?)?
             }
             "crates" => views::crates_screen(&self.posted, self.role(), self.crate_form.as_ref())
-                .map_err(debug)?,
+                .map_err(refusal)?,
             "ratelist" => {
                 let today = self.today()?;
                 views::ratelist_screen(
@@ -81,7 +80,7 @@ impl Trial {
                     SELLER.name,
                     today,
                 )
-                .map_err(debug)?
+                .map_err(refusal)?
             }
             "reports" => views::reports_screen(
                 &self.posted,
@@ -106,7 +105,7 @@ impl Trial {
                     Role::Manager => Vec::new(),
                 };
                 let profile = match role {
-                    Role::Owner => self.shop.business_profile(role).map_err(debug)?,
+                    Role::Owner => self.shop.business_profile(role).map_err(refusal)?,
                     Role::Manager => &profile,
                 };
                 let backup = if role == Role::Owner {
@@ -151,18 +150,18 @@ impl Trial {
                 })
             }
             "counter" => {
-                views::counter_screen(&self.posted, self.role(), self.today()?).map_err(debug)?
+                views::counter_screen(&self.posted, self.role(), self.today()?).map_err(refusal)?
             }
             "receipt" => {
                 views::receipt_screen(&self.posted, &self.directory, self.role(), self.today()?)
-                    .map_err(debug)?
+                    .map_err(refusal)?
             }
             "sales" => {
                 let stored = self.projected()?;
                 let mut html = self.freshness(&stored)?;
                 if let (Some(id), Role::Owner) = (self.sale_edit, self.role()) {
                     html += &views::sale_edit_form(&self.posted, &self.directory, Role::Owner, id)
-                        .map_err(debug)?;
+                        .map_err(refusal)?;
                 }
                 html + &views::sales_screen(
                     &stored.snapshot,
@@ -170,7 +169,7 @@ impl Trial {
                     &self.sales_filter,
                     self.today()?,
                 )
-                .map_err(debug)?
+                .map_err(refusal)?
             }
             "review" => {
                 let stored = self.projected()?;
@@ -211,7 +210,7 @@ impl Trial {
                         (SELLER.name, SELLER.address, ""),
                         today,
                     )
-                    .map_err(debug)?
+                    .map_err(refusal)?
                     .ok_or("Tick at least one item first")?;
                 views::gst_screen(&html, "Rate List").replace(
                     "Standalone GST tax invoice — not linked to stock or dues.",
@@ -231,7 +230,7 @@ impl Trial {
                         );
                         page = gst_print::invoice_html(invoice, &SELLER).map(|html| (html, title));
                     })
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
                 let (html, title) = page?;
                 views::gst_screen(&html, &title)
             }

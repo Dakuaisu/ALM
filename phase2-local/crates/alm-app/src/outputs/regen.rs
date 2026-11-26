@@ -1,6 +1,6 @@
 //! Regenerates every output from a reopened archive alone (test support).
 use super::party;
-use crate::debug;
+use crate::refusal;
 
 /// Regenerates every output from a reopened archive alone (no live fixture, no seed).
 pub(crate) struct Regenerated {
@@ -25,20 +25,20 @@ pub(crate) fn regenerate(
     let bill_png = bill_png(store, role, sale, today)?;
     let estimate = store
         .latest_estimate_html(role, &id, today)
-        .map_err(debug)?;
+        .map_err(refusal)?;
     let mut gst_html = Err("GST bill missing".to_owned());
     store
         .emit_standalone_gst(role, gst, &mut |invoice| {
             gst_html = crate::gst_print::invoice_html(invoice, &crate::SELLER);
         })
-        .map_err(debug)?;
+        .map_err(refusal)?;
     let po = store
         .print_purchase_order(role, po)
-        .map_err(debug)?
+        .map_err(refusal)?
         .ok_or("Purchase order not archived")?
         .html;
     let rate_list = rate_list_html_from_records(
-        store.records(role).map_err(debug)?,
+        store.records(role).map_err(refusal)?,
         (crate::SELLER.name, crate::SELLER.address, ""),
         today,
     )
@@ -61,11 +61,11 @@ pub(crate) fn bill_png(
 ) -> Result<Vec<u8>, String> {
     use alm_core::confirmation::bill_image::bill_image_layout;
     let id = alm_core::synthetic_read_model::SaleId::new(sale.to_owned());
-    let profile = store.business_profile(role).map_err(debug)?;
-    let document = store.latest_estimate(role, &id, today).map_err(debug)?;
+    let profile = store.business_profile(role).map_err(refusal)?;
+    let document = store.latest_estimate(role, &id, today).map_err(refusal)?;
     let details = store
         .records(role)
-        .map_err(debug)?
+        .map_err(refusal)?
         .bill_image_details(sale)
         .ok_or("Sale not archived")?;
     let image = bill_image_layout(

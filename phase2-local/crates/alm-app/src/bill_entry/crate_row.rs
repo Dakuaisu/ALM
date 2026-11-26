@@ -9,11 +9,13 @@ use alm_sync::{CrateSale, Intent, Outcome};
 use tauri::State;
 
 use super::quantity;
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct CrateLine {
-    template: IpcId,
+    #[serde(default)]
+    template: String,
+    #[serde(default)]
     quantity: String,
 }
 
@@ -57,7 +59,7 @@ impl Trial {
         let mut loaded = ProvisionalDraft::new(DraftId::new(0), Vec::new());
         self.posted
             .load_crate_template(role, id, crates, &mut loaded)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let row = loaded.remove_crate_row(0).ok_or("Choose a saved crate.")?;
         self.edit_bill(|draft| {
             draft.add_crate_row(row);
@@ -109,7 +111,7 @@ impl Trial {
         let current = self
             .posted
             .crate_template(role, template)
-            .map_err(debug)?
+            .map_err(refusal)?
             .clone();
         let DraftCustomer::Selected { id, name } = draft.customer() else {
             return Err("Select a connected customer.".into());
@@ -155,7 +157,12 @@ impl Trial {
 #[tauri::command(async)]
 pub fn bill_crate_add(state: State<'_, AppState>, line: CrateLine) -> Result<String, String> {
     with(&state, "bill", |trial| {
-        trial.bill_crate_add(line.template.value(), quantity(&line.quantity)?)
+        let template = line
+            .template
+            .trim()
+            .parse()
+            .map_err(|_| "Choose a saved crate.".to_owned())?;
+        trial.bill_crate_add(template, quantity(&line.quantity)?)
     })
 }
 

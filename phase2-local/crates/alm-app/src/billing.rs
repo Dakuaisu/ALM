@@ -4,7 +4,7 @@ use alm_sync::{Intent, Outcome, SaleIntent};
 use tauri::State;
 
 use crate::ipc::{IpcDraft, IpcId};
-use crate::{AppState, debug, views, with};
+use crate::{AppState, refusal, views, with};
 
 #[derive(serde::Deserialize)]
 pub struct Terms {
@@ -20,8 +20,8 @@ fn posting_error(error: OwnerBillingError) -> String {
         OwnerBillingError::NoSavedDraft => "Save or reopen the Manager draft first.".into(),
         OwnerBillingError::NoReview => "Review the sale before confirming.".into(),
         OwnerBillingError::ReviewLimit => "Review limit reached.".into(),
-        OwnerBillingError::Confirmation(error) => debug(error),
-        OwnerBillingError::Date(error) => debug(error),
+        OwnerBillingError::Confirmation(error) => refusal(error),
+        OwnerBillingError::Date(error) => refusal(error),
     }
 }
 
@@ -56,14 +56,14 @@ impl crate::Trial {
             .draft()
             .clone();
         let prices = owner_billing::priced_draft(&scratch, role, &draft)
-            .map_err(debug)?
+            .map_err(refusal)?
             .lines
             .iter()
             .map(|line| line.unit_price)
             .collect();
         self.reviewed = Some(SaleIntent {
             date: draft.bill_date().ok_or("Enter a valid bill date.")?,
-            paid: Money::parse_rupees(&terms.paid).map_err(debug)?,
+            paid: Money::parse_rupees(&terms.paid).map_err(refusal)?,
             draft,
             prices,
         });
@@ -114,7 +114,7 @@ pub fn sales_filter(
     state: State<'_, AppState>,
     terms: views::SalesFilter,
 ) -> Result<String, String> {
-    let filter = terms.checked().map_err(debug)?;
+    let filter = terms.checked().map_err(refusal)?;
     with(&state, "sales", |trial| {
         trial.require_owner()?;
         trial.sales_filter = filter;
@@ -140,7 +140,12 @@ impl crate::Trial {
             .remove("id")
             .and_then(|text| alm_core::DraftId::parse(&text).ok())
             .ok_or("Unknown bill.")?;
-        let draft = self.posted.current_sale(role, id).map_err(debug)?.0.draft();
+        let draft = self
+            .posted
+            .current_sale(role, id)
+            .map_err(refusal)?
+            .0
+            .draft();
         // Ordinary lines, then each crate line (crates and rate).
         let lines = draft.lines().len() + draft.crate_rows().len();
         let edits = (0..lines)
@@ -160,7 +165,7 @@ impl crate::Trial {
         let outcome = self
             .send(&Intent::EditSale { draft: id, lines })
             .map_err(|error| {
-                if error.contains("InvalidAmount") {
+                if error == crate::refusals::ENTER_AMOUNT {
                     "The new total is below the amount already paid.".to_owned()
                 } else {
                     error
@@ -179,7 +184,7 @@ pub fn sale_edit_open(state: State<'_, AppState>, id: IpcDraft) -> Result<String
     let id = id.value();
     with(&state, "sales", |trial| {
         let role = trial.require_owner()?;
-        trial.posted.current_sale(role, id).map_err(debug)?;
+        trial.posted.current_sale(role, id).map_err(refusal)?;
         trial.sale_edit = Some(id);
         Ok(())
     })

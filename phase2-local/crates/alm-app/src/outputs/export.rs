@@ -1,7 +1,7 @@
 //! Structured exports and the estimate / PO print views.
 use tauri::State;
 
-use crate::{AppState, Trial, debug};
+use crate::{AppState, Trial, refusal};
 
 /// The structured exports (`exportSalesCSV`, `exportExcel`) over the live archive records.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,18 +16,18 @@ impl Trial {
         let records = self
             .posted
             .archive_records(role, &self.directory)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let model = alm_core::synthetic_read_model::ReadModel::create(role, records, |_| Ok(()))
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let today = self.today()?;
         Ok(match kind {
             Export::SalesCsv => (
                 format!("ALM-sales-{today}.csv"),
-                model.sales_csv(role).map_err(debug)?,
+                model.sales_csv(role).map_err(refusal)?,
             ),
             Export::Workbook => (
                 format!("ALM-{today}.xls"),
-                model.workbook(role).map_err(debug)?,
+                model.workbook(role).map_err(refusal)?,
             ),
         })
     }

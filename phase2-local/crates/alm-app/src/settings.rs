@@ -3,7 +3,7 @@ use alm_core::preferences::{Preference, Theme};
 use alm_core::synthetic_read_model::{ProfileInput, parse_reorder_default};
 use tauri::State;
 
-use crate::{AppState, Trial, debug, with};
+use crate::{AppState, Trial, refusal, with};
 
 /// The device name recorded with shared profile changes.
 pub const DEVICE: &str = "this-device";
@@ -56,7 +56,7 @@ impl Trial {
         let profile = self
             .shop
             .business_profile(role)
-            .map_err(debug)?
+            .map_err(refusal)?
             .with_input(&ProfileInput {
                 name: &form.name,
                 tagline: &form.tagline,
@@ -72,10 +72,10 @@ impl Trial {
             .map_err(|_| "Default Loading must be a non-negative amount.".to_owned())?;
         self.shop
             .save_business_profile(role, &profile, now, DEVICE)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         self.shop
             .set_reorder_default(role, reorder)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         self.send_reorder_default(reorder)?;
         self.refresh()?;
         self.message = "Profile saved ✓".into();

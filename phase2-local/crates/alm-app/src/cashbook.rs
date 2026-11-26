@@ -4,7 +4,7 @@ use alm_core::confirmation::manual_cashbook::{
 };
 use tauri::State;
 
-use crate::{AppState, Trial, debug, ipc::IpcId, with};
+use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 #[derive(serde::Deserialize)]
 pub struct Entry {
@@ -31,7 +31,7 @@ impl Trial {
     pub(crate) fn cash_live(&self, entry: &Entry) -> Result<String, String> {
         let role = self.require_owner()?;
         let (draft, _) = self.cash_draft(role, entry)?;
-        crate::views::cash_system_card(&self.posted, role, &draft).map_err(debug)
+        crate::views::cash_system_card(&self.posted, role, &draft).map_err(refusal)
     }
 
     fn cash_draft(
@@ -68,7 +68,7 @@ impl Trial {
                 .posted
                 .cashbook()
                 .find(role, id)
-                .map_err(debug)?
+                .map_err(refusal)?
                 .draft(),
             None => ManualCashBookDraft::new(None, amounts),
         };
@@ -84,7 +84,7 @@ impl Trial {
                 .id
                 .parse::<u64>()
                 .map_err(|_| "Unknown entry.".to_owned())?;
-            self.posted.cashbook().find(role, id).map_err(debug)?;
+            self.posted.cashbook().find(role, id).map_err(refusal)?;
             self.send(&alm_sync::Intent::DeleteCashDay { id })?;
             self.cash_form = None;
             return Ok(());
@@ -94,7 +94,7 @@ impl Trial {
             "system" => {
                 draft
                     .use_system_figures(&self.posted, role)
-                    .map_err(debug)?;
+                    .map_err(refusal)?;
             }
             "save" => {
                 if draft.date.is_none() {
@@ -158,7 +158,7 @@ pub fn cash_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String
     let id = id.value();
     with(&state, "expenses", |trial| {
         let role = trial.require_owner()?;
-        let row = trial.posted.cashbook().find(role, id).map_err(debug)?;
+        let row = trial.posted.cashbook().find(role, id).map_err(refusal)?;
         trial.cash_form = Some((row.draft(), Some(id)));
         Ok(())
     })

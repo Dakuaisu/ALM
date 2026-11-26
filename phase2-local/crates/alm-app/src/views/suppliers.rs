@@ -33,7 +33,7 @@ pub fn suppliers_screen(fixture: &ConfirmationFixture, role: Role) -> Result<Str
     html += r#"</tbody></table></div><form class="row" style="margin:12px 0" data-action="supplier_add" data-payload="terms"><input class="inp" name="name" placeholder="Supplier name" aria-label="New supplier name" required><button class="btn primary" type="submit">＋ Add Supplier</button></form>"#;
     let comparison = fixture
         .compare_supplier_prices(role, None)
-        .map_err(|error| format!("{error:?}"))?;
+        .map_err(crate::refusal)?;
     html += r#"<div class="card"><div class="sectit">⚖️ Compare supplier prices</div><div class="help">Buy rate per packet from each supplier. Blank or 0 clears a quote; the cheapest is highlighted.</div><div class="tbl-wrap"><table><thead><tr><th>Product</th><th class="num">Our Buy</th>"#;
     for supplier in &comparison.suppliers {
         let _ = write!(html, r#"<th class="num">{}</th>"#, esc(&supplier.name));

@@ -10,7 +10,7 @@ use alm_core::{BillDate, DraftId, LocalSales, Money, ProvisionalDraft, Role};
 use alm_store::{GstBillDatabase, ManagerDraftStore, Outbox, ProjectionStore, SqliteSales};
 use alm_sync::{LocalAuthority, SaleIntent};
 
-use crate::{debug, gst_print, text, views};
+use crate::{gst_print, refusal, text, views};
 
 /// The synthetic account a fresh start uses; `switch_account` selects another.
 pub(crate) const ACCOUNT: &str = "trial";
@@ -130,8 +130,8 @@ impl Trial {
         let outbox = Outbox::open_scoped(device_root, ACCOUNT).map_err(text)?;
         let projection =
             ProjectionStore::open_scoped(device_root, ACCOUNT, Role::Owner).map_err(text)?;
-        let mut authority = demo_fixture::fixture().map_err(debug)?;
-        demo_fixture::seed_purchasing(&mut authority).map_err(debug)?;
+        let mut authority = demo_fixture::fixture().map_err(refusal)?;
+        demo_fixture::seed_purchasing(&mut authority).map_err(refusal)?;
         // The simulated authority's sample GST bill (seed data, like the demo customers).
         let draft = GstBillDraft {
             customer: "Synthetic GST Buyer",
@@ -142,34 +142,35 @@ impl Trial {
                 .new_gst_bill_draft(
                     Role::Owner,
                     TRIAL_BILL,
-                    BillDate::new(2025, 4, 2).map_err(debug)?,
+                    BillDate::new(2025, 4, 2).map_err(refusal)?,
                 )
-                .map_err(debug)?
+                .map_err(refusal)?
         };
         authority
             .save_gst_bill(Role::Owner, &draft, &mut |_| {})
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let directory = demo_fixture::directory();
         let prefs_dir = device_root.join("preferences");
         std::fs::create_dir_all(&prefs_dir).map_err(text)?;
         let shop_path = device_root.join("shop.json");
         let shop = if shop_path.exists() {
-            alm_store::synthetic_read_model::Store::open(&shop_path, Role::Owner).map_err(debug)?
+            alm_store::synthetic_read_model::Store::open(&shop_path, Role::Owner)
+                .map_err(refusal)?
         } else {
             let records = authority
                 .archive_records(Role::Owner, &directory)
-                .map_err(debug)?;
+                .map_err(refusal)?;
             alm_store::synthetic_read_model::Store::create(&shop_path, Role::Owner, records)
-                .map_err(debug)?
+                .map_err(refusal)?
         };
         shop.apply_product_settings(Role::Owner, &mut authority)
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let journal = device_root.join(AUTHORITY_JOURNAL);
         if let Some(parent) = journal.parent() {
             std::fs::create_dir_all(parent).map_err(text)?;
         }
         let authority =
-            LocalAuthority::open(&journal, authority, directory.clone()).map_err(debug)?;
+            LocalAuthority::open(&journal, authority, directory.clone()).map_err(refusal)?;
         let mut trial = Self {
             drafts,
             directory,

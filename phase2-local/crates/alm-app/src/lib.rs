@@ -38,6 +38,7 @@ mod outputs;
 mod products;
 mod purchases;
 mod receipts;
+mod refusals;
 mod render;
 #[cfg(test)]
 mod rest_e2e;
@@ -77,8 +78,8 @@ fn text(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
-fn debug(error: impl std::fmt::Debug) -> String {
-    format!("{error:?}")
+fn refusal(error: impl std::fmt::Debug) -> String {
+    refusals::user_message(&format!("{error:?}"))
 }
 
 fn with<T>(

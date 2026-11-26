@@ -11,7 +11,7 @@ use alm_core::Role;
 use alm_store::synthetic_read_model::Store;
 use tauri::State;
 
-use crate::{AppState, Trial, debug, with};
+use crate::{AppState, Trial, refusal, with};
 
 fn valid_name(name: &str) -> bool {
     name.ends_with(".json")
@@ -62,12 +62,12 @@ impl Trial {
         let records = self
             .posted
             .archive_records(role, &self.directory)
-            .map_err(debug)?;
-        let ledger = self.posted.gst_bill_ledger(role).map_err(debug)?;
+            .map_err(refusal)?;
+        let ledger = self.posted.gst_bill_ledger(role).map_err(refusal)?;
         let bytes = self
             .shop
             .backup_with(role, records, Some(ledger), Some(self.archived_orders()?))
-            .map_err(debug)?;
+            .map_err(refusal)?;
         let dir = self.backup_dir();
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = fresh(&dir, &format!("ALM-backup-{}", self.today()?));
@@ -100,10 +100,10 @@ impl Trial {
             .and_then(|_| OpenOptions::new().write(true).open(&staged)?.sync_all())
             .map_err(|e| e.to_string())?;
         fs::rename(&staged, &live).map_err(|e| e.to_string())?;
-        self.shop = Store::open(&live, role).map_err(debug)?;
+        self.shop = Store::open(&live, role).map_err(refusal)?;
         self.projection.clear().map_err(|e| e.to_string())?;
         self.refresh()?;
-        let level = self.shop.records(role).map_err(debug)?.reorder_default;
+        let level = self.shop.records(role).map_err(refusal)?.reorder_default;
         self.send_reorder_default(level)?;
         // `logAct("restore", "Backup file restored")`, recorded by the authority.
         self.send(&alm_sync::Intent::RecordRestore)?;
@@ -128,9 +128,9 @@ pub fn backup_restore(state: State<'_, AppState>, q: String) -> Result<String, S
 
 pub(crate) fn summary(store: &Store) -> Result<crate::views::RestoredSummary, String> {
     let role = Role::Owner;
-    let records = store.records(role).map_err(debug)?;
-    let profile = store.business_profile(role).map_err(debug)?;
-    let gst = store.standalone_gst_ledger(role).map_err(debug)?;
+    let records = store.records(role).map_err(refusal)?;
+    let profile = store.business_profile(role).map_err(refusal)?;
+    let gst = store.standalone_gst_ledger(role).map_err(refusal)?;
     Ok(crate::views::RestoredSummary {
         products: records.products.len(),
         customers: records.customers.len(),
