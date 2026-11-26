@@ -100,6 +100,7 @@ Added at `d896e69` (CI and smokes); not decided:
 
 - May the CI job's short-lived service-role token stand for how Owner accounts are provisioned, or must accounts come from a reviewed admin flow?
 - Should a Manager ever see the Owner-priced total on New Bill once crate rows are involved?
+- (Added at `d12669e`) May a Manager's New Bill show crate rates? How should a Manager's refusals be worded?
 ## OPEN-005 Targets and output handoff
 - Status: OWNER-BLOCKED
 The owner must confirm Windows and macOS laptop and Android tablet models and OS versions, and approve WhatsApp test accounts or recipients. Local image, print, PDF and simulated share are development only; they do not establish actual handoff or platform acceptance (DEC-014).
@@ -205,6 +206,7 @@ Status at `2a6ff3e`: closed: Owner screens read server rows (REST works end to e
 - Manager New Bill drafting still reads the simulation's catalog, also with REST.
 - Bill image canvas layout and slanted italic; Latest-balance-only archive regeneration; product delete refused on posted bills; Clear All and hosted sync / Google Sheets / folder cards inert.
 - Status at `dce16b0`: closed: crate bills listed, viewed, edited, cancelled and restored in Sales; crate row on New Bill; activity times in local en-IN; restore log entry; Manager New Bill from its pulled catalog. Still open, added: a Manager's customer picker still comes from the device directory (Manager rows hold no customers); a legacy file must be placed in the app's `legacy-import` folder (no file picker).
+- Added at `d12669e`: a bill with several crates and no item line is refused by core and SQL though the app sends it to Owner review; pieces that don't make whole packets are refused (the HTML allows fractional packets); the header says "Manager · local only" while signed in to REST as the Owner. (Fixed in this round: the crate-row total mismatch, Piece-unit crates, raw error text, URL field capitalisation.)
 - Added at `d896e69` (seen in smokes, to be fixed): with a crate row on New Bill the total uses Owner rates while rows show provisional rates (₹583 vs rows summing to ₹577); a crate holding a Piece-unit item saves on Crates but can't be priced on New Bill ("InvalidDraft"); "+ Add Item" on an empty row shows a raw error; on Android the REST URL field capitalises "Http://". (The "Product 1" label is fixed in `ede761b`.)
 - Added at `e478478`: Owner review names an item line "Product 1" in REST mode (Sales and the bill show the product name).
 - (Found at `fe5db4e`) A crate bill can hold only its crate. The HTML's New Bill mixes crate rows and ordinary lines on one bill (`draft.items` rendered as `crateRow` or `lineRow`, HTML L3640).
