@@ -3595,3 +3595,9 @@ Recorded as OPEN-004/OPEN-013 questions below. No test expectation changed for s
   - real legacy data (OPEN-002);
   - the frozen HTML runtime (OPEN-008);
   - the Windows app on a real PC.
+
+## Public repository checks and platform parity (partial, synthetic development data)
+
+**Server catalog (R-5).** On disposable Postgres 17, the bootstrap with API default grants exposed `SELECT`, `UPDATE` and `USAGE` on `public.legacy_resolutions_seq_seq` for both `anon` and `authenticated`. The new migration revokes those privileges and removes the migration role's default sequence grants to both roles in `public`. Public RPCs now check the role before entering the original implementation, including its declaration initializers. The two projection calls allow Owner or Manager; the other entry points require Owner. Hosted Supabase was not tested.
+
+The catalog suite flagged the sequence on the pre-migration schema and passed **12/12** after migration. The complete local server checks passed. Workspace fmt and clippy with warnings denied passed; locked offline tests: **902 passed, 0 failed, 3 ignored**. The Mac's one-minute load was **43.07**, above the approved cutoff of 16, so the local workspace gate used `ALM_SKIP_PERF=1`. Earlier unskipped runs failed the elapsed-time bounds for projection pull and legacy planning. No test expectation changed; the green local run is not a timing pass.

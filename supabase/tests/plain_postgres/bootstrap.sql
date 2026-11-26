@@ -15,6 +15,11 @@ $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.jwt() to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
+-- As a hosted project does: objects the migration role creates in public are granted to the
+-- API roles by default, so the catalog checks see what a hosted project would hold.
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 create schema extensions;
 create extension pgtap with schema extensions;
 alter database postgres set search_path = "$user", public, extensions;
