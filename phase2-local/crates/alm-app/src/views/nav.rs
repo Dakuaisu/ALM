@@ -141,3 +141,36 @@ pub fn tabs(active: &str) -> String {
     }
     html
 }
+
+/// The sidebar's account line and authority line, from the session: the signed-in account and
+/// its role (or "Not signed in"), and the REST URL's host or the built-in simulation.
+pub fn session_header(signed_in: Option<(&str, alm_core::Role)>, rest: Option<&str>) -> String {
+    let account = signed_in.map_or_else(
+        || "Not signed in".to_owned(),
+        |(account, role)| {
+            let role = match role {
+                alm_core::Role::Owner => "Owner",
+                alm_core::Role::Manager => "Manager",
+            };
+            format!("{account} · {role}")
+        },
+    );
+    let (authority, dot) = rest.map_or_else(
+        || ("Built-in simulation".to_owned(), "syncdot off"),
+        |url| (format!("REST · {}", url_host(url)), "syncdot ok"),
+    );
+    format!(
+        r#"<template id="screen-session" data-account="{}" data-authority="{}" data-dot="{dot}"></template>"#,
+        esc(&account),
+        esc(&authority)
+    )
+}
+
+/// The host (and port) of `url`: no scheme, user, path or query.
+fn url_host(url: &str) -> &str {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host)
+}

@@ -40,7 +40,7 @@ pub use godown::godown_screen;
 pub use gst::gst_screen;
 pub use gst_sales::gst_sales_screen;
 pub use legacy::{LegacyStage, legacy_card};
-pub use nav::tabs;
+pub use nav::{session_header, tabs};
 pub use order::{OrderState, order_screen};
 pub use products::{ProductsState, product_form, products_screen};
 pub use purchases::purchases_screen;

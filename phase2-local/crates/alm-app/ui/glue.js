@@ -38,6 +38,12 @@ async function show(pending) {
     const actions = view.querySelector("#screen-actions");
     document.getElementById("top-actions").replaceChildren(...(actions ? [actions.content] : []));
     syncModal();
+    const session = view.querySelector("#screen-session");
+    if (session) {
+      document.getElementById("bizline").textContent = session.dataset.account;
+      document.getElementById("synctxt").textContent = session.dataset.authority;
+      document.getElementById("syncdot").className = session.dataset.dot;
+    }
     const theme = view.querySelector("#screen-theme");
     if (theme && document.documentElement) {
       document.documentElement.setAttribute("data-theme", theme.dataset.theme);

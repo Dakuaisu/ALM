@@ -46,6 +46,11 @@ impl RestAuthority {
 
     /// Presents `jwt` when acting as `role`.
     #[must_use]
+    /// The PostgREST root this authority sends to.
+    pub fn base(&self) -> &str {
+        &self.base
+    }
+
     pub fn with_token(mut self, role: Role, jwt: &str) -> Self {
         self.tokens.retain(|(r, _)| *r != role);
         self.tokens.push((role, jwt.to_owned()));

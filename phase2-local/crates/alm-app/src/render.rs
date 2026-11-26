@@ -9,9 +9,9 @@ impl Trial {
         self.refresh()?;
         let tab = if tab == "draft" { "bill" } else { tab };
         if let (true, Some(config)) = (self.signed_out(), self.rest_config.as_ref()) {
-            return Ok(
-                views::tabs(tab) + &crate::dev_authority::login_screen(config, &self.message)
-            );
+            return Ok(views::tabs(tab)
+                + &views::session_header(None, Some(&config.url))
+                + &crate::dev_authority::login_screen(config, &self.message));
         }
         let body = match tab {
             _ if self.revoked => format!(
@@ -262,9 +262,17 @@ impl Trial {
             _ => return Err("Unknown screen.".into()),
         };
         let message = std::mem::take(&mut self.message);
+        let account = self
+            .session
+            .as_ref()
+            .map_or(self.account.as_str(), alm_sync::GoTrueSession::email);
         Ok(format!(
-            r#"{}{}<template id="screen-theme" data-theme="{}"></template>{body}"#,
+            r#"{}{}{}<template id="screen-theme" data-theme="{}"></template>{body}"#,
             views::tabs(tab),
+            views::session_header(
+                Some((account, self.role())),
+                self.rest.as_ref().map(alm_sync::RestAuthority::base)
+            ),
             views::notice(&message),
             self.prefs.theme().data_theme()
         ))

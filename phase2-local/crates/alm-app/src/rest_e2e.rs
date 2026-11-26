@@ -431,13 +431,24 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         "stock",
         "reports",
     ] {
-        // Everything but the freshness line (its pull time differs).
-        let strip = |html: String| match html.find("data-freshness") {
-            Some(i) => {
-                let end = html[i..].find("</div>").map_or(html.len(), |e| i + e);
-                format!("{}{}", &html[..i], &html[end..])
+        // Everything but the freshness line (its pull time differs) and the session line (each
+        // device names its own account; checked on its own below).
+        let strip = |html: String| {
+            let html = match html.find("data-freshness") {
+                Some(i) => {
+                    let end = html[i..].find("</div>").map_or(html.len(), |e| i + e);
+                    format!("{}{}", &html[..i], &html[end..])
+                }
+                None => html,
+            };
+            match html.find(r#"<template id="screen-session""#) {
+                Some(i) => {
+                    let end = html[i..].find("</template>").map_or(html.len(), |e| i + e);
+                    assert!(html[i..end].contains("data-authority=\"REST · "), "{html}");
+                    format!("{}{}", &html[..i], &html[end..])
+                }
+                None => html,
             }
-            None => html,
         };
         trial.message.clear();
         other.message.clear();
@@ -662,6 +673,19 @@ fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
     assert!(trial.signed_out());
     let page = trial.render("review").unwrap();
     assert!(page.contains(r#"data-action="rest_login""#) && !page.contains("review_role"));
+    let host = url.split_once("://").map_or(url.as_str(), |(_, h)| h);
+    let host = host.split('/').next().unwrap();
+    let header = |account: &str| {
+        format!(
+            r#"<template id="screen-session" data-account="{account}" data-authority="REST · {host}" data-dot="syncdot ok">"#
+        )
+    };
+    assert!(
+        page.contains(&format!(
+            r#"<template id="screen-session" data-account="Not signed in" data-authority="REST · {host}""#
+        )),
+        "{page}"
+    );
     assert!(
         trial
             .rest_login(&LoginForm::new(&manager, "wrong"))
@@ -679,6 +703,10 @@ fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
         review.contains("Signed in as") && !review.contains("review_role"),
         "{review}"
     );
+    assert!(
+        review.contains(&header(&format!("{manager} · Manager"))),
+        "{review}"
+    );
     assert!(trial.projected().unwrap().snapshot.owner.is_none());
     assert!(trial.render("sales").unwrap().contains("role=\"alert\""));
     let manager_account = trial.account.clone();
@@ -691,6 +719,12 @@ fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
         .unwrap();
     assert_eq!(trial.role(), Role::Owner);
     assert_ne!(trial.account, manager_account);
+    let sales = trial.render("sales").unwrap();
+    assert!(
+        sales.contains(&header(&format!("{owner} · Owner"))),
+        "{sales}"
+    );
+    assert!(!sales.contains("Built-in simulation"));
     let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
     trial.drafts.save_draft(draft.clone()).unwrap();
     trial.current = Some((draft, true));

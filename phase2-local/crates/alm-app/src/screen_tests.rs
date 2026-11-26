@@ -1661,3 +1661,47 @@ fn a_chosen_file_is_copied_into_the_app_folder_before_the_validated_paths_read_i
     trial.set_owner(false).unwrap();
     assert!(trial.file_copy_in("legacy", &chosen).is_err());
 }
+
+/// The sidebar shows the account, role and authority from the session (not a fixed "Manager ·
+/// local only"): the built-in simulation for the Owner and the Manager on every screen, and a
+/// REST authority's host (the REST end to end checks a real sign-in for both roles).
+#[test]
+fn the_header_shows_the_signed_in_account_role_and_authority() {
+    let root = Root::new("session-header");
+    let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
+    let simulation = |who: &str| {
+        format!(
+            r#"<template id="screen-session" data-account="{who}" data-authority="Built-in simulation" data-dot="syncdot off"></template>"#
+        )
+    };
+    for (owner, who) in [(true, "trial · Owner"), (false, "trial · Manager")] {
+        trial.set_owner(owner).unwrap();
+        for tab in ["counter", "bill", "sales", "settings"] {
+            let html = trial.render(tab).unwrap();
+            assert!(html.contains(&simulation(who)), "{tab}: {html}");
+            assert!(!html.contains("local only"));
+        }
+    }
+    let rest = |who: Option<(&str, alm_core::Role)>, url: &str| {
+        crate::views::session_header(who, Some(url))
+    };
+    assert_eq!(
+        rest(
+            Some(("owner@alm.test", alm_core::Role::Owner)),
+            "http://127.0.0.1:3000"
+        ),
+        r#"<template id="screen-session" data-account="owner@alm.test · Owner" data-authority="REST · 127.0.0.1:3000" data-dot="syncdot ok"></template>"#
+    );
+    assert_eq!(
+        rest(
+            Some(("manager@alm.test", alm_core::Role::Manager)),
+            "https://user@abc.supabase.co/rest/v1?x=1"
+        ),
+        r#"<template id="screen-session" data-account="manager@alm.test · Manager" data-authority="REST · abc.supabase.co" data-dot="syncdot ok"></template>"#
+    );
+    assert!(rest(None, "http://127.0.0.1:3000").contains(r#"data-account="Not signed in""#));
+    assert!(
+        crate::views::session_header(Some(("<b>", alm_core::Role::Owner)), None)
+            .contains("&lt;b&gt; · Owner")
+    );
+}
