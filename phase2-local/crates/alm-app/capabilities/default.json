@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The trial window may call only the app's own commands.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": []
 }

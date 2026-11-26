@@ -268,6 +268,9 @@ impl Trial {
         if self.revoked {
             return Err(REVOKED.into());
         }
+        if self.signed_out() {
+            return Err("Sign in first.".into());
+        }
         match self.role() {
             Role::Owner => Ok(Role::Owner),
             Role::Manager => Err("Access denied: Owner only.".into()),

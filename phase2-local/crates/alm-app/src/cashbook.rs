@@ -1,8 +1,8 @@
+use crate::ipc::State;
 use alm_core::Money;
 use alm_core::confirmation::manual_cashbook::{
     CashBookAmounts, ManualCashBookDraft, parse_cash_book_amount,
 };
-use tauri::State;
 
 use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
@@ -137,7 +137,7 @@ pub fn cash_entry(state: State<'_, AppState>, terms: Entry) -> Result<String, St
 
 #[tauri::command(async)]
 pub fn cash_live(state: State<'_, AppState>, terms: Entry) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     trial.cash_live(&terms)
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::ipc::State;
 use alm_core::confirmation::PurchaseOrderId;
-use tauri::State;
 
 use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 

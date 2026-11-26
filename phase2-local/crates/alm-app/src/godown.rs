@@ -1,4 +1,4 @@
-use tauri::State;
+use crate::ipc::State;
 
 use crate::{AppState, Trial, with};
 

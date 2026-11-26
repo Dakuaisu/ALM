@@ -1,9 +1,9 @@
 //! Account switching, the freshness line with unresolved intents, and their commands.
+use crate::ipc::State;
 use alm_core::Role;
 use alm_core::projection::as_of_text;
 use alm_store::{Outbox, ProjectionStore, StoredProjection};
 use alm_sync::Outcome;
-use tauri::State;
 
 use crate::{AppState, Trial, text, with};
 
@@ -92,7 +92,7 @@ pub fn outbox_retry(state: State<'_, AppState>, q: String) -> Result<String, Str
 #[tauri::command(async)]
 pub fn account_switch(state: State<'_, AppState>, q: String) -> Result<String, String> {
     // Allowed after a revocation too: it is how the device leaves the revoked account.
-    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let mut trial = state.lock()?;
     if trial.rest_config.is_some() {
         return Err("Sign out to switch accounts.".into());
     }

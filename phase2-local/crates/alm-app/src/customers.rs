@@ -1,5 +1,5 @@
+use crate::ipc::State;
 use alm_core::confirmation::OpeningBalance;
-use tauri::State;
 
 use crate::{AppState, refusal, with};
 

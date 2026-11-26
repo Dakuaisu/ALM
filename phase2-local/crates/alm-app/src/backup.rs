@@ -7,9 +7,9 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::ipc::State;
 use alm_core::Role;
 use alm_store::synthetic_read_model::Store;
-use tauri::State;
 
 use crate::{AppState, Trial, refusal, with};
 

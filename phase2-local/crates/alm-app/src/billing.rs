@@ -1,7 +1,7 @@
+use crate::ipc::State;
 use alm_core::Money;
 use alm_core::confirmation::owner_billing::{self, OwnerBillingError, SaleTerms};
 use alm_sync::{Intent, Outcome, SaleIntent};
-use tauri::State;
 
 use crate::ipc::{IpcDraft, IpcId};
 use crate::{AppState, refusal, views, with};

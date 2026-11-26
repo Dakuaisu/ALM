@@ -1,5 +1,5 @@
 //! Small commands: screen switch, start, role switch, Dashboard period, Rate List, print, share.
-use tauri::State;
+use crate::ipc::State;
 
 use crate::{AppState, gst_print, ipc, refusal, text, with};
 
@@ -112,7 +112,8 @@ pub fn review_role(state: State<'_, AppState>, owner: bool) -> Result<String, St
 
 /// Opens the platform print dialog for the current page; its print CSS keeps only the invoice.
 #[tauri::command]
-pub fn print_page(window: tauri::WebviewWindow) -> Result<(), String> {
+pub fn print_page(window: tauri::WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    let _trial = state.lock()?;
     #[cfg(desktop)]
     return window.print().map_err(text);
     #[cfg(mobile)]
@@ -125,7 +126,7 @@ pub fn print_page(window: tauri::WebviewWindow) -> Result<(), String> {
 /// Plain-text summary for the platform share sheet.
 #[tauri::command(async)]
 pub fn share_text(state: State<'_, AppState>) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     let role = trial.require_owner()?;
     let mut summary = Err("GST bill missing".to_owned());
     trial

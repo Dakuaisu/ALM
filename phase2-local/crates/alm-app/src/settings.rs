@@ -1,7 +1,7 @@
+use crate::ipc::State;
 use alm_core::confirmation::BalanceMode;
 use alm_core::preferences::{Preference, Theme};
 use alm_core::synthetic_read_model::{ProfileInput, parse_reorder_default};
-use tauri::State;
 
 use crate::{AppState, Trial, refusal, with};
 

@@ -6,9 +6,9 @@
 //! store (`credentials`). Never put real credentials in the repository.
 use std::path::Path;
 
+use crate::ipc::State;
 use alm_core::Role;
 use alm_sync::{AuthError, GoTrueSession, RestAuthority, SalesAuthority};
-use tauri::State;
 
 use crate::gst_print::esc;
 use crate::{AppState, Trial, text, with};

@@ -6,13 +6,13 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::ipc::State;
 use alm_core::legacy::import::{EntryStatus, ImportManifest, ImportPlan, plan_file};
 use alm_core::legacy::resolve::{Decision, QuarantineDecision, map_corrected_text, source_record};
 use alm_core::legacy::{
     LegacyBackup, LegacyError, Reconciliation, dry_run_plan, live_numbers, reconcile,
 };
 use alm_sync::{Intent, Outcome};
-use tauri::State;
 
 use crate::{AppState, Trial, text, with};
 

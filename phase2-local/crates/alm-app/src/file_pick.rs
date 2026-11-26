@@ -6,7 +6,8 @@
 //! names (inside the app's data folder) before `file_picked` continues.
 use std::path::{Path, PathBuf};
 
-use tauri::{AppHandle, State};
+use crate::ipc::State;
+use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 use crate::{AppState, Trial, text, with};
@@ -127,10 +128,7 @@ const fn text_of(kind: Kind) -> &'static str {
 #[tauri::command(async)]
 pub fn file_pick(app: AppHandle, state: State<'_, AppState>, q: String) -> Result<String, String> {
     Kind::parse(&q)?;
-    state
-        .lock()
-        .map_err(|_| "app state poisoned".to_owned())?
-        .require_owner()?;
+    state.lock()?.require_owner()?;
     let picked = app
         .dialog()
         .file()
@@ -150,7 +148,7 @@ pub fn file_pick(app: AppHandle, state: State<'_, AppState>, q: String) -> Resul
             })
         }
         Some(FilePath::Url(url)) => {
-            let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+            let trial = state.lock()?;
             let dest = trial.copy_target(&q)?;
             let name = dest
                 .file_name()

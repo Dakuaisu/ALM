@@ -1,5 +1,5 @@
 //! Platform handoff: reveal on desktop, share path on Android, WhatsApp links.
-use tauri::State;
+use crate::ipc::State;
 
 use crate::{AppState, ipc::IpcDraft};
 
@@ -21,7 +21,7 @@ pub(super) fn reveal(path: &std::path::Path) {
 /// Writes the bill image and returns its path; desktop reveals it, Android shares it.
 #[tauri::command(async)]
 pub fn bill_image_share(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     let (name, png) = trial.bill_image_png(id.value())?;
     let path = trial.save_output(&name, &png)?;
     #[cfg(desktop)]
@@ -31,7 +31,8 @@ pub fn bill_image_share(state: State<'_, AppState>, id: IpcDraft) -> Result<Stri
 
 /// Opens a WhatsApp link in the desktop browser; only wa.me links are accepted.
 #[tauri::command(async)]
-pub fn open_url(url: String) -> Result<(), String> {
+pub fn open_url(state: State<'_, AppState>, url: String) -> Result<(), String> {
+    let _trial = state.lock()?;
     if !url.starts_with("https://wa.me/") {
         return Err("Only WhatsApp links can be opened.".into());
     }

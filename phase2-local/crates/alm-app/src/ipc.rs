@@ -1,5 +1,43 @@
 use serde::{Deserialize, Deserializer, de};
 
+pub(crate) struct State<'a, T> {
+    inner: &'a T,
+    access: crate::session_policy::Access,
+}
+
+impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for State<'de, crate::AppState> {
+    fn from_command(
+        item: tauri::ipc::CommandItem<'de, R>,
+    ) -> Result<Self, tauri::ipc::InvokeError> {
+        let access = crate::session_policy::classify(item.name)
+            .ok_or_else(|| tauri::ipc::InvokeError::from("Unknown command policy."))?;
+        let inner: tauri::State<'de, crate::AppState> = tauri::State::from_command(item)?;
+        Ok(Self {
+            inner: inner.inner(),
+            access,
+        })
+    }
+}
+
+impl State<'_, crate::AppState> {
+    #[cfg(test)]
+    pub(crate) fn for_test<'a>(
+        inner: &'a crate::AppState,
+        command: &str,
+    ) -> Result<State<'a, crate::AppState>, String> {
+        let access = crate::session_policy::classify(command).ok_or("Unknown command policy.")?;
+        Ok(State { inner, access })
+    }
+    pub(crate) fn lock(&self) -> Result<std::sync::MutexGuard<'_, crate::Trial>, String> {
+        let trial = self
+            .inner
+            .lock()
+            .map_err(|_| "app state poisoned".to_owned())?;
+        crate::session_policy::authorize(&trial, self.access)?;
+        Ok(trial)
+    }
+}
+
 /// An unsigned 64-bit ID carried as decimal text to avoid JavaScript rounding.
 pub(crate) struct IpcId(u64);
 

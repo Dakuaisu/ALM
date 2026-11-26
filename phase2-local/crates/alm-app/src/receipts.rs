@@ -1,9 +1,9 @@
+use crate::ipc::State;
 use alm_core::Role;
 use alm_core::confirmation::owner_billing::{
     BillingDirectory, OwnerBillingError, ReceiptTerms, save_receipt,
 };
 use alm_core::confirmation::{ConfirmationError, ConfirmationFixture, ReceiptMode};
-use tauri::State;
 
 use crate::{AppState, refusal, with};
 

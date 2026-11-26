@@ -1,6 +1,6 @@
+use crate::ipc::State;
 use alm_core::ProductId;
 use alm_core::confirmation::{PriceField, ProductText};
-use tauri::State;
 
 use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
@@ -97,7 +97,7 @@ impl Trial {
 
 #[tauri::command(async)]
 pub fn product_preview(state: State<'_, AppState>, terms: Form) -> Result<String, String> {
-    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let mut trial = state.lock()?;
     trial.product_preview(&terms)
 }
 
@@ -143,7 +143,7 @@ pub fn product_save(state: State<'_, AppState>, terms: Form) -> Result<String, S
 
 #[tauri::command(async)]
 pub fn product_delete(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let mut trial = state.lock()?;
     let html = trial.product_delete(&q)?;
     match html {
         Some(html) => Ok(html),

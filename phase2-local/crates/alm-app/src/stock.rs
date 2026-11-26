@@ -1,5 +1,5 @@
+use crate::ipc::State;
 use alm_core::ProductId;
-use tauri::State;
 
 use crate::{AppState, ipc::IpcId, refusal, with};
 

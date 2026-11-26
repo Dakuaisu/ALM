@@ -1,5 +1,5 @@
 //! Structured exports and the estimate / PO print views.
-use tauri::State;
+use crate::ipc::State;
 
 use crate::{AppState, Trial, refusal};
 
@@ -59,7 +59,7 @@ pub fn export_file(state: State<'_, AppState>, q: String) -> Result<String, Stri
         "xls" => Export::Workbook,
         _ => return Err("Unknown export.".into()),
     };
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     let (name, text) = trial.export(kind)?;
     let path = trial.save_output(&name, text.as_bytes())?;
     #[cfg(desktop)]

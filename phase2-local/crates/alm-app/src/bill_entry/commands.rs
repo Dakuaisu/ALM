@@ -1,7 +1,7 @@
 //! New Bill commands.
 use std::num::NonZeroUsize;
 
-use tauri::State;
+use crate::ipc::State;
 
 use super::{Header, Line, quantity};
 use crate::{
@@ -12,19 +12,19 @@ use crate::{
 
 #[tauri::command(async)]
 pub fn bill_live(state: State<'_, AppState>, line: String, qty: String) -> Result<String, String> {
-    let mut trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let mut trial = state.lock()?;
     trial.bill_live(&line, &qty)
 }
 
 #[tauri::command(async)]
 pub fn bill_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     Ok(trial.bill_customer_search(&q))
 }
 
 #[tauri::command(async)]
 pub fn bill_item_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     Ok(trial.bill_item_search(&q))
 }
 

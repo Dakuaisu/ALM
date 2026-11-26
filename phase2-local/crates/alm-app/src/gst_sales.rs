@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::ipc::State;
 use alm_core::confirmation::{GstBillDraft, GstBillError, GstBillId, GstBillNumber, GstLineFields};
-use tauri::State;
 
 use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
@@ -245,6 +245,6 @@ pub fn gst_view(state: State<'_, AppState>, id: IpcId) -> Result<String, String>
 
 #[tauri::command(async)]
 pub fn gst_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
-    let trial = state.lock().map_err(|_| "app state poisoned".to_owned())?;
+    let trial = state.lock()?;
     trial.gst_customer_options(&q)
 }

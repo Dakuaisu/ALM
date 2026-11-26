@@ -1,0 +1,263 @@
+use crate::session_policy::{Access, authorize, classify};
+use crate::{Trial, billing_tests::day, dev_authority::RestConfig, screen_tests::Root};
+
+#[test]
+fn direct_bill_commands_deny_signed_out_and_revoked_sessions() {
+    use crate::{bill_entry::commands, ipc::State};
+    use std::sync::Mutex;
+    let root = Root::new("policy-bill");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.rest_config = Some(RestConfig {
+        url: String::new(),
+        auth: String::new(),
+        apikey: String::new(),
+    });
+    let state = Mutex::new(trial);
+    for command in ["bill_live", "bill_customer_search", "bill_item_search"] {
+        let call = || match command {
+            "bill_live" => commands::bill_live(
+                State::for_test(&state, command).unwrap(),
+                "1".into(),
+                "1".into(),
+            ),
+            "bill_customer_search" => commands::bill_customer_search(
+                State::for_test(&state, command).unwrap(),
+                String::new(),
+            ),
+            "bill_item_search" => {
+                commands::bill_item_search(State::for_test(&state, command).unwrap(), String::new())
+            }
+            _ => unreachable!(),
+        };
+        assert!(call().is_err());
+        {
+            let mut trial = state.lock().unwrap();
+            trial.rest_config = None;
+            trial.revoked = true;
+        }
+        assert!(call().is_err());
+        {
+            let mut trial = state.lock().unwrap();
+            trial.rest_config = Some(RestConfig {
+                url: String::new(),
+                auth: String::new(),
+                apikey: String::new(),
+            });
+            trial.revoked = false;
+        }
+    }
+}
+
+#[test]
+fn every_registered_command_has_an_explicit_policy() {
+    let source = include_str!("lib.rs");
+    let registered = source
+        .split("= tauri::generate_handler![")
+        .nth(1)
+        .unwrap()
+        .split("];")
+        .next()
+        .unwrap();
+    let commands: Vec<_> = registered
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(|name| name.rsplit("::").next().unwrap())
+        .collect();
+    assert!(commands.len() > 100);
+    for command in commands {
+        assert!(classify(command).is_some(), "unclassified: {command}");
+    }
+    assert_eq!(classify("not_registered"), None);
+}
+
+#[test]
+fn public_recovery_commands_are_explicitly_limited() {
+    let source = include_str!("lib.rs");
+    let registered = source
+        .split("= tauri::generate_handler![")
+        .nth(1)
+        .unwrap()
+        .split("];")
+        .next()
+        .unwrap();
+    let public: Vec<_> = registered
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(|name| name.rsplit("::").next().unwrap())
+        .filter(|name| classify(name) == Some(Access::Public))
+        .collect();
+    assert_eq!(
+        public,
+        [
+            "start",
+            "screen",
+            "settings_rest_off_signed_out",
+            "rest_login",
+            "rest_logout"
+        ]
+    );
+}
+
+#[test]
+fn every_registered_command_uses_the_guarded_state() {
+    let sources = [
+        include_str!("commands.rs"),
+        include_str!("bill_entry/commands.rs"),
+        include_str!("bill_entry/crate_row.rs"),
+        include_str!("dev_authority.rs"),
+        include_str!("device/account.rs"),
+        include_str!("billing.rs"),
+        include_str!("outputs/platform.rs"),
+        include_str!("outputs/export.rs"),
+        include_str!("settings.rs"),
+        include_str!("backup.rs"),
+        include_str!("receipts.rs"),
+        include_str!("customers.rs"),
+        include_str!("cashbook.rs"),
+        include_str!("copy.rs"),
+        include_str!("stock.rs"),
+        include_str!("godown.rs"),
+        include_str!("gst_sales.rs"),
+        include_str!("products.rs"),
+        include_str!("suppliers.rs"),
+        include_str!("order.rs"),
+        include_str!("purchases.rs"),
+        include_str!("crates.rs"),
+        include_str!("legacy_import.rs"),
+        include_str!("file_pick.rs"),
+    ];
+    let registered = include_str!("lib.rs")
+        .split("= tauri::generate_handler![")
+        .nth(1)
+        .unwrap()
+        .split("];")
+        .next()
+        .unwrap();
+    for command in registered
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        let name = command.rsplit("::").next().unwrap();
+        let marker = format!("pub fn {name}(");
+        let source = sources
+            .iter()
+            .find(|source| source.contains(&marker))
+            .unwrap();
+        assert!(
+            source.contains("use crate::ipc::State;"),
+            "unguarded import: {name}"
+        );
+        let function = source
+            .split(&marker)
+            .nth(1)
+            .unwrap()
+            .split("#[tauri::command")
+            .next()
+            .unwrap();
+        let signature = function.split('{').next().unwrap();
+        assert!(
+            signature.contains("state: State<'_, AppState>"),
+            "unguarded command: {name}"
+        );
+        assert!(
+            function.contains("state.lock()")
+                || function.contains("with(&state")
+                || function.contains("lock(&state"),
+            "state not checked: {name}"
+        );
+    }
+}
+
+#[test]
+fn signed_out_user_can_return_to_the_local_simulation() {
+    use crate::{dev_authority, ipc::State};
+    use std::sync::Mutex;
+    let root = Root::new("policy-simulation-recovery");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.rest_config = Some(RestConfig {
+        url: String::new(),
+        auth: String::new(),
+        apikey: String::new(),
+    });
+    let state = Mutex::new(trial);
+    let command = State::for_test(&state, "settings_rest_off_signed_out").unwrap();
+    assert!(dev_authority::settings_rest_off_signed_out(command).is_ok());
+    assert!(state.lock().unwrap().rest_config.is_none());
+}
+
+#[test]
+fn local_manager_can_search_and_switch_role_and_account() {
+    use crate::{bill_entry::commands as bill, commands, device::account, ipc::State};
+    use std::sync::Mutex;
+    let root = Root::new("policy-local-recovery");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.owner = false;
+    let state = Mutex::new(trial);
+    assert!(
+        bill::bill_item_search(
+            State::for_test(&state, "bill_item_search").unwrap(),
+            String::new()
+        )
+        .is_ok()
+    );
+    assert!(commands::review_role(State::for_test(&state, "review_role").unwrap(), true).is_ok());
+    assert!(
+        account::account_switch(
+            State::for_test(&state, "account_switch").unwrap(),
+            "trial-b".into()
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn protected_commands_are_denied_when_signed_out_or_revoked() {
+    let root = Root::new("policy-denied");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.rest_config = Some(RestConfig {
+        url: String::new(),
+        auth: String::new(),
+        apikey: String::new(),
+    });
+    assert!(authorize(&trial, Access::Session).is_err());
+    assert!(authorize(&trial, Access::Owner).is_err());
+    assert!(authorize(&trial, Access::Public).is_ok());
+    trial.rest_config = None;
+    trial.revoked = true;
+    assert!(authorize(&trial, Access::Session).is_err());
+    assert!(authorize(&trial, Access::Owner).is_err());
+    assert!(authorize(&trial, Access::Switch).is_ok());
+}
+
+#[test]
+fn simulation_roles_and_switch_are_separate_from_real_sessions() {
+    let root = Root::new("policy-simulation");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert!(authorize(&trial, Access::Simulation).is_ok());
+    assert!(authorize(&trial, Access::Owner).is_ok());
+    trial.owner = false;
+    assert!(authorize(&trial, Access::Session).is_ok());
+    assert!(authorize(&trial, Access::Owner).is_err());
+    trial.rest_config = Some(RestConfig {
+        url: String::new(),
+        auth: String::new(),
+        apikey: String::new(),
+    });
+    assert!(authorize(&trial, Access::Simulation).is_err());
+    assert!(authorize(&trial, Access::Switch).is_err());
+}
+
+#[test]
+fn owner_operations_are_denied_when_rest_is_signed_out() {
+    let root = Root::new("policy-signed-out");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.rest_config = Some(RestConfig {
+        url: String::new(),
+        auth: String::new(),
+        apikey: String::new(),
+    });
+    assert!(trial.require_owner().is_err());
+}

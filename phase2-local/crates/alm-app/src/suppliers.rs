@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use crate::ipc::State;
 use alm_core::ProductId;
 use alm_core::confirmation::parse_quote;
-use tauri::State;
 
 use crate::{AppState, Trial, refusal, with};
 

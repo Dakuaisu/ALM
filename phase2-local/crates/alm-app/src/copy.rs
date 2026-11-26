@@ -1,13 +1,13 @@
 //! Clipboard text and autocomplete options; each command returns a string, not a screen.
+use crate::ipc::State;
 use alm_core::BillDate;
 use alm_core::confirmation::ConfirmationError;
-use tauri::State;
 
 use crate::views::{self, SearchOption};
 use crate::{AppState, Trial, refusal};
 
 fn lock<'a>(state: &'a State<'_, AppState>) -> Result<std::sync::MutexGuard<'a, Trial>, String> {
-    state.lock().map_err(|_| "app state poisoned".to_owned())
+    state.lock()
 }
 
 impl Trial {
