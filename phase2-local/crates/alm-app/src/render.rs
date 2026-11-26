@@ -130,7 +130,11 @@ impl Trial {
                     });
                     views::backup_section(&self.backups(), restored.as_ref().map(|(n, s)| (*n, s)))
                         + &views::legacy_card(&self.legacy_files(), legacy)
-                        + &crate::dev_authority::card(&self.device_root, self.signed_in())
+                        + &crate::dev_authority::card(
+                            &self.device_root,
+                            self.signed_in(),
+                            self.not_remembered,
+                        )
                 } else {
                     String::new()
                 };

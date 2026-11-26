@@ -261,3 +261,38 @@ fn owner_operations_are_denied_when_rest_is_signed_out() {
     });
     assert!(trial.require_owner().is_err());
 }
+
+/// The macOS bundle is sealed with an ad-hoc signature over every resource it lists, so
+/// `codesign --verify --deep --strict` passes; the app writes only under its data and cache
+/// folders, never into the bundle.
+#[test]
+fn the_bundle_is_ad_hoc_signed_and_lists_existing_resources_only() {
+    let conf = include_str!("../tauri.conf.json");
+    assert!(conf.contains(r#""signingIdentity": "-""#));
+    let resources = conf
+        .split(r#""resources": {"#)
+        .nth(1)
+        .unwrap()
+        .split('}')
+        .next()
+        .unwrap();
+    let mut listed = 0;
+    for line in resources.lines().filter(|l| l.contains(':')) {
+        let source = line.split('"').nth(1).unwrap();
+        assert!(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(source)
+                .is_file(),
+            "{source}"
+        );
+        listed += 1;
+    }
+    assert!(resources.contains("assets/fonts/OFL.txt"), "font licence");
+    assert!(listed >= 1);
+    let setup = include_str!("lib.rs");
+    assert!(setup.contains("app.path().app_data_dir()?"));
+    assert!(!setup.contains("resource_dir") && !setup.contains("current_exe"));
+    let root = Root::new("policy-bundle");
+    let trial = Trial::open(&root.0, Some(day())).unwrap();
+    assert!(trial.outputs.starts_with(&root.0));
+}

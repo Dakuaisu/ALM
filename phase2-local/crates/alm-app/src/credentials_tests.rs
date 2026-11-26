@@ -229,3 +229,123 @@ fn a_revocation_or_downgrade_seen_by_the_device_deletes_the_stored_token() {
         assert!(store.entries().is_empty(), "downgrade {downgrade}");
     }
 }
+
+fn files_containing(dir: &std::path::Path, needle: &[u8], found: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            files_containing(&path, needle, found);
+        } else if std::fs::read(&path)
+            .unwrap()
+            .windows(needle.len())
+            .any(|w| w == needle)
+        {
+            found.push(path);
+        }
+    }
+}
+
+#[test]
+fn a_credential_store_that_refuses_the_token_leaves_the_session_in_memory_only() {
+    let root = crate::screen_tests::Root::new("credentials-unavailable");
+    let (auth, state) = gotrue("owner");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.credentials = Box::new(crate::credentials::UnavailableStore);
+    trial.resume_session().unwrap();
+    trial
+        .settings_rest(&RestForm::new("http://127.0.0.1:9", &auth, ""))
+        .unwrap();
+    trial
+        .rest_login(&LoginForm::new("owner@alm.test", "synthetic-password"))
+        .unwrap();
+    // Signed in, told the session will not be remembered.
+    assert_eq!(
+        trial.signed_in().map(|(email, _)| email),
+        Some("owner@alm.test")
+    );
+    assert!(
+        trial.message.contains("will not be remembered"),
+        "{}",
+        trial.message
+    );
+    let settings = trial.render("settings").unwrap();
+    assert!(settings.contains("will not be remembered"));
+    assert!(!settings.contains(r#"data-action="rest_login""#));
+    // A refresh still works in memory and is not written anywhere.
+    trial.session_token().unwrap();
+    assert!(!root.0.join("signed-in-account.txt").exists());
+    let mut found = Vec::new();
+    for needle in ["refresh-", "synthetic-password", "e30."] {
+        files_containing(&root.0, needle.as_bytes(), &mut found);
+    }
+    assert!(found.is_empty(), "plaintext secrets on disk: {found:?}");
+    // Sign-out works although the store cannot be reached.
+    trial.rest_logout().unwrap();
+    assert!(trial.signed_out());
+    drop(trial);
+    // Relaunch: nothing to resume; the sign-in screen shows.
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.credentials = Box::new(crate::credentials::UnavailableStore);
+    trial.resume_session().unwrap();
+    assert!(trial.signed_out());
+    assert_eq!(state.lock().unwrap().password_logins, 1);
+    // A marker left by an earlier build with a store that now cannot be read is dropped.
+    std::fs::write(root.0.join("signed-in-account.txt"), USER).unwrap();
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.credentials = Box::new(crate::credentials::UnavailableStore);
+    trial.resume_session().unwrap();
+    assert!(trial.signed_out());
+    assert!(!root.0.join("signed-in-account.txt").exists());
+}
+
+/// The real Keychain / Credential Manager under a test-only service name. With
+/// `ALM_EXPECT_NO_KEYCHAIN=1` (the macOS CI job runs this with an empty `HOME`, which has no
+/// default keychain) the store must refuse and sign-in must still succeed, not remembered.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[test]
+fn sign_in_with_the_platform_store_is_remembered_or_says_it_is_not() {
+    let expect_failure = std::env::var("ALM_EXPECT_NO_KEYCHAIN").is_ok_and(|v| v == "1");
+    let root = crate::screen_tests::Root::new("credentials-platform");
+    let (auth, _) = gotrue("owner");
+    let store = || crate::credentials::PlatformStore::new("in.alm.trial.test.session");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.credentials = Box::new(store());
+    trial
+        .settings_rest(&RestForm::new("http://127.0.0.1:9", &auth, ""))
+        .unwrap();
+    trial
+        .rest_login(&LoginForm::new("owner@alm.test", "synthetic-password"))
+        .unwrap();
+    assert!(!trial.signed_out());
+    let stored = crate::credentials::CredentialStore::load(&store(), USER);
+    if expect_failure {
+        assert!(stored.is_err(), "the store was expected to be unavailable");
+    }
+    match stored {
+        Ok(token) => {
+            assert!(!trial.not_remembered, "{}", trial.message);
+            assert!(token.is_some_and(|t| t.starts_with("refresh-")));
+            drop(trial);
+            let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+            trial.credentials = Box::new(store());
+            trial.resume_session().unwrap();
+            assert!(!trial.signed_out(), "{}", trial.message);
+            trial.rest_logout().unwrap();
+            assert_eq!(
+                crate::credentials::CredentialStore::load(&store(), USER).unwrap(),
+                None
+            );
+        }
+        Err(_) => {
+            assert!(trial.not_remembered);
+            assert!(
+                trial.message.contains("will not be remembered"),
+                "{}",
+                trial.message
+            );
+            assert!(!root.0.join("signed-in-account.txt").exists());
+            trial.rest_logout().unwrap();
+            assert!(trial.signed_out());
+        }
+    }
+}

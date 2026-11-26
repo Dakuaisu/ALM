@@ -70,9 +70,13 @@ fn random_u64() -> u64 {
 }
 
 /// The Settings card (Owner only).
-pub(crate) fn card(device_root: &Path, signed_in: Option<(&str, Role)>) -> String {
+pub(crate) fn card(
+    device_root: &Path,
+    signed_in: Option<(&str, Role)>,
+    not_remembered: bool,
+) -> String {
     let config = read(device_root);
-    let status = match (&config, signed_in) {
+    let mut status = match (&config, signed_in) {
         (None, _) => "Using the built-in authority simulation.".to_owned(),
         (Some(c), Some((email, role))) => format!(
             "Using the REST authority at <b>{}</b>, signed in as <b>{}</b> ({}).",
@@ -82,6 +86,10 @@ pub(crate) fn card(device_root: &Path, signed_in: Option<(&str, Role)>) -> Strin
         ),
         (Some(c), None) => format!("Using the REST authority at <b>{}</b>.", esc(&c.url)),
     };
+    if not_remembered && signed_in.is_some() {
+        status.push(' ');
+        status.push_str(NOT_REMEMBERED);
+    }
     let (url_input, code_input) = (crate::views::URL_INPUT, crate::views::CODE_INPUT);
     let (url, auth) = config.map(|c| (c.url, c.auth)).unwrap_or_default();
     format!(
@@ -168,6 +176,8 @@ const SESSION_ENDED: &str = "Your session ended: sign in again.";
 
 /// The account signed in last (its user ID; not a secret): whose refresh token to resume with.
 const SIGNED_IN: &str = "signed-in-account.txt";
+/// Shown when the platform credential store refused the refresh token.
+pub(crate) const NOT_REMEMBERED: &str = "This device could not store the sign-in securely, so this session will not be remembered: you will sign in again after the app closes.";
 
 impl Trial {
     /// The authority commands and pulls go to.
@@ -319,13 +329,20 @@ impl Trial {
         self.session = Some(session);
         self.switch_account(&account)?;
         self.saved_refresh = Some(String::new());
+        self.not_remembered = false;
         self.keep_refresh_token()?;
-        std::fs::write(self.device_root.join(SIGNED_IN), &account).map_err(text)?;
+        if self.saved_refresh.is_some() {
+            std::fs::write(self.device_root.join(SIGNED_IN), &account).map_err(text)?;
+        }
         self.message = format!(
             "Signed in as {} ({}).",
             self.session.as_ref().map_or("", |s| s.email()),
             role_name(role)
         );
+        if self.not_remembered {
+            self.message.push(' ');
+            self.message.push_str(NOT_REMEMBERED);
+        }
         Ok(())
     }
 
@@ -339,8 +356,15 @@ impl Trial {
         let Ok(account) = std::fs::read_to_string(self.device_root.join(SIGNED_IN)) else {
             return Ok(());
         };
-        let Ok(Some(token)) = self.credentials.load(&account) else {
-            return self.forget_credentials(&account);
+        let token = match self.credentials.load(&account) {
+            Ok(Some(token)) => token,
+            Ok(None) => return self.forget_credentials(&account),
+            Err(_) => {
+                self.not_remembered = true;
+                "This device's credential store could not be read: sign in again."
+                    .clone_into(&mut self.message);
+                return self.forget_credentials(&account);
+            }
         };
         match GoTrueSession::resume(&config.auth, &config.apikey, &token) {
             Ok(session) if session.user_id() == account => match self.start_session(session) {
@@ -370,23 +394,44 @@ impl Trial {
         }
     }
 
-    /// Writes the session's refresh token to the credential store when it changed.
+    /// Writes the session's refresh token to the credential store when it changed. A store that
+    /// refuses it (no default keychain, a locked or missing credential service) does not end
+    /// the session: it continues with its tokens in memory, nothing is written anywhere else,
+    /// and the next launch asks for the password again.
     fn keep_refresh_token(&mut self) -> Result<(), String> {
         let (Some(session), Some(saved)) = (self.session.as_ref(), self.saved_refresh.as_mut())
         else {
             return Ok(());
         };
         if session.refresh_token() != saved {
-            self.credentials
-                .save(session.user_id(), session.refresh_token())?;
+            if self
+                .credentials
+                .save(session.user_id(), session.refresh_token())
+                .is_err()
+            {
+                let account = session.user_id().to_owned();
+                self.not_remembered = true;
+                self.saved_refresh = None;
+                let _ = self.credentials.delete(&account);
+                return match std::fs::remove_file(self.device_root.join(SIGNED_IN)) {
+                    Ok(()) => Ok(()),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    Err(error) => Err(text(error)),
+                };
+            }
             session.refresh_token().clone_into(saved);
         }
         Ok(())
     }
 
-    /// Deletes `account`'s stored refresh token and the signed-in marker.
+    /// Deletes `account`'s stored refresh token and the signed-in marker. When this session's
+    /// token never reached the store, a store that cannot be reached is not an error.
     pub(crate) fn forget_credentials(&mut self, account: &str) -> Result<(), String> {
-        self.credentials.delete(account)?;
+        if let Err(error) = self.credentials.delete(account)
+            && !self.not_remembered
+        {
+            return Err(error);
+        }
         self.saved_refresh = None;
         match std::fs::remove_file(self.device_root.join(SIGNED_IN)) {
             Ok(()) => Ok(()),

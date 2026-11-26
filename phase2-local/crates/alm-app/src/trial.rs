@@ -80,6 +80,9 @@ pub(crate) struct Trial {
     /// The refresh token last written to `credentials` (it changes on every refresh); `None`
     /// once a downgrade or revocation deleted it, so later refreshes are not written back.
     pub(crate) saved_refresh: Option<String>,
+    /// The credential store refused the refresh token: this session lives in memory only and
+    /// is not remembered after the app closes.
+    pub(crate) not_remembered: bool,
     /// The launch's silent sign-in still has to run (on the first `start`).
     pub(crate) resume_pending: bool,
     /// The authority revoked this account: every command is blocked.
@@ -190,6 +193,7 @@ impl Trial {
             session: None,
             credentials: Box::new(crate::credentials::MemoryStore::default()),
             saved_refresh: None,
+            not_remembered: false,
             resume_pending: false,
             message: String::new(),
             posting: Default::default(),

@@ -35,11 +35,33 @@ jobs:
                          if "test" in t["kind"] and t["name"] != "milestone_d_replay"))')
           cargo test --locked --offline --no-fail-fast --workspace --exclude alm-store
           cargo test --locked --offline --no-fail-fast -p alm-store --lib $store
+      - name: Sign-in without a default keychain
+        # An empty HOME has no default keychain: the platform store must refuse the token and
+        # sign-in must still succeed, in memory only and not remembered.
+        run: |
+          export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}" CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          empty=$(mktemp -d)
+          HOME="$empty" ALM_EXPECT_NO_KEYCHAIN=1 cargo test --locked --offline -p alm-app --lib \
+            sign_in_with_the_platform_store_is_remembered_or_says_it_is_not
+          test -z "$(find "$empty" -type f)"
       - name: Tauri CLI
         run: cargo install tauri-cli --version 2.12.6 --locked
       - name: Build the app and disk image
         working-directory: phase2-local/crates/alm-app
         run: cargo tauri build --bundles app,dmg -- --locked --offline
+      - name: Bundle signature and launch
+        run: |
+          app=$(ls -d target/release/bundle/macos/*.app)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          home=$(mktemp -d)
+          HOME="$home" "$app/Contents/MacOS/alm-app" &
+          pid=$!
+          sleep 8
+          kill -0 "$pid"
+          kill "$pid"
+          wait "$pid" || true
+          test -f "$home/Library/Application Support/in.alm.trial/device-id.txt"
+          codesign --verify --deep --strict --verbose=2 "$app"
       - name: Sizes
         run: |
           du -sk target/release/bundle/macos/*.app

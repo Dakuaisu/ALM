@@ -46,6 +46,26 @@ impl CredentialStore for MemoryStore {
     }
 }
 
+/// A store that refuses every call, as the macOS Keychain does with no default keychain.
+#[cfg(test)]
+#[derive(Clone, Default)]
+pub(crate) struct UnavailableStore;
+
+#[cfg(test)]
+impl CredentialStore for UnavailableStore {
+    fn load(&self, _: &str) -> Result<Option<String>, String> {
+        Err("no default keychain".into())
+    }
+
+    fn save(&self, _: &str, _: &str) -> Result<(), String> {
+        Err("no default keychain".into())
+    }
+
+    fn delete(&self, _: &str) -> Result<(), String> {
+        Err("no default keychain".into())
+    }
+}
+
 /// macOS Keychain or Windows Credential Manager (generic password, service = `service`).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) struct PlatformStore {
