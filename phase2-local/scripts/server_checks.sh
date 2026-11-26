@@ -14,6 +14,9 @@ pg_port=${ALM_PG_PORT:-54329}
 rest_port=${ALM_REST_PORT:-3000}
 auth_port=${ALM_AUTH_PORT:-9999}
 flags=${CARGO_FLAGS:---locked --offline}
+# Docker Hub's official postgres image through its Amazon ECR Public mirror (no Docker Hub pull
+# limit); PostgREST has no official mirror there, so every pull is retried once after a pause.
+postgres_image=${POSTGRES_IMAGE:-public.ecr.aws/docker/library/postgres:17}
 gotrue_image=${GOTRUE_IMAGE:-public.ecr.aws/supabase/gotrue:v2.198.0}
 postgrest_image=${POSTGREST_IMAGE:-postgrest/postgrest:latest}
 
@@ -29,9 +32,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+pull() {
+  docker pull -q "$1" >/dev/null || { echo "pull of $1 failed; retrying in 60s"; sleep 60; docker pull -q "$1" >/dev/null; }
+}
+for image in "$postgres_image" "$postgrest_image" "$gotrue_image"; do pull "$image"; done
+
 docker network create "$net" >/dev/null
 docker run -d --name "$run-db" --network "$net" -p "127.0.0.1:$pg_port:5432" \
-  -e POSTGRES_PASSWORD="$pg_password" postgres:17 >/dev/null
+  -e POSTGRES_PASSWORD="$pg_password" "$postgres_image" >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$run-db" pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1 && break
   sleep 1

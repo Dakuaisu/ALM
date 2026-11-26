@@ -235,8 +235,24 @@ select is(
     (select array_agg(k order by k) from jsonb_object_keys(
         pg_temp.call('manager', 'select public.pull_projection(null)') -> 'rows') k),
     array['catalog'], 'a Manager pull holds only the catalog');
-select ok(pg_temp.call('manager', 'select public.pull_projection(null)')::text
-    !~* '(buy|cost|fifo|margin|profit|lot|stock_value|supplier|purchase|"stock"|on_hand|balance|7000|3800|3500|3600|2950)',
+-- Structural: every key at every level, and every value except the pull's clock (`as_of_ms`,
+-- milliseconds, which may hold any digits), carries no cost, buy-rate, FIFO, margin, profit,
+-- quote or stock field, and none of the fixture's Owner-only amounts.
+select ok(not exists (
+    with recursive walk(key, value) as (
+        select null::text, pg_temp.call('manager', 'select public.pull_projection(null)')
+        union all
+        select e.key, e.value from walk w cross join lateral (
+            select o.key, o.value from jsonb_each(case when jsonb_typeof(w.value) = 'object'
+                then w.value else '{}' end) o
+            union all
+            select w.key, a.value from jsonb_array_elements(case when jsonb_typeof(w.value) = 'array'
+                then w.value else '[]' end) a) e
+    )
+    select 1 from walk where
+        key ~* '(buy|cost|fifo|margin|profit|lot|stock_value|supplier|purchase|^stock$|on_hand|balance)'
+        or (key is distinct from 'as_of_ms' and jsonb_typeof(value) not in ('object', 'array')
+            and value #>> '{}' ~* '(buy|cost|fifo|margin|profit|lot|stock_value|supplier|purchase|on_hand|balance|7000|3800|3500|3600|2950)')),
     'a Manager response carries no cost, buy-rate, FIFO, margin, profit, quote or stock fields');
 select is(jsonb_array_length(pg_temp.call('manager', 'select public.pull_projection(null)') #> '{rows,catalog}'), 2,
     'the Manager catalog lists the two products');
