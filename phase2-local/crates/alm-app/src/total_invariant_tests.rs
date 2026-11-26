@@ -250,7 +250,7 @@ pub(crate) fn post_and_check(trial: &mut Trial) -> i64 {
     posted
 }
 
-fn owner_trial(label: &str) -> (Root, Trial, u64, u64) {
+fn owner_trial(label: &str) -> (Root, Trial, u64, u64, u64) {
     let root = Root::new(label);
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
     let party = save_template(
@@ -260,12 +260,18 @@ fn owner_trial(label: &str) -> (Root, Trial, u64, u64) {
         &[(LIME, "2", "Case"), (SODA, "3", "Case")],
     );
     let soda = save_template(&mut trial, "Soda Case", "90", &[(SODA, "1", "Case")]);
-    (root, trial, party, soda)
+    let pieces = save_template(
+        &mut trial,
+        "Piece Mix",
+        "250",
+        &[(LIME, "3", "Piece"), (SODA, "1", "Case")],
+    );
+    (root, trial, party, soda, pieces)
 }
 
 #[test]
 fn owner_totals_add_up_on_every_screen_for_item_crate_and_mixed_bills() {
-    let (_root, mut trial, party, soda) = owner_trial("total-invariant-owner");
+    let (_root, mut trial, party, soda, pieces) = owner_trial("total-invariant-owner");
     let cases = [
         Case {
             lines: &[(LIME, 2), (SODA, 1)],
@@ -297,6 +303,21 @@ fn owner_totals_add_up_on_every_screen_for_item_crate_and_mixed_bills() {
             crates: &[(soda, 1), (party, 1)],
             loading: "2.25",
         },
+        Case {
+            lines: &[],
+            crates: &[(pieces, 2)],
+            loading: "",
+        },
+        Case {
+            lines: &[(LIME, 1)],
+            crates: &[(pieces, 2)],
+            loading: "",
+        },
+        Case {
+            lines: &[(SODA, 2)],
+            crates: &[(pieces, 1), (party, 1)],
+            loading: "1.75",
+        },
     ];
     for case in &cases {
         let shown = enter(&mut trial, case);
@@ -310,7 +331,7 @@ fn owner_totals_add_up_on_every_screen_for_item_crate_and_mixed_bills() {
 
 #[test]
 fn manager_new_bill_totals_add_up_and_no_owner_screen_shows_amounts() {
-    let (_root, mut trial, party, _) = owner_trial("total-invariant-manager");
+    let (_root, mut trial, party, _, _) = owner_trial("total-invariant-manager");
     let mut loaded = ProvisionalDraft::new(DraftId::new(0), Vec::new());
     let id = trial
         .posted
@@ -371,6 +392,35 @@ fn manager_new_bill_totals_add_up_and_no_owner_screen_shows_amounts() {
         assert!(trial.estimate_html(DraftId::new(1)).is_err());
         assert!(trial.bill_image(DraftId::new(1)).is_err());
     }
+}
+
+/// A crate holding a Piece-unit item of a product without piece terms is priced on New Bill:
+/// each piece is one packet (`packetQty || 1`), for loading and stock alike.
+#[test]
+fn a_piece_unit_crate_is_priced_on_new_bill_and_posts() {
+    let (_root, mut trial, _, _, pieces) = owner_trial("total-invariant-pieces");
+    let before = trial.projected().unwrap().snapshot;
+    let on_hand = |s: &alm_core::projection::ProjectionSnapshot, p: u64| {
+        s.stock.iter().find(|r| r.product == p).unwrap().on_hand
+    };
+    let shown = enter(
+        &mut trial,
+        &Case {
+            lines: &[(LIME, 1)],
+            crates: &[(pieces, 2)],
+            loading: "2",
+        },
+    );
+    let html = trial.render("bill").unwrap();
+    assert!(!html.contains("unavailable"), "{html}");
+    assert!(html.contains("<b>₹500.00</b>"), "2 crates at ₹250: {html}");
+    // 1 Lime + 2 crates × (3 Lime pieces + 1 Soda case) = 9 packets at ₹2.
+    assert_eq!(new_bill_amounts(&html).1, 1_800);
+    assert_eq!(shown, 11_800 + 50_000 + 1_800);
+    post_and_check(&mut trial);
+    let after = trial.projected().unwrap().snapshot;
+    assert_eq!(on_hand(&before, LIME) - on_hand(&after, LIME), 7);
+    assert_eq!(on_hand(&before, SODA) - on_hand(&after, SODA), 2);
 }
 
 #[test]

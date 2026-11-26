@@ -702,6 +702,71 @@ pub fn sell_crate<A: SalesAuthority>(a: &mut A) {
     );
 }
 
+/// A crate whose component is sold by the piece, for a product without checkout terms: each
+/// piece is one packet (`linePackets`: `packetQty || 1`), alone and beside an item line.
+pub fn sell_piece_crate<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let template = created(setup(
+        a,
+        "piececrate",
+        "template",
+        &Intent::SaveCrate(CrateTerms {
+            id: None,
+            name: "Piece Crate".into(),
+            price: money(9_000),
+            components: vec![(w.product, 3, true)],
+        }),
+    ));
+    let (product, on_hand) = (w.product, w.on_hand);
+    let piece_sale = |draft: u64, quantity: u32| {
+        Intent::SellCrate(alm_sync::CrateSale {
+            draft: alm_core::DraftId::new(draft),
+            template,
+            quantity,
+            customer: w.customer.clone(),
+            date: day(),
+            paid: money(0),
+            rate: money(9_000),
+            components: vec![(w.product, 3, true)],
+        })
+    };
+    let outcome = exercise(
+        a,
+        "piececrate",
+        &piece_sale(181, 2),
+        &piece_sale(181, 1),
+        None,
+        Some(&piece_sale(182, on_hand)),
+        |s| stock_of(s, product) == Some(on_hand - 6),
+    );
+    let Outcome::Sale(receipt) = outcome else {
+        panic!("a sale receipt")
+    };
+    assert_eq!((receipt.quantity, receipt.total), (6, money(18_000)));
+    let Intent::PostSale(mut mixed) = sale(&w, 183, 1, w.sell) else {
+        unreachable!("a sale")
+    };
+    mixed.draft.add_crate_row(
+        alm_core::CrateRow::new(
+            std::num::NonZeroU32::MIN,
+            vec![alm_core::CrateComponent::new(
+                ProductId::new(w.product),
+                std::num::NonZeroU32::new(2).unwrap(),
+                alm_core::SaleUnit::Piece,
+            )],
+        )
+        .with_price("Piece Crate".into(), money(9_000)),
+    );
+    let Outcome::Sale(receipt) = setup(a, "piececrate", "mixed", &Intent::PostSale(mixed)) else {
+        panic!("a sale receipt")
+    };
+    assert_eq!(
+        (receipt.quantity, receipt.total),
+        (3, money(w.sell.minor_units() + 9_000))
+    );
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 9));
+}
+
 pub const LEGACY_A: &[u8] = include_bytes!("../../../alm-core/tests/legacy/rehearsal-a.json");
 pub const LEGACY_B: &[u8] = include_bytes!("../../../alm-core/tests/legacy/rehearsal-b.json");
 
@@ -1531,7 +1596,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, sell_piece_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices, two_devices_first_draft
         );

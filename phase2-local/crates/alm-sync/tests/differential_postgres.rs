@@ -446,7 +446,7 @@ fn l15_cashbook() {
 /// bills edited, cancelled and restored.
 #[test]
 fn l10_crate_fifo() {
-    // Piece components need the authority's checkout pack: a Lime piece is half a packet.
+    // A Lime piece is half a packet under these checkout terms.
     let Some(mut p) = Pair::new_with("l10", |shop| {
         shop.set_checkout_product(
             alm_core::ProductId::new(LIME),
@@ -653,7 +653,7 @@ fn l10_crate_fifo() {
 /// lines and crates up and down; cancel, edit while cancelled, restore; a loading charge.
 #[test]
 fn l10_mixed_bills() {
-    // Piece components need the authority's checkout pack: a Lime piece is half a packet.
+    // A Lime piece is half a packet under these checkout terms.
     let Some(mut p) = Pair::new_with("l10_mixed", |shop| {
         shop.set_checkout_product(
             alm_core::ProductId::new(LIME),
@@ -823,6 +823,88 @@ fn l10_mixed_bills() {
             "Soda Case",
             "Lime Twins"
         ]));
+    p.finish();
+}
+
+/// Crates holding Piece components of products without checkout terms (`linePackets`:
+/// `packetQty || 1`): a crate sale, a mixed bill with loading, edits up and down, cancel and
+/// restore, and a piece demand beside a case demand of the same product.
+#[test]
+fn piece_crates_without_pack_terms() {
+    let Some(mut p) = Pair::new("piece_crates") else {
+        return;
+    };
+    let pieces: &[(u64, u32, bool)] = &[(LIME, 3, true), (SODA, 1, false)];
+    let template = created(p.owner(
+        "piece template",
+        &crate_terms(None, "Piece Mix", 25_000, pieces),
+    ));
+    p.owner(
+        "piece crate sale",
+        &crate_sale(21, template, 2, CUSTOMER, 10_000, 25_000, pieces),
+    );
+    for (step, intent) in [
+        (
+            "piece crate cancel",
+            Intent::CancelSale {
+                draft: alm_core::DraftId::new(21),
+            },
+        ),
+        (
+            "piece crate restore",
+            Intent::RestoreSale {
+                draft: alm_core::DraftId::new(21),
+            },
+        ),
+    ] {
+        assert!(p.owner(step, &intent).is_some(), "{step}");
+    }
+    let core = p.core();
+    let bill = Bill {
+        draft: 22,
+        to: For::Customer(CUSTOMER),
+        lines: &[(LIME, 1)],
+        date: "2025-02-07",
+        paid: 5_000,
+        loading: 250,
+    };
+    let sold = p.owner(
+        "mixed piece bill",
+        &mixed_sale(&core, &bill, &[(Some("Piece Mix"), 25_000, 2, pieces)]),
+    );
+    assert!(
+        matches!(sold, Some(Outcome::Sale(r)) if r.quantity == 1 + 2 * 4),
+        "{sold:?}"
+    );
+    let lime = core
+        .products
+        .iter()
+        .find(|x| x.id == LIME)
+        .unwrap()
+        .sell
+        .minor_units();
+    let edit = |line: u32, crates: u32, rate: i64| Intent::EditSale {
+        draft: alm_core::DraftId::new(22),
+        lines: vec![(line, lime), (crates, rate)],
+    };
+    assert!(p.owner("piece edit up", &edit(2, 3, 26_000)).is_some());
+    assert!(p.owner("piece edit down", &edit(1, 1, 24_000)).is_some());
+    for (step, intent) in [
+        (
+            "piece cancel",
+            Intent::CancelSale {
+                draft: alm_core::DraftId::new(22),
+            },
+        ),
+        (
+            "piece restore",
+            Intent::RestoreSale {
+                draft: alm_core::DraftId::new(22),
+            },
+        ),
+    ] {
+        assert!(p.owner(step, &intent).is_some(), "{step}");
+    }
     p.finish();
 }
 

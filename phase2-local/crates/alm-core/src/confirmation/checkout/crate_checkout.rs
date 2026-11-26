@@ -160,7 +160,7 @@ impl ConfirmationFixture {
     /// loading charge per packet of its components, as `sell_crate` will charge them.
     ///
     /// # Errors
-    /// Denies Managers; rejects components without checkout terms or not dividing into whole
+    /// Denies Managers; rejects unknown components and components not dividing into whole
     /// packs, and overflow.
     pub fn crate_line_amounts(
         &self,
@@ -194,14 +194,16 @@ impl ConfirmationFixture {
         product: ProductId,
         unit: SaleUnit,
     ) -> Result<NonZeroU32, ConfirmationError> {
-        match unit {
-            SaleUnit::Case if self.catalog.stock(product).is_some() => Ok(NonZeroU32::MIN),
-            SaleUnit::Case => Err(ConfirmationError::InvalidDraft),
+        if self.catalog.stock(product).is_none() {
+            return Err(ConfirmationError::InvalidDraft);
+        }
+        // `linePackets`: pieces per packet are the product's `packetQty || 1`.
+        Ok(match unit {
+            SaleUnit::Case => NonZeroU32::MIN,
             SaleUnit::Piece => self
                 .checkout_products
                 .get(&product.value())
-                .map(|terms| terms.pack)
-                .ok_or(ConfirmationError::InvalidDraft),
-        }
+                .map_or(NonZeroU32::MIN, |terms| terms.pack),
+        })
     }
 }
