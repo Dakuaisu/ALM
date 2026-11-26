@@ -25,6 +25,8 @@ pub struct ReviewView<'a> {
     pub signed_in: Option<&'a str>,
     pub draft: Option<&'a ProvisionalDraft>,
     pub priced: Result<PricedDraft, ConfirmationError>,
+    /// The pulled catalog that names each item line, from whichever authority the device uses.
+    pub catalog: &'a [alm_core::projection::ProjectedProduct],
 }
 
 pub fn review_screen(view: &ReviewView<'_>) -> String {
@@ -69,10 +71,16 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
                 esc(customer(draft))
             );
             for line in &priced.lines {
+                let id = line.product_id.value();
+                let name = view
+                    .catalog
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map_or_else(|| format!("Product {}", line.product_id), |p| esc(&p.name));
                 let _ = write!(
                     html,
-                    "<tr><td>Product {}</td><td class=\"num\">{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
-                    line.product_id,
+                    "<tr><td>{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
+                    name,
                     line.quantity,
                     rupees(line.unit_price),
                     rupees(line.amount)

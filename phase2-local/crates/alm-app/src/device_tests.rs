@@ -553,3 +553,33 @@ fn a_manager_drafts_from_the_catalog_its_device_pulled() {
         "a product outside the pulled catalog"
     );
 }
+
+#[test]
+fn owner_review_names_item_lines_from_the_pulled_catalog() {
+    let root = Root::new("owner-review-names");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    trial.set_owner(true).unwrap();
+    let stored = trial.projection.load().unwrap().unwrap();
+    let mut snapshot = stored.snapshot.clone();
+    let id = draft().lines()[0].product_id().value();
+    let product = snapshot.catalog.iter_mut().find(|p| p.id == id).unwrap();
+    // A name only the pulled projection holds: the review reads it from there.
+    product.name = "Projected Lime".into();
+    trial
+        .projection
+        .apply(&alm_core::projection::ProjectionBatch {
+            role: Role::Owner,
+            checkpoint: stored.checkpoint,
+            as_of_ms: stored.as_of_ms,
+            snapshot: Some(snapshot),
+            rows: None,
+        })
+        .unwrap();
+    trial.current = Some((draft().with_bill_date(Some(day())), false));
+    let review = trial.render("review").unwrap();
+    assert!(review.contains("<td>Projected Lime</td>"), "{review}");
+    assert!(
+        !review.contains(&format!("<td>Product {id}</td>")),
+        "{review}"
+    );
+}

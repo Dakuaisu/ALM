@@ -173,6 +173,7 @@ impl Trial {
                 .map_err(debug)?
             }
             "review" => {
+                let stored = self.projected()?;
                 let draft = self.current.as_ref().map(|(draft, _)| draft);
                 let role = self.role();
                 let priced = match draft {
@@ -185,6 +186,7 @@ impl Trial {
                     signed_in: signed_in.as_deref(),
                     draft,
                     priced,
+                    catalog: &stored.snapshot.catalog,
                 });
                 if self.owner {
                     html += &views::posting_review(
@@ -195,7 +197,6 @@ impl Trial {
                             .and_then(|(draft, saved)| saved.then_some(draft)),
                     );
                 }
-                let stored = self.projected()?;
                 html += &self.freshness(&stored)?;
                 html + &self.account_pills()
             }

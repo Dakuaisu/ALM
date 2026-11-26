@@ -177,6 +177,11 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         true,
     ));
     trial.sale_prepare(&terms("20")).unwrap();
+    let review = trial.render("review").unwrap();
+    assert!(
+        review.contains("<td>Synthetic Lime</td>") && !review.contains("Product 1"),
+        "{review}"
+    );
     let serial = trial.posting.pending(Role::Owner).unwrap().serial();
     lose.store(true, Ordering::SeqCst);
     assert!(trial.sale_confirm(serial).is_err());
@@ -590,6 +595,45 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         "avgcost",
     ] {
         assert!(!text.contains(word), "{word} in the Manager projection");
+    }
+}
+
+/// Owner review in REST mode names each item line from the catalog the device pulled from
+/// the REST authority, as Sales and the bill do (OPEN-013); it reads only, so it can run beside
+/// the other REST tests on the same database.
+#[test]
+fn owner_review_in_rest_mode_names_item_lines_from_the_pulled_catalog() {
+    let (Some(url), Some(owner), Some(manager)) = (
+        env("ALM_REST_URL"),
+        env("ALM_JWT_OWNER"),
+        env("ALM_JWT_MANAGER"),
+    ) else {
+        return;
+    };
+    let root = Root::new("rest-review-names");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let device = trial.device_id.clone();
+    use_rest(
+        &mut trial,
+        rest(&url, &owner, &manager).with_device(&device),
+    );
+    trial.set_owner(true).unwrap();
+    let catalog = trial.projected().unwrap().snapshot.catalog;
+    let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
+    trial.current = Some((draft.clone(), false));
+    let review = trial.render("review").unwrap();
+    assert!(review.contains("<b>Owner total"), "{review}");
+    for line in draft.lines() {
+        let name = &catalog
+            .iter()
+            .find(|p| p.id == line.product_id().value())
+            .expect("the draft's product is in the pulled catalog")
+            .name;
+        assert!(review.contains(&format!("<td>{name}</td>")), "{review}");
+        assert!(
+            !review.contains(&format!("<td>Product {}</td>", line.product_id())),
+            "{review}"
+        );
     }
 }
 

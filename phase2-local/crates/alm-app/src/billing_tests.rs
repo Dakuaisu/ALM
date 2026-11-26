@@ -175,12 +175,17 @@ fn review_screen_amounts_equal_the_core_projection() {
         role_is_owner: true,
         draft: Some(&draft),
         priced: Ok(priced.clone()),
+        catalog: &projected(&fixture).catalog,
     });
     for line in &priced.lines {
         assert!(html.contains(&format!("₹{}", gst_print::inr(line.amount))));
     }
     assert_eq!(priced.total.minor_units(), 48_650);
     assert!(html.contains("<b>Owner total ₹486.50</b>"), "{html}");
+    assert!(
+        html.contains("<td>Synthetic Lime</td>") && html.contains("<td>Synthetic Soda</td>"),
+        "{html}"
+    );
     let denied = views::review_screen(&views::ReviewView {
         signed_in: None,
         role_is_owner: false,
@@ -190,6 +195,7 @@ fn review_screen_amounts_equal_the_core_projection() {
             Role::Manager,
             &draft,
         ),
+        catalog: &[],
     });
     assert!(!denied.contains('₹'));
 }
