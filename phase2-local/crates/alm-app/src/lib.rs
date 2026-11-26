@@ -25,6 +25,8 @@ mod dev_authority;
 mod device;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod field_attribute_tests;
 mod file_pick;
 mod godown;
 mod gst_migration;

@@ -48,7 +48,7 @@ fn seg(action: &str, field: &str, options: &[(&str, &str, bool)]) -> String {
 fn field(label: &str, name: &str, value: &str, extra: &str) -> String {
     format!(
         r#"<div><label>{label} <input class="inp{}" name="{name}"{extra} value="{}"></label></div>"#,
-        if extra.contains("inputmode") {
+        if extra.contains("inputmode") && !extra.contains("autocapitalize") {
             " num"
         } else {
             ""
@@ -73,12 +73,15 @@ fn profile_card(view: &SettingsView<'_>) -> String {
         field("Owner", "owner", &p.owner, ""),
         field("Mobile", "mobile", &p.mobile, ""),
         esc(&p.address),
-        field("GSTIN", "gstin", &p.gstin, ""),
+        field("GSTIN", "gstin", &p.gstin, super::widgets::CODE_INPUT),
         field(
             "FSSAI License No.",
             "fssai",
             &p.fssai,
-            r#" placeholder="e.g. 10012345678901""#
+            &format!(
+                r#"{} placeholder="e.g. 10012345678901""#,
+                super::widgets::DIGITS_CODE_INPUT
+            )
         ),
         check(fssai_on),
         check(gstin_on),

@@ -6,6 +6,7 @@ use alm_core::Role;
 use alm_core::confirmation::{ConfirmationFixture, GstBillError, GstBillFields};
 
 use crate::gst_print::{esc, inr};
+use crate::views::{CODE_INPUT, DIGITS_CODE_INPUT, EMAIL_INPUT};
 
 fn input(label: &str, name: &str, value: &str, extra: &str) -> String {
     format!(
@@ -47,15 +48,25 @@ pub fn gst_form(
             "GSTIN",
             "gstin",
             &f.gstin,
-            r#" placeholder="optional, 15 characters""#
+            &format!(r#"{CODE_INPUT} placeholder="optional, 15 characters""#)
         ),
         input("Address", "cust_addr", &f.cust_addr, ""),
         input("Phone", "cust_phone", &f.cust_phone, ""),
-        input("Email", "cust_email", &f.cust_email, ""),
+        input("Email", "cust_email", &f.cust_email, EMAIL_INPUT),
         input("State", "cust_state", &f.cust_state, ""),
-        input("State Code", "cust_state_code", &f.cust_state_code, ""),
+        input(
+            "State Code",
+            "cust_state_code",
+            &f.cust_state_code,
+            DIGITS_CODE_INPUT
+        ),
         input("Place of Supply (State)", "pos_state", &f.pos_state, ""),
-        input("Place of Supply Code", "pos_code", &f.pos_code, ""),
+        input(
+            "Place of Supply Code",
+            "pos_code",
+            &f.pos_code,
+            DIGITS_CODE_INPUT
+        ),
         input("Date", "date", &f.date, r#" type="date""#),
         f.number.0,
         select(
@@ -74,7 +85,7 @@ pub fn gst_form(
             "E-Way Bill No.",
             "eway_number",
             &f.eway_number,
-            r#" placeholder="12 digits (optional)""#
+            &format!(r#"{DIGITS_CODE_INPUT} placeholder="12 digits (optional)""#)
         ),
         select(
             "Transporter",
@@ -82,8 +93,8 @@ pub fn gst_form(
             &f.transporter,
             &["", "Self Delivery", "Customer Pickup"]
         ),
-        input("Vehicle No.", "vehicle_no", &f.vehicle_no, ""),
-        input("LR / GR No.", "lr_no", &f.lr_no, ""),
+        input("Vehicle No.", "vehicle_no", &f.vehicle_no, CODE_INPUT),
+        input("LR / GR No.", "lr_no", &f.lr_no, CODE_INPUT),
         input(
             "Terms of Delivery",
             "terms_delivery",
@@ -103,7 +114,7 @@ pub fn gst_form(
         let unit = select("", &format!("unit_{i}"), &line.unit, &["Case", "Piece"]);
         let _ = write!(
             html,
-            r#"<div style="{GRID};margin-bottom:7px"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="gst-item-list-{i}" id="gst-item-{i}" name="item_{i}" data-search="gst_item_search" autocomplete="off" placeholder="Type item…" aria-label="Item {n}" value="{}"><div class="autolist" id="gst-item-list-{i}" role="listbox" aria-label="Item {n} suggestions"></div></div><input class="inp" name="hsn_{i}" aria-label="HSN {n}" value="{}">{unit}<input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Quantity {n}" value="{}"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {n}" value="{}"><input class="inp num" name="gst_{i}" placeholder="auto" aria-label="GST % {n}" value="{}"><input class="inp num" name="pack_{i}" inputmode="numeric" aria-label="Pack {n}" value="{}"><span class="num">{amount}</span><button class="x" type="submit" name="intent" value="remove:{i}" aria-label="Remove line {n}">×</button></div>"#,
+            r#"<div style="{GRID};margin-bottom:7px"><div class="autobox"><input class="inp" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="gst-item-list-{i}" id="gst-item-{i}" name="item_{i}" data-search="gst_item_search" autocomplete="off" placeholder="Type item…" aria-label="Item {n}" value="{}"><div class="autolist" id="gst-item-list-{i}" role="listbox" aria-label="Item {n} suggestions"></div></div><input class="inp" name="hsn_{i}"{DIGITS_CODE_INPUT} aria-label="HSN {n}" value="{}">{unit}<input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Quantity {n}" value="{}"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {n}" value="{}"><input class="inp num" name="gst_{i}" placeholder="auto" aria-label="GST % {n}" value="{}"><input class="inp num" name="pack_{i}" inputmode="numeric" aria-label="Pack {n}" value="{}"><span class="num">{amount}</span><button class="x" type="submit" name="intent" value="remove:{i}" aria-label="Remove line {n}">×</button></div>"#,
             esc(&line.item),
             esc(&line.hsn),
             esc(&line.quantity),

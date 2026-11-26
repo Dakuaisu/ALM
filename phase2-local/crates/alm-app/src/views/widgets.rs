@@ -81,6 +81,22 @@ pub fn search_options(options: &[SearchOption<'_>]) -> String {
     html
 }
 
+/// Typed text that must stay exactly as entered (URLs, emails, passwords, codes): mobile
+/// keyboards must not capitalise, correct or spell-check it.
+macro_rules! verbatim {
+    ($kind:literal) => {
+        concat!(
+            $kind,
+            r#" autocapitalize="off" autocorrect="off" spellcheck="false""#
+        )
+    };
+}
+pub const URL_INPUT: &str = verbatim!(r#" type="url" inputmode="url""#);
+pub const EMAIL_INPUT: &str = verbatim!(r#" type="email" inputmode="email""#);
+pub const PASSWORD_INPUT: &str = verbatim!(r#" type="password""#);
+pub const CODE_INPUT: &str = verbatim!(r#" type="text""#);
+pub const DIGITS_CODE_INPUT: &str = verbatim!(r#" type="text" inputmode="numeric""#);
+
 pub fn denied(screen: &str) -> String {
     format!(
         r#"<div class="card" role="alert"><h3>Access denied</h3><p>Only the Owner can open {}.</p></div>"#,

@@ -2,12 +2,13 @@
 //! Clear All Data), shown with the HTML's fields and buttons, disabled; and the activity log,
 //! read from the authority's rows.
 use crate::gst_print::esc;
+use crate::views::{CODE_INPUT, PASSWORD_INPUT, URL_INPUT};
 
 const INERT: &str = "Needs the hosted service; not available in this development build.";
 
-fn disabled_input(label: &str, placeholder: &str) -> String {
+fn disabled_input(label: &str, kind: &str, placeholder: &str) -> String {
     format!(
-        r#"<div><label>{label} <input class="inp" disabled placeholder="{placeholder}"></label></div>"#
+        r#"<div><label>{label} <input class="inp"{kind} disabled placeholder="{placeholder}"></label></div>"#
     )
 }
 
@@ -20,9 +21,17 @@ fn disabled_button(class: &str, label: &str) -> String {
 pub fn cloud_sync_card() -> String {
     format!(
         r#"<div class="card" style="margin-bottom:14px" aria-disabled="true"><div class="sectit">☁ Cloud Sync — Supabase (primary)</div><p class="help" style="margin-bottom:10px">Record-by-record sync to the shop's Supabase project. {INERT}</p><div class="field">{}</div><div class="f2">{}{}</div><label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" disabled> Enable cloud sync on this device</label><div class="row">{}{}{}{}</div><div class="help" style="margin-top:8px">Status: not enabled — posting stays a local simulation.</div></div>"#,
-        disabled_input("Project URL", "https://xxxx.supabase.co"),
-        disabled_input("Anon key", "anon public key (Project Settings → API)"),
-        disabled_input("Secret token", "secret token (the one inside the SQL)"),
+        disabled_input("Project URL", URL_INPUT, "https://xxxx.supabase.co"),
+        disabled_input(
+            "Anon key",
+            CODE_INPUT,
+            "anon public key (Project Settings → API)"
+        ),
+        disabled_input(
+            "Secret token",
+            PASSWORD_INPUT,
+            "secret token (the one inside the SQL)"
+        ),
         disabled_button("primary", "Save"),
         disabled_button("", "⬆ First-time full upload"),
         disabled_button("", "🔄 Sync now"),
@@ -35,6 +44,7 @@ pub fn sheets_card() -> String {
         r#"<div class="card" style="margin-bottom:14px" aria-disabled="true"><div class="sectit">☁️ Google Sheets Sync</div><p class="help" style="margin-bottom:10px">Paste the Web-App URL from your Google Apps Script. {INERT}</p><div class="field">{}</div><div class="row">{}{}{}</div><div class="help" style="margin-top:8px">Not synced yet.</div></div>"#,
         disabled_input(
             "Apps Script Web App URL",
+            URL_INPUT,
             "https://script.google.com/macros/s/..../exec"
         ),
         disabled_button("", "Save URL"),

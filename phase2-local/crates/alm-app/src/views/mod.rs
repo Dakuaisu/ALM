@@ -53,4 +53,7 @@ pub use sales::{Filter, SalesFilter, sales_screen};
 pub use settings::{SettingsView, settings_screen};
 pub use stock::{StockState, stock_screen};
 pub use suppliers::suppliers_screen;
-pub use widgets::{SearchOption, denied, kpi, modal, money_r, notice, search_options};
+pub use widgets::{
+    CODE_INPUT, DIGITS_CODE_INPUT, EMAIL_INPUT, PASSWORD_INPUT, SearchOption, URL_INPUT, denied,
+    kpi, modal, money_r, notice, search_options,
+};
