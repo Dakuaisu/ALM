@@ -12,6 +12,7 @@ Use this checklist for one combined owner request when needed. The numbered entr
 - [ ] **Repeated-product crate valuation — [OPEN-010](#open-010-repeated-product-crate-valuation-l10-01):** After verified OPEN-008 containment and frozen-runtime evidence, decide the L10-01 release costing and report-rounding rule with the accounting reviewer. Neither candidate is approved.
 - [ ] **Unattributed working-tree files — [OPEN-011](#open-011-unattributed-working-tree-files):** Decide for each listed file whether to commit, ignore or delete it. None is used as evidence.
 - [ ] **App screen departures — [OPEN-013](#open-013-app-screen-departures-from-the-html):** Approve, reject or schedule a fix for each listed departure in the ported screens.
+- [ ] **Fractional packets — [OPEN-014](#open-014-fractional-packets-in-crates):** Choose the money and stock rule for crate pieces that don't make whole packets.
 
 ## OPEN-001 Deployed baseline and dependencies
 - Status: OWNER-BLOCKED
@@ -210,3 +211,12 @@ Status at `2a6ff3e`: closed: Owner screens read server rows (REST works end to e
 - Added at `d896e69` (seen in smokes, to be fixed): with a crate row on New Bill the total uses Owner rates while rows show provisional rates (₹583 vs rows summing to ₹577); a crate holding a Piece-unit item saves on Crates but can't be priced on New Bill ("InvalidDraft"); "+ Add Item" on an empty row shows a raw error; on Android the REST URL field capitalises "Http://". (The "Product 1" label is fixed in `ede761b`.)
 - Added at `e478478`: Owner review names an item line "Product 1" in REST mode (Sales and the bill show the product name).
 - (Found at `fe5db4e`) A crate bill can hold only its crate. The HTML's New Bill mixes crate rows and ordinary lines on one bill (`draft.items` rendered as `crateRow` or `lineRow`, HTML L3640).
+
+## OPEN-014 Fractional packets in crates
+- Status: OWNER-BLOCKED
+
+Recorded at `71cf2ac`. In the HTML a crate component of loose pieces (for example 1 piece of a 3-piece packet) counts as a fraction of a packet. The Rust app refuses such crates until the owner chooses the rule; see the [RESULTS section](RESULTS.md#crate-only-bills-session-header-ci-robustness-full-invoice-image-archive-regeneration-and-fractional-packets-held-for-an-owner-decision) for the exact HTML numbers.
+
+- **Money:** the HTML stores loading as packets × rate in floating point, so bills can hold fractions of a paisa. Three unpaid "1 pc" bills (pack 3) at ₹1.49/pkt loading show a balance of ₹151 in the HTML but ₹152 if each bill's loading is rounded to the paisa. Choose: round per bill to the paisa, or keep exact fractions end to end.
+- **Stock:** the HTML shows fractional on-hand ("9 + 3pc", "0.33 pkt", raw floats on New Bill). Exact support needs opened-packet state across stock, FIFO, cancel/edit, counts and every packet report.
+- **Pack-size changes:** the HTML recomputes old bills when a product's pack size changes (on-hand 9.5 becomes 9.75); the Rust app freezes pack sizes per sale. Choose which applies.
