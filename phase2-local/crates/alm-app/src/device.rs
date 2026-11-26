@@ -335,8 +335,19 @@ pub(crate) fn assert_book_view(trial: &mut Trial) {
     let from_book: Vec<Result<String, String>> = SCREENS.iter().map(|s| render(trial, s)).collect();
     trial.posted.fixture = trial.authority.fixture().clone();
     trial.posted.cashbook = trial.authority.cashbook().clone();
+    // Each render pulls first, and the "Posted data as of" time is the pull's: compare the
+    // screens without that line (its minute can turn between the two renders).
+    let unstamped = |page: Result<String, String>| {
+        page.map(|html| match html.find("data-freshness") {
+            Some(i) => {
+                let end = html[i..].find("</div>").map_or(html.len(), |e| i + e);
+                format!("{}{}", &html[..i], &html[end..])
+            }
+            None => html,
+        })
+    };
     for (screen, book) in SCREENS.iter().zip(from_book) {
-        let sim = render(trial, screen);
+        let (sim, book) = (unstamped(render(trial, screen)), unstamped(book));
         if sim != book {
             let (a, b) = (format!("{book:?}"), format!("{sim:?}"));
             let at = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();

@@ -404,10 +404,15 @@ impl Trial {
         if let Some(session) = self.session.take() {
             self.forget_credentials(session.user_id())?;
             let _ = session.sign_out();
-            for role in [Role::Owner, Role::Manager] {
-                alm_store::ProjectionStore::remove_scoped(&self.device_root, &self.account, role)
-                    .map_err(text)?;
-            }
+            // The open file is purged in place (Windows refuses to delete an open file); the
+            // other role's file is deleted.
+            let other = match self.projection.role() {
+                Role::Owner => Role::Manager,
+                Role::Manager => Role::Owner,
+            };
+            alm_store::ProjectionStore::remove_scoped(&self.device_root, &self.account, other)
+                .map_err(text)?;
+            self.projection.purge().map_err(text)?;
             self.projection = alm_store::ProjectionStore::open_scoped(
                 &self.device_root,
                 &self.account,
