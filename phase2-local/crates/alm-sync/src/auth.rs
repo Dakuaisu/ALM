@@ -87,6 +87,32 @@ impl GoTrueSession {
         Ok(session)
     }
 
+    /// Resumes a session from a refresh token kept on the device (no password): a refresh
+    /// exchanges it for a new access token and a new refresh token.
+    ///
+    /// # Errors
+    /// [`AuthError`]; `Refused` when the refresh token was revoked or used up.
+    pub fn resume(base: &str, apikey: &str, refresh_token: &str) -> Result<Self, AuthError> {
+        let mut session = Self {
+            base: base.trim_end_matches('/').to_owned(),
+            apikey: apikey.to_owned(),
+            access: String::new(),
+            refresh: refresh_token.to_owned(),
+            expires_at: 0,
+            user: String::new(),
+            email: String::new(),
+            agent: agent(),
+        };
+        session.refresh()?;
+        Ok(session)
+    }
+
+    /// The current refresh token, for the platform credential store (it changes on every
+    /// refresh).
+    pub fn refresh_token(&self) -> &str {
+        &self.refresh
+    }
+
     /// Exchanges the refresh token for a new access token (and refresh token).
     ///
     /// # Errors

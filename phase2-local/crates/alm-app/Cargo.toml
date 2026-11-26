@@ -26,3 +26,7 @@ serde = { workspace = true }
 tiny-skia = { workspace = true }
 tauri = { version = "=2.12.7", features = [] }
 tauri-plugin-dialog = { workspace = true }
+
+# The platform credential store for the refresh token: Keychain and Credential Manager only.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+keyring = { workspace = true }

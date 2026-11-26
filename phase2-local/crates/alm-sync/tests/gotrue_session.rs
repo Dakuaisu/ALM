@@ -250,3 +250,38 @@ fn owner_and_manager_sign_in_refresh_expire_and_sign_out_with_roles_from_app_met
         stack.admin("DELETE", &format!("/admin/users/{id}"), &Value::Null);
     }
 }
+
+/// A session resumes from its refresh token alone (what a device keeps in the platform
+/// credential store); signing out revokes it, so resuming with it afterwards is refused.
+#[test]
+fn a_session_resumes_from_its_refresh_token_until_it_is_signed_out() {
+    let Some(stack) = stack() else {
+        return;
+    };
+    let run = format!("{}-{}", std::process::id(), now());
+    let password = format!("synthetic-{run}");
+    let email = format!("resume-{run}@example.test");
+    let id = stack.user(&email, &password, "owner");
+    let signed_in = GoTrueSession::sign_in(&stack.auth, "", &email, &password).unwrap();
+    let kept = signed_in.refresh_token().to_owned();
+    drop(signed_in);
+    let mut resumed = GoTrueSession::resume(&stack.auth, "", &kept).unwrap();
+    assert_eq!(
+        (resumed.role(), resumed.user_id()),
+        (Some(Role::Owner), id.as_str())
+    );
+    assert_ne!(resumed.refresh_token(), kept, "the token rotates");
+    let token = resumed.access_token().unwrap().to_owned();
+    assert!(
+        stack
+            .rest(Role::Owner, &token)
+            .pull(Role::Owner, None)
+            .is_ok()
+    );
+    let latest = resumed.refresh_token().to_owned();
+    resumed.sign_out().unwrap();
+    assert!(matches!(
+        GoTrueSession::resume(&stack.auth, "", &latest),
+        Err(AuthError::Refused(_))
+    ));
+}

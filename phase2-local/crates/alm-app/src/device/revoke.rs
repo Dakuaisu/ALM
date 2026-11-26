@@ -9,7 +9,8 @@ use crate::{Trial, text};
 impl Trial {
     /// The authority now grants `granted` (a Manager): the Owner projection file, the outbox and
     /// every output and temporary file go, and the device continues as that role.
-    pub(super) fn downgrade(&mut self, granted: Role) -> Result<(), String> {
+    pub(crate) fn downgrade(&mut self, granted: Role) -> Result<(), String> {
+        self.forget_signed_in()?;
         self.forget(Role::Owner)?;
         self.owner = granted == Role::Owner;
         self.message = "This account is no longer an Owner on the authority: Owner data and queued actions were removed from this device.".into();
@@ -18,7 +19,7 @@ impl Trial {
 
     /// The authority refused this account's pull: everything it held here goes and every
     /// command is blocked until another account is chosen.
-    pub(super) fn revoke(&mut self) -> Result<(), String> {
+    pub(crate) fn revoke(&mut self) -> Result<(), String> {
         if self.revoked {
             return Ok(());
         }
@@ -26,6 +27,7 @@ impl Trial {
             Role::Owner => Role::Manager,
             Role::Manager => Role::Owner,
         };
+        self.forget_signed_in()?;
         ProjectionStore::remove_scoped(&self.device_root, &self.account, other).map_err(text)?;
         self.projection.purge().map_err(text)?;
         self.forget_queued()?;
@@ -33,6 +35,14 @@ impl Trial {
         self.posted = crate::device::Posted::empty()?;
         self.message = "Access to this account was revoked by the authority: its data was removed from this device.".into();
         Ok(())
+    }
+
+    /// The signed-in person's stored refresh token goes: the next launch asks for a sign-in.
+    fn forget_signed_in(&mut self) -> Result<(), String> {
+        match self.session.as_ref().map(|s| s.user_id().to_owned()) {
+            Some(account) => self.forget_credentials(&account),
+            None => Ok(()),
+        }
     }
 
     /// Removes the `role` projection of this account (the open store moves to the other role).

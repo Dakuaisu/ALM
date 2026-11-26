@@ -164,6 +164,9 @@ impl LoginForm {
 
 const SESSION_ENDED: &str = "Your session ended: sign in again.";
 
+/// The account signed in last (its user ID; not a secret): whose refresh token to resume with.
+const SIGNED_IN: &str = "signed-in-account.txt";
+
 impl Trial {
     /// The authority commands and pulls go to.
     pub(crate) fn sales_authority(&mut self) -> &mut dyn SalesAuthority {
@@ -208,7 +211,7 @@ impl Trial {
                 if let Some(rest) = self.rest.as_mut() {
                     rest.set_token(role, &token);
                 }
-                Ok(())
+                self.keep_refresh_token()
             }
             // Offline: the request will find no answer either.
             Err(AuthError::Unavailable) => Ok(()),
@@ -274,7 +277,7 @@ impl Trial {
             .rest_config
             .clone()
             .ok_or("This device uses the built-in simulation.")?;
-        let mut session = GoTrueSession::sign_in(
+        let session = GoTrueSession::sign_in(
             &config.auth,
             &config.apikey,
             form.email.trim(),
@@ -285,6 +288,16 @@ impl Trial {
             AuthError::Unavailable => "No answer from the sign-in service.".to_owned(),
             AuthError::Invalid => "The sign-in service sent no session.".to_owned(),
         })?;
+        self.start_session(session)
+    }
+
+    /// The session's token decides the role; the account's own device tables open and its
+    /// refresh token is kept in the platform credential store for the next launch.
+    fn start_session(&mut self, mut session: GoTrueSession) -> Result<(), String> {
+        let config = self
+            .rest_config
+            .clone()
+            .ok_or("This device uses the built-in simulation.")?;
         let Some(role) = session.role() else {
             let _ = session.sign_out();
             return Err("This account has no role at the authority: ask the Owner.".into());
@@ -303,12 +316,81 @@ impl Trial {
         self.owner = role == Role::Owner;
         self.session = Some(session);
         self.switch_account(&account)?;
+        self.saved_refresh = Some(String::new());
+        self.keep_refresh_token()?;
+        std::fs::write(self.device_root.join(SIGNED_IN), &account).map_err(text)?;
         self.message = format!(
             "Signed in as {} ({}).",
             self.session.as_ref().map_or("", |s| s.email()),
             role_name(role)
         );
         Ok(())
+    }
+
+    /// At launch: the account signed in last resumes with its stored refresh token, without a
+    /// password. A refused token (signed out elsewhere, revoked or used up) is deleted and the
+    /// sign-in screen shows; with no answer the token stays for the next attempt.
+    pub(crate) fn resume_session(&mut self) -> Result<(), String> {
+        let Some(config) = self.rest_config.clone() else {
+            return Ok(());
+        };
+        let Ok(account) = std::fs::read_to_string(self.device_root.join(SIGNED_IN)) else {
+            return Ok(());
+        };
+        let Ok(Some(token)) = self.credentials.load(&account) else {
+            return self.forget_credentials(&account);
+        };
+        match GoTrueSession::resume(&config.auth, &config.apikey, &token) {
+            Ok(session) if session.user_id() == account => match self.start_session(session) {
+                Ok(()) => Ok(()),
+                Err(error) => {
+                    self.forget_credentials(&account)?;
+                    self.message = error;
+                    Ok(())
+                }
+            },
+            Ok(session) => {
+                let _ = session.sign_out();
+                self.forget_credentials(&account)?;
+                SESSION_ENDED.clone_into(&mut self.message);
+                Ok(())
+            }
+            Err(AuthError::Unavailable) => {
+                "No answer from the sign-in service: sign in again when it answers."
+                    .clone_into(&mut self.message);
+                Ok(())
+            }
+            Err(AuthError::Refused(_) | AuthError::Invalid) => {
+                self.forget_credentials(&account)?;
+                SESSION_ENDED.clone_into(&mut self.message);
+                Ok(())
+            }
+        }
+    }
+
+    /// Writes the session's refresh token to the credential store when it changed.
+    fn keep_refresh_token(&mut self) -> Result<(), String> {
+        let (Some(session), Some(saved)) = (self.session.as_ref(), self.saved_refresh.as_mut())
+        else {
+            return Ok(());
+        };
+        if session.refresh_token() != saved {
+            self.credentials
+                .save(session.user_id(), session.refresh_token())?;
+            session.refresh_token().clone_into(saved);
+        }
+        Ok(())
+    }
+
+    /// Deletes `account`'s stored refresh token and the signed-in marker.
+    pub(crate) fn forget_credentials(&mut self, account: &str) -> Result<(), String> {
+        self.credentials.delete(account)?;
+        self.saved_refresh = None;
+        match std::fs::remove_file(self.device_root.join(SIGNED_IN)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(text(error)),
+        }
     }
 
     /// Signs out (the auth service ends the session) and removes the account's posted data
@@ -320,6 +402,7 @@ impl Trial {
 
     fn end_session(&mut self, message: &str) -> Result<(), String> {
         if let Some(session) = self.session.take() {
+            self.forget_credentials(session.user_id())?;
             let _ = session.sign_out();
             for role in [Role::Owner, Role::Manager] {
                 alm_store::ProjectionStore::remove_scoped(&self.device_root, &self.account, role)

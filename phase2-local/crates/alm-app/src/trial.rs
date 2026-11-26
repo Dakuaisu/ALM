@@ -74,6 +74,11 @@ pub(crate) struct Trial {
     pub(crate) rest_config: Option<crate::dev_authority::RestConfig>,
     /// The signed-in person's session (memory only: sign in again after each launch).
     pub(crate) session: Option<alm_sync::GoTrueSession>,
+    /// Where the session's refresh token is kept between launches.
+    pub(crate) credentials: Box<dyn crate::credentials::CredentialStore>,
+    /// The refresh token last written to `credentials` (it changes on every refresh); `None`
+    /// once a downgrade or revocation deleted it, so later refreshes are not written back.
+    pub(crate) saved_refresh: Option<String>,
     /// The authority revoked this account: every command is blocked.
     pub(crate) revoked: bool,
     pub(crate) message: String,
@@ -179,6 +184,8 @@ impl Trial {
             rest: None,
             rest_config: crate::dev_authority::read(device_root),
             session: None,
+            credentials: Box::new(crate::credentials::MemoryStore::default()),
+            saved_refresh: None,
             message: String::new(),
             posting: Default::default(),
             sales_filter: views::Filter::default(),

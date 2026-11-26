@@ -17,6 +17,9 @@ mod cashbook;
 mod commands;
 mod copy;
 mod crates;
+mod credentials;
+#[cfg(test)]
+mod credentials_tests;
 mod customers;
 mod dev_authority;
 mod device;
@@ -92,16 +95,29 @@ fn with<T>(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(credentials::plugin());
+    builder
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
-            #[cfg_attr(desktop, allow(unused_mut))]
             let mut trial = Trial::open(&root, None)?;
             #[cfg(mobile)]
             {
                 trial.outputs = app.path().app_cache_dir()?.join("outputs");
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            {
+                trial.credentials = Box::new(credentials::PlatformStore::new(credentials::APP_ID));
+            }
+            #[cfg(target_os = "android")]
+            {
+                let handle = app.state::<credentials::SecretsHandle>().0.clone();
+                trial.credentials = Box::new(credentials::PlatformStore(handle));
+            }
+            if let Err(error) = trial.resume_session() {
+                trial.message = error;
             }
             app.manage(Mutex::new(trial));
             Ok(())
