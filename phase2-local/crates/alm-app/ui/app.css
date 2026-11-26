@@ -1,4 +1,5 @@
 #app {
+  --touch-target: 48px;
   padding-top: env(safe-area-inset-top);
   padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
@@ -14,6 +15,31 @@
 }
 #nav button.navitem:hover { background: var(--panel2); }
 #nav button.navitem.on { background: var(--accent-weak); }
+
+#main, #view, #top > div:first-child { min-width: 0; }
+#top-actions { display: flex; gap: 8px; min-width: 0; margin-left: auto; overflow-x: auto; }
+.tbl-wrap { max-width: 100%; min-width: 0; -webkit-overflow-scrolling: touch; }
+#view table:not(.tbl-wrap table), #modalmount table:not(.tbl-wrap table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#app :is(button, summary, input, select, textarea, a[href], [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse), (max-width: 1280px) {
+  #app :is(button, summary, input:not([type="hidden"]), select, textarea, [role="option"]) {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+  #app input:is([type="checkbox"], [type="radio"]) {
+    width: var(--touch-target);
+    height: var(--touch-target);
+  }
+}
 
 .bill-items { overflow-x: auto; }
 /* Let an open autocomplete list escape the horizontal scroller while its box has focus. */
