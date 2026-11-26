@@ -21,7 +21,7 @@ pub(super) fn render(
             .map(|(line, label)| {
                 assert_eq!(line.product, label.product);
                 EstimateRow {
-                    label: label.label,
+                    label: std::borrow::Cow::Borrowed(label.label),
                     quantity: line.quantity.get(),
                     price: line.price,
                     amount: line.amount,
@@ -70,7 +70,7 @@ pub(super) fn render_document(preview: &EstimateDocument<'_>) -> String {
         writeln!(
             svg,
             "<g id=\"line-{number}\"><text x=\"36\" y=\"{y}\">{number}</text><text x=\"60\" y=\"{y}\">{}</text><text x=\"477\" y=\"{y}\" text-anchor=\"end\">{}</text><text x=\"550\" y=\"{y}\" text-anchor=\"end\">{}</text><text x=\"680\" y=\"{y}\" text-anchor=\"end\">{}</text></g>",
-            escape(line.label),
+            escape(&line.label),
             money(line.price),
             line.quantity,
             money(line.amount),

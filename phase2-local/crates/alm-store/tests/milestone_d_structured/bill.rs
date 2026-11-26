@@ -69,7 +69,7 @@ pub(super) fn document(store: &Store) -> String {
     assert!(
         bill.lines
             .iter()
-            .map(|line| (line.label, line.quantity, line.price, line.amount))
+            .map(|line| (line.label.as_ref(), line.quantity, line.price, line.amount))
             .eq([
                 (ITEM_A, 2, money(17_700), money(35_400)),
                 (ITEM_B, 1, money(5_600), money(5_600)),

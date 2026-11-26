@@ -64,6 +64,7 @@ pub(super) fn marked_records() -> Records {
             total_minor: 80,
             paid_minor: 10,
             cancelled: false,
+            as_on_bill_date: None,
         }],
         receipts: vec![Receipt {
             id: "marked receipt".into(),

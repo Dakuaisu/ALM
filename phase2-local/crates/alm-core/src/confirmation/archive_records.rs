@@ -160,6 +160,15 @@ impl ConfirmationFixture {
                     .lifecycle
                     .get(id)
                     .is_some_and(|(cancelled, _)| *cancelled),
+                as_on_bill_date: self
+                    .bill_preview(role, *id, super::BalanceMode::AsOnBillDate)
+                    .ok()
+                    .map(|bill| crate::synthetic_read_model::AsOnBillDate {
+                        previous_minor: bill
+                            .previous_balance
+                            .map_or(0, |previous| previous.amount.minor_units()),
+                        previous_date: bill.previous_balance.and_then(|previous| previous.date),
+                    }),
             });
         }
         sales.sort_by_key(|sale| sale.number);

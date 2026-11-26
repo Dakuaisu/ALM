@@ -2,7 +2,7 @@ use super::{BalanceMode, PreviousBalance};
 use crate::{BillDate, Money};
 
 pub struct EstimateRow<'a> {
-    pub label: &'a str,
+    pub label: std::borrow::Cow<'a, str>,
     pub quantity: u32,
     pub price: Money,
     pub amount: Money,

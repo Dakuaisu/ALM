@@ -139,7 +139,7 @@ pub(super) fn estimate_document<'a>(
         .iter()
         .zip(display.lines)
         .map(|(line, label)| EstimateRow {
-            label: label.label,
+            label: std::borrow::Cow::Borrowed(label.label),
             quantity: line.quantity.get(),
             price: line.price,
             amount: line.amount,
@@ -202,7 +202,7 @@ pub(crate) fn render_estimate(
     for line in &preview.lines {
         html.push_str(&format!(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            escape_text(line.label),
+            escape_text(&line.label),
             line.quantity,
             format_money(line.price),
             format_money(line.amount)

@@ -209,6 +209,24 @@ pub struct Sale {
     pub total_minor: i64,
     pub paid_minor: i64,
     pub cancelled: bool,
+    /// What the bill printed "as on bill date" when it was archived: copied, not recalculated.
+    /// Archives written before it existed regenerate the Latest balance only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_on_bill_date: Option<AsOnBillDate>,
+}
+
+/// A bill's balance before itself (`custBalanceBefore`, rounded to whole rupees) and the date
+/// of the latest earlier bill or receipt (`prevDate`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AsOnBillDate {
+    pub previous_minor: i64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "date::optional"
+    )]
+    pub previous_date: Option<crate::BillDate>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

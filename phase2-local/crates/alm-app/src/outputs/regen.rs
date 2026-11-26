@@ -18,13 +18,14 @@ pub(crate) fn regenerate(
     gst: alm_core::confirmation::GstBillId,
     po: u64,
     today: alm_core::BillDate,
+    mode: alm_core::confirmation::BalanceMode,
 ) -> Result<Regenerated, String> {
     use alm_core::confirmation::rate_list::rate_list_html_from_records;
     use alm_core::synthetic_read_model::SaleId;
     let id = SaleId::new(sale.to_owned());
-    let bill_png = bill_png(store, role, sale, today)?;
+    let bill_png = bill_png(store, role, sale, today, mode)?;
     let estimate = store
-        .latest_estimate_html(role, &id, today)
+        .archived_estimate_html(role, &id, today, mode)
         .map_err(refusal)?;
     let mut gst_html = Err("GST bill missing".to_owned());
     store
@@ -52,17 +53,20 @@ pub(crate) fn regenerate(
     })
 }
 
-/// The bill image of archived sale `sale`, from the archive alone.
+/// The bill image of archived sale `sale` in balance `mode`, from the archive alone.
 pub(crate) fn bill_png(
     store: &alm_store::synthetic_read_model::Store,
     role: alm_core::Role,
     sale: &str,
     today: alm_core::BillDate,
+    mode: alm_core::confirmation::BalanceMode,
 ) -> Result<Vec<u8>, String> {
     use alm_core::confirmation::bill_image::bill_image_layout;
     let id = alm_core::synthetic_read_model::SaleId::new(sale.to_owned());
     let profile = store.business_profile(role).map_err(refusal)?;
-    let document = store.latest_estimate(role, &id, today).map_err(refusal)?;
+    let document = store
+        .archived_estimate(role, &id, today, mode)
+        .map_err(refusal)?;
     let details = store
         .records(role)
         .map_err(refusal)?

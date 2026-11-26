@@ -36,6 +36,7 @@ pub(super) fn capture(fixture: &ConfirmationFixture) -> (Records, HistoricalGst)
         total_minor: receipt.total.minor_units(),
         paid_minor: receipt.received.unwrap().minor_units(),
         cancelled: true,
+        as_on_bill_date: None,
     };
     let active = Sale {
         id: "sale-active-id".into(),
@@ -73,6 +74,7 @@ pub(super) fn capture(fixture: &ConfirmationFixture) -> (Records, HistoricalGst)
         total_minor: 1100,
         paid_minor: 300,
         cancelled: false,
+        as_on_bill_date: None,
     };
     let ledger = fixture
         .customer_ledger(Role::Owner, &DraftCustomerId::new(BUYER_ID.into()))

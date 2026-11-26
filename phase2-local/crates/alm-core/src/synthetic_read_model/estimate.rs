@@ -1,7 +1,7 @@
 use super::{Error, EstimateDocument, EstimateRow, LineKind, ReadModel, SaleId};
 use crate::bill_math::round_balance;
-use crate::confirmation::BalanceMode;
 use crate::confirmation::estimate::render_estimate;
+use crate::confirmation::{BalanceMode, PreviousBalance};
 use crate::{BillDate, Money, Role};
 
 impl ReadModel {
@@ -49,7 +49,7 @@ impl ReadModel {
                 .checked_add(line.quantity)
                 .ok_or(Error::InvalidArchive)?;
             rows.push(EstimateRow {
-                label: &line.item,
+                label: std::borrow::Cow::Borrowed(&line.item),
                 quantity: line.quantity,
                 price: Money::from_minor_units(line.rate_minor),
                 amount: Money::from_minor_units(line.amount_minor),
@@ -100,18 +100,36 @@ impl ReadModel {
         })
     }
 
-    /// The Latest-balance estimate of any archived item bill, as the live app shows it
+    /// The Latest-balance estimate of any archived bill, as the live app shows it
     /// (`BalanceMode::Latest`): the customer's archived closing balance rounded once to whole
     /// rupees, no previous-balance row.
     ///
     /// # Errors
-    /// Denies Managers; rejects unknown or duplicated sales, crate lines, inconsistent amounts
-    /// and a missing customer.
+    /// As [`Self::archived_estimate`].
     pub fn latest_estimate(
         &self,
         role: Role,
         id: &SaleId,
         today: BillDate,
+    ) -> Result<EstimateDocument<'_>, Error> {
+        self.archived_estimate(role, id, today, BalanceMode::Latest)
+    }
+
+    /// The estimate of any archived bill (item and crate lines) in `mode`, as the live app shows
+    /// it (`invBalanceMode`): Latest is the customer's archived closing balance rounded once to
+    /// whole rupees; "as on bill date" (and Latest for a bill without a customer ledger) is the
+    /// archived previous balance plus the bill's own due, with the Prev Balance row and its date.
+    ///
+    /// # Errors
+    /// Denies Managers; rejects unknown or duplicated sales, inconsistent amounts, a Latest
+    /// balance without the customer, and "as on bill date" for archives written before it was
+    /// recorded.
+    pub fn archived_estimate(
+        &self,
+        role: Role,
+        id: &SaleId,
+        today: BillDate,
+        mode: BalanceMode,
     ) -> Result<EstimateDocument<'_>, Error> {
         let records = self.records(role)?;
         let mut matches = records.sales.iter().filter(|sale| sale.id == id.value());
@@ -123,9 +141,7 @@ impl ReadModel {
         let mut quantity = 0_u32;
         let mut rows = Vec::with_capacity(sale.lines.len());
         for line in &sale.lines {
-            if !matches!(line.kind, LineKind::Item)
-                || line.rate_minor.checked_mul(i64::from(line.quantity)) != Some(line.amount_minor)
-            {
+            if line.rate_minor.checked_mul(i64::from(line.quantity)) != Some(line.amount_minor) {
                 return Err(Error::InvalidArchive);
             }
             total = total
@@ -135,7 +151,10 @@ impl ReadModel {
                 .checked_add(line.quantity)
                 .ok_or(Error::InvalidArchive)?;
             rows.push(EstimateRow {
-                label: &line.item,
+                label: match line.kind {
+                    LineKind::Item => std::borrow::Cow::Borrowed(line.item.as_str()),
+                    LineKind::Crate { .. } => std::borrow::Cow::Owned(line.display_item()),
+                },
                 quantity: line.quantity,
                 price: Money::from_minor_units(line.rate_minor),
                 amount: Money::from_minor_units(line.amount_minor),
@@ -148,9 +167,35 @@ impl ReadModel {
         let customer = records
             .customers
             .iter()
-            .find(|customer| customer.name == sale.customer)
-            .ok_or(Error::InvalidArchive)?;
-        let balance = round_balance(customer.balance_minor).ok_or(Error::InvalidArchive)?;
+            .find(|customer| customer.name == sale.customer);
+        let (balance_mode, balance, previous_balance) = match (mode, customer) {
+            (BalanceMode::Latest, Some(customer)) => (
+                BalanceMode::Latest,
+                round_balance(customer.balance_minor).ok_or(Error::InvalidArchive)?,
+                None,
+            ),
+            (BalanceMode::Latest, None) if sale.as_on_bill_date.is_none() => {
+                return Err(Error::InvalidArchive);
+            }
+            _ => {
+                let snapshot = sale.as_on_bill_date.as_ref().ok_or(Error::InvalidArchive)?;
+                let own_due = sale
+                    .total_minor
+                    .checked_sub(sale.paid_minor)
+                    .ok_or(Error::InvalidArchive)?;
+                (
+                    BalanceMode::AsOnBillDate,
+                    snapshot
+                        .previous_minor
+                        .checked_add(own_due)
+                        .ok_or(Error::InvalidArchive)?,
+                    (snapshot.previous_minor != 0).then_some(PreviousBalance {
+                        amount: Money::from_minor_units(snapshot.previous_minor),
+                        date: snapshot.previous_date,
+                    }),
+                )
+            }
+        };
         Ok(EstimateDocument {
             invoice: sale.number,
             date: sale.date,
@@ -162,9 +207,9 @@ impl ReadModel {
             total: Money::from_minor_units(sale.total_minor),
             paid: Money::from_minor_units(sale.paid_minor),
             cancelled: sale.cancelled,
-            balance_mode: BalanceMode::Latest,
+            balance_mode,
             balance: Money::from_minor_units(balance),
-            previous_balance: None,
+            previous_balance,
             today,
         })
     }
@@ -179,7 +224,21 @@ impl ReadModel {
         id: &SaleId,
         today: BillDate,
     ) -> Result<String, Error> {
-        let document = self.latest_estimate(role, id, today)?;
+        self.archived_estimate_html(role, id, today, BalanceMode::Latest)
+    }
+
+    /// The printable estimate of `archived_estimate` with this archive's business profile.
+    ///
+    /// # Errors
+    /// As [`Self::archived_estimate`].
+    pub fn archived_estimate_html(
+        &self,
+        role: Role,
+        id: &SaleId,
+        today: BillDate,
+        mode: BalanceMode,
+    ) -> Result<String, Error> {
+        let document = self.archived_estimate(role, id, today, mode)?;
         Ok(render_estimate(
             &document,
             Some(self.business_profile(role)?),

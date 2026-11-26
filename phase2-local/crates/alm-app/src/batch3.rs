@@ -146,7 +146,16 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
         "09ABCDE1234F1Z5"
     );
     assert_eq!(store.records(Role::Owner).unwrap().reorder_default, 7);
-    let again = regenerate(&store, Role::Owner, "sale-1", crate::TRIAL_BILL, 1, day()).unwrap();
+    let again = regenerate(
+        &store,
+        Role::Owner,
+        "sale-1",
+        crate::TRIAL_BILL,
+        1,
+        day(),
+        alm_core::confirmation::BalanceMode::Latest,
+    )
+    .unwrap();
     assert_eq!(again.bill_png, png, "PNG bytes equal");
     assert_eq!(again.estimate, estimate);
     assert_eq!(again.gst, gst);
@@ -162,7 +171,18 @@ fn outputs_survive_backup_drop_and_fresh_restore_byte_for_byte() {
         Err(alm_core::synthetic_read_model::Error::AccessDenied)
     ));
     assert!(store.backup(Role::Manager).is_err() && store.records(Role::Manager).is_err());
-    assert!(regenerate(&store, Role::Manager, "sale-1", crate::TRIAL_BILL, 1, day()).is_err());
+    assert!(
+        regenerate(
+            &store,
+            Role::Manager,
+            "sale-1",
+            crate::TRIAL_BILL,
+            1,
+            day(),
+            alm_core::confirmation::BalanceMode::Latest
+        )
+        .is_err()
+    );
     other.set_owner(false).unwrap();
     assert!(other.export(crate::outputs::Export::SalesCsv).is_err());
     other.set_owner(true).unwrap();
