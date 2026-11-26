@@ -29,12 +29,13 @@ pub(super) fn handoff(
         return Ok(ShareOutput::File(file));
     }
     let path = trial.save_output(&file.name, &file.bytes)?;
-    #[cfg(desktop)]
+    // Tests check the saved file; they do not open Finder or Explorer.
+    #[cfg(all(desktop, not(test)))]
     reveal(&path);
     Ok(ShareOutput::Saved(path.display().to_string()))
 }
 
-#[cfg(desktop)]
+#[cfg(all(desktop, not(test)))]
 pub(super) fn reveal(path: &std::path::Path) {
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open")

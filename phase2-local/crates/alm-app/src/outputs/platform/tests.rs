@@ -105,3 +105,37 @@ fn generated_file_commands_deny_a_manager_even_after_owner_access() {
         );
     }
 }
+
+/// The desktop save path (Windows without Web Share; also macOS): the PNG is written to the
+/// app's output folder under its data folder and the saved path is returned.
+#[test]
+fn image_command_without_web_share_saves_the_png_in_the_output_folder_and_returns_its_path() {
+    let root = Root::new("share-owner-save");
+    let state = owner(&root);
+    for web_share in [Some(false), None] {
+        let output = bill_image_share(
+            State::for_test(&state, "bill_image_share").unwrap(),
+            draft(),
+            web_share,
+        )
+        .unwrap();
+        let ShareOutput::Saved(saved) = output else {
+            panic!("expected a saved file")
+        };
+        let path = std::path::PathBuf::from(&saved);
+        let outputs = state.lock().unwrap().outputs.clone();
+        assert!(path.is_absolute(), "{saved}");
+        assert_eq!(path.parent(), Some(outputs.as_path()));
+        assert!(outputs.starts_with(&root.0));
+        assert_eq!(path.file_name().unwrap(), "Bill-1.png");
+        assert_eq!(&std::fs::read(&path).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
+        #[cfg(target_os = "windows")]
+        {
+            assert!(saved.contains('\\') && !saved.contains('/'), "{saved}");
+            assert!(
+                saved.as_bytes()[1] == b':' || saved.starts_with(r"\\"),
+                "{saved}"
+            );
+        }
+    }
+}
