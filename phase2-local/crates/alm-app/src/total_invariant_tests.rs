@@ -318,6 +318,17 @@ fn owner_totals_add_up_on_every_screen_for_item_crate_and_mixed_bills() {
             crates: &[(pieces, 1), (party, 1)],
             loading: "1.75",
         },
+        // Several crate rows and no item line, through Owner review (HTML `saveBill`).
+        Case {
+            lines: &[],
+            crates: &[(soda, 1), (pieces, 1)],
+            loading: "",
+        },
+        Case {
+            lines: &[],
+            crates: &[(pieces, 1), (soda, 1)],
+            loading: "1.50",
+        },
     ];
     for case in &cases {
         let shown = enter(&mut trial, case);

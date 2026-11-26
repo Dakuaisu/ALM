@@ -1159,6 +1159,95 @@ pub fn mixed_sale_lifecycle<A: SalesAuthority>(a: &mut A) {
     assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 7));
 }
 
+/// Two crate rows and no item line (HTML `saveBill` with only crate lines): a bill of crate rows
+/// through `post_sale`, its components from stock, edited, cancelled and restored.
+fn crate_only_sale(w: &World, draft: u64, first: u32, second: u32) -> Intent {
+    let Intent::PostSale(mut sale) = mixed_sale(w, draft, 1, w.sell, first) else {
+        unreachable!("a sale")
+    };
+    let mut only = alm_core::ProvisionalDraft::new(sale.draft.id(), Vec::new())
+        .with_customer(sale.draft.customer().clone())
+        .with_bill_date(sale.draft.bill_date());
+    for row in sale.draft.crate_rows() {
+        only.add_crate_row(row.clone());
+    }
+    only.add_crate_row(
+        alm_core::CrateRow::new(
+            std::num::NonZeroU32::new(second).unwrap(),
+            vec![alm_core::CrateComponent::new(
+                ProductId::new(w.product),
+                std::num::NonZeroU32::MIN,
+                alm_core::SaleUnit::Case,
+            )],
+        )
+        .with_price("Single Crate".into(), money(15_000)),
+    );
+    sale.draft = only;
+    sale.prices = Vec::new();
+    Intent::PostSale(sale)
+}
+
+pub fn crate_only_bill<A: SalesAuthority>(a: &mut A) {
+    let w = world(a);
+    let (product, on_hand) = (w.product, w.on_hand);
+    let outcome = exercise(
+        a,
+        "crateonly",
+        &crate_only_sale(&w, 191, 1, 3),
+        &crate_only_sale(&w, 191, 2, 3),
+        None,
+        Some(&crate_only_sale(&w, 192, 1, on_hand)),
+        |s| sale_of(s, 191).is_some() && stock_of(s, product) == Some(on_hand - 5),
+    );
+    let Outcome::Sale(receipt) = outcome else {
+        panic!("a sale receipt")
+    };
+    assert_eq!(
+        (receipt.quantity, receipt.total),
+        (5, money(40_000 + 45_000))
+    );
+    let bill = sale_of(&state(a).1, 191).unwrap().clone();
+    assert_eq!(
+        (bill.lines, bill.items.as_slice()),
+        (
+            2,
+            &["Conformance Crate".to_owned(), "Single Crate".to_owned()][..]
+        )
+    );
+    setup(
+        a,
+        "crateonly",
+        "edit",
+        &Intent::EditSale {
+            draft: alm_core::DraftId::new(191),
+            lines: vec![(2, 40_000), (1, 14_000)],
+        },
+    );
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 5));
+    assert_eq!(
+        sale_of(&state(a).1, 191).map(|x| x.total),
+        Some(money(80_000 + 14_000))
+    );
+    setup(
+        a,
+        "crateonly",
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(191),
+        },
+    );
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand));
+    setup(
+        a,
+        "crateonly",
+        "restore",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(191),
+        },
+    );
+    assert_eq!(stock_of(&state(a).1, product), Some(on_hand - 5));
+}
+
 /// The default reorder level: a later product saved with a blank level takes it.
 pub fn set_reorder_default<A: SalesAuthority>(a: &mut A) {
     exercise(
@@ -1596,7 +1685,7 @@ macro_rules! conformance_tests {
             post_sale, cancel_sale, restore_sale, edit_sale, record_receipt, save_cash_day,
             delete_cash_day, add_product, edit_product, delete_product, add_supplier,
             set_supplier_prices, save_purchase_order, receive_purchase_order,
-            close_purchase_order, save_crate, sell_crate, sell_piece_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
+            close_purchase_order, save_crate, sell_crate, sell_piece_crate, edit_crate_sale, cancel_crate_sale, mixed_sale_lifecycle, crate_only_bill, delete_crate, set_reorder_default, record_restore, import_legacy, import_legacy_source, resolve_legacy_quarantine, save_opening, save_godown,
             count_stock, allocate_gst_number, save_gst_bill, cancel_gst_bill, delete_gst_bill,
             import_gst_bill, manager_pull, lookup, two_devices, two_devices_first_draft
         );

@@ -269,3 +269,38 @@ fn a_mixed_review_survives_the_pending_snapshot_round_trip() {
         .unwrap();
     assert_eq!(receipt.quantity, 7);
 }
+
+/// Several crate rows and no item line (HTML `saveBill` accepts a bill whose lines are all
+/// crates): priced, reviewed and posted like a mixed bill, each component from FIFO.
+#[test]
+fn a_bill_of_several_crate_rows_and_no_item_line_posts() {
+    let (mut shop, template) = shop();
+    let lime = shop.product_stock(LIME).unwrap();
+    let mut draft = ProvisionalDraft::new(BILL, Vec::new())
+        .with_customer(DraftCustomer::Selected {
+            id: customer_id(),
+            name: super::super::demo_fixture::CUSTOMER.into(),
+        })
+        .with_bill_date(Some(day()))
+        .with_loading_rate(rs(100));
+    shop.load_crate_template(Role::Owner, template, n(1), &mut draft)
+        .unwrap();
+    shop.load_crate_template(Role::Owner, template, n(2), &mut draft)
+        .unwrap();
+    let priced = priced_draft(&shop, Role::Owner, &draft).unwrap();
+    assert!(priced.lines.is_empty());
+    let amounts: Vec<_> = priced.crates.iter().map(|c| c.amount).collect();
+    assert_eq!(amounts, [rs(30_000), rs(60_000)]);
+    // 3 crates x (1 packet + 2 pieces at 2 a packet) = 6 packets.
+    assert_eq!((priced.loading, priced.total), (rs(600), rs(90_600)));
+    let receipt = post(&mut shop, &draft, "0");
+    assert_eq!((receipt.quantity, receipt.total), (6, rs(90_600)));
+    assert_eq!(shop.product_stock(LIME), Some(lime - 6));
+    let empty = ProvisionalDraft::new(DraftId::new(42), Vec::new())
+        .with_customer(draft.customer().clone())
+        .with_bill_date(Some(day()));
+    assert_eq!(
+        priced_draft(&shop, Role::Owner, &empty),
+        Err(ConfirmationError::InvalidDraft)
+    );
+}

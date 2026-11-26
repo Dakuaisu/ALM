@@ -392,7 +392,19 @@ impl ConfirmationFixture {
         &self,
         draft: &ProvisionalDraft,
     ) -> Result<(Vec<Money>, Option<Vec<std::num::NonZeroU32>>), ConfirmationError> {
-        let mut prices = self.catalog.prices(draft)?;
+        // Crate rows alone (HTML `saveBill` whose lines are all crates) as New Bill copied them:
+        // each with its name and rate. An unpriced crate row alone is a `sell_crate` checkout.
+        let crate_only = draft.lines().is_empty()
+            && !draft.crate_rows().is_empty()
+            && draft
+                .crate_rows()
+                .iter()
+                .all(|row| row.name().is_some() && row.rate().is_some());
+        let mut prices = if crate_only {
+            Vec::new()
+        } else {
+            self.catalog.prices(draft)?
+        };
         if draft.crate_rows().is_empty() {
             return Ok((prices, None));
         }

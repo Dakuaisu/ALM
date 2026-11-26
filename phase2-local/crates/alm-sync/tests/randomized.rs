@@ -1,6 +1,6 @@
 //! Randomized consistency check: seeded bills mixing item lines, crates (Case and Piece
-//! components), loading charges and payments, with edits, cancels, restores and receipts, run
-//! through the core's `LocalAuthority` always and through the dev Postgres authority when
+//! components; several crate rows with no item line among them), loading charges and payments,
+//! with edits, cancels, restores and receipts, run through the core's `LocalAuthority` always and through the dev Postgres authority when
 //! `ALM_PG_URL` is set. Every step's outcome must match, the effects are compared every
 //! `COMPARE_EVERY` steps and at the end, and every posted or edited bill's total must be its
 //! rows plus its loading charge (New Bill pricing, the receipt, the projection and the bill
@@ -292,6 +292,8 @@ fn setup(seed: u64) -> (Run, Vec<Template>) {
 struct Counts {
     bills: usize,
     posted: usize,
+    /// Posted bills of several crate rows and no item line.
+    crate_only: usize,
     edits: usize,
     cancels: usize,
     restores: usize,
@@ -398,6 +400,9 @@ fn run_seed(seed: u64) -> Counts {
                 }
                 if let Ok(Outcome::Sale(receipt)) = run.submit(&intent) {
                     n.posted += 1;
+                    if lines.is_empty() && bill.crates.len() > 1 {
+                        n.crate_only += 1;
+                    }
                     let bill = if single {
                         // The crate post charges the authority's loading rate (0 in this shop).
                         Posted { loading: 0, ..bill }

@@ -908,6 +908,114 @@ fn piece_crates_without_pack_terms() {
     p.finish();
 }
 
+/// Bills of crate rows only (HTML `saveBill` whose lines are all crates): two and three crate
+/// rows with no item line, with and without loading, a shortage, edits up and down, a refused
+/// edit below the amount paid, cancel and restore of the bill moved last.
+#[test]
+fn crate_only_bills() {
+    let Some(mut p) = Pair::new("crate_only") else {
+        return;
+    };
+    let case: &[(u64, u32, bool)] = &[(LIME, 2, false), (SODA, 1, false)];
+    let soda: &[(u64, u32, bool)] = &[(SODA, 1, false)];
+    let pieces: &[(u64, u32, bool)] = &[(LIME, 3, true)];
+    for (name, price, components) in [
+        ("Case Pair", 30_000, case),
+        ("Soda Case", 9_000, soda),
+        ("Lime Pieces", 12_000, pieces),
+    ] {
+        created(p.owner(name, &crate_terms(None, name, price, components)));
+    }
+    let core = p.core();
+    let bill = |draft: u64, paid: i64, loading: i64| Bill {
+        draft,
+        to: For::Customer(CUSTOMER),
+        lines: &[],
+        date: "2025-02-07",
+        paid,
+        loading,
+    };
+    let sold = p.owner(
+        "two crate rows",
+        &mixed_sale(
+            &core,
+            &bill(31, 10_000, 0),
+            &[
+                (Some("Case Pair"), 30_000, 2, case),
+                (Some("Soda Case"), 9_000, 1, soda),
+            ],
+        ),
+    );
+    assert!(
+        matches!(sold, Some(Outcome::Sale(r)) if r.quantity == 7 && r.total.minor_units() == 69_000),
+        "{sold:?}"
+    );
+    let sold = p.owner(
+        "three crate rows with loading",
+        &mixed_sale(
+            &core,
+            &bill(32, 0, 125),
+            &[
+                (Some("Lime Pieces"), 12_000, 1, pieces),
+                (Some("Case Pair"), 30_000, 1, case),
+                (Some("Soda Case"), 9_000, 2, soda),
+            ],
+        ),
+    );
+    assert!(
+        matches!(sold, Some(Outcome::Sale(r)) if r.quantity == 8),
+        "{sold:?}"
+    );
+    assert!(
+        p.owner(
+            "crate rows shortage",
+            &mixed_sale(
+                &core,
+                &bill(33, 0, 0),
+                &[
+                    (Some("Case Pair"), 30_000, 1, case),
+                    (Some("Soda Case"), 9_000, 9_000, soda),
+                ],
+            ),
+        )
+        .is_none()
+    );
+    let edit = |a: u32, b: u32, rate: i64| Intent::EditSale {
+        draft: alm_core::DraftId::new(31),
+        lines: vec![(a, rate), (b, 9_000)],
+    };
+    assert!(p.owner("crate rows edit up", &edit(3, 2, 31_000)).is_some());
+    assert!(
+        p.owner("crate rows edit down", &edit(1, 1, 29_000))
+            .is_some()
+    );
+    assert!(
+        p.owner("crate rows edit below paid", &edit(1, 1, 0))
+            .is_none()
+    );
+    for (step, intent) in [
+        (
+            "crate rows cancel",
+            Intent::CancelSale {
+                draft: alm_core::DraftId::new(31),
+            },
+        ),
+        (
+            "crate rows restore",
+            Intent::RestoreSale {
+                draft: alm_core::DraftId::new(31),
+            },
+        ),
+    ] {
+        assert!(p.owner(step, &intent).is_some(), "{step}");
+    }
+    p.owner(
+        "receipt after crate rows",
+        &receipt(CUSTOMER.0, "2025-02-08", 4_000, false),
+    );
+    p.finish();
+}
+
 /// Partial PO: two lines received in parts with a backdated date and a kept rate, a stale
 /// receipt, an over-receipt, close remaining and a receipt after closing.
 #[test]
