@@ -87,6 +87,14 @@ Added at `dce16b0` (request identity, crate bills, legacy import rehearsal); imp
 - Should the server parse the raw legacy file itself instead of trusting the device's mapped plan? (SQL checks only the plan's shape.)
 - Who resolves quarantined legacy records, and on what evidence? (Ties to OPEN-003.)
 - Should a device ID be bound to a provisioned device rather than drawn by the install?
+
+Added at `e478478` (draft identity, stored logins, incremental pull); implemented conservatively, not decided:
+
+- May a refresh token stay on a shared device at all? (Kept until sign-out, revocation or downgrade.)
+- Should a downgrade end the session instead of continuing as Manager in memory? (It continues; the stored token is deleted.)
+- How long does the server keep change history for incremental sync? (10,000 revisions; older checkpoints get a full pull.)
+- Should drafts saved before this build keep a bare number? (They become this device's drafts.)
+- Is a 64-bit content hash per row acceptable? (A collision would leave a stale row on a device until its next full pull.)
 ## OPEN-005 Targets and output handoff
 - Status: OWNER-BLOCKED
 The owner must confirm Windows and macOS laptop and Android tablet models and OS versions, and approve WhatsApp test accounts or recipients. Local image, print, PDF and simulated share are development only; they do not establish actual handoff or platform acceptance (DEC-014).
@@ -192,4 +200,5 @@ Status at `2a6ff3e`: closed: Owner screens read server rows (REST works end to e
 - Manager New Bill drafting still reads the simulation's catalog, also with REST.
 - Bill image canvas layout and slanted italic; Latest-balance-only archive regeneration; product delete refused on posted bills; Clear All and hosted sync / Google Sheets / folder cards inert.
 - Status at `dce16b0`: closed: crate bills listed, viewed, edited, cancelled and restored in Sales; crate row on New Bill; activity times in local en-IN; restore log entry; Manager New Bill from its pulled catalog. Still open, added: a Manager's customer picker still comes from the device directory (Manager rows hold no customers); a legacy file must be placed in the app's `legacy-import` folder (no file picker).
+- Added at `e478478`: Owner review names an item line "Product 1" in REST mode (Sales and the bill show the product name).
 - (Found at `fe5db4e`) A crate bill can hold only its crate. The HTML's New Bill mixes crate rows and ordinary lines on one bill (`draft.items` rendered as `crateRow` or `lineRow`, HTML L3640).
