@@ -118,7 +118,7 @@ impl Trial {
         Ok(())
     }
 
-    pub(super) fn edit_bill(
+    pub(crate) fn edit_bill(
         &mut self,
         edit: impl FnOnce(&mut ProvisionalDraft) -> Result<bool, String>,
     ) -> Result<(), String> {
@@ -164,19 +164,11 @@ impl Trial {
                 if draft.lines().is_empty() && draft.crate_rows().is_empty() {
                     return Err("Add at least one item before saving.".into());
                 }
-                if draft.crate_rows().is_empty() {
-                    match self.manager_catalog() {
-                        Some(catalog) => self.directory.catalog_preview(&catalog, &draft),
-                        None => self.directory.preview(self.drafting(), &draft),
-                    }
-                    .map_err(debug)?;
-                } else if !draft.lines().is_empty() {
-                    alm_core::confirmation::owner_billing::priced_draft(
-                        self.drafting(),
-                        self.role(),
-                        &draft,
-                    )
-                    .map_err(debug)?;
+                if !draft.lines().is_empty() {
+                    let catalog = self.manager_catalog();
+                    self.directory
+                        .new_bill_pricing(self.drafting(), catalog.as_deref(), &draft)
+                        .map_err(debug)?;
                 }
                 self.drafts.save_draft(draft.clone()).map_err(text)?;
                 self.message = format!(

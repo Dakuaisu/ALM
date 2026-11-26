@@ -6,8 +6,10 @@ use crate::{BillDate, DraftCustomerId, InvalidBillDate, Money, ProvisionalDraft,
 
 mod customer_book;
 mod directory;
+mod new_bill;
 pub use customer_book::{BalanceSide, CustomerBook, CustomerBookRow, CustomerFilter, is_debtor};
 pub use directory::{BillingDirectory, DirectoryCustomer, DirectoryProduct};
+pub use new_bill::{NewBillCrate, NewBillPricing, NewBillPricingError};
 
 /// One Owner-priced line of a saved draft: the catalog sell rate times the draft quantity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

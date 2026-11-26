@@ -1047,9 +1047,10 @@ fn new_bill_mixes_item_lines_and_crate_rows_and_posts_them_as_one_sale() {
         "{html}"
     );
     assert!(html.contains("<b>₹800.00</b>"), "2 crates at ₹400: {html}");
-    // The authority prices the bill: 2 Lime at the Owner rate and 2 crates; no loading.
+    // New Bill prices every row from one result: 2 Lime at the provisional ₹118 shown on the
+    // row and 2 crates; no loading. Owner review re-prices at the Owner rate (₹1,041).
     assert!(
-        html.contains("<span class=\"muted\">Bill Amount</span><b>₹1,041.00</b>"),
+        html.contains("<span class=\"muted\">Bill Amount</span><b>₹1,036.00</b>"),
         "{html}"
     );
     assert!(!html.contains(">Owner review</button>"), "only once saved");

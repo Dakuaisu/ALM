@@ -23,6 +23,15 @@ pub(crate) use regen::{bill_png, regenerate};
 impl Trial {
     /// The bill image PNG for an Owner-visible bill, with its file name.
     pub(crate) fn bill_image_png(&self, id: DraftId) -> Result<(String, Vec<u8>), String> {
+        let (name, image) = self.bill_image(id)?;
+        Ok((name, crate::image::render_png(&image)?))
+    }
+
+    /// The bill image's display list for an Owner-visible bill, with its file name.
+    pub(crate) fn bill_image(
+        &self,
+        id: DraftId,
+    ) -> Result<(String, alm_core::confirmation::bill_image::BillImage), String> {
         let role = self.require_owner()?;
         let mode = self.prefs.balance_mode();
         let bill = self.posted.bill_preview(role, id, mode).map_err(debug)?;
@@ -67,8 +76,7 @@ impl Trial {
             .posted
             .bill_image(request, &party, &crate::image::measure)
             .map_err(debug)?;
-        let png = crate::image::render_png(&image)?;
-        Ok((format!("Bill-{}.png", bill.invoice), png))
+        Ok((format!("Bill-{}.png", bill.invoice), image))
     }
 
     /// The live estimate (print document) at the device's balance preference.

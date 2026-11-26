@@ -52,6 +52,8 @@ mod settings;
 mod settings_tests;
 mod stock;
 mod suppliers;
+#[cfg(test)]
+mod total_invariant_tests;
 mod trial;
 mod views;
 

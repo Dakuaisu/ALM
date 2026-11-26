@@ -71,7 +71,7 @@ impl Review {
     }
 
     /// The crate rows' packets and amounts (`linePackets`, `lineAmt`): rate times crates.
-    pub(super) fn crate_totals(&self) -> Result<(u32, i64), ConfirmationError> {
+    pub(in crate::confirmation) fn crate_totals(&self) -> Result<(u32, i64), ConfirmationError> {
         let Some(demands) = self.crate_packet_demands()? else {
             return Ok((0, 0));
         };
