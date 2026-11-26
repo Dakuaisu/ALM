@@ -86,6 +86,11 @@ pub fn start(
     with(&state, "bill", |trial| {
         trial.today = Some(today);
         trial.utc_offset_minutes = offset;
+        if std::mem::take(&mut trial.resume_pending)
+            && let Err(error) = trial.resume_session()
+        {
+            trial.message = error;
+        }
         Ok(())
     })
 }

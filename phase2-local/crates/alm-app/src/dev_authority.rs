@@ -2,8 +2,8 @@
 //! the migrated schema, with its GoTrue auth service) instead of the built-in simulation. The
 //! REST and auth URLs and the public key are kept in this device's data folder; each person
 //! then signs in with their own email and password and the role comes only from their token.
-//! Tokens are kept in memory only (sign in again after each launch): secure credential storage
-//! is not done yet. Never put real credentials in the repository.
+//! Access tokens stay in memory; only the refresh token is kept, in the platform credential
+//! store (`credentials`). Never put real credentials in the repository.
 use std::path::Path;
 
 use alm_core::Role;
@@ -101,7 +101,7 @@ const fn role_name(role: Role) -> &'static str {
 /// is signed in. The role is never chosen here: it comes from the account's token.
 pub(crate) fn login_screen(config: &RestConfig, message: &str) -> String {
     format!(
-        r#"<div class="card" style="max-width:420px;margin:24px auto"><div class="sectit">Sign in</div><p class="help">REST authority <b>{}</b> (development). Sign in with your own account; what you may do comes from the role the Owner gave it. You sign in again after each launch.</p>{}<form data-action="rest_login" data-payload="terms"><div class="field"><label>Email <input class="inp" name="email" type="email" autocomplete="username" required></label></div><div class="field"><label>Password <input class="inp" name="password" type="password" autocomplete="current-password" required></label></div><div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn" type="button" data-action="settings_rest_off_signed_out">Use the built-in simulation</button></div></form></div>"#,
+        r#"<div class="card" style="max-width:420px;margin:24px auto"><div class="sectit">Sign in</div><p class="help">REST authority <b>{}</b> (development). Sign in with your own account; what you may do comes from the role the Owner gave it. This device keeps you signed in (in the system's credential store) until you sign out.</p>{}<form data-action="rest_login" data-payload="terms"><div class="field"><label>Email <input class="inp" name="email" type="email" autocomplete="username" required></label></div><div class="field"><label>Password <input class="inp" name="password" type="password" autocomplete="current-password" required></label></div><div class="row"><button class="btn primary" type="submit">Sign in</button><button class="btn" type="button" data-action="settings_rest_off_signed_out">Use the built-in simulation</button></div></form></div>"#,
         esc(&config.url),
         if message.is_empty() {
             String::new()

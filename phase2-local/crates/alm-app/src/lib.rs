@@ -102,7 +102,9 @@ pub fn run() {
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
-            let mut trial = Trial::open(&root, None)?;
+            let mut trial = Trial::open(&root, None).inspect_err(|error| {
+                eprintln!("ALM setup failed at {}: {error}", root.display());
+            })?;
             #[cfg(mobile)]
             {
                 trial.outputs = app.path().app_cache_dir()?.join("outputs");
@@ -116,9 +118,9 @@ pub fn run() {
                 let handle = app.state::<credentials::SecretsHandle>().0.clone();
                 trial.credentials = Box::new(credentials::PlatformStore(handle));
             }
-            if let Err(error) = trial.resume_session() {
-                trial.message = error;
-            }
+            // Signing in again talks to the auth service: done by the first `start`, not here,
+            // so the page gets the app's state at once.
+            trial.resume_pending = true;
             app.manage(Mutex::new(trial));
             Ok(())
         })

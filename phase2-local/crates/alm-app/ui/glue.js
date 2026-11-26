@@ -294,7 +294,25 @@ if (overlay) {
 // owns every date and time rule.
 const now = new Date();
 const pad = (n) => String(n).padStart(2, "0");
-run("start", {
-  today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-  offset: -now.getTimezoneOffset(),
-});
+// On Android the page can load before the app has finished opening this device's files; the
+// first start is retried until the app's state is there.
+async function begin(args, tries) {
+  try {
+    return await invoke("start", args);
+  } catch (error) {
+    if (tries > 0 && String(error).includes("state not managed")) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return begin(args, tries - 1);
+    }
+    throw error;
+  }
+}
+show(
+  begin(
+    {
+      today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+      offset: -now.getTimezoneOffset(),
+    },
+    120,
+  ),
+);
