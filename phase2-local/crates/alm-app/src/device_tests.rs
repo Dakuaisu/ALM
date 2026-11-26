@@ -583,3 +583,47 @@ fn owner_review_names_item_lines_from_the_pulled_catalog() {
         "{review}"
     );
 }
+
+/// The HTML's `logAct("sync", …)` entries for this device's copy: a rebuild from the
+/// authority's snapshot and a revocation are listed in the Owner's activity log, from this
+/// device, alongside the authority's own entries.
+#[test]
+fn rebuilds_and_revocations_are_logged_as_this_devices_sync_entries() {
+    let (_root, mut trial) = owner_with_history("device-sync-log");
+    let stored = trial.projection.load().unwrap().unwrap();
+    // The device holds a checkpoint the authority is behind (its history was reset).
+    trial
+        .projection
+        .apply(&alm_core::projection::ProjectionBatch {
+            role: Role::Owner,
+            checkpoint: 1_000_000,
+            as_of_ms: stored.as_of_ms,
+            snapshot: Some(stored.snapshot),
+            rows: None,
+        })
+        .unwrap();
+    let html = trial.render("settings").unwrap();
+    let device = trial.device_id.clone();
+    let rebuilt = html
+        .find(&format!(
+            r#"<td class="muted" title="account this device">{device}</td><td>sync</td><td>Rebuilt from the authority snapshot (checkpoint "#
+        ))
+        .unwrap_or_else(|| panic!("{html}"));
+    let posted = html.find("<td>bill-save</td>").unwrap();
+    assert!(rebuilt < posted, "newest first");
+    assert!(trial.projection.checkpoint().unwrap().unwrap().0 < 1_000_000);
+
+    trial.authority.set_granted(None);
+    trial.render("sales").unwrap();
+    assert!(trial.revoked);
+    trial.authority.set_granted(Some(Role::Owner));
+    trial.switch_account("trial-b").unwrap();
+    let html = trial.render("settings").unwrap();
+    let stopped = html
+        .find("<td>sync</td><td>Authority sync stopped: access revoked</td>")
+        .unwrap_or_else(|| panic!("{html}"));
+    assert!(stopped < html.find("Rebuilt from the authority snapshot").unwrap());
+    // A Manager sees no log.
+    trial.set_owner(false).unwrap();
+    assert!(!trial.render("settings").unwrap().contains("<td>sync</td>"));
+}

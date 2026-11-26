@@ -33,6 +33,11 @@ impl Trial {
         self.forget_queued()?;
         self.revoked = true;
         self.posted = crate::device::Posted::empty()?;
+        crate::device_log::record(
+            &self.device_root,
+            "sync",
+            "Authority sync stopped: access revoked",
+        );
         self.message = "Access to this account was revoked by the authority: its data was removed from this device.".into();
         Ok(())
     }

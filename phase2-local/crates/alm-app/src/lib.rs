@@ -23,6 +23,7 @@ mod credentials_tests;
 mod customers;
 mod dev_authority;
 mod device;
+mod device_log;
 #[cfg(test)]
 mod device_tests;
 #[cfg(test)]

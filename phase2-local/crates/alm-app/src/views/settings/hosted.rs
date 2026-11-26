@@ -1,6 +1,6 @@
 //! Settings cards that need hosted services (Supabase sync, Google Sheets, folder auto-save,
 //! Clear All Data), shown with the HTML's fields and buttons, disabled; and the activity log,
-//! read from the authority's rows.
+//! read from the authority's rows and this device's own sync entries.
 use crate::gst_print::esc;
 use crate::views::{CODE_INPUT, PASSWORD_INPUT, URL_INPUT};
 
@@ -70,7 +70,7 @@ pub fn data_safety_card() -> String {
     )
 }
 
-/// The authority's action log (`logAct`), newest first, the last 200 (Owner only, OPEN-004).
+/// The action log (`logAct`): the authority's rows and this device's sync entries, newest first, the last 200 (Owner only, OPEN-004).
 pub fn activity_card(
     role: alm_core::Role,
     rows: &[alm_core::projection::book::ActivityRow],
@@ -82,7 +82,7 @@ pub fn activity_card(
     }
     let shown: Vec<_> = rows.iter().rev().take(200).collect();
     let mut html = format!(
-        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help" style="margin-bottom:8px">Last {} recorded actions (bills, payments, goods received, adjustments, sync…). Newest first — this log is permanent; the authority records each action with the device and account it came from.</div><div class="tbl-wrap" style="max-height:40vh"><table aria-label="Activity log"><thead><tr><th>When</th><th>Device</th><th>Action</th><th>Details</th></tr></thead><tbody>"#,
+        r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help" style="margin-bottom:8px">Last {} recorded actions (bills, payments, goods received, adjustments, sync…). Newest first — this log is permanent; the authority records each action with the device and account it came from, and sync entries come from this device.</div><div class="tbl-wrap" style="max-height:40vh"><table aria-label="Activity log"><thead><tr><th>When</th><th>Device</th><th>Action</th><th>Details</th></tr></thead><tbody>"#,
         shown.len()
     );
     if shown.is_empty() {

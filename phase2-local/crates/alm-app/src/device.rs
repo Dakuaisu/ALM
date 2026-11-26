@@ -245,6 +245,19 @@ impl Trial {
                         .pull(role, None)
                         .map_err(|e| refused(&e))?;
                     self.store_batch(&fresh).map_err(refusal)?;
+                    // The HTML's "Rebuilt from cloud snapshot": logged when the authority's
+                    // history restarted behind this device, not for changes that only did not
+                    // fit (those rebuild quietly).
+                    if since.is_some_and(|since| batch.checkpoint < since) {
+                        crate::device_log::record(
+                            &self.device_root,
+                            "sync",
+                            &format!(
+                                "Rebuilt from the authority snapshot (checkpoint {})",
+                                fresh.checkpoint
+                            ),
+                        );
+                    }
                 }
                 Err(error) => return Err(refusal(error)),
             },

@@ -96,12 +96,17 @@ impl Trial {
                     Role::Manager => 0,
                 };
                 let activity = match role {
-                    Role::Owner => self
-                        .projected()?
-                        .snapshot
-                        .owner
-                        .map(|owner| owner.book.activity)
-                        .unwrap_or_default(),
+                    Role::Owner => {
+                        let mut rows = self
+                            .projected()?
+                            .snapshot
+                            .owner
+                            .map(|owner| owner.book.activity)
+                            .unwrap_or_default();
+                        rows.extend(crate::device_log::rows(&self.device_root, &self.device_id));
+                        rows.sort_by_key(|row| row.at_ms);
+                        rows
+                    }
                     Role::Manager => Vec::new(),
                 };
                 let profile = match role {
