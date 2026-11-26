@@ -1,5 +1,5 @@
-//! Rasterizes a core bill-image display list to PNG bytes with the bundled Noto Sans Regular
-//! and Bold (OFL, `assets/fonts/OFL.txt`). Only drawing happens here: positions, text and colours come from core.
+//! Rasterizes a core bill-image display list to PNG bytes with the bundled Noto Sans Regular,
+//! Bold and Italic (OFL, `assets/fonts/OFL.txt`). Only drawing happens here: positions, text and colours come from core.
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use alm_core::confirmation::bill_image::{BillImage, DrawOp, FontStyle, TextAlign};
 use tiny_skia::{
@@ -8,13 +8,15 @@ use tiny_skia::{
 
 const FONT: &[u8] = include_bytes!("../assets/fonts/NotoSans-Regular.ttf");
 const BOLD: &[u8] = include_bytes!("../assets/fonts/NotoSans-Bold.ttf");
+const ITALIC: &[u8] = include_bytes!("../assets/fonts/NotoSans-Italic.ttf");
 
 /// The face for a style: Noto Sans Bold for bold and semibold (the nearest bundled weight),
-/// Regular otherwise; italic is slanted from Regular.
+/// Noto Sans Italic for italic (the HTML's `italic` font), Regular otherwise.
 fn font(style: FontStyle) -> Result<FontRef<'static>, String> {
     let bytes = match style {
         FontStyle::Bold | FontStyle::SemiBold => BOLD,
-        FontStyle::Regular | FontStyle::Italic => FONT,
+        FontStyle::Italic => ITALIC,
+        FontStyle::Regular => FONT,
     };
     FontRef::try_from_slice(bytes).map_err(|error| error.to_string())
 }
@@ -79,11 +81,6 @@ fn draw_text(
         TextAlign::Right => px(x) - width,
     };
     let scaled = font.as_scaled(scale(font, size as f32 * factor));
-    let skew = if matches!(style, FontStyle::Italic) {
-        0.2
-    } else {
-        0.0
-    };
     let [_, r, g, b] = rgb.to_be_bytes();
     let (w, h) = (pixmap.width(), pixmap.height());
     {
@@ -104,10 +101,8 @@ fn draw_text(
             let bounds = outline.px_bounds();
             let pixels = pixmap.pixels_mut();
             outline.draw(|gx, gy, coverage| {
-                let row = bounds.min.y + gy as f32;
-                let shift = (baseline - row) * skew;
-                let col = (bounds.min.x + gx as f32 + shift).round();
-                let row = row.round();
+                let col = (bounds.min.x + gx as f32).round();
+                let row = (bounds.min.y + gy as f32).round();
                 if col < 0.0 || row < 0.0 || col >= w as f32 || row >= h as f32 {
                     return;
                 }
@@ -257,4 +252,32 @@ pub fn render_png(image: &BillImage) -> Result<Vec<u8>, String> {
         }
     }
     pixmap.encode_png().map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FontStyle, font, measure};
+    use ab_glyph::{Font, ScaleFont, point};
+
+    /// Italic text uses the bundled italic face (a slanted `l` is wider than an upright one),
+    /// not a skewed Regular.
+    #[test]
+    fn italic_text_uses_the_bundled_italic_face() {
+        let width = |style| {
+            let face = font(style).unwrap();
+            let scaled = face.as_scaled(super::scale(&face, 40.0));
+            let glyph = scaled
+                .glyph_id('l')
+                .with_scale_and_position(scaled.scale(), point(0.0, 40.0));
+            let bounds = face.outline_glyph(glyph).unwrap().px_bounds();
+            bounds.max.x - bounds.min.x
+        };
+        assert!(width(FontStyle::Italic) > 1.5 * width(FontStyle::Regular));
+        assert!(
+            (measure("You saved", 11, FontStyle::Italic)
+                - measure("You saved", 11, FontStyle::Regular))
+            .abs()
+                > 0.01
+        );
+    }
 }
