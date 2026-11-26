@@ -3463,3 +3463,135 @@ Development evidence only, synthetic data. Containers ran only on 127.0.0.1 (`po
 - **OPEN-013 still open:** bill image canvas layout and slanted italic; Latest-balance-only archive regeneration; product delete refused on posted bills; the HTML's `sync` and `clear` log entries; Clear All and the hosted sync / Google Sheets / folder cards inert; a Manager's customer picker from the device directory. Closed this round: New Bill rows vs total with crate rows; Piece-unit crates on New Bill; raw "+ Add Item" error; Android URL capitalisation (attributes). Added: several crate rows without an item line are refused by core and SQL alike although the app routes them to Owner review (the HTML allows them); Piece components whose pieces don't make whole packets are refused (the HTML counts fractional packets: stock here is whole packets); New Bill (provisional rates, ₹632.00) and Owner review (Owner rates, ₹634.50) still show different totals for the same bill, each adding up; the header keeps "ALM Manager · Synthetic trial · local only" and the footer "Local only" while signed in to the REST authority as the Owner.
 - **New OPEN-004 questions (not decided):** may a Manager's New Bill show crate rows' rates (sell prices, never costs) when a shop-wide draft carries them (core now prices them for any role; a Manager still cannot add crates); should a Manager's refusals name the Owner ("Only the Owner can do this.") or stay generic.
 - **NOT RUN:** macOS smoke (session locked); the soft keyboard's auto-capitalisation on device (`adb input` bypasses the IME; the attributes are tested in Rust); Manager role and force-stop/relaunch in this round's Android smoke; Supabase CLI stack; hosted Supabase; real WhatsApp handoff; real legacy data (OPEN-002); the frozen HTML runtime (OPEN-008); the Windows app on a real PC.
+
+## Crate-only bills, session header, CI robustness, full-invoice image, archive regeneration, and fractional packets held for an owner decision
+
+Development evidence only, synthetic data. Containers ran only on 127.0.0.1 (`postgres:17`, from Amazon ECR Public's mirror of the official image from step 4 on, with the distribution's pgTAP, plus `postgrest/postgrest` and `supabase/gotrue` v2.198.0). JWT secrets and passwords were generated per run outside the repository and removed afterwards. The Manager stays provisional-only, and no cost, buy rate, FIFO value or margin reaches a Manager.
+
+**Step 1 (`50ca625`). A bill of several crate rows and no item line.** Core `sale_terms` prices crate rows on their own when every row carries the name and rate copied onto it, as New Bill's rows do. An unpriced crate row on its own is still a `sell_crate` checkout, so the alm-store guard `crate_requires_exact_current_authority_approval` is unchanged. LocalAuthority follows the core. In SQL, migration `20261201000000_crate_only_bills.sql` changes one check in `post_sale_body` from "lines not empty" to "crate rows not empty", and the migration fails unless that text is found exactly once. A bill with neither lines nor crates is still refused. Added:
+- a core test (two rows, 6 packets, ₹1.00 loading, ₹906.00);
+- conformance case `crate_only_bill` (local, Postgres and REST: post, Manager denied, shortage refused, edit, cancel, restore);
+- differential scenario `crate_only_bills` (two and three rows, with and without loading, a shortage, edits up and down, a refused edit below the amount paid, cancel and restore);
+- two app invariant cases through Owner review;
+- a `crate_only` count in the randomized check.
+
+Workspace **898/0/3**. Server checks green: differential 14/14, conformance 40/40, REST 44/44.
+
+**Step 3 (`d703cd2`). Session header.** Every screen renders a `screen-session` template:
+- the account line is the signed-in email (or the synthetic account) with its role, or "Not signed in";
+- the authority line is "REST · <host[:port]>" of the REST URL (scheme, user, path and query stripped), or "Built-in simulation".
+
+The page copies these texts into the sidebar. `index.html` no longer says "local only". Tests cover the simulation for the Owner and the Manager on four screens, `session_header` for REST URLs (including escaping), and the REST end-to-end test for signed out, the Manager and the Owner. Workspace **899/0/3**.
+
+**Step 4 (`be227b4`). CI robustness.**
+- **(a) False positive in pgTAP `authority_commands` test 314.** The test searched the whole Manager pull as text for digit strings such as `3600`. The pull's clock (`as_of_ms`) sometimes contained one, which caused the ~0.5% chance failure. The test now walks every key at every level and every value except `as_of_ms`. It refuses cost, buy-rate, FIFO, margin, profit, quote and stock keys and words, and the fixture's Owner-only amounts. It is still one assertion, 326/326. I checked by hand that it catches a `unit_cost` key, `7000` inside an array and `3600` in `checkpoint`, and ignores `3600` in `as_of_ms`.
+- **(b) Image pulls.** `server_checks.sh` now pulls `public.ecr.aws/docker/library/postgres:17`, the same tag from the official image's mirror. It pulls every image first and retries once after 60 s. PostgREST has no official mirror there.
+
+**Step 5b (`ca7f8aa`). Archive regeneration beyond the Latest balance.** A backup now copies each bill's "as on bill date" previous balance and its date. The value is taken from the live `bill_preview` and copied, not recalculated. `ReadModel::archived_estimate` regenerates any archived bill, item and crate lines, in either balance mode, as `invBalanceMode` does after the HTML restores its DB:
+- Latest: the archived closing balance;
+- as on bill date (and Latest for a bill without a customer ledger): the previous balance plus the bill's own due, with the Prev Balance row.
+
+Archives written before this change can regenerate the Latest balance only. Test: an item bill and then, after a receipt, a crate-and-item bill, in both modes; both images are byte for byte equal to the live ones after a restore on a fresh device. Workspace **900/0/3**.
+
+**Step 5a (`a91741c`). Full-invoice bill image.** Core `invoice_image_layout` ports `invoiceHTML(s, simple)`, as `htmlToPNG` draws it at 760 CSS px and ×2, as a second display list beside the canvas layout. It covers:
+- the letter-spaced ESTIMATE heading, the CANCELLED badge and the Bill To block with mobile and address;
+- the items table (collapsed borders, auto column widths; the simple variant has 7 right-aligned columns, the full one adds Pcs/Pkt);
+- crate rows with their contents ("2cs X + 3pc Y") and the Items Total band;
+- the totals table: Loading/Delivery with "N pkt × ₹rate/pkt", Prev Balance as on date, Paid, and Balance Due or Total Due as on today with the live note;
+- the dashed "You saved" box and the footer.
+
+The italic is slanted as before, using a synthetic skew because the bundled Noto Sans has no italic face. The shared bill image, both live and regenerated from an archive, is now the simple invoice: that is what `waInvoice` shares, and the canvas remains its fallback. A new `RoundRect` op draws rounded borders. The loading rate and crate piece units are taken from the posted bill and copied into the archive. Workspace **902/0/3**.
+
+**Step 2: fractional packets are not implemented and need an owner decision first.** Crate pieces that don't make whole packets are still refused by core and SQL alike, with the same tests as before. Four things in the HTML can't be ported exactly into this app's integer model without changing displayed numbers or without a data-model choice the owner should make:
+
+1. **Totals in fractions of a paisa.** `saveBill` stores `loading = totalPkts × loadingRate` and `total = sub + load` as floats, and balances are `Math.round` over those floats. Example: Synthetic Soda with packetQty 3, a crate of "1 pc Soda" at ₹50, loading ₹1.49/pkt.
+   - HTML: `linePackets` = 1/3 packet, load = ₹0.49666…, total ₹50.49666…, displayed ₹50.5 (fmtN).
+   - In paise the total must be ₹50.50; per bill the display is the same.
+   - After three such unpaid bills, the HTML shows the customer's balance as `Math.round(151.49) = ₹151`, while paise rounding gives `₹151.50 → ₹152`. That difference would show on Customers, Counter, the ledger and the bill's Balance Due.
+   - The owner needs to choose: round the loading per bill to the paisa (displays ₹152), or keep exact fractions (a rational money type in the authority and in SQL).
+2. **The pack size is applied retroactively.** The HTML saves crate components without `packetQty`, so `linePackets` divides by the product's current packetQty every time. Example: a bill of 3 pc of a product with packetQty 6 takes 0.5 packet. If the product is later edited to packetQty 12, that old bill becomes 0.25 packet, and on-hand changes retroactively from 9.5 to 9.75 ("9 + 9pc" instead of "9 + 3pc"). This app freezes packs per sale (`crate_packs`), which is already a departure. Owner decision: keep frozen packs, or follow the HTML's retroactive recalculation.
+3. **Stock display.** The HTML shows fractional on-hand as `stockLabel` "9 + 3pc", shows `fmtN` packets ("0.33 pkt") in Sales and Reports, and shows a raw float on New Bill ("Items total (7.333333333333333 pkt)", L3909). Holding this exactly needs per-product opened-packet state in core and SQL: stock, FIFO lots, cancel/restore, in-place edits, physical counts, and every packet report (Stock, Reorder, Order Planner, Dashboard, monthly and daily movement, dated register, dead stock).
+   - The smallest exact representation I found keeps integer packets plus "pieces taken from the first remaining packet". Under the latest-movement rule for cancel and restore, nothing beyond each sale's allocations needs storing.
+   - It is still a schema change across core, SQL and projections, and it should not be built before decisions 1 and 2.
+4. **FIFO cost.** For 0.5 packet from a ₹30 lot, `fifoCostOf` gives ₹15 and `costAtSale` rounds per crate to two decimals. This is Owner-only, but it changes margins whenever a fraction spans two lots.
+
+Recorded as OPEN-004/OPEN-013 questions below. No test expectation changed for step 2.
+
+**Step 6. Smokes.**
+- **macOS: NOT RUN.** The session was locked (`CGSSessionScreenIsLocked` true).
+- **Android: run.** Setup:
+  - release APK built with `cargo tauri android build --apk --target aarch64 -- --locked --offline` at `a91741c`: 26,683,350 bytes unsigned, debug-signed outside the repository at 26,746,089 bytes;
+  - AVD `alm-trial` running headless; "System UI isn't responding" at boot, answered Wait;
+  - local stack as above with the shop seeded by `reset_and_seed_for_the_app`, synthetic `owner@alm.test` and `manager@alm.test`, and `adb reverse` for ports 3000 and 9999.
+
+  What happened:
+  - **Header.** Built-in simulation as the Owner: "trial · Owner" / "Built-in simulation". After Settings › REST: "Not signed in" / "REST · 127.0.0.1:3000". Signed in as the Owner: "owner@alm.test · Owner". Signed in as the Manager: "manager@alm.test · Manager".
+  - **Crates.** Saved "Lime Case" (1cs, ₹200), "Soda Case" (1cs, ₹90) and "Soda Pieces" (3pc, ₹50).
+  - **Crate-only bill with two crates.** New Bill for Synthetic Customer with Lime Case ×1 and Soda Case ×1 and no item line: ₹290.00, saved. Owner review showed both crate rows and Owner total ₹290.00. Confirmed with ₹20 paid: "Bill #1 confirmed by the REST authority". Sales showed #1, "2 items · 2 pkt", ₹290, balance ₹270.
+  - **Full-invoice image.** Image › share › Print preview showed the full invoice: both crate rows with contents, Items Total 2 / ₹290, Loading ₹0, Bill Amount ₹290, Paid ₹20, Balance Due ₹270.
+  - **Piece crate.** Soda Pieces ×1 priced ₹50.00 on New Bill. On this stack Synthetic Soda has no checkout pack terms, so 3 pc are 3 whole packets; **a fractional packet was not exercised**, since step 2 is held.
+  - **Relaunch.** After a force-stop and relaunch the session resumed silently, with the same header and bill #1 still listed.
+
+  Captures are in `phase2-local/target/android-smoke-r3/`. The emulator was killed and the containers and network removed.
+
+**Round summary.**
+
+- **Commits:** `50ca625` (step 1), `d703cd2` (3), `be227b4` (4), `ca7f8aa` (5b), `a91741c` (5a); this summary (results only). Step 2 has no commit (owner decision above).
+- **Tests:** 893/0/3 at the start; then 898, 899, 899, 900 and **902 passed, 0 failed, 3 ignored** at `a91741c`.
+- **Randomized (core and SQL, 1,000 bills per seed):**
+
+  | Seed | Posted | Crate-only | Edits | Cancels | Restores | Receipts | Steps |
+  |---|---|---|---|---|---|---|---|
+  | `0x5eed0001` | 783 | 68 | 194 | 50 | 28 | 139 | 1,534 |
+  | `0xc0ffee` | 780 | 54 | 174 | 56 | 40 | 149 | 1,550 |
+  | `0xbadcafe` | 767 | 58 | 148 | 51 | 33 | 166 | 1,496 |
+
+  Totals: 3,000 bills, 2,330 posted (was 2,047; crate-only bills now post), 180 crate-only, 4,580 steps, no difference between core and SQL.
+- **CI:** all completed runs succeeded:
+
+  | Commit | server checks | alm-app builds | alm-app windows build |
+  |---|---|---|---|
+  | `50ca625` | `45778566730` | `45778566612` | `45778566689` |
+  | `d703cd2` | `45781073017` | `45781073081` | `45781073099` |
+  | `be227b4` | `45782304555` | `45782304218` | `45782304247` |
+  | `ca7f8aa` | `45784091010` | `45784090949` | `45784091110` |
+  | `a91741c` | `45786088481` | `45786088431` | `45786088436` |
+
+  The results for this summary commit are in the final message.
+- **Clean-worktree check:** `git worktree add` at `a91741c`, with a separate target directory and `ALM_FROZEN_HTML` set: fmt clean, clippy `-D warnings` clean, **902 passed, 0 failed, 3 ignored**. The worktree and target directory were removed.
+- **Changed test expectations:**
+  - `screen_tests::bill_image_png_decodes_at_the_core_size_and_is_owner_only`: PNG 1520×974 → 1520×1166.
+  - `batch3::outputs_survive_backup_drop_and_fresh_restore_byte_for_byte`: 1520×974 → 1520×1274.
+  - `total_invariant_tests::image_total` now reads the invoice's "Amount" column, right-aligned within a pixel (th 7px vs td 8px padding).
+
+  All three are forced by step 5a: the shared image is now the full invoice.
+  - `rest_e2e::two_devices_through_rest_see_the_same_posted_rows` strips the per-device session line before comparing screens; it still asserts that line names the REST authority. Forced by step 3.
+  - pgTAP 314 is rewritten as a structural check. This fixes a false positive (step 4a).
+  - Mechanical type and field changes in alm-store test fixtures (`EstimateRow.label` is now a `Cow`; new archive fields set to `None`). No assertion changed.
+- **OPEN-013 still open:**
+  - fractional packets (step 2, owner decision);
+  - product delete refused on posted bills;
+  - the HTML's `sync` and `clear` log entries;
+  - Clear All and the hosted sync / Google Sheets / folder cards stay inert;
+  - a Manager's customer picker comes from the device directory;
+  - New Bill (provisional rates) and Owner review (Owner rates) still show different totals;
+  - archives written before `ca7f8aa` regenerate the Latest balance only.
+
+  Closed this round:
+  - crate-only bills;
+  - the header;
+  - the bill image's full-invoice layout and slanted italic;
+  - archive regeneration "as on bill date" and for crate lines.
+- **New OPEN-004 questions (not decided):**
+  - Rounding of fractional-packet loading charges: per bill to the paisa (balances can differ by ₹1 from the HTML's `Math.round` over floats, e.g. ₹152 vs ₹151 above), or exact fractions.
+  - Whether a product's pack-size change should change old bills' packet demands and stock, as in the HTML, or stay frozen per sale.
+  - Whether a Manager may see the full-invoice image's crate contents (item names, no amounts) if the image is ever offered to Managers; today it is Owner-only.
+- **NOT RUN:**
+  - macOS smoke (session locked);
+  - an Android fractional-packet case (step 2 held; the stack's products have no pack terms);
+  - a Manager posting attempt on Android (only the header was checked);
+  - the Supabase CLI stack and hosted Supabase;
+  - real WhatsApp handoff;
+  - real legacy data (OPEN-002);
+  - the frozen HTML runtime (OPEN-008);
+  - the Windows app on a real PC.
