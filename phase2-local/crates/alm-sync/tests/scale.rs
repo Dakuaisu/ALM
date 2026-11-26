@@ -38,6 +38,8 @@ const BASELINE_MS: &[(&str, u128)] = &[
     ("pull 20000 bills postgres", 14_320),
     ("post 20000 bills rest", 60_859),
     ("pull 20000 bills rest", 7_070),
+    ("pull changes after one bill rest", 10_281),
+    ("apply changes on the device", 1_520),
 ];
 
 fn check(step: &str, started: Instant, times: &mut Vec<(String, u128)>) {
@@ -177,13 +179,73 @@ fn twenty_thousand_bills_post_and_pull_through_rest_within_their_recorded_times(
     }
     check("post 20000 bills rest", started, &mut times);
     let started = Instant::now();
-    let pulled = rest.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    let full = rest.pull(Role::Owner, None).unwrap();
     check("pull 20000 bills rest", started, &mut times);
+    let pulled = full.snapshot.clone().unwrap();
     assert_eq!(pulled.sales.len(), usize::try_from(shop::BILLS).unwrap());
     assert_eq!(
         pulled.sales.iter().filter(|s| s.lines == 2).count(),
         usize::try_from(shop::BILLS / 10).unwrap()
     );
+
+    // One more bill, then the device's pull from its checkpoint: changes only.
+    use alm_core::projection::PulledRows;
+    let full_bytes = match &full.rows {
+        Some(PulledRows::Full { rows, hashes }) => {
+            rows.to_string().len() + hashes.to_string().len()
+        }
+        other => panic!("a full pull: {other:?}"),
+    };
+    let held = alm_sync::delta::device_view(None, &full)
+        .unwrap()
+        .unwrap()
+        .1;
+    let manager = alm_sync::RestAuthority::new(&rest_url, "")
+        .with_token(Role::Manager, &jwt::mint(&secret, "manager"));
+    let manager_full = manager.pull(Role::Manager, None).unwrap();
+    let request = RequestId::new("scale-rest-one-more").unwrap();
+    rest.submit(
+        Role::Owner,
+        &request,
+        &shop::bill(shop::BILLS + 1, &book, &snapshot),
+    )
+    .unwrap();
+    let started = Instant::now();
+    let changes = rest.pull(Role::Owner, Some(full.checkpoint)).unwrap();
+    check("pull changes after one bill rest", started, &mut times);
+    let Some(PulledRows::Changes(delta)) = &changes.rows else {
+        panic!("changes only: {:?}", changes.rows.is_some())
+    };
+    let delta_bytes = delta.to_string().len();
+    let started = Instant::now();
+    let (merged, _, all) = alm_sync::delta::device_view(Some(&held), &changes)
+        .unwrap()
+        .unwrap();
+    check("apply changes on the device", started, &mut times);
+    assert!(!all);
+    eprintln!(
+        "scale: full pull {full_bytes} bytes, changes after one bill {delta_bytes} bytes \
+         ({} rows added)",
+        delta["added"].as_object().map_or(0, serde_json::Map::len)
+    );
+    assert!(
+        delta_bytes * 10 < full_bytes,
+        "{delta_bytes} vs {full_bytes}"
+    );
+    let fresh = rest.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    assert_eq!(merged, fresh, "the device's rows equal a full pull");
+    // A Manager's pull from its checkpoint carries no costs.
+    let manager_changes = manager
+        .pull(Role::Manager, Some(manager_full.checkpoint))
+        .unwrap();
+    if let Some(PulledRows::Changes(delta)) = &manager_changes.rows {
+        let text = delta.to_string();
+        assert!(
+            !text.contains("\"owner\"") && !text.contains("cost"),
+            "{text}"
+        );
+    }
+    assert!(manager_changes.snapshot.is_none_or(|s| s.owner.is_none()));
     reset(&mut client);
 }
 

@@ -177,6 +177,7 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
                 checkpoint: 1,
                 as_of_ms: 1,
                 snapshot: Some(snapshot),
+                rows: None,
             })
             .unwrap();
     }

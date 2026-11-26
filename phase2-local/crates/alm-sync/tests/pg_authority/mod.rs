@@ -340,11 +340,12 @@ impl SalesAuthority for PgAuthority {
 
     fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
         let since = checkpoint.map(|c| i64::try_from(c).unwrap_or(i64::MAX));
-        let mut value = self.as_role(role, "SELECT public.pull_projection($1)", &[&since])?;
-        if !value["rows"].is_null() && value["full"] != json!(true) {
-            // Something changed: the device applies full replacements, so read everything.
-            value = self.as_role(role, "SELECT public.pull_projection($1)", &[&None::<i64>])?;
-        }
+        let claim = wire::role_claim(role);
+        let value = self.as_role(
+            role,
+            "SELECT public.pull_changes($1, $2)",
+            &[&since, &claim],
+        )?;
         let mut batch = wire::decode_batch(&value, role)?;
         batch.as_of_ms = 0;
         Ok(batch)

@@ -188,23 +188,15 @@ impl SalesAuthority for RestAuthority {
     }
 
     fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
-        let limit = checkpoint.is_none().then_some(FULL_PULL_LIMIT);
-        let mut value = self.rpc_within(
+        // From a checkpoint the authority answers with the changes since it (or everything when
+        // the checkpoint is older than its change history or for another role). A shop's full
+        // projection is tens of megabytes: either answer gets more time than a command.
+        let value = self.rpc_within(
             role,
-            "pull_projection",
-            &json!({"p_checkpoint": checkpoint}),
-            limit,
+            "pull_changes",
+            &json!({"p_checkpoint": checkpoint, "p_role": wire::role_claim(role)}),
+            Some(FULL_PULL_LIMIT),
         )?;
-        if !value["rows"].is_null() && value["full"] != json!(true) {
-            // Something changed: the device applies full replacements, so read everything. A
-            // shop's full projection is tens of megabytes: it gets more time than a command.
-            value = self.rpc_within(
-                role,
-                "pull_projection",
-                &json!({"p_checkpoint": null}),
-                Some(FULL_PULL_LIMIT),
-            )?;
-        }
         wire::decode_batch(&value, role)
     }
 }

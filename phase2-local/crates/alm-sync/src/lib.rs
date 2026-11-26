@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+pub mod delta;
 mod intent;
 #[cfg(feature = "local-authority")]
 mod local;

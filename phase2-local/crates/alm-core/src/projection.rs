@@ -197,6 +197,29 @@ pub struct ProjectionBatch {
     /// Milliseconds since the Unix epoch at the authority when the checkpoint was read.
     pub as_of_ms: u64,
     pub snapshot: Option<ProjectionSnapshot>,
+    /// The rows as sent, so a device can take later pulls as changes only: the full rows with
+    /// a snapshot, or the changes since the device's checkpoint (then `snapshot` is `None` and
+    /// the device rebuilds it from what it holds).
+    pub rows: Option<PulledRows>,
+}
+
+/// The rows a device keeps so later pulls can carry changes only: the rows object with every
+/// tracked list replaced by `{"$rows": [hash, ...]}`, and each list's `(hash, row JSON)` in
+/// order, by path (`sales`, `owner.book.sales`, ...).
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct StoredRows {
+    pub skeleton: String,
+    pub lists: std::collections::BTreeMap<String, Vec<(String, String)>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PulledRows {
+    /// The rows, and the authority's name (hash) for each row by list, which later changes use.
+    Full {
+        rows: serde_json::Value,
+        hashes: serde_json::Value,
+    },
+    Changes(serde_json::Value),
 }
 
 impl ConfirmationFixture {

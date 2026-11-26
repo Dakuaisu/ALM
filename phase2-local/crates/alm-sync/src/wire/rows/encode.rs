@@ -70,12 +70,22 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
 
 /// A batch as `pull_projection` returns it (always a full replacement when rows changed).
 pub fn encode_batch(batch: &ProjectionBatch) -> Value {
-    json!({
+    use alm_core::projection::PulledRows;
+    let mut value = json!({
         "role": role_claim(batch.role),
         "checkpoint": batch.checkpoint,
         "as_of_ms": batch.as_of_ms,
         "full": batch.snapshot.is_some(),
         "rows": batch.snapshot.as_ref().map(encode_rows),
         "removed": [],
-    })
+    });
+    match &batch.rows {
+        Some(PulledRows::Full { hashes, .. }) => value["row_hashes"] = hashes.clone(),
+        Some(PulledRows::Changes(delta)) => {
+            value["full"] = false.into();
+            value["delta"] = delta.clone();
+        }
+        None => {}
+    }
+    value
 }

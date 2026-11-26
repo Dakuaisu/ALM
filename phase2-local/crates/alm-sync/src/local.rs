@@ -70,6 +70,16 @@ pub struct LocalAuthority {
     /// The device and account the next commands come from (a server reads them from the
     /// request and its token).
     caller: (String, String),
+    /// The change history pulls are answered from (rebuilt from scratch after a restart).
+    changes: std::sync::Mutex<crate::delta::Tracker>,
+}
+
+impl LocalAuthority {
+    /// Keeps `revisions` of change history (pulls from older checkpoints get everything).
+    #[doc(hidden)]
+    pub fn keep_changes(&mut self, revisions: u64) {
+        self.changes = std::sync::Mutex::new(crate::delta::Tracker::new(revisions));
+    }
 }
 
 fn system_clock() -> u64 {
@@ -102,6 +112,7 @@ impl LocalAuthority {
             lose_next: false,
             granted: Some(Role::Owner),
             caller: (String::new(), String::new()),
+            changes: std::sync::Mutex::new(crate::delta::Tracker::default()),
         }
     }
 

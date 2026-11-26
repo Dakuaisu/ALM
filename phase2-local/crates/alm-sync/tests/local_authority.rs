@@ -344,3 +344,99 @@ fn legacy_imports_reconcile_against_the_authority_rows() {
         );
     }
 }
+
+/// A device pull from a checkpoint carries only what changed: the device rebuilds from what it
+/// holds and equals a full pull; a checkpoint older than the kept history, or rows held for
+/// another role, get everything again; a Manager's changes carry no Owner rows.
+#[test]
+fn pulls_from_a_checkpoint_carry_only_the_changes() {
+    use alm_core::projection::PulledRows;
+    let mut authority = seeded();
+    for n in 1..=10 {
+        let intent = sale(&authority, n, 1);
+        authority
+            .post_sale(Role::Owner, &request(&format!("trial-{n}")), &intent)
+            .unwrap();
+    }
+    let first = authority.pull(Role::Owner, None).unwrap();
+    let mut held = alm_sync::delta::device_view(None, &first)
+        .unwrap()
+        .unwrap()
+        .1;
+    let full_size = match &first.rows {
+        Some(PulledRows::Full { rows, .. }) => rows.to_string().len(),
+        other => panic!("a full first pull: {other:?}"),
+    };
+    let manager_first = authority.pull(Role::Manager, None).unwrap();
+    let mut manager_held = alm_sync::delta::device_view(None, &manager_first)
+        .unwrap()
+        .unwrap()
+        .1;
+    let mut since = first.checkpoint;
+    let mut manager_since = manager_first.checkpoint;
+    for (n, tag) in [(11, "trial-11"), (12, "trial-12")] {
+        let intent = sale(&authority, n, 1);
+        authority
+            .post_sale(Role::Owner, &request(tag), &intent)
+            .unwrap();
+        let batch = authority.pull(Role::Owner, Some(since)).unwrap();
+        let Some(PulledRows::Changes(delta)) = &batch.rows else {
+            panic!("changes only: {:?}", batch.rows)
+        };
+        let rows_held: usize = held.lists.values().map(Vec::len).sum();
+        let added = delta["added"].as_object().unwrap().len();
+        assert!(
+            added > 0 && added < rows_held,
+            "{added} of {rows_held} rows"
+        );
+        assert!(full_size > 0);
+        let (snapshot, rows, full) = alm_sync::delta::device_view(Some(&held), &batch)
+            .unwrap()
+            .unwrap();
+        assert!(!full);
+        held.skeleton = rows.skeleton;
+        held.lists.extend(rows.lists);
+        let fresh = authority.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+        assert_eq!(snapshot, fresh);
+        since = batch.checkpoint;
+        let manager = authority.pull(Role::Manager, Some(manager_since)).unwrap();
+        if let Some(PulledRows::Changes(delta)) = &manager.rows {
+            let text = delta.to_string();
+            assert!(
+                !text.contains("\"owner\"") && !text.contains("cost"),
+                "{text}"
+            );
+            let (snapshot, rows, _) = alm_sync::delta::device_view(Some(&manager_held), &manager)
+                .unwrap()
+                .unwrap();
+            manager_held.skeleton = rows.skeleton;
+            manager_held.lists.extend(rows.lists);
+            assert!(snapshot.owner.is_none());
+        }
+        manager_since = manager.checkpoint;
+    }
+    // Nothing new: no rows at all.
+    assert_eq!(authority.pull(Role::Owner, Some(since)).unwrap().rows, None);
+    // History older than kept: everything again.
+    authority.keep_changes(1);
+    let _ = authority.pull(Role::Owner, None).unwrap();
+    for (n, tag) in [(13, "trial-13"), (14, "trial-14"), (15, "trial-15")] {
+        let intent = sale(&authority, n, 1);
+        authority
+            .post_sale(Role::Owner, &request(tag), &intent)
+            .unwrap();
+        let _ = authority.pull(Role::Owner, None).unwrap();
+    }
+    assert!(matches!(
+        authority.pull(Role::Owner, Some(since)).unwrap().rows,
+        Some(PulledRows::Full { .. })
+    ));
+    // Rows held for the Owner role while the authority now grants a Manager: everything.
+    let latest = authority.pull(Role::Owner, None).unwrap().checkpoint;
+    authority.set_granted(Some(Role::Manager));
+    let batch = authority
+        .pull(Role::Owner, Some(latest.saturating_sub(1)))
+        .unwrap();
+    assert_eq!(batch.role, Role::Manager);
+    assert!(matches!(batch.rows, Some(PulledRows::Full { .. })));
+}

@@ -17,8 +17,9 @@ impl ProjectionStore {
     pub fn purge(&mut self) -> Result<(), DraftStorageError> {
         self.conn.pragma_update(None, "secure_delete", true)?;
         self.clear()?;
-        self.conn
-            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")?;
+        self.conn.execute_batch(
+            "PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);",
+        )?;
         Ok(())
     }
 

@@ -148,6 +148,7 @@ fn batch(role: Role, checkpoint: u64, snapshot: Option<ProjectionSnapshot>) -> P
         checkpoint,
         as_of_ms: 1_700_000_000_000 + checkpoint,
         snapshot,
+        rows: None,
     }
 }
 

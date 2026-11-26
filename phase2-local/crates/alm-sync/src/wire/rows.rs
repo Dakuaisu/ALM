@@ -41,7 +41,11 @@ fn date(value: &Value) -> Result<BillDate, AuthorityError> {
 }
 
 #[allow(clippy::too_many_lines)]
-fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, AuthorityError> {
+/// One snapshot's rows in the wire format, for `role`.
+///
+/// # Errors
+/// `Invalid` for rows no authority sends.
+pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, AuthorityError> {
     let mut s = ProjectionSnapshot {
         sales_unsupported: match &d["sales_unsupported"] {
             Value::Null => None,
@@ -203,14 +207,33 @@ pub fn decode_batch(value: &Value, requested: Role) -> Result<ProjectionBatch, A
         Some(text) if text == role_claim(Role::Manager) => Role::Manager,
         _ => return Err(AuthorityError::Invalid),
     };
-    let snapshot = match &value["rows"] {
-        Value::Null => None,
-        rows => Some(decode_rows(rows, role)?),
+    // Changes since the device's checkpoint: it rebuilds the snapshot from what it holds.
+    if value["delta"].is_object() {
+        return Ok(ProjectionBatch {
+            role,
+            checkpoint: number(&value["checkpoint"]),
+            as_of_ms: number(&value["as_of_ms"]),
+            snapshot: None,
+            rows: Some(alm_core::projection::PulledRows::Changes(
+                value["delta"].clone(),
+            )),
+        });
+    }
+    let (snapshot, rows) = match &value["rows"] {
+        Value::Null => (None, None),
+        rows => (
+            Some(decode_rows(rows, role)?),
+            Some(alm_core::projection::PulledRows::Full {
+                rows: rows.clone(),
+                hashes: value["row_hashes"].clone(),
+            }),
+        ),
     };
     Ok(ProjectionBatch {
         role,
         checkpoint: number(&value["checkpoint"]),
         as_of_ms: number(&value["as_of_ms"]),
         snapshot,
+        rows,
     })
 }

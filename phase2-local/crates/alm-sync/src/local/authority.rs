@@ -96,6 +96,7 @@ impl SalesAuthority for LocalAuthority {
             (Some(Role::Manager), _) | (_, Role::Manager) => Role::Manager,
             (Some(Role::Owner), Role::Owner) => Role::Owner,
         };
+        let requested = role;
         let snapshot = if checkpoint == Some(self.checkpoint) {
             None
         } else {
@@ -117,7 +118,27 @@ impl SalesAuthority for LocalAuthority {
             checkpoint: self.checkpoint,
             as_of_ms: (self.clock)(),
             snapshot,
+            rows: None,
         };
-        wire::decode_batch(&wire::encode_batch(&batch), role)
+        let mut value = wire::encode_batch(&batch);
+        if !value["rows"].is_null() {
+            let claim = crate::wire::role_claim(role);
+            let mut changes = self
+                .changes
+                .lock()
+                .map_err(|_| AuthorityError::Unavailable)?;
+            changes.sync(claim, self.checkpoint, &value["rows"]);
+            // Changes only for a device holding this role's rows at a retained checkpoint.
+            if let Some(base) = checkpoint.filter(|_| role == requested)
+                && let Some(delta) = changes.delta(claim, base, &value["rows"])
+            {
+                value["full"] = false.into();
+                value["rows"] = serde_json::Value::Null;
+                value["delta"] = delta;
+            } else {
+                value["row_hashes"] = crate::delta::hashes(&value["rows"]);
+            }
+        }
+        wire::decode_batch(&value, role)
     }
 }

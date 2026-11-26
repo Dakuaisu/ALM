@@ -196,6 +196,54 @@ fn compare_book(out: &mut Vec<String>, core: &OwnerBook, sql: &OwnerBook) {
     differ(out, "book.legacy", &c.legacy, &s.legacy);
 }
 
+/// A device following one authority as one role by incremental pulls.
+#[derive(Default)]
+struct Device {
+    checkpoint: Option<u64>,
+    rows: Option<alm_core::projection::StoredRows>,
+    snapshot: Option<ProjectionSnapshot>,
+    changes: usize,
+}
+
+/// Pulls from `device`'s checkpoint, rebuilds what it holds, and compares it with a full pull.
+fn follow<A: SalesAuthority>(a: &A, role: Role, device: &mut Device) -> Result<(), String> {
+    use alm_core::projection::PulledRows;
+    let batch = a
+        .pull(role, device.checkpoint)
+        .map_err(|e| format!("{e:?}"))?;
+    if let (Role::Manager, Some(PulledRows::Changes(delta))) = (role, &batch.rows) {
+        let text = delta.to_string();
+        for word in ["\"owner\"", "cost", "buy", "margin", "fifo", "lots"] {
+            if text.contains(word) {
+                return Err(format!("Manager changes carry {word}"));
+            }
+        }
+    }
+    let view = alm_sync::delta::device_view(device.rows.as_ref(), &batch)
+        .map_err(|_| "changes do not fit what the device holds".to_owned())?;
+    if let Some((snapshot, rows, full)) = view {
+        if full {
+            device.rows = Some(rows);
+        } else {
+            device.changes += 1;
+            let held = device.rows.as_mut().ok_or("no rows held")?;
+            held.skeleton = rows.skeleton;
+            held.lists.extend(rows.lists);
+        }
+        device.snapshot = Some(snapshot);
+    }
+    device.checkpoint = Some(batch.checkpoint);
+    let full = a
+        .pull(role, None)
+        .map_err(|e| format!("{e:?}"))?
+        .snapshot
+        .ok_or("a full pull")?;
+    if device.snapshot.as_ref() != Some(&full) {
+        return Err("the incremental view differs from a full pull".into());
+    }
+    Ok(())
+}
+
 /// Both authorities, seeded with the same shop, and the differences seen so far.
 pub struct Pair {
     pub local: LocalAuthority,
@@ -203,6 +251,8 @@ pub struct Pair {
     scenario: &'static str,
     steps: usize,
     report: Vec<String>,
+    /// Owner and Manager devices of the core, then of SQL.
+    devices: [Device; 4],
 }
 
 impl Pair {
@@ -228,6 +278,7 @@ impl Pair {
             scenario,
             steps: 0,
             report: Vec::new(),
+            devices: Default::default(),
         };
         pair.check("seed", "ok", "ok");
         Some(pair)
@@ -239,6 +290,21 @@ impl Pair {
             out.push(format!("  outcome:\n    core {core}\n    sql  {sql}"));
         }
         out.extend(compare(&local_effects(&self.local), &pg_effects(&self.pg)));
+        for (i, role) in [Role::Owner, Role::Manager, Role::Owner, Role::Manager]
+            .into_iter()
+            .enumerate()
+        {
+            let device = &mut self.devices[i];
+            let result = if i < 2 {
+                follow(&self.local, role, device)
+            } else {
+                follow(&self.pg, role, device)
+            };
+            if let Err(error) = result {
+                let side = if i < 2 { "core" } else { "sql" };
+                out.push(format!("  incremental pull ({side}, {role:?}): {error}"));
+            }
+        }
         if !out.is_empty() {
             self.report.push(format!(
                 "[{}] step {} {step}\n{}",
@@ -309,6 +375,11 @@ impl Pair {
 
     /// Fails with every difference seen.
     pub fn finish(self) {
+        if self.steps > 1 {
+            for (i, device) in self.devices.iter().enumerate().filter(|(i, _)| i % 2 == 0) {
+                assert!(device.changes > 0, "device {i} never took changes only");
+            }
+        }
         assert!(
             self.report.is_empty(),
             "SQL differs from the core:\n{}",

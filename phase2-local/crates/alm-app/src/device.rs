@@ -3,6 +3,7 @@
 //! A stored intent is only ever re-sent by an explicit retry with its original request ID.
 use alm_core::confirmation::ConfirmationFixture;
 use alm_core::confirmation::manual_cashbook::ManualCashBook;
+use alm_core::projection::ProjectionBatch;
 use alm_core::{Money, ProductId, Role};
 use alm_store::{OutboxStatus, ProjectionStore, StoredProjection};
 use alm_sync::{AuthorityError, Intent, Lookup, Outcome, RequestId};
@@ -233,16 +234,17 @@ impl Trial {
             // The authority grants less than this device holds: drop it before anything else.
             Ok(batch) if batch.role != role => return self.downgrade(batch.role),
             Err(AuthorityError::Denied) => return self.revoke(),
-            Ok(batch) => match self.projection.apply(&batch) {
+            Ok(batch) => match self.store_batch(&batch) {
                 Ok(()) => {}
-                // The authority's checkpoint is behind ours (its history was reset): rebuild.
+                // The authority's checkpoint is behind ours (its history was reset), or its
+                // changes do not fit what this device holds: rebuild.
                 Err(alm_store::ProjectionError::Rejected) if batch.role == role => {
                     self.projection.clear().map_err(text)?;
                     let fresh = self
                         .sales_authority()
                         .pull(role, None)
                         .map_err(|e| refused(&e))?;
-                    self.projection.apply(&fresh).map_err(debug)?;
+                    self.store_batch(&fresh).map_err(debug)?;
                 }
                 Err(error) => return Err(debug(error)),
             },
@@ -255,6 +257,32 @@ impl Trial {
             Err(error) => return Err(refused(&error)),
         }
         self.rebuild_posted()
+    }
+
+    /// Applies a pulled batch with its checkpoint in one transaction: full rows replace what the
+    /// device holds; changes are merged into the rows it holds first.
+    pub(crate) fn store_batch(
+        &mut self,
+        batch: &ProjectionBatch,
+    ) -> Result<(), alm_store::ProjectionError> {
+        use alm_store::ProjectionError::Rejected;
+        if batch.rows.is_none() {
+            return self.projection.apply(batch);
+        }
+        let held = self.projection.stored_rows()?;
+        let Some((snapshot, rows, full)) =
+            alm_sync::delta::device_view(held.as_ref(), batch).map_err(|_| Rejected)?
+        else {
+            return self.projection.apply(batch);
+        };
+        let merged = ProjectionBatch {
+            role: batch.role,
+            checkpoint: batch.checkpoint,
+            as_of_ms: batch.as_of_ms,
+            snapshot: Some(snapshot),
+            rows: None,
+        };
+        self.projection.apply_with_rows(&merged, &rows, full)
     }
 
     /// The stored projection for the current role (refreshed first).

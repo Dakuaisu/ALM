@@ -518,6 +518,7 @@ fn a_manager_drafts_from_the_catalog_its_device_pulled() {
             checkpoint: stored.checkpoint + 1,
             as_of_ms: stored.as_of_ms,
             snapshot: Some(snapshot),
+            rows: None,
         })
         .unwrap();
     assert!(

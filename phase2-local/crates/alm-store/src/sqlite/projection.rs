@@ -9,7 +9,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 
 use alm_core::Role;
-use alm_core::projection::{ProjectionBatch, ProjectionSnapshot};
+use alm_core::projection::{ProjectionBatch, ProjectionSnapshot, StoredRows};
 
 use super::{DraftStorageError, connect, scoped::account_key};
 
@@ -20,8 +20,8 @@ mod schema;
 mod write;
 use read::{date, id, money, read_snapshot};
 use schema::{
-    BOOK_TABLES, DRAFT_TEXT_TABLES, OWNER_BOOK_TABLES, OWNER_TABLES, SHARED_TABLES, clear_rows,
-    has_numeric_draft_ids,
+    BOOK_TABLES, DRAFT_TEXT_TABLES, OWNER_BOOK_TABLES, OWNER_TABLES, RAW_TABLES, SHARED_TABLES,
+    clear_rows, has_numeric_draft_ids,
 };
 use write::write_snapshot;
 
@@ -160,6 +160,7 @@ impl ProjectionStore {
             tx.execute("DELETE FROM projection_checkpoint", [])?;
             tx.commit()?;
         }
+        conn.execute_batch(RAW_TABLES)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self { conn, role })
     }
@@ -210,6 +211,9 @@ impl ProjectionStore {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         if let Some(snapshot) = &batch.snapshot {
             write_snapshot(&tx, self.role, snapshot)?;
+            // Rows that no longer match the snapshot: the next pull is a full one.
+            tx.execute("DELETE FROM projection_raw_rows", [])?;
+            tx.execute("DELETE FROM projection_raw_skeleton", [])?;
         }
         tx.execute(
             "INSERT INTO projection_checkpoint (id, checkpoint, as_of_ms) VALUES (1, ?1, ?2)
@@ -218,6 +222,100 @@ impl ProjectionStore {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Applies a batch with the rows it came as, in one transaction: the snapshot replaces every
+    /// typed row, `rows` replaces the stored skeleton and the lists it holds (every list when
+    /// `full`, else only those), and the checkpoint moves.
+    ///
+    /// # Errors
+    /// As [`Self::apply`]; also `Rejected` without a snapshot, or for owner rows on a Manager
+    /// file.
+    pub fn apply_with_rows(
+        &mut self,
+        batch: &ProjectionBatch,
+        rows: &StoredRows,
+        full: bool,
+    ) -> Result<(), ProjectionError> {
+        if batch.role != self.role || batch.snapshot.is_none() {
+            return Err(ProjectionError::Rejected);
+        }
+        if let Some((stored, _)) = self.checkpoint()?
+            && batch.checkpoint < stored
+        {
+            return Err(ProjectionError::Rejected);
+        }
+        if self.role != Role::Owner
+            && (batch.snapshot.as_ref().is_some_and(|s| s.owner.is_some())
+                || rows.lists.keys().any(|path| path.starts_with("owner")))
+        {
+            return Err(ProjectionError::Rejected);
+        }
+        let checkpoint = signed(batch.checkpoint)?;
+        let as_of = signed(batch.as_of_ms)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(snapshot) = &batch.snapshot {
+            write_snapshot(&tx, self.role, snapshot)?;
+        }
+        if full {
+            tx.execute("DELETE FROM projection_raw_rows", [])?;
+        }
+        {
+            let mut delete = tx.prepare("DELETE FROM projection_raw_rows WHERE path = ?1")?;
+            let mut insert =
+                tx.prepare("INSERT INTO projection_raw_rows VALUES (?1, ?2, ?3, ?4)")?;
+            for (path, list) in &rows.lists {
+                if !full {
+                    delete.execute([path])?;
+                }
+                for (position, (hash, body)) in list.iter().enumerate() {
+                    insert.execute((path, signed(position as u64)?, hash, body))?;
+                }
+            }
+        }
+        tx.execute(
+            "INSERT INTO projection_raw_skeleton VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET skeleton = ?1",
+            [&rows.skeleton],
+        )?;
+        tx.execute(
+            "INSERT INTO projection_checkpoint (id, checkpoint, as_of_ms) VALUES (1, ?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET checkpoint = ?1, as_of_ms = ?2",
+            (checkpoint, as_of),
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// The rows the stored projection came as, if the last full batch carried them.
+    ///
+    /// # Errors
+    /// Fails on storage errors.
+    pub fn stored_rows(&self) -> Result<Option<StoredRows>, DraftStorageError> {
+        let skeleton: Option<String> = self
+            .conn
+            .query_row("SELECT skeleton FROM projection_raw_skeleton", [], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        let Some(skeleton) = skeleton else {
+            return Ok(None);
+        };
+        let mut lists: std::collections::BTreeMap<String, Vec<(String, String)>> =
+            std::collections::BTreeMap::new();
+        let mut query = self
+            .conn
+            .prepare("SELECT path, hash, body FROM projection_raw_rows ORDER BY path, position")?;
+        let mut cursor = query.query([])?;
+        while let Some(row) = cursor.next()? {
+            lists
+                .entry(row.get(0)?)
+                .or_default()
+                .push((row.get(1)?, row.get(2)?));
+        }
+        Ok(Some(StoredRows { skeleton, lists }))
     }
 
     /// Drops every projected row and the checkpoint, so the next pull rebuilds from scratch.

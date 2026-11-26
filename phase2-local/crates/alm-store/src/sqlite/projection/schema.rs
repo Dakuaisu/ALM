@@ -83,6 +83,18 @@ CREATE TABLE IF NOT EXISTS owner_purchase_lines (
 CREATE TABLE IF NOT EXISTS owner_state_sections (section TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
 ";
 
+/// The rows as the authority sent them (each list's rows by content hash), so later pulls can
+/// carry changes only; created on older files too. A Manager file's rows are the Manager's.
+pub(super) const RAW_TABLES: &str = "
+CREATE TABLE IF NOT EXISTS projection_raw_skeleton (
+    id INTEGER PRIMARY KEY CHECK (id = 1), skeleton TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS projection_raw_rows (
+    path TEXT NOT NULL, position INTEGER NOT NULL, hash TEXT NOT NULL, body TEXT NOT NULL,
+    PRIMARY KEY (path, position)
+) STRICT;
+";
+
 pub(super) const OWNER_TABLES: &str = "
 CREATE TABLE owner_sale_costs (
     position INTEGER PRIMARY KEY, draft_id TEXT NOT NULL UNIQUE, revenue INTEGER NOT NULL,
@@ -91,7 +103,9 @@ CREATE TABLE owner_sale_costs (
 CREATE TABLE owner_stock_value (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER) STRICT;
 ";
 
-const PROJECTED: [&str; 13] = [
+const PROJECTED: [&str; 15] = [
+    "projection_raw_skeleton",
+    "projection_raw_rows",
     "projected_notes",
     "projected_customer_contacts",
     "projected_sales",

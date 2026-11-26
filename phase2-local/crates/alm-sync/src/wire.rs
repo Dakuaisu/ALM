@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use crate::{AuthorityError, Intent, Outcome, SaleReceipt};
 
 mod rows;
-pub use rows::{decode_batch, encode_batch};
+pub use rows::{decode_batch, decode_rows, encode_batch};
 
 fn day(date: alm_core::BillDate) -> Value {
     json!(date.to_string())
