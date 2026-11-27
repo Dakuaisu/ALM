@@ -1,7 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 #[path = "milestone_d_replay/exports.rs"]
 mod exports;
@@ -20,8 +26,6 @@ mod sales_output;
 #[path = "common/sqlite_list.rs"]
 mod sqlite_list;
 
-static NEXT_REPLAY: AtomicU64 = AtomicU64::new(0);
-
 struct ReplayDirectory {
     path: PathBuf,
     retain: bool,
@@ -37,9 +41,8 @@ impl ReplayDirectory {
             .duration_since(UNIX_EPOCH)
             .expect("system clock is after the Unix epoch")
             .as_nanos();
-        let sequence = NEXT_REPLAY.fetch_add(1, Ordering::Relaxed);
-        let path = target.join(format!("milestone-d-replay-{nonce}-{sequence}"));
-        fs::create_dir(&path).expect("create unique replay directory");
+        let path = scratch_retry::create(&target, &format!("milestone-d-replay-{nonce}-"))
+            .expect("create unique replay directory");
         Self {
             path,
             retain: std::env::var("ALM_REPLAY_QUICKLOOK_PNG").as_deref() == Ok("1"),

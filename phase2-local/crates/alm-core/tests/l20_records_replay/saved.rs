@@ -1,7 +1,12 @@
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -9,22 +14,13 @@ pub(super) struct Saved(PathBuf);
 
 impl Saved {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .unwrap();
         let target = root.join("target");
         fs::create_dir_all(&target).unwrap();
         assert_eq!(target.canonicalize().unwrap(), target);
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = target.join(format!("l20-records-{}-{seq}", std::process::id()));
-            match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
-                Err(err) if err.kind() == ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create {}: {err}", path.display()),
-            }
-        }
+        Self(scratch_retry::create(&target, "l20-records-").expect("create records scratch"))
     }
 
     pub fn write(&self, name: &str, data: &impl Serialize) {

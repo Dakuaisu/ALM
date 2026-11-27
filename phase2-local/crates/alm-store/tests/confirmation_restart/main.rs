@@ -8,7 +8,7 @@ use alm_store::SqliteSales;
 use std::io::{self, BufRead, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::{env, fs, process};
+use std::{env, fs};
 
 mod bill_guard;
 mod checkout;
@@ -246,20 +246,19 @@ fn load_pending(path: &Path) -> OwnerRequest {
 
 struct Scratch(PathBuf);
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 impl Scratch {
     fn new() -> Self {
         let target = target();
         fs::create_dir_all(&target).expect("create manifest target directory");
         assert_eq!(target.canonicalize().unwrap(), target);
-        for sequence in 0_u64.. {
-            let dir = target.join(format!("{PREFIX}{}-{sequence}", process::id()));
-            match fs::create_dir(&dir) {
-                Ok(()) => return Self(dir),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create synthetic scratch directory: {err}"),
-            }
-        }
-        unreachable!("scratch sequence exhausted");
+        Self(scratch_retry::create(&target, PREFIX).expect("create synthetic scratch directory"))
     }
 }
 

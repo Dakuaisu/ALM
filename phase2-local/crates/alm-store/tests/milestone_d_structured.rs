@@ -1,6 +1,13 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 use alm_core::Role;
 use alm_core::synthetic_read_model::{Error, ScopedArchiveInput};
 use alm_store::synthetic_read_model::Store;
@@ -33,8 +40,7 @@ fn structured_exports_survive_fresh_recovery() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = root.join(format!("structured-d-{}-{nonce}", std::process::id()));
-    fs::create_dir(&dir).unwrap();
+    let dir = scratch_retry::create(&root, &format!("structured-d-{nonce}-")).unwrap();
     let source = dir.join("source.json");
     let restored = dir.join("restored.json");
     let fixture = fixture::cancelled_fixture();

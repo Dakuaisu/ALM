@@ -132,6 +132,13 @@ fn a_manager_saves_a_standalone_receipt_from_its_form() {
     );
 }
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 fn receipt_terms() -> crate::receipts::Terms {
     crate::receipts::Terms {
         customer: "batch1-customer".into(),
@@ -143,8 +150,7 @@ fn receipt_terms() -> crate::receipts::Terms {
 
 #[test]
 fn new_bill_renders_connected_choices_in_source_layout() {
-    let root = std::env::temp_dir().join(format!("alm-bill-markup-{}", std::process::id()));
-    std::fs::create_dir(&root).unwrap();
+    let root = scratch_retry::create(&std::env::temp_dir(), "alm-bill-markup-").unwrap();
     let mut trial = Trial::open(&root, Some(day())).unwrap();
     let mut html = trial.render("bill").unwrap();
     html += &trial.bill_customer_search("");

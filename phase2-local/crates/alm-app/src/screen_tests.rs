@@ -125,8 +125,7 @@ fn manager_sees_customer_balances_without_the_ledger() {
 
 #[test]
 fn opening_balance_input_uses_the_core_parser_and_owner_gate() {
-    let root = std::env::temp_dir().join(format!("alm-opening-{}", std::process::id()));
-    std::fs::create_dir(&root).unwrap();
+    let root = scratch_retry::create(&std::env::temp_dir(), "alm-opening-").unwrap();
     let mut trial = crate::Trial::open(&root, Some(day())).unwrap();
     let terms = |amount: &str| crate::customers::Opening {
         customer: "batch1-market".into(),
@@ -157,13 +156,16 @@ fn opening_balance_input_uses_the_core_parser_and_owner_gate() {
 
 pub(crate) struct Root(pub std::path::PathBuf);
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 impl Root {
     pub(crate) fn new(label: &str) -> Self {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("alm-{label}-{}-{serial}", std::process::id()));
-        std::fs::create_dir(&path).unwrap();
+        let path = scratch_retry::create(&std::env::temp_dir(), &format!("alm-{label}-")).unwrap();
         Self(path)
     }
 }

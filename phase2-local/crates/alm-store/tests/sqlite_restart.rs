@@ -3,8 +3,7 @@
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::process::Command;
 use std::{env, fs, io};
 
 use alm_core::{
@@ -20,6 +19,13 @@ mod customer;
 mod reconnect;
 #[path = "common/sqlite_list.rs"]
 mod sqlite_list;
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 const WORKER_MODE: &str = "ALM_SQLITE_RESTART_MODE";
 const WORKER_DB: &str = "ALM_SQLITE_RESTART_DB";
@@ -37,7 +43,6 @@ struct ScratchDir(PathBuf);
 
 impl ScratchDir {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = target_dir();
         fs::create_dir_all(&target).expect("create manifest target directory");
         assert_eq!(
@@ -46,15 +51,7 @@ impl ScratchDir {
             "scratch must stay inside the manifest directory",
         );
 
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = target.join(format!("{SCRATCH_PREFIX}{}-{seq}", process::id()));
-            match fs::create_dir(&dir) {
-                Ok(()) => return Self(dir),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create scratch directory {}: {err}", dir.display()),
-            }
-        }
+        Self(scratch_retry::create(&target, SCRATCH_PREFIX).expect("create scratch directory"))
     }
 
     fn db_path(&self) -> PathBuf {

@@ -1,23 +1,21 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use serde::{Deserialize, Serialize};
-
-static NEXT: AtomicU64 = AtomicU64::new(0);
 
 pub struct Sandbox(pub PathBuf);
 
 impl Sandbox {
     pub fn new() -> Self {
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
-        let path = base.join(format!(
-            "folder-backup-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path).unwrap();
+        let path = scratch_retry::create(&base, "folder-backup-").unwrap();
         for name in ["old", "new"] {
             fs::create_dir(path.join(name)).unwrap();
         }

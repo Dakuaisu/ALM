@@ -1,8 +1,7 @@
-use std::io::{self, Write};
+use std::io::Write;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::process::{Command, Stdio};
 use std::{env, fs};
 
 use alm_core::confirmation::{
@@ -17,6 +16,13 @@ use alm_store::SqliteSales;
 #[path = "owner_simulation/quantity_reconnect.rs"]
 mod quantity_reconnect;
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 const DRAFT: DraftId = DraftId::new(1);
 const PRODUCT: ProductId = ProductId::new(1);
 const CUSTOMER: &str = "Synthetic Customer";
@@ -28,7 +34,6 @@ struct ScratchDir(PathBuf);
 
 impl ScratchDir {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .expect("resolve crate directory")
@@ -39,15 +44,10 @@ impl ScratchDir {
             target,
             "the disposable database must stay inside the crate target directory",
         );
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = target.join(format!("owner-simulation-{}-{seq}", process::id()));
-            match fs::create_dir(&dir) {
-                Ok(()) => return Self(dir),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create Owner simulation scratch directory: {err}"),
-            }
-        }
+        Self(
+            scratch_retry::create(&target, "owner-simulation-")
+                .expect("create Owner simulation scratch directory"),
+        )
     }
 }
 

@@ -1,7 +1,6 @@
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command, Output, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::process::{Command, Output, Stdio};
 use std::{env, fs};
 
 use alm_core::{DraftCustomer, DraftId, LocalSales, ProductId};
@@ -13,6 +12,13 @@ mod scoped_edit;
 mod sqlite_dump;
 #[path = "../../alm-store/tests/common/sqlite_list.rs"]
 mod sqlite_list;
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 const DEMO: &str = env!("CARGO_BIN_EXE_alm-draft-demo");
 const CREATE_DRAFT: &str = "new\nSynthetic Customer\n1\n3\nreview\nsave\nquit\n";
@@ -33,7 +39,6 @@ struct ScratchDir(PathBuf);
 
 impl ScratchDir {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .expect("resolve manifest directory")
@@ -44,15 +49,10 @@ impl ScratchDir {
             "scratch must stay inside the crate target directory",
         );
 
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = target.join(format!("draft-demo-{}-{seq}", process::id()));
-            match fs::create_dir(&dir) {
-                Ok(()) => return Self(dir),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create draft demo scratch directory: {err}"),
-            }
-        }
+        Self(
+            scratch_retry::create(&target, "draft-demo-")
+                .expect("create draft demo scratch directory"),
+        )
     }
 
     fn command(&self, program: &str) -> Command {

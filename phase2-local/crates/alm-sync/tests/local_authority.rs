@@ -140,10 +140,16 @@ fn lost_response_commits_once_and_status_or_retry_resolves_it() {
     );
 }
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 #[test]
 fn journal_replay_restores_state_requests_and_gst_numbers() {
-    let dir = std::env::temp_dir().join(format!("alm-sync-journal-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch_retry::create(&std::env::temp_dir(), "alm-sync-journal-").unwrap();
     let path = dir.join("journal.txt");
     let _ = std::fs::remove_file(&path);
     let mut authority = LocalAuthority::open(&path, fixture().unwrap(), directory()).unwrap();

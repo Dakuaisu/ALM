@@ -10,13 +10,19 @@ use alm_core::projection::{
 use alm_core::{BillDate, Money, Role};
 use alm_store::{Outbox, OutboxError, OutboxStatus, ProjectionError, ProjectionStore};
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 struct Root(std::path::PathBuf);
 
 impl Root {
     fn new(label: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("alm-store-{label}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir(&path).unwrap();
+        let path =
+            scratch_retry::create(&std::env::temp_dir(), &format!("alm-store-{label}-")).unwrap();
         Self(path)
     }
 }

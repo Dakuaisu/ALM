@@ -168,6 +168,13 @@ fn validate_png(png: &[u8], dir: &Path, path: &Path) {
     std::fs::remove_file(decoded).unwrap();
 }
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 pub(super) fn render(html: &str, width: u32) -> (PathBuf, Vec<u8>) {
     assert_eq!(width, 760);
     assert_eq!(html, EXPECTED_HTML.trim_end_matches('\n'));
@@ -178,8 +185,7 @@ pub(super) fn render(html: &str, width: u32) -> (PathBuf, Vec<u8>) {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = root.join(format!("l07-03-po-{}-{stamp}", std::process::id()));
-    std::fs::create_dir(&dir).unwrap();
+    let dir = scratch_retry::create(&root, &format!("l07-03-po-{stamp}-")).unwrap();
     let svg_path = dir.join("supplier.svg");
     std::fs::write(dir.join("supplier.html"), html).unwrap();
     std::fs::write(&svg_path, svg).unwrap();

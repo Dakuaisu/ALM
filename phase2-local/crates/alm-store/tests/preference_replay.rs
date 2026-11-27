@@ -12,6 +12,13 @@ use alm_core::{
 use alm_store::preferences::Preferences;
 use alm_store::synthetic_read_model::Store;
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 fn projection(preferences: &Preferences) -> (&'static str, Option<Money>, BalanceMode) {
     (
         preferences.theme().data_theme(),
@@ -32,8 +39,7 @@ fn preference_failures_replay_without_changing_business_or_permissions() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = root.join(format!("preference-replay-{}-{nonce}", std::process::id()));
-    fs::create_dir(&dir).unwrap();
+    let dir = scratch_retry::create(&root, &format!("preference-replay-{nonce}-")).unwrap();
     let keys = dir.join("preferences");
     fs::create_dir(&keys).unwrap();
     let records = Records {

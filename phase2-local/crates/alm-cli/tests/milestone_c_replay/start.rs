@@ -1,8 +1,14 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{env, fs, io, process};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+use std::{env, fs};
 
 use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, Counter, ProposedPayment, Receipt, RequestId, Review,
@@ -235,22 +241,16 @@ impl DraftDirectory {
     }
 
     fn create() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .expect("resolve crate directory")
             .join("target");
         fs::create_dir_all(&target).expect("create crate target directory");
         assert_eq!(target.canonicalize().expect("resolve crate target"), target);
-        loop {
-            let seq = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = target.join(format!("milestone-c-replay-{}-{seq}", process::id()));
-            match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(err) => panic!("create Milestone C draft directory: {err}"),
-            }
-        }
+        Self(
+            scratch_retry::create(&target, "milestone-c-replay-")
+                .expect("create Milestone C draft directory"),
+        )
     }
 }
 

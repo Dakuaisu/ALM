@@ -1,8 +1,12 @@
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::process;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use super::sink::Action;
 
@@ -13,11 +17,9 @@ pub struct Sandbox {
 
 impl Sandbox {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
-        let path = create_sandbox(&target, process::id(), || {
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        });
+        let path = scratch_retry::create(&target, "gst-preview-replay-")
+            .expect("create GST preview sandbox");
         Self {
             path,
             retain: retain_artifacts(std::env::var("ALM_GST_PREVIEW_ARTIFACTS").ok().as_deref()),
@@ -39,16 +41,14 @@ impl Sandbox {
     }
 }
 
+#[cfg(test)]
 fn create_sandbox(target: &Path, process_id: u32, mut next: impl FnMut() -> usize) -> PathBuf {
-    loop {
-        let sequence = next();
-        let path = target.join(format!("gst-preview-replay-{process_id}-{sequence}"));
-        match fs::create_dir(&path) {
-            Ok(()) => return path,
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => panic!("create GST preview sandbox {}: {error}", path.display()),
-        }
-    }
+    scratch_retry::create_with(
+        |_| target.join(format!("gst-preview-replay-{process_id}-{}", next())),
+        |path| fs::create_dir(path),
+        cfg!(windows),
+    )
+    .expect("create GST preview sandbox")
 }
 
 fn retain_artifacts(value: Option<&str>) -> bool {

@@ -1,8 +1,6 @@
 use std::fs;
-use std::io::ErrorKind;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rusqlite::Connection;
 
@@ -82,20 +80,18 @@ COMMIT;
 
 struct Scratch(PathBuf);
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 impl Scratch {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
         let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
         fs::create_dir_all(&target).unwrap();
-        loop {
-            let next = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = target.join(format!("cli-schema-{}-{next}", std::process::id()));
-            match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
-                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-                Err(error) => panic!("create scratch: {error}"),
-            }
-        }
+        Self(scratch_retry::create(&target, "cli-schema-").expect("create scratch"))
     }
 }
 

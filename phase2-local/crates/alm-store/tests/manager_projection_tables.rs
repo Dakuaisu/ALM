@@ -150,6 +150,13 @@ fn cells(path: &std::path::Path) -> Vec<(String, String, String)> {
     out
 }
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 fn file(root: &std::path::Path, role: &str) -> std::path::PathBuf {
     std::fs::read_dir(root.join("projections"))
         .unwrap()
@@ -163,9 +170,7 @@ fn file(root: &std::path::Path, role: &str) -> std::path::PathBuf {
 
 #[test]
 fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_data() {
-    let root =
-        Root(std::env::temp_dir().join(format!("alm-manager-tables-{}", std::process::id())));
-    std::fs::create_dir_all(&root.0).unwrap();
+    let root = Root(scratch_retry::create(&std::env::temp_dir(), "alm-manager-tables-").unwrap());
     let shop = busy();
     let book = ManualCashBook::default();
     for role in [Role::Owner, Role::Manager] {

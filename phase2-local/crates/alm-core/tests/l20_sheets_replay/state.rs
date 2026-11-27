@@ -1,8 +1,14 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use serde::{Deserialize, Serialize};
 
@@ -99,19 +105,12 @@ pub(super) struct Disk {
 
 impl Disk {
     pub fn new(db: &Db) -> Self {
-        static SEQ: AtomicUsize = AtomicUsize::new(0);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join(format!(
-                "l20-sheets-{}-{nonce}-{}",
-                std::process::id(),
-                SEQ.fetch_add(1, Ordering::Relaxed)
-            ));
-        fs::create_dir(&path).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        let path = scratch_retry::create(&root, &format!("l20-sheets-{nonce}-")).unwrap();
         let disk = Self {
             path,
             intents: Vec::new(),

@@ -3,6 +3,13 @@ mod fixture;
 #[path = "rate_list_replay/model.rs"]
 mod model;
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 use fixture::{fixture, public_rows};
 use model::{RateListRow, Replay, Sinks};
 use std::collections::BTreeSet;
@@ -137,10 +144,9 @@ fn l17_outputs_are_exact_inert_and_restricted_fields_do_not_leak() {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join(format!("rate-list-replay-{}-{nonce}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        fs::create_dir_all(&root).unwrap();
+        let dir = scratch_retry::create(&root, &format!("rate-list-replay-{nonce}-")).unwrap();
         for (name, content) in [
             ("preview.html", preview.as_str()),
             ("print.html", sinks.documents[0].as_str()),

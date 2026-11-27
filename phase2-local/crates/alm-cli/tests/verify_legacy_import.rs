@@ -7,6 +7,13 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 use alm_core::Role;
 use alm_core::confirmation::demo_fixture::{directory, fixture};
 use alm_core::legacy::import::{ImportPlan, plan_file};
@@ -19,10 +26,8 @@ struct Scratch(PathBuf);
 
 impl Scratch {
     fn new(name: &str) -> Self {
-        let path =
-            std::env::temp_dir().join(format!("alm-cli-verify-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).unwrap();
+        let path = scratch_retry::create(&std::env::temp_dir(), &format!("alm-cli-verify-{name}-"))
+            .unwrap();
         Self(path)
     }
 }

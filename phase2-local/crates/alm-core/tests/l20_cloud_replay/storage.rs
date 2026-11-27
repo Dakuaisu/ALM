@@ -2,13 +2,16 @@ use std::collections::VecDeque;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::records::Db;
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Progress {
@@ -40,16 +43,9 @@ pub struct Files {
 
 impl Files {
     pub fn new(db: &Db, progress: Progress, on: bool) -> Self {
-        let name = format!(
-            "l20-cloud-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join(name);
-        fs::create_dir_all(dir.parent().unwrap()).unwrap();
-        fs::create_dir(&dir).unwrap();
+        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        fs::create_dir_all(&base).unwrap();
+        let dir = scratch_retry::create(&base, "l20-cloud-").unwrap();
         let files = Self {
             dir,
             pending: VecDeque::new(),

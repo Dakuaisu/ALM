@@ -1,7 +1,13 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
 
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +24,6 @@ pub(super) struct Store(PathBuf);
 
 impl Store {
     pub(super) fn seed(state: State) -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
         let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let temp = std::env::temp_dir().canonicalize().unwrap();
         let base = if temp.starts_with(&project) {
@@ -27,15 +32,8 @@ impl Store {
             project.join("target")
         };
         fs::create_dir_all(&base).unwrap();
-        let dir = loop {
-            let id = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = base.join(format!("l20-mirror-{}-{id}", std::process::id()));
-            match fs::create_dir(&dir) {
-                Ok(()) => break dir,
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(e) => panic!("create replay state directory: {e}"),
-            }
-        };
+        let dir =
+            scratch_retry::create(&base, "l20-mirror-").expect("create replay state directory");
         let store = Self(dir);
         store.write(state).unwrap();
         store

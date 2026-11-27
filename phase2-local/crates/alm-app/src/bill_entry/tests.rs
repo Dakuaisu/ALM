@@ -2,15 +2,18 @@ use super::*;
 use alm_core::confirmation::owner_billing::{OwnerPosting, SaleTerms};
 use alm_core::{DraftCustomer, Money, Role};
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 struct Root(std::path::PathBuf);
 
 impl Root {
     fn new() -> Self {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("alm-new-bill-{}-{serial}", std::process::id()));
-        std::fs::create_dir(&path).unwrap();
+        let path = scratch_retry::create(&std::env::temp_dir(), "alm-new-bill-").unwrap();
         Self(path)
     }
 }

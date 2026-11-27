@@ -4,6 +4,13 @@ mod l18_04_support;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+mod scratch_retry {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../alm-store/tests/common/scratch_retry.rs"
+    ));
+}
+
 use alm_core::Role;
 use alm_core::synthetic_read_model::{BusinessProfile, Records};
 use alm_store::synthetic_read_model::Store;
@@ -15,10 +22,8 @@ fn identity_outputs_survive_each_disk_reopen_and_fresh_restore() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("target")
-        .join(format!("alm-l18-{}-{nonce}", std::process::id()));
-    std::fs::create_dir(&dir).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+    let dir = scratch_retry::create(&root, &format!("alm-l18-{nonce}-")).unwrap();
     let source = dir.join("source.json");
     let records = Records {
         reorder_default: 5,
