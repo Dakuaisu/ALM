@@ -355,7 +355,11 @@ fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
         let html = trial.render(tab).unwrap();
         let open = crate::screen_tests::MANAGER_SCREENS.contains(&tab);
         assert_eq!(!html.contains("role=\"alert\""), open, "{tab}");
-        let hidden: &[&str] = if open {
+        // A purchase order names its supplier on the Manager's receiving screen (DEC-034:
+        // quantities only); the supplier list and its prices stay the Owner's.
+        let hidden: &[&str] = if tab == "purchases" {
+            &["69", "37.50"]
+        } else if open {
             &["69", "37.50", "Synthetic Wholesale"]
         } else {
             &["₹", "69", "37.50", "Synthetic Wholesale"]

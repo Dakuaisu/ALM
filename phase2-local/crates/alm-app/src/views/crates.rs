@@ -22,17 +22,20 @@ pub fn crates_screen(
     fixture: &ConfirmationFixture,
     role: Role,
     form: Option<&CrateForm>,
+    products: &[alm_core::projection::ProjectedProductTerms],
 ) -> Result<String, CrateTemplateError> {
     let rows = match fixture.crate_template_list(role) {
         Ok(rows) => rows,
         Err(CrateTemplateError::AccessDenied) => return Ok(denied("Crates")),
         Err(error) => return Err(error),
     };
-    let mut html = String::from(
-        r#"<div class="help" style="margin-bottom:12px">Build once, bill fast: in New Bill press ‘Add Crate’ and load a template. A crate sells as ONE line at its price; stock still reduces item-by-item, and profit is costed from the contents.</div>"#,
-    );
+    let mut html = String::from(if role == Role::Owner {
+        r#"<div class="help" style="margin-bottom:12px">Build once, bill fast: in New Bill press ‘Add Crate’ and load a template. A crate sells as ONE line at its price; stock still reduces item-by-item, and profit is costed from the contents.</div>"#
+    } else {
+        r#"<div class="help" style="margin-bottom:12px">Build once, bill fast: in New Bill press ‘Add Crate’ and load a template. A crate sells as ONE line at its price; stock still reduces item-by-item.</div>"#
+    });
     if let Some(form) = form {
-        html += &builder(fixture, role, form);
+        html += &builder(fixture, role, form, products);
     }
     html += r#"<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>Name</th><th>Contents</th><th class="num">Items</th><th class="num">Price ₹</th><th class="num">Contents value</th><th class="num">Actions</th></tr></thead><tbody>"#;
     if rows.is_empty() {
@@ -63,16 +66,28 @@ pub fn crates_screen(
 
 /// The component picker lists every product in the catalog, as the HTML's autocomplete over
 /// `DB.products` does (a product added on Products can be a component at once).
-fn builder(fixture: &ConfirmationFixture, role: Role, form: &CrateForm) -> String {
-    let products: Vec<(String, String)> = fixture
-        .product_list(role, "", None)
-        .map(|list| {
-            list.rows
-                .into_iter()
-                .map(|row| (row.product.value().to_string(), row.item))
-                .collect()
-        })
-        .unwrap_or_default();
+fn builder(
+    fixture: &ConfirmationFixture,
+    role: Role,
+    form: &CrateForm,
+    listed: &[alm_core::projection::ProjectedProductTerms],
+) -> String {
+    // A Manager picks from its products' names (DEC-034); the Owner's list carries costs.
+    let products: Vec<(String, String)> = match role {
+        Role::Owner => fixture
+            .product_list(role, "", None)
+            .map(|list| {
+                list.rows
+                    .into_iter()
+                    .map(|row| (row.product.value().to_string(), row.item))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        Role::Manager => listed
+            .iter()
+            .map(|p| (p.id.to_string(), p.item.clone()))
+            .collect(),
+    };
     let mut html = format!(
         r#"<div class="card" style="margin-bottom:14px"><h3>📦 Crate template</h3><form data-action="crate_submit" data-payload="terms"><div class="f2"><div><label>Crate name <input class="inp" name="name" value="{}"></label></div><div><label>Crate price ₹ <input class="inp num" name="price" inputmode="decimal" value="{}"></label></div></div>"#,
         esc(&form.name),

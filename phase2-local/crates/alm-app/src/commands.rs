@@ -29,7 +29,7 @@ pub fn dash_period(state: State<'_, AppState>, period: String) -> Result<String,
 #[tauri::command(async)]
 pub fn rate_brand(state: State<'_, AppState>, q: String) -> Result<String, String> {
     with(&state, "ratelist", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::RateList)?;
         trial.rates.toggle_brand_filter(&q);
         Ok(())
     })
@@ -38,7 +38,7 @@ pub fn rate_brand(state: State<'_, AppState>, q: String) -> Result<String, Strin
 #[tauri::command(async)]
 pub fn rate_group(state: State<'_, AppState>, q: String) -> Result<String, String> {
     with(&state, "ratelist", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::RateList)?;
         trial
             .posted
             .rate_list_group_toggle(role, &mut trial.rates, &q)
@@ -54,7 +54,7 @@ pub struct RateSearch {
 #[tauri::command(async)]
 pub fn rate_search(state: State<'_, AppState>, terms: RateSearch) -> Result<String, String> {
     with(&state, "ratelist", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::RateList)?;
         trial.rates.query = terms.q;
         Ok(())
     })
@@ -63,7 +63,7 @@ pub fn rate_search(state: State<'_, AppState>, terms: RateSearch) -> Result<Stri
 #[tauri::command(async)]
 pub fn rate_toggle(state: State<'_, AppState>, id: ipc::IpcId) -> Result<String, String> {
     with(&state, "ratelist", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::RateList)?;
         trial.rates.toggle(alm_core::ProductId::new(id.value()));
         Ok(())
     })

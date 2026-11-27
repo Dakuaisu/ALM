@@ -69,11 +69,9 @@ pub(super) struct PhysicalCountState {
     pub(super) movements: Vec<StockCountMovement>,
 }
 
-const fn require_owner(role: Role) -> Result<(), PhysicalCountError> {
-    match role {
-        Role::Owner => Ok(()),
-        Role::Manager => Err(PhysicalCountError::AccessDenied),
-    }
+fn require_owner(role: Role) -> Result<(), PhysicalCountError> {
+    crate::permissions::require(role, crate::permissions::Capability::CountStock)
+        .map_err(|_| PhysicalCountError::AccessDenied)
 }
 
 impl ConfirmationFixture {

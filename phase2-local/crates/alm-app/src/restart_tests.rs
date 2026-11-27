@@ -310,17 +310,12 @@ fn stale_counts_and_receipts_are_refused_without_effects() {
         (after.checkpoint, after.snapshot),
         (before.checkpoint, before.snapshot)
     );
+    // DEC-034: the godown list is a Manager's too; the reorder default stays the Owner's.
     trial.set_owner(false).unwrap();
     assert!(
-        crate::godown::save(
-            &mut trial,
-            &crate::godown::Row {
-                item: "X".into(),
-                cases: "1".into(),
-                note: String::new(),
-            },
-        )
-        .is_err()
+        trial
+            .send(&alm_sync::Intent::SetReorderDefault { level: 3 })
+            .is_err()
     );
     assert!(
         trial

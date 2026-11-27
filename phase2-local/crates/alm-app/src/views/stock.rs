@@ -29,9 +29,12 @@ pub fn stock_screen(
     let Ok(list) = projected.stock_view(role, &state.query, state.low_only) else {
         return Ok(denied("Stock"));
     };
-    let value = list.value.map_or_else(|| "Unknown".to_owned(), money_r);
     let mut html = String::from(r#"<div class="kpis" style="margin-bottom:14px">"#);
-    html += &kpi("b", "Stock Value", &value, "at FIFO lot cost", "🏬");
+    // DEC-034: stock value is the Owner's.
+    if role == Role::Owner {
+        let value = list.value.map_or_else(|| "Unknown".to_owned(), money_r);
+        html += &kpi("b", "Stock Value", &value, "at FIFO lot cost", "🏬");
+    }
     html += &kpi(
         "a",
         "SKUs in stock",
@@ -69,9 +72,18 @@ pub fn stock_screen(
             StockStatus::Low => ("low", "LOW"),
             StockStatus::Ok => ("ok", "OK"),
         };
+        // DEC-034: FIFO lots are the Owner's.
+        let lots = if role == Role::Owner {
+            format!(
+                r#"<button class="btn sm" data-action="stock_lots" data-id="{}">📅 Lots</button> "#,
+                row.product
+            )
+        } else {
+            String::new()
+        };
         let _ = write!(
             html,
-            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td><span class="tag {class}">{label}</span></td><td class="num"><button class="btn sm" data-action="stock_lots" data-id="{id}">📅 Lots</button> <button class="btn sm" data-action="stock_adjust" data-id="{id}">Adjust</button></td></tr>"#,
+            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num" style="font-weight:800">{}</td><td class="num">{}</td><td><span class="tag {class}">{label}</span></td><td class="num">{lots}<button class="btn sm" data-action="stock_adjust" data-id="{id}">Adjust</button></td></tr>"#,
             esc(&row.item),
             esc(&row.brand),
             indian_digits(u64::from(row.on_hand)),

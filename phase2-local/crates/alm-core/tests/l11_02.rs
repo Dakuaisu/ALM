@@ -200,38 +200,33 @@ fn l11_02_accepts_both_packet_range_endpoints() {
     }
 }
 
+/// DEC-034: a Manager opens and submits counts as the Owner does: the same refusals for invalid
+/// or unknown inputs, the same effect for a valid one.
 #[test]
-fn l11_02_denies_manager_before_validation_or_lookup() {
-    // Given an existing product and an unknown ID.
+fn l11_02_a_manager_counts_stock_as_the_owner_does() {
     let mut fixture = fixture();
     let before = lots(&fixture);
     let missing = PhysicalCountInput {
         product: MISSING,
         ..input("8", None)
     };
-
-    // When a Manager opens either product or submits valid, invalid, or unknown inputs.
     for product in [PRODUCT, MISSING] {
-        let result = fixture.open_physical_count(Role::Manager, product);
-        assert_eq!(result, Err(PhysicalCountError::AccessDenied));
+        assert_eq!(
+            fixture.open_physical_count(Role::Manager, product),
+            fixture.open_physical_count(OWNER, product)
+        );
     }
-    let requests = [
-        input("8", None),
-        input("", None),
-        missing,
-        input("7", Some("12")),
-    ];
-    for request in requests {
-        let result = fixture.submit_physical_count(Role::Manager, request);
-        assert_eq!(result, Err(PhysicalCountError::AccessDenied));
+    for request in [input("", None), missing] {
+        let manager = fixture.submit_physical_count(Role::Manager, request);
+        assert!(manager.is_err());
+        assert_eq!(manager, fixture.submit_physical_count(OWNER, request));
     }
-
-    // Then owner-only state stays unchanged, and the Owner can distinguish a missing product.
-    let result = fixture.submit_physical_count(OWNER, missing);
-    assert_eq!(result, Err(PhysicalCountError::ProductNotFound));
     assert_eq!(counts(&fixture), (7, 11, 0));
     assert_eq!(lots(&fixture), before);
-    println!("l11_02 role: Manager denied before input validation and product lookup; no changes");
+    fixture
+        .submit_physical_count(Role::Manager, input("8", None))
+        .unwrap();
+    assert_eq!(counts(&fixture).0, 8);
 }
 
 #[test]

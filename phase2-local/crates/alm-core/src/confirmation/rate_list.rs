@@ -58,8 +58,11 @@ impl ConfirmationFixture {
         &self,
         role: Role,
     ) -> Result<Vec<(ProductId, String, String, Money)>, ProductEntryError> {
+        // DEC-034: the Rate List (selling rates) is a Manager's too.
+        crate::permissions::require(role, crate::permissions::Capability::RateList)
+            .map_err(|_| ProductEntryError::AccessDenied)?;
         Ok(self
-            .product_list(role, "", None)?
+            .product_list(Role::Owner, "", None)?
             .rows
             .into_iter()
             .map(|row| {
@@ -252,7 +255,7 @@ fn render_rate_list(
 #[cfg(test)]
 mod tests {
     use super::RateListSelection;
-    use crate::confirmation::ProductEntryError;
+
     use crate::confirmation::demo_fixture::fixture;
     use crate::{BillDate, ProductId, Role};
 
@@ -323,9 +326,11 @@ mod tests {
             fixture.rate_list_text(Role::Owner, &mut selection, "x", day),
             Ok(None)
         );
+        // DEC-034: a Manager views and shares the Rate List (selling rates).
+        let mut manager_selection = selection.clone();
         assert_eq!(
-            fixture.rate_list_rows(Role::Manager, &mut selection),
-            Err(ProductEntryError::AccessDenied)
+            fixture.rate_list_rows(Role::Manager, &mut manager_selection),
+            fixture.rate_list_rows(Role::Owner, &mut selection)
         );
     }
 }

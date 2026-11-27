@@ -12,7 +12,7 @@ fn lock<'a>(state: &'a State<'_, AppState>) -> Result<std::sync::MutexGuard<'a, 
 
 impl Trial {
     pub(crate) fn reorder_copy_text(&self) -> Result<String, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::Reorder)?;
         let mut text = None;
         self.posted
             .copy_reorder_list(role, self.today()?, &mut |copied| text = Some(copied))
@@ -21,7 +21,7 @@ impl Trial {
     }
 
     pub(crate) fn godown_copy_text(&self) -> Result<String, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::Godown)?;
         self.posted
             .manual_godown_copy_text(role, self.today()?)
             .map_err(refusal)?
@@ -29,7 +29,7 @@ impl Trial {
     }
 
     pub(crate) fn rate_copy_text(&mut self) -> Result<String, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::RateList)?;
         let today: BillDate = self.today()?;
         self.posted
             .rate_list_text(role, &mut self.rates, crate::SELLER.name, today)
@@ -38,26 +38,54 @@ impl Trial {
             .ok_or_else(|| "Tick at least one item.".into())
     }
 
-    /// Owner item autocomplete for GST lines (`field` is the line's item box) and the Godown.
+    /// The item autocomplete for GST lines (`field` is the line's item box) and the Godown.
     pub(crate) fn item_options(
         &self,
         q: &str,
         field: &str,
         submit: Option<&str>,
     ) -> Result<String, String> {
-        let role = self.require_owner()?;
-        let rows = self.posted.product_suggestions(role, q).map_err(refusal)?;
+        // GST lines are the Owner's; the Godown's item box is a Manager's too (DEC-034), from
+        // its products' names only.
+        let role = self.require(if submit.is_some() {
+            alm_core::permissions::Capability::GstSales
+        } else {
+            alm_core::permissions::Capability::Godown
+        })?;
+        let rows: Vec<(String, String)> = match role {
+            alm_core::Role::Owner => self
+                .posted
+                .product_suggestions(role, q)
+                .map_err(refusal)?
+                .into_iter()
+                .map(|row| (row.item, row.brand))
+                .collect(),
+            alm_core::Role::Manager => {
+                let needle = q.trim().to_lowercase();
+                self.posted
+                    .lists
+                    .products
+                    .iter()
+                    .filter(|p| {
+                        p.item.to_lowercase().contains(&needle)
+                            || p.brand.to_lowercase().contains(&needle)
+                    })
+                    .take(40)
+                    .map(|p| (p.item.clone(), p.brand.clone()))
+                    .collect()
+            }
+        };
         let fills: Vec<_> = rows
             .iter()
-            .map(|row| [(field, row.item.as_str())])
+            .map(|(item, _)| [(field, item.as_str())])
             .collect();
         let options: Vec<_> = rows
             .iter()
             .zip(&fills)
-            .map(|(row, fill)| SearchOption {
+            .map(|((item, brand), fill)| SearchOption {
                 fill,
-                label: &row.item,
-                sub: &row.brand,
+                label: item,
+                sub: brand,
                 submit,
             })
             .collect();
@@ -83,7 +111,7 @@ pub fn rate_copy_text(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command(async)]
 pub fn rate_whatsapp_url(state: State<'_, AppState>) -> Result<String, String> {
     let mut trial = lock(&state)?;
-    let role = trial.require_owner()?;
+    let role = trial.require(alm_core::permissions::Capability::RateList)?;
     let today = trial.today()?;
     let trial = &mut *trial;
     trial

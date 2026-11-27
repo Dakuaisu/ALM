@@ -8,8 +8,18 @@ use crate::billing_tests::{day, posted, projected};
 use crate::views::{self, CustomersState, money_r};
 
 /// The screens a Manager opens in this build (DEC-034), each without costs or profit.
-pub(crate) const MANAGER_SCREENS: &[&str] =
-    &["sales", "crates", "customers", "receipt", "expenses"];
+pub(crate) const MANAGER_SCREENS: &[&str] = &[
+    "sales",
+    "crates",
+    "customers",
+    "receipt",
+    "expenses",
+    "stock",
+    "reorder",
+    "godown",
+    "ratelist",
+    "purchases",
+];
 
 pub(crate) fn books() -> ConfirmationFixture {
     let mut fixture = fixture().expect("synthetic fixture");
@@ -346,10 +356,17 @@ fn reorder_renders_core_rows_and_hides_costs_from_the_manager() {
     let html = views::reorder_screen(&fixture, Role::Owner).unwrap();
     assert!(html.contains("<b>⚠️ 1 item(s) at or below reorder level.</b>"));
     assert!(html.contains(r#"<td class="num">50</td><td class="num">60</td><td class="num" style="font-weight:700;color:var(--accent)">130 pkt</td><td><span class="muted">buy ₹70.00</span></td><td class="num">₹9,100</td><td><span class="tag low">LOW</span>"#), "{html}");
+    // DEC-034: a Manager's list holds the quantities without a supplier or cost.
     let manager = views::reorder_screen(&fixture, Role::Manager).unwrap();
-    assert!(manager.contains("role=\"alert\""));
-    assert!(!manager.contains('₹'));
-    assert!(!manager.contains("Synthetic Lime"));
+    assert!(!manager.contains("role=\"alert\""));
+    assert!(
+        manager.contains("Synthetic Lime") && manager.contains("130 pkt"),
+        "{manager}"
+    );
+    assert!(
+        !manager.contains('₹') && !manager.contains("Best Supplier"),
+        "{manager}"
+    );
 }
 
 #[test]
@@ -369,13 +386,20 @@ fn stock_renders_core_status_and_fifo_value_for_the_owner_only() {
         money_r(value)
     )));
     assert!(html.contains(r#"<td class="num" style="font-weight:800">49</td><td class="num">₹70</td><td class="num">₹3,430</td>"#), "{html}");
+    // DEC-034: a Manager sees the quantities, without the value or the lots.
+    let state = views::StockState::default();
     let manager =
         views::stock_screen(&projected(&fixture), &fixture, Role::Manager, &state).unwrap();
-    assert!(manager.contains("role=\"alert\""));
-    for hidden in ['₹', '4'] {
-        assert!(!manager.contains(hidden), "{hidden}");
-    }
-    assert!(!manager.contains("FIFO"));
+    assert!(!manager.contains("role=\"alert\""));
+    assert!(
+        manager.contains(r#"<td class="num" style="font-weight:800">49</td>"#),
+        "{manager}"
+    );
+    assert!(
+        !manager.contains('₹') && !manager.contains("Stock Value"),
+        "{manager}"
+    );
+    assert!(!manager.contains("FIFO") && !manager.contains("stock_lots"));
 }
 
 #[test]
@@ -397,11 +421,12 @@ fn godown_renders_the_core_manual_list_and_leaves_billing_stock_alone() {
     assert!(html.contains("2 items · 1,012 cases"));
     assert!(html.contains(r#"<td><b>Synthetic Lime</b></td><td class="num" style="font-weight:800">1,000</td><td class="muted">back rack</td>"#));
     assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(40));
+    // DEC-034: a Manager keeps the same list.
     trial.set_owner(false).unwrap();
-    assert!(crate::godown::save(&mut trial, &row("X", "1")).is_err());
+    crate::godown::save(&mut trial, &row("Synthetic Ice", "1")).unwrap();
     let html = trial.render("godown").unwrap();
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains("1,012"));
+    assert!(!html.contains("role=\"alert\""));
+    assert!(html.contains("3 items · 1,013 cases"), "{html}");
 }
 
 #[test]
@@ -754,10 +779,12 @@ fn purchases_receive_dated_partials_close_remaining_and_deny_the_manager() {
         html.contains(r#"<span class="tag ok">Completed</span></td><td class="num">7 / 10</td>"#)
     );
     assert_eq!(trial.authority.product_stock(ProductId::new(2)), Some(47));
+    // DEC-034: a Manager lists the orders without values, printing or closing, and receives
+    // quantities only; a completed order takes nothing more.
     trial.set_owner(false).unwrap();
     let html = trial.render("purchases").unwrap();
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains('₹'));
+    assert!(!html.contains("role=\"alert\""));
+    assert!(!html.contains('₹') && !html.contains("po_close") && !html.contains("poprint"));
     assert!(
         trial
             .po_receive_save(receive("2025-05-04", "1", ""))
@@ -844,10 +871,14 @@ fn rate_list_renders_core_rows_ticks_and_text_and_denies_the_manager() {
             .unwrap()
             .contains("Synthetic Soda — ₹")
     );
+    // DEC-034: a Manager views and shares the Rate List (selling rates).
     trial.set_owner(false).unwrap();
     let html = trial.render("ratelist").unwrap();
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains('₹'));
+    assert!(!html.contains("role=\"alert\""));
+    assert!(
+        html.contains("Synthetic Soda") && html.contains('₹'),
+        "{html}"
+    );
 }
 
 #[test]
@@ -979,11 +1010,14 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
             .unwrap()
             .starts_with("*ALM Reorder List* (30-Apr-2025)")
     );
+    // DEC-034: a Manager copies the Godown, Rate and Reorder lists and picks Godown items; GST
+    // item lines stay the Owner's.
     trial.set_owner(false).unwrap();
-    assert!(trial.godown_copy_text().is_err());
-    assert!(trial.rate_copy_text().is_err());
-    assert!(trial.reorder_copy_text().is_err());
-    assert!(trial.item_options("", "item", None).is_err());
+    assert!(trial.godown_copy_text().is_ok());
+    assert!(trial.rate_copy_text().is_ok());
+    assert!(trial.reorder_copy_text().is_ok());
+    assert!(trial.item_options("", "item", None).is_ok());
+    assert!(trial.item_options("", "item_0", Some("fill")).is_err());
     // DEC-034: a Manager's day-close card works as the Owner's.
     assert!(trial.cash_live(&entry("", "2025-04-30", "25", "")).is_ok());
 }

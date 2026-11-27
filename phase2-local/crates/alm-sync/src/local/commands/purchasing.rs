@@ -139,6 +139,25 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
                 None => Ok(Outcome::Done),
             }
         }
+        Intent::ReceiveGoods {
+            po,
+            date,
+            today,
+            lines,
+            remaining,
+        } => {
+            let receive = Intent::ReceivePurchaseOrder {
+                po: *po,
+                date: *date,
+                today: *today,
+                lines: lines
+                    .iter()
+                    .map(|q| (*q, alm_core::Money::from_minor_units(0)))
+                    .collect(),
+                remaining: remaining.clone(),
+            };
+            apply(state, &receive)
+        }
         Intent::ClosePurchaseOrder { po, remaining } => {
             let id = order_id(state, *po)?;
             check_remaining(state, id, remaining)?;

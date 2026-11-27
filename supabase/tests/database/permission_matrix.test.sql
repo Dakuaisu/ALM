@@ -177,5 +177,22 @@ select ok((select pull -> 'rows' -> 'customers' @> '[{"id": "cust-1", "mobile": 
         from (select pg_temp.manager_pull() as pull) p),
     'a Manager''s pull carries customers with balances, mobiles and addresses');
 
+-- Receiving (DEC-034): a Manager receives quantities only; the order's rate applies.
+insert into public.products (id, item, sell_minor, buy_minor, stock) values
+    (2, 'Synthetic Soda', 6250, 3800, 40);
+insert into public.product_lots (product_id, remaining, unit_cost_minor) values (2, 40, 3800);
+select pg_temp.run('owner', $$ select public.save_purchase_order('own-po', '{"supplier": {"id": null, "name": "Synthetic Depot"}, "date": "2025-04-30", "note": "", "lines": [{"item": "Synthetic Soda", "product_id": 2, "ordered": 10, "rate_minor": 3610}]}') $$);
+select pg_temp.run('manager', format('select public.receive_purchase_order(%L, %L)', 'mgr-recv-qty',
+    jsonb_build_object('po', (select max(id) from public.purchase_orders), 'date', '2025-04-30',
+        'today', '2025-04-30', 'lines', '[{"quantity": 4}]'::jsonb, 'remaining', '[10]'::jsonb)));
+select is((select stock from public.products where id = 2), 44, 'a Manager receives 4 packets');
+select is((select unit_cost_minor from public.product_lots where product_id = 2 order by id desc limit 1),
+    3610::bigint, 'at the order''s own rate');
+select ok(not (pg_temp.manager_pull()::text ~ '3610|3800'),
+    'the Manager''s pull carries neither the order''s rate nor the buy rate');
+select is(pg_temp.state('manager', format('select public.close_purchase_order(%L, %L)', 'mgr-close',
+        jsonb_build_object('po', (select max(id) from public.purchase_orders), 'remaining', '[6]'::jsonb))),
+    'ALM06', 'closing a remainder stays the Owner''s');
+
 select * from finish();
 rollback;

@@ -72,6 +72,15 @@ pub enum Intent {
         lines: Vec<(u32, Money)>,
         remaining: Vec<u32>,
     },
+    /// Receives quantities only (DEC-034: a Manager's receiving): each line at the order's own
+    /// rate, with each line's remaining quantity as reviewed.
+    ReceiveGoods {
+        po: u64,
+        date: Option<BillDate>,
+        today: BillDate,
+        lines: Vec<u32>,
+        remaining: Vec<u32>,
+    },
     /// "Close remaining", with each line's remaining quantity as reviewed.
     ClosePurchaseOrder {
         po: u64,
@@ -157,6 +166,7 @@ impl Intent {
             Self::SetSupplierPrices { .. } => C::SetSupplierPrices,
             Self::SavePurchaseOrder(_) => C::SavePurchaseOrder,
             Self::ReceivePurchaseOrder { .. } => C::ReceiveGoodsAtRates,
+            Self::ReceiveGoods { .. } => C::ReceiveGoods,
             Self::ClosePurchaseOrder { .. } => C::ClosePurchaseOrder,
             Self::SaveCrate(_) => C::SaveCrate,
             Self::DeleteCrate { .. } => C::DeleteCrate,

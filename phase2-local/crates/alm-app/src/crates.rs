@@ -16,7 +16,7 @@ impl Trial {
         &mut self,
         mut terms: HashMap<String, String>,
     ) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::SaveCrate)?;
         let mut form = self.crate_form.take().ok_or("No crate is open.")?;
         form.name = terms.remove("name").unwrap_or_default();
         form.price = terms.remove("price").unwrap_or_default();
@@ -81,7 +81,7 @@ impl Trial {
 #[tauri::command(async)]
 pub fn crate_new(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "crates", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::Crates)?;
         trial.crate_form = Some(CrateForm {
             rows: vec![blank_row()],
             ..CrateForm::default()
@@ -93,7 +93,7 @@ pub fn crate_new(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command(async)]
 pub fn crate_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     with(&state, "crates", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::Crates)?;
         let id = trial
             .posted
             .crate_template_id(role, id.value())
@@ -142,7 +142,7 @@ pub fn crate_close(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command(async)]
 pub fn crate_delete(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     with(&state, "crates", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::DeleteCrate)?;
         let id = trial
             .posted
             .crate_template_id(role, id.value())

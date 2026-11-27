@@ -12,7 +12,7 @@ pub struct Filter {
 #[tauri::command(async)]
 pub fn stock_filter(state: State<'_, AppState>, terms: Filter) -> Result<String, String> {
     with(&state, "stock", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::Stock)?;
         trial.stock.query = terms.q;
         if terms.low == "toggle" {
             trial.stock.low_only = !trial.stock.low_only;
@@ -37,7 +37,7 @@ pub struct Count {
 impl crate::Trial {
     /// The Stock "physical count" form: sent with the on-hand quantity it showed.
     pub(crate) fn stock_count(&mut self, count: &Count) -> Result<(), String> {
-        self.require_owner()?;
+        self.require(alm_core::permissions::Capability::CountStock)?;
         let whole = |text: &str| text.trim().parse::<u32>();
         let product = count
             .product
@@ -84,7 +84,7 @@ pub fn stock_count(state: State<'_, AppState>, terms: Count) -> Result<String, S
 pub fn stock_adjust(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = ProductId::new(id.value());
     with(&state, "stock", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::CountStock)?;
         trial
             .posted
             .open_physical_count(role, id)
@@ -114,7 +114,7 @@ pub fn stock_lots_close(state: State<'_, AppState>) -> Result<String, String> {
 pub fn stock_lots(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = ProductId::new(id.value());
     with(&state, "stock", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::StockLots)?;
         trial.posted.open_stock_lots(role, id).map_err(refusal)?;
         trial.stock.lots = Some(id);
         Ok(())

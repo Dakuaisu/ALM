@@ -2,7 +2,7 @@
 use super::output::PurchaseOrderStatus;
 use super::{
     ConfirmationFixture, PurchaseError, PurchaseOrderId, PurchaseOrderSelection, ReceiveFormRow,
-    ReceiveLine, owner,
+    ReceiveLine,
 };
 use crate::{BillDate, Money, Role};
 
@@ -41,7 +41,8 @@ pub struct PurchaseOrderList {
 impl ConfirmationFixture {
     /// Owner-only PO list with quantity progress and value.
     pub fn purchase_order_list(&self, role: Role) -> Result<PurchaseOrderList, PurchaseError> {
-        owner(role)?;
+        crate::permissions::require(role, crate::permissions::Capability::Purchases)
+            .map_err(|_| PurchaseError::AccessDenied)?;
         let mut rows = Vec::new();
         for (index, order) in self.purchases.orders.iter().enumerate() {
             let status = order.status();
@@ -186,9 +187,12 @@ mod tests {
             (PurchaseOrderStatus::Completed, 0, 0)
         );
         assert_eq!(fixture.product_stock(ProductId::new(2)), Some(44));
+        // DEC-034: a Manager lists the orders it receives against.
         assert_eq!(
-            fixture.purchase_order_list(Role::Manager),
-            Err(PurchaseError::AccessDenied)
+            fixture
+                .purchase_order_list(Role::Manager)
+                .map(|l| l.rows.len()),
+            Ok(list.rows.len())
         );
     }
 }

@@ -21,12 +21,23 @@ pub fn reorder_screen(fixture: &ConfirmationFixture, role: Role) -> Result<Strin
             html + r#"<div class="card"><div class="empty"><div class="big">✅</div><div>Everything is well stocked! No reorders needed right now.</div></div></div>"#
         );
     }
+    // DEC-034: a Manager's list holds quantities only, no supplier or cost.
+    let owner = role == Role::Owner;
     let _ = write!(
         html,
-        r#"<div class="card" style="margin-bottom:14px;border-left:3px solid var(--warn)"><b>⚠️ {} item(s) at or below reorder level.</b><div class="help" style="margin-top:4px">Suggested quantity brings you back to ~3× reorder level. 'Best Supplier' is the cheapest buy rate from your comparison sheet.</div></div>"#,
-        rows.len()
+        r#"<div class="card" style="margin-bottom:14px;border-left:3px solid var(--warn)"><b>⚠️ {} item(s) at or below reorder level.</b><div class="help" style="margin-top:4px">Suggested quantity brings you back to ~3× reorder level.{}</div></div>"#,
+        rows.len(),
+        if owner {
+            " 'Best Supplier' is the cheapest buy rate from your comparison sheet."
+        } else {
+            ""
+        }
     );
-    html += r#"<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr><th>Item</th><th class="num">On Hand</th><th class="num">Reorder</th><th class="num">Suggested Qty</th><th>Best Supplier</th><th class="num">Est. Cost</th><th>Status</th></tr></thead><tbody>"#;
+    html += if owner {
+        r#"<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr><th>Item</th><th class="num">On Hand</th><th class="num">Reorder</th><th class="num">Suggested Qty</th><th>Best Supplier</th><th class="num">Est. Cost</th><th>Status</th></tr></thead><tbody>"#
+    } else {
+        r#"<div class="tbl-wrap" style="max-height:62vh"><table><thead><tr><th>Item</th><th class="num">On Hand</th><th class="num">Reorder</th><th class="num">Suggested Qty</th><th>Status</th></tr></thead><tbody>"#
+    };
     for row in rows {
         let supplier = match &row.best_supplier {
             Some(name) => format!(
@@ -40,15 +51,22 @@ pub fn reorder_screen(fixture: &ConfirmationFixture, role: Role) -> Result<Strin
             ReorderStatus::Out => (" neg", r#"<span class="tag out">OUT</span>"#),
             ReorderStatus::Low => ("", r#"<span class="tag low">LOW</span>"#),
         };
+        let priced = if owner {
+            format!(
+                r#"<td>{supplier}</td><td class="num">{}</td>"#,
+                row.estimated_cost_display()
+            )
+        } else {
+            String::new()
+        };
         let _ = write!(
             html,
-            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num{out}">{}</td><td class="num">{}</td><td class="num" style="font-weight:700;color:var(--accent)">{} pkt</td><td>{supplier}</td><td class="num">{}</td><td>{tag}</td></tr>"#,
+            r#"<tr><td><b>{}</b><div class="muted" style="font-size:11px">{}</div></td><td class="num{out}">{}</td><td class="num">{}</td><td class="num" style="font-weight:700;color:var(--accent)">{} pkt</td>{priced}<td>{tag}</td></tr>"#,
             esc(&row.item),
             esc(&row.brand),
             indian_digits(u64::from(row.on_hand)),
             indian_digits(u64::from(row.reorder_level)),
             indian_digits(row.suggested_quantity.get()),
-            row.estimated_cost_display()
         );
     }
     Ok(html + "</tbody></table></div>")

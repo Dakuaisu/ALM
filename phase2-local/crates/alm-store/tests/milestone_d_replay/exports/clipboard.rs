@@ -1,7 +1,7 @@
+use alm_core::confirmation::ConfirmationFixture;
 use alm_core::confirmation::order_planner::{
     CopyPlanFeedback, CopyPlanRejected, OrderPlannerError,
 };
-use alm_core::confirmation::{ConfirmationFixture, ReorderError};
 use alm_core::{BillDate, Money};
 
 use super::{A, B, ITEM_A, ITEM_B, MANAGER, OWNER};
@@ -19,16 +19,19 @@ pub(super) fn exercise(fixture: &ConfirmationFixture) {
         fixture.open_order_planner(MANAGER),
         Err(OrderPlannerError::AccessDenied)
     );
-    assert_eq!(
-        fixture.open_reorder_planner(MANAGER),
-        Err(ReorderError::AccessDenied)
+    // DEC-034: a Manager's reorder list and its copy hold quantities only.
+    assert!(
+        fixture
+            .open_reorder_planner(MANAGER)
+            .unwrap()
+            .iter()
+            .all(|row| row.best_supplier.is_none() && row.estimated_cost.is_zero())
     );
-    assert_eq!(
-        fixture.copy_reorder_list(MANAGER, today, &mut |_| {
-            panic!("Manager reorder list invoked the copy callback")
-        }),
-        Err(ReorderError::AccessDenied)
-    );
+    let mut copied = Vec::new();
+    fixture
+        .copy_reorder_list(MANAGER, today, &mut |text| copied.push(text))
+        .unwrap();
+    assert!(copied.iter().all(|text| !text.contains('₹')), "{copied:?}");
 
     let mut fallback = Vec::new();
     let mut capture = |text: &str| {

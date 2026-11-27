@@ -40,11 +40,8 @@ pub enum ManualGodownError {
     InvalidCases,
 }
 
-const fn owner(role: Role) -> Result<(), ManualGodownError> {
-    match role {
-        Role::Owner => Ok(()),
-        Role::Manager => Err(ManualGodownError::AccessDenied),
-    }
+fn gate(role: Role, capability: crate::permissions::Capability) -> Result<(), ManualGodownError> {
+    crate::permissions::require(role, capability).map_err(|_| ManualGodownError::AccessDenied)
 }
 
 /// The Godown screen's filtered list: rows by name and the total of their whole cases.
@@ -104,7 +101,7 @@ impl ConfirmationFixture {
         &self,
         role: Role,
     ) -> Result<Vec<&ManualGodownRow>, ManualGodownError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::Godown)?;
         Ok(self.manual_godown.values().collect())
     }
 
@@ -115,7 +112,7 @@ impl ConfirmationFixture {
         role: Role,
         input: ManualGodownInput<'_>,
     ) -> Result<(), ManualGodownError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::SaveGodown)?;
         let item = input.item.trim();
         if item.is_empty() {
             return Err(ManualGodownError::ItemNameRequired);
@@ -148,7 +145,7 @@ impl ConfirmationFixture {
 
 #[cfg(test)]
 mod list_tests {
-    use super::{ManualGodownError, ManualGodownInput};
+    use super::ManualGodownInput;
     use crate::confirmation::demo_fixture::fixture;
     use crate::{ProductId, Role};
 
@@ -176,10 +173,8 @@ mod list_tests {
         assert_eq!(rows, ["Synthetic Soda", "synthetic lime"]);
         assert_eq!(list.total_cases, 11);
         assert_eq!(fixture.product_stock(ProductId::new(2)), Some(40));
-        assert_eq!(
-            fixture.manual_godown_list(Role::Manager, ""),
-            Err(ManualGodownError::AccessDenied)
-        );
+        // DEC-034: a Manager keeps the manual list too.
+        assert_eq!(fixture.manual_godown_list(Role::Manager, "SYNTH"), Ok(list));
     }
 }
 
@@ -206,6 +201,10 @@ mod copy_tests {
                 "*Godown Stock* (30-Apr-2025)\n\nIce — 2 cases\nSoda — 1,200 cases (back rack)\n\nTotal: 2 items"
             )
         );
-        assert!(f.manual_godown_copy_text(Role::Manager, day).is_err());
+        // DEC-034: a Manager copies the same list.
+        assert_eq!(
+            f.manual_godown_copy_text(Role::Manager, day),
+            f.manual_godown_copy_text(Role::Owner, day)
+        );
     }
 }

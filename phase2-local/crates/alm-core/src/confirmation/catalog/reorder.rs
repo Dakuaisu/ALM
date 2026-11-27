@@ -72,11 +72,9 @@ impl Catalog {
     }
 }
 
-const fn owner(role: Role) -> Result<(), super::ReorderError> {
-    match role {
-        Role::Owner => Ok(()),
-        Role::Manager => Err(ReorderError::AccessDenied),
-    }
+fn gate(role: Role) -> Result<(), super::ReorderError> {
+    crate::permissions::require(role, crate::permissions::Capability::Reorder)
+        .map_err(|_| ReorderError::AccessDenied)
 }
 
 impl ConfirmationFixture {
@@ -85,13 +83,23 @@ impl ConfirmationFixture {
     /// # Errors
     /// Denies Managers before reading stock and rejects costs that cannot fit in `Money`.
     pub fn open_reorder_planner(&self, role: Role) -> Result<Vec<super::ReorderRow>, ReorderError> {
-        owner(role)?;
+        gate(role)?;
         let columns = self.purchases.price_suppliers();
+        // DEC-034: a Manager's reorder list holds quantities only, no supplier or cost.
+        let owner = role == Role::Owner;
         self.reorder_candidates()
             .into_iter()
             .map(|candidate| {
-                let quote = self.purchases.reorder_quote(candidate.product, &columns);
+                let quote = self
+                    .purchases
+                    .reorder_quote(candidate.product, &columns)
+                    .filter(|_| owner);
                 let unit_rate = quote.map_or(candidate.buy_rate, |(_, rate)| rate);
+                let unit_rate = if owner {
+                    unit_rate
+                } else {
+                    Money::from_minor_units(0)
+                };
                 let quantity = i64::try_from(candidate.suggested_quantity.get())
                     .map_err(|_| ReorderError::Overflow)?;
                 let estimated_cost = unit_rate
@@ -128,13 +136,17 @@ impl ConfirmationFixture {
         today: BillDate,
         sink: &mut impl FnMut(String),
     ) -> Result<(), ReorderError> {
-        owner(role)?;
+        gate(role)?;
         let columns = self.purchases.price_suppliers();
         let mut text = format!("*ALM Reorder List* ({})\n\n", display_date(today));
         for candidate in self.reorder_candidates() {
             let quantity = group_indian_digits(candidate.suggested_quantity.get());
             let _ = write!(text, "{} — {quantity} pkt", candidate.item);
-            if let Some((name, rate)) = self.purchases.reorder_quote(candidate.product, &columns) {
+            if let Some((name, rate)) = self
+                .purchases
+                .reorder_quote(candidate.product, &columns)
+                .filter(|_| role == Role::Owner)
+            {
                 let _ = write!(text, " ({name} ₹{})", format_amount(rate));
             }
             text.push('\n');

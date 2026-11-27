@@ -3,9 +3,8 @@ use std::num::NonZeroI64;
 use alm_core::confirmation::manual_cashbook::ManualCashBook;
 use alm_core::confirmation::{
     ConfirmationError, ConfirmationFixture, DailyMovementError, DailyMovementRow, DeadStockRow,
-    PhysicalCount, PhysicalCountError, PhysicalCountInput, ProductEntryError, PurchaseError,
-    ReorderError, ReorderStatus, ReportsError, StockCountMovement, StockCountReason, StockLotRow,
-    StockLots, StockLotsError,
+    PhysicalCount, PhysicalCountInput, ProductEntryError, PurchaseError, ReorderStatus,
+    ReportsError, StockCountMovement, StockCountReason, StockLotRow, StockLots, StockLotsError,
 };
 use alm_core::{BillDate, DraftId, DraftLine, LocalSales, ProductId, ProvisionalDraft};
 
@@ -72,8 +71,6 @@ pub(super) fn replay(fixture: &mut ConfirmationFixture, sale: DraftId, supplier:
         reason: Some(StockCountReason::CountCorrection),
         note: Some("  two loose packets found  "),
     };
-    let rejected = fixture.submit_physical_count(MANAGER, input);
-    assert_eq!(rejected, Err(PhysicalCountError::AccessDenied));
     let initial_count = PhysicalCount {
         on_hand: 3,
         fridge: 0,
@@ -81,8 +78,8 @@ pub(super) fn replay(fixture: &mut ConfirmationFixture, sale: DraftId, supplier:
     };
     assert_eq!(fixture.open_physical_count(OWNER, B), Ok(initial_count));
 
-    // When the Owner records the extra packets, without any receipt or known cost.
-    fixture.submit_physical_count(OWNER, input).unwrap();
+    // When a Manager (DEC-034) records the extra packets, without any receipt or known cost.
+    fixture.submit_physical_count(MANAGER, input).unwrap();
     assert_scoped_manager_draft(supplier);
 
     // Then B leaves the reorder list while A stays visible at equality.
@@ -193,10 +190,15 @@ fn assert_manager_boundary(fixture: &ConfirmationFixture, book: &ManualCashBook,
     );
     let register = fixture.open_daily_movement_register(MANAGER, feb(15));
     assert_eq!(register, Err(DailyMovementError::AccessDenied));
-    let reorder = fixture.open_reorder_planner(MANAGER);
-    assert_eq!(reorder, Err(ReorderError::AccessDenied));
+    // DEC-034: a Manager's reorder list carries no supplier or cost, and it counts stock.
+    let reorder = fixture.open_reorder_planner(MANAGER).unwrap();
+    assert!(
+        reorder
+            .iter()
+            .all(|row| row.best_supplier.is_none() && row.estimated_cost.is_zero())
+    );
     let count = fixture.open_physical_count(MANAGER, B);
-    assert_eq!(count, Err(PhysicalCountError::AccessDenied));
+    assert_eq!(count, fixture.open_physical_count(OWNER, B));
     let product = fixture.open_product_entry(MANAGER, B);
     assert_eq!(product, Err(ProductEntryError::AccessDenied));
     let owner_cost = fixture.purchase_cost(OWNER, B, supplier).unwrap();

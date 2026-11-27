@@ -103,7 +103,10 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         .projection(Role::Manager, &dir, &ManualCashBook::default())
         .unwrap();
     assert!(manager.owner.is_none() && manager.sales.is_empty() && manager.receipts.is_empty());
-    assert!(manager.stock_view(Role::Manager, "", false).is_err());
+    // DEC-034: a Manager's stock view (from its own lists) has quantities and no value.
+    let quantities = snapshot.stock_view(Role::Manager, "", false).unwrap();
+    assert_eq!(quantities.value, None);
+    assert_eq!(quantities.skus, view.skus);
     // DEC-034: a Manager's Sales view holds the same bills and totals and never the profit.
     let owner_sales = snapshot
         .sales_view(Role::Owner, day, SalesPeriod::All, "")

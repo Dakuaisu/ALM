@@ -17,6 +17,7 @@ impl ConfirmationFixture {
         role: Role,
         id: PurchaseOrderId,
     ) -> Result<PurchaseOrderNoteEdit, PurchaseError> {
+        owner(role)?;
         let order = self
             .purchase_orders(role)?
             .get(id.0)

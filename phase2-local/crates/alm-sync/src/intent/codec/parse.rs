@@ -135,6 +135,13 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
             })?,
             remaining: f.list("remaining", |p| p.first()?.parse().ok())?,
         },
+        "receivegoods" => Intent::ReceiveGoods {
+            po: f.num("po")?,
+            date: f.opt("date", |t| t.parse().ok())?,
+            today: f.date("today")?,
+            lines: f.list("lines", |p| p.first()?.parse().ok())?,
+            remaining: f.list("remaining", |p| p.first()?.parse().ok())?,
+        },
         "poclose" => Intent::ClosePurchaseOrder {
             po: f.num("po")?,
             remaining: f.list("remaining", |p| p.first()?.parse().ok())?,

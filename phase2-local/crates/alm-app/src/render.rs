@@ -66,8 +66,13 @@ impl Trial {
             "stock" => {
                 let stored = self.projected()?;
                 self.freshness(&stored)?
-                    + &views::stock_screen(&stored.snapshot, &self.posted, self.role(), &self.stock)
-                        .map_err(refusal)?
+                    + &views::stock_screen(
+                        self.screen_rows(&stored),
+                        &self.posted,
+                        self.role(),
+                        &self.stock,
+                    )
+                    .map_err(refusal)?
             }
             "godown" => views::godown_screen(&self.posted, self.role(), &self.godown_query)
                 .map_err(refusal)?,
@@ -84,8 +89,13 @@ impl Trial {
             "purchases" => {
                 views::purchases_screen(&self.posted, self.role(), self.receiving, self.today()?)?
             }
-            "crates" => views::crates_screen(&self.posted, self.role(), self.crate_form.as_ref())
-                .map_err(refusal)?,
+            "crates" => views::crates_screen(
+                &self.posted,
+                self.role(),
+                self.crate_form.as_ref(),
+                &self.posted.lists.products,
+            )
+            .map_err(refusal)?,
             "ratelist" => {
                 let today = self.today()?;
                 views::ratelist_screen(
@@ -226,7 +236,7 @@ impl Trial {
                 html + &self.account_pills()
             }
             "rateprint" => {
-                let role = self.require_owner()?;
+                let role = self.require(alm_core::permissions::Capability::RateList)?;
                 let today = self.today()?;
                 let html = self
                     .posted

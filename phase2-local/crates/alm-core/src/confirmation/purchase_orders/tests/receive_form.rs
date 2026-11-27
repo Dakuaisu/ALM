@@ -146,8 +146,9 @@ fn l08_10_receive_form_warns_owner_when_order_is_missing() {
     assert_eq!(fixture, before);
 }
 
+/// DEC-034: a Manager opens the receive form of an existing order as the Owner does.
 #[test]
-fn l08_10_receive_form_denies_manager_for_existing_and_missing_ids() {
+fn l08_10_a_manager_opens_the_receive_form_of_an_existing_order() {
     let (fixture, id) = mixed_order();
     let before = fixture.clone();
     let today = BillDate::new(2025, 1, 20).unwrap();
@@ -155,8 +156,12 @@ fn l08_10_receive_form_denies_manager_for_existing_and_missing_ids() {
     for id in [id, PurchaseOrderId(99)] {
         assert_eq!(
             fixture.open_purchase_receive_form(Role::Manager, id, today),
-            Err(ReceiveFormError::AccessDenied)
+            fixture.open_purchase_receive_form(Role::Owner, id, today)
         );
     }
+    assert_eq!(
+        fixture.open_purchase_receive_form(Role::Manager, PurchaseOrderId(99), today),
+        Err(ReceiveFormError::OrderNotFound)
+    );
     assert_eq!(fixture, before);
 }

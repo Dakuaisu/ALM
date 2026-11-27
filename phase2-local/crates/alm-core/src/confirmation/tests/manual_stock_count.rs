@@ -192,26 +192,35 @@ fn owner_updates_manual_count_without_changing_billing_or_register() {
     assert_eq!(fixture, expected);
 }
 
+/// DEC-034: a Manager keeps the manual godown list: it reopens it and saves rows as the Owner
+/// does, and invalid rows are refused without any change.
 #[test]
-fn manager_is_denied_before_validation_without_any_fixture_change() {
+fn a_manager_keeps_the_manual_list_as_the_owner_does() {
     let mut fixture = billing_fixture();
     fixture
         .save_manual_godown(OWNER, form(ITEM, "3", "back rack"))
         .unwrap();
     let before = fixture.clone();
     let manager = Role::Manager;
-    let denied = ManualGodownError::AccessDenied;
-    assert_eq!(fixture.open_manual_godown(manager), Err(denied));
-    assert_eq!(fixture, before);
-    for input in [
-        form(ITEM, "8", "changed"),
-        form(" ", "bad", ""),
-        form(ITEM, "bad", ""),
+    assert_eq!(
+        fixture.open_manual_godown(manager),
+        fixture.open_manual_godown(OWNER)
+    );
+    for (input, error) in [
+        (form(" ", "bad", ""), ManualGodownError::ItemNameRequired),
+        (form(ITEM, "bad", ""), ManualGodownError::InvalidCases),
     ] {
-        assert_eq!(fixture.save_manual_godown(manager, input), Err(denied));
+        assert_eq!(fixture.save_manual_godown(manager, input), Err(error));
         assert_eq!(fixture, before);
     }
-    println!("L12-01 Manager: reopen and valid/invalid saves denied; entire fixture unchanged");
+    let mut owner = fixture.clone();
+    fixture
+        .save_manual_godown(manager, form(ITEM, "8", "changed"))
+        .unwrap();
+    owner
+        .save_manual_godown(OWNER, form(ITEM, "8", "changed"))
+        .unwrap();
+    assert_eq!(fixture, owner);
 }
 
 #[test]

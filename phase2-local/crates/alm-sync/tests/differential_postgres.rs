@@ -1431,6 +1431,42 @@ fn manager_posts_edits_and_cancels() {
             note: String::new(),
         },
     );
+    let po = created(p.owner(
+        "po",
+        &purchase(
+            "Synthetic Depot",
+            "2025-04-30",
+            &[("Synthetic Soda", Some(SODA), 10, 3_610)],
+        ),
+    ));
+    let receive_goods = |quantity: u32, remaining: u32| Intent::ReceiveGoods {
+        po,
+        date: Some(alm_core::BillDate::new(2025, 5, 1).unwrap()),
+        today: alm_core::BillDate::new(2025, 5, 1).unwrap(),
+        lines: vec![quantity],
+        remaining: vec![remaining],
+    };
+    manager(&mut p, "receive quantities", &receive_goods(4, 10));
+    manager(&mut p, "receive stale", &receive_goods(1, 10));
+    manager(
+        &mut p,
+        "receive at a rate refused",
+        &Intent::ReceivePurchaseOrder {
+            po,
+            date: None,
+            today: alm_core::BillDate::new(2025, 5, 1).unwrap(),
+            lines: vec![(1, alm_core::Money::from_minor_units(1))],
+            remaining: vec![6],
+        },
+    );
+    manager(
+        &mut p,
+        "close refused",
+        &Intent::ClosePurchaseOrder {
+            po,
+            remaining: vec![6],
+        },
+    );
     let core = p.core();
     manager(
         &mut p,

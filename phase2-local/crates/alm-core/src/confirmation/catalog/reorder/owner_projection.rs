@@ -3,7 +3,6 @@ use crate::confirmation::{ConfirmationFixture, ManualGodownInput, SupplierPriceE
 use crate::{BillDate, Money, ProductId, Role};
 
 use super::super::ProductPriceInput;
-use super::ReorderError;
 use super::ReorderStatus::{Low, Out};
 
 mod buy_rate;
@@ -252,21 +251,29 @@ fn l13_01_equal_stored_quote_can_label_a_minimum_established_by_live_columns() {
     );
 }
 
+/// DEC-034: a Manager opens and copies the reorder list with quantities only: no supplier,
+/// buy rate or estimated cost.
 #[test]
-fn l13_01_manager_cannot_open_or_copy_and_never_calls_the_sink() {
+fn l13_01_a_manager_opens_and_copies_quantities_only() {
     let fixture = fixture();
     let before = fixture.clone();
     let mut captured = Vec::new();
 
-    let rows = fixture.open_reorder_planner(Role::Manager);
-    let copy = fixture.copy_reorder_list(Role::Manager, date(), &mut |text| captured.push(text));
-
-    assert_eq!(rows, Err(ReorderError::AccessDenied));
-    assert_eq!(copy, Err(ReorderError::AccessDenied));
-    assert_eq!(captured.len(), 0);
+    let rows = fixture.open_reorder_planner(Role::Manager).unwrap();
+    let owner = fixture.open_reorder_planner(Role::Owner).unwrap();
+    fixture
+        .copy_reorder_list(Role::Manager, date(), &mut |text| captured.push(text))
+        .unwrap();
+    assert_eq!(rows.len(), owner.len());
+    for (manager, owner) in rows.iter().zip(&owner) {
+        assert_eq!(
+            (manager.product, manager.on_hand, manager.suggested_quantity),
+            (owner.product, owner.on_hand, owner.suggested_quantity)
+        );
+        assert_eq!(manager.best_supplier, None);
+        assert!(manager.unit_rate.is_zero() && manager.estimated_cost.is_zero());
+    }
+    assert_eq!(captured.len(), 1);
+    assert!(!captured[0].contains('₹'), "{}", captured[0]);
     assert_eq!(fixture, before);
-    println!(
-        "l13_01 Manager: open={rows:?}, copy={copy:?}, sink calls={}, whole fixture unchanged",
-        captured.len()
-    );
 }

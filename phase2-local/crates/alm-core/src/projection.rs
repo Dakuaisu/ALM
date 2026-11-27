@@ -444,16 +444,15 @@ impl ProjectionSnapshot {
     /// FIFO value.
     ///
     /// # Errors
-    /// Denies Managers (OPEN-004: stock quantities without values are undecided).
+    /// Denies a role the matrix keeps from Stock. DEC-034: a Manager's view has no value.
     pub fn stock_view(
         &self,
         role: Role,
         query: &str,
         low_only: bool,
     ) -> Result<StockView<'_>, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Stock)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let needle = query.trim().to_lowercase();
         let mut view = StockView {
             rows: Vec::new(),
@@ -461,7 +460,11 @@ impl ProjectionSnapshot {
             in_stock: 0,
             low: 0,
             out: 0,
-            value: self.owner.as_ref().and_then(|owner| owner.stock_value),
+            value: self
+                .owner
+                .as_ref()
+                .filter(|_| role == Role::Owner)
+                .and_then(|owner| owner.stock_value),
         };
         for row in &self.stock {
             let status = if row.on_hand == 0 {

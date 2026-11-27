@@ -83,6 +83,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         | Intent::SetSupplierPrices { .. }
         | Intent::SavePurchaseOrder(_)
         | Intent::ReceivePurchaseOrder { .. }
+        | Intent::ReceiveGoods { .. }
         | Intent::ClosePurchaseOrder { .. } => purchasing::apply(state, intent),
         Intent::SaveCrate(_)
         | Intent::DeleteCrate { .. }

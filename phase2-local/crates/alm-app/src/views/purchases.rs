@@ -46,13 +46,18 @@ pub fn purchases_screen(
         "on file",
         "🧾",
     );
-    html += &kpi(
-        "w",
-        "Suppliers",
-        &list.suppliers.to_string(),
-        "on file",
-        "🏭",
-    );
+    // DEC-034: suppliers, values, printing and closing are the Owner's; a Manager receives
+    // quantities only.
+    let owner = role == Role::Owner;
+    if owner {
+        html += &kpi(
+            "w",
+            "Suppliers",
+            &list.suppliers.to_string(),
+            "on file",
+            "🏭",
+        );
+    }
     html += "</div>";
     if let Some(id) = receiving {
         html += &receive_form(fixture, role, id, today)?;
@@ -62,32 +67,51 @@ pub fn purchases_screen(
             html + r#"<div class="card" style="text-align:center;color:var(--mut2);padding:42px">No purchase orders yet — plan one in the Order Planner. Stock increases only when you receive the goods.</div>"#
         );
     }
-    html += r#"<div class="tbl-wrap" style="max-height:56vh"><table><thead><tr><th>Date</th><th>PO No</th><th>Supplier</th><th>Status</th><th class="num">Recv / Ordered</th><th class="num">Value</th><th class="num">Actions</th></tr></thead><tbody>"#;
+    html += if owner {
+        r#"<div class="tbl-wrap" style="max-height:56vh"><table><thead><tr><th>Date</th><th>PO No</th><th>Supplier</th><th>Status</th><th class="num">Recv / Ordered</th><th class="num">Value</th><th class="num">Actions</th></tr></thead><tbody>"#
+    } else {
+        r#"<div class="tbl-wrap" style="max-height:56vh"><table><thead><tr><th>Date</th><th>PO No</th><th>Supplier</th><th>Status</th><th class="num">Recv / Ordered</th><th class="num">Actions</th></tr></thead><tbody>"#
+    };
     for row in &list.rows {
         let (class, label) = status(row.status);
         let id = row.id.index();
-        let print = format!(
-            r#"<button class="btn sm" data-action="print_open" data-q="poprint" data-id="{}">🖨 Print</button> "#,
-            row.selection.number
-        );
-        let actions = print
-            + &if row.status.can_receive() {
-                format!(
-                    r#"<button class="btn sm primary" data-action="po_receive" data-id="{id}">Receive</button> <details style="display:inline-block"><summary class="btn sm danger">Close remaining</summary><button class="btn sm danger" data-action="po_close" data-id="{id}">Close {} unreceived (no stock change)</button></details>"#,
-                    indian_digits(row.remaining)
-                )
-            } else {
-                String::new()
-            };
+        let print = if owner {
+            format!(
+                r#"<button class="btn sm" data-action="print_open" data-q="poprint" data-id="{}">🖨 Print</button> "#,
+                row.selection.number
+            )
+        } else {
+            String::new()
+        };
+        let receive = if row.status.can_receive() {
+            format!(
+                r#"<button class="btn sm primary" data-action="po_receive" data-id="{id}">Receive</button>"#
+            )
+        } else {
+            String::new()
+        };
+        let close = if owner && row.status.can_receive() {
+            format!(
+                r#" <details style="display:inline-block"><summary class="btn sm danger">Close remaining</summary><button class="btn sm danger" data-action="po_close" data-id="{id}">Close {} unreceived (no stock change)</button></details>"#,
+                indian_digits(row.remaining)
+            )
+        } else {
+            String::new()
+        };
+        let actions = print + &receive + &close;
+        let value = if owner {
+            format!(r#"<td class="num">{}</td>"#, money_r(row.value))
+        } else {
+            String::new()
+        };
         let _ = write!(
             html,
-            r#"<tr><td>{}</td><td><b>{}</b></td><td>{}</td><td><span class="tag {class}">{label}</span></td><td class="num">{} / {}</td><td class="num">{}</td><td class="num">{actions}</td></tr>"#,
+            r#"<tr><td>{}</td><td><b>{}</b></td><td>{}</td><td><span class="tag {class}">{label}</span></td><td class="num">{} / {}</td>{value}<td class="num">{actions}</td></tr>"#,
             row.date.display(),
             esc(&row.number),
             esc(&row.supplier),
             indian_digits(row.received),
             indian_digits(row.ordered),
-            money_r(row.value)
         );
     }
     Ok(html + "</tbody></table></div>")
@@ -102,8 +126,14 @@ fn receive_form(
     let form = fixture
         .open_purchase_receive_form(role, id, today)
         .map_err(|error| error.to_string())?;
+    let owner = role == Role::Owner;
+    let rate_head = if owner {
+        r#"<th class="num">Rate ₹</th>"#
+    } else {
+        ""
+    };
     let mut html = format!(
-        r#"<div class="card" style="margin-bottom:14px"><h3>📥 Receive goods — {}</h3><form data-action="po_receive_save" data-payload="terms"><input type="hidden" name="po" value="{}"><div class="field"><label>Received on <input class="inp" type="date" name="date" value="{}" required></label></div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Remaining</th><th class="num">Receive now</th><th class="num">Rate ₹</th></tr></thead><tbody>"#,
+        r#"<div class="card" style="margin-bottom:14px"><h3>📥 Receive goods — {}</h3><form data-action="po_receive_save" data-payload="terms"><input type="hidden" name="po" value="{}"><div class="field"><label>Received on <input class="inp" type="date" name="date" value="{}" required></label></div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Remaining</th><th class="num">Receive now</th>{rate_head}</tr></thead><tbody>"#,
         esc(&form.supplier_name),
         id.index(),
         form.received_on
@@ -114,17 +144,25 @@ fn receive_form(
         } else {
             " readonly"
         };
+        // DEC-034: a Manager receives quantities only; the order's rates apply.
+        let rate = if owner {
+            format!(
+                r#"<td class="num"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {}" value="{}"{lock}></td>"#,
+                esc(&row.item),
+                row.rate.to_rupee_text()
+            )
+        } else {
+            String::new()
+        };
         let _ = write!(
             html,
-            r#"<tr><td>{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num"><input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Receive now {}" value="{}"{lock}></td><td class="num"><input class="inp num" name="rate_{i}" inputmode="decimal" aria-label="Rate {}" value="{}"{lock}></td></tr>"#,
+            r#"<tr><td>{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num"><input class="inp num" name="qty_{i}" inputmode="numeric" aria-label="Receive now {}" value="{}"{lock}></td>{rate}</tr>"#,
             esc(&row.item),
             row.ordered,
             row.received,
             row.remaining,
             esc(&row.item),
             row.receive_now,
-            esc(&row.item),
-            row.rate.to_rupee_text()
         );
     }
     Ok(

@@ -100,6 +100,18 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
             list(lines, |(q, r)| vec![q.to_string(), money(*r)]),
             list(remaining, |r| vec![r.to_string()])
         ),
+        Intent::ReceiveGoods {
+            po,
+            date,
+            today,
+            lines,
+            remaining,
+        } => format!(
+            "receivegoods po={po} date={} today={today} lines={} remaining={}",
+            opt(*date, |d| d.to_string()),
+            list(lines, |q| vec![q.to_string()]),
+            list(remaining, |r| vec![r.to_string()])
+        ),
         Intent::ClosePurchaseOrder { po, remaining } => format!(
             "poclose po={po} remaining={}",
             list(remaining, |r| vec![r.to_string()])

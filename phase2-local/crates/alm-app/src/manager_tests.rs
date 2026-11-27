@@ -347,3 +347,219 @@ fn a_manager_sees_balances_adds_customers_records_payments_and_closes_today_only
         "a closed day is the Owner's"
     );
 }
+
+/// The Owner's purchasing in the simulation: a PO for Synthetic Soda at a buy rate.
+fn owner_purchase(trial: &mut Trial) {
+    trial.set_owner(true).unwrap();
+    trial
+        .send(&Intent::SavePurchaseOrder(alm_sync::PurchaseOrderTerms {
+            supplier: Some((None, "Synthetic Depot".into())),
+            date: Some(day()),
+            note: String::new(),
+            lines: vec![alm_sync::PurchaseLineTerms {
+                item: "Synthetic Soda".into(),
+                product: Some(2),
+                ordered: 10,
+                rate: Money::from_minor_units(3_610),
+            }],
+        }))
+        .unwrap();
+    trial.set_owner(false).unwrap();
+}
+
+#[test]
+fn a_manager_receives_counts_and_lists_stock_without_costs() {
+    let (_root, mut trial) = manager("manager-stock");
+    owner_purchase(&mut trial);
+    // Receiving: quantities only, no rate column or rate sent; the order's rate applies.
+    trial.render("purchases").unwrap();
+    trial.receiving = Some(trial.purchase_id(0).unwrap());
+    let page = trial.render("purchases").unwrap();
+    assert!(
+        page.contains("Receive now") && !page.contains("Rate ₹"),
+        "{page}"
+    );
+    assert!(
+        !page.contains("po_close") && !page.contains("poprint"),
+        "{page}"
+    );
+    let mut terms = std::collections::HashMap::new();
+    terms.insert("po".to_owned(), "0".to_owned());
+    terms.insert("date".to_owned(), "2025-04-30".to_owned());
+    terms.insert("qty_0".to_owned(), "4".to_owned());
+    terms.insert("rate_0".to_owned(), "1".to_owned());
+    trial.po_receive_save(terms).unwrap();
+    assert!(
+        trial
+            .outbox
+            .entries()
+            .unwrap()
+            .iter()
+            .any(|e| e.intent.starts_with("receivegoods po=0 ") && e.intent.contains("lines=4")),
+        "quantities only"
+    );
+    let soda = |trial: &mut Trial| {
+        let stored = trial.projected().unwrap();
+        trial
+            .screen_rows(&stored)
+            .stock
+            .iter()
+            .find(|row| row.product == 2)
+            .unwrap()
+            .on_hand
+    };
+    assert_eq!(soda(&mut trial), 44);
+    trial.set_owner(true).unwrap();
+    let lots = trial
+        .authority
+        .open_stock_lots(Role::Owner, alm_core::ProductId::new(2))
+        .unwrap();
+    assert!(
+        lots.rows
+            .iter()
+            .any(|lot| lot.unit_cost == Some(Money::from_minor_units(3_610))),
+        "the order's rate: {lots:?}"
+    );
+    trial.set_owner(false).unwrap();
+    // A buy rate sent by a Manager is refused by the authority.
+    assert!(
+        trial
+            .send(&Intent::ReceivePurchaseOrder {
+                po: 0,
+                date: None,
+                today: day(),
+                lines: vec![(1, Money::from_minor_units(1))],
+                remaining: vec![6],
+            })
+            .is_err()
+    );
+
+    // Counting stock, the godown list and a crate template.
+    trial
+        .stock_count(&crate::stock::Count {
+            product: "2".into(),
+            on_hand: "44".into(),
+            counted: "43".into(),
+            fridge: String::new(),
+            reason: "damage".into(),
+            note: String::new(),
+        })
+        .unwrap();
+    assert_eq!(soda(&mut trial), 43);
+    crate::godown::save(
+        &mut trial,
+        &crate::godown::Row {
+            item: "Synthetic Soda".into(),
+            cases: "9".into(),
+            note: "back".into(),
+        },
+    )
+    .unwrap();
+    assert!(trial.render("godown").unwrap().contains("9 cases"));
+    trial
+        .send(&Intent::SaveCrate(alm_sync::CrateTerms {
+            id: None,
+            name: "Soda Pair".into(),
+            price: Money::from_minor_units(12_000),
+            components: vec![(2, 2, false)],
+        }))
+        .unwrap();
+    assert!(trial.render("crates").unwrap().contains("Soda Pair"));
+    assert!(
+        trial.send(&Intent::DeleteCrate { id: 1 }).is_err(),
+        "Owner only"
+    );
+    for refused in [
+        Intent::ClosePurchaseOrder {
+            po: 0,
+            remaining: vec![6],
+        },
+        Intent::SetSupplierPrices {
+            product: 2,
+            rates: vec![(0, Some(Money::from_minor_units(3_000)))],
+        },
+    ] {
+        assert!(trial.send(&refused).is_err(), "{refused:?}");
+    }
+    // The Reorder and Rate List texts a Manager copies or shares: quantities and selling rates.
+    for text in [
+        trial.reorder_copy_text().unwrap(),
+        trial.rate_copy_text().unwrap(),
+    ] {
+        for cost in ["70", "38", "36.1", "69", "72"] {
+            assert!(!text.contains(&format!("₹{cost}")), "{text}");
+        }
+    }
+}
+
+/// DEC-034: every screen a Manager opens, over a shop with sales, quotes, a received PO, a
+/// crate, a godown row and a count, shows no cost, buy rate, supplier price, FIFO lot, stock
+/// value, margin or profit; the Owner's same screens do.
+#[test]
+fn no_manager_screen_shows_a_cost() {
+    let (_root, mut trial) = manager("manager-no-cost");
+    owner_purchase(&mut trial);
+    trial.set_owner(true).unwrap();
+    trial
+        .send(&Intent::ReceivePurchaseOrder {
+            po: 0,
+            date: Some(day()),
+            today: day(),
+            lines: vec![(4, Money::from_minor_units(3_620))],
+            remaining: vec![10],
+        })
+        .unwrap();
+    trial
+        .send(&Intent::SaveCrate(alm_sync::CrateTerms {
+            id: None,
+            name: "Party".into(),
+            price: Money::from_minor_units(40_000),
+            components: vec![(1, 2, false)],
+        }))
+        .unwrap();
+    trial.set_owner(false).unwrap();
+    saved_bill(&mut trial, 2);
+    trial.bill_post("20").unwrap();
+    trial.stock.adjust = Some(alm_core::ProductId::new(2));
+    trial.receiving = Some(trial.purchase_id(0).unwrap());
+    let mut owner_saw = String::new();
+    for role in [Role::Owner, Role::Manager] {
+        trial.set_owner(role == Role::Owner).unwrap();
+        for tab in crate::screen_tests::MANAGER_SCREENS.iter().chain(&["bill"]) {
+            let html = trial.render(tab).unwrap_or_else(|e| panic!("{tab}: {e}"));
+            if role == Role::Owner {
+                owner_saw += &html;
+                continue;
+            }
+            assert!(!html.contains("role=\"alert\""), "{tab}: {html}");
+            // Buy rates, quotes, PO and received rates, lot costs and the FIFO stock value.
+            for cost in [
+                "70.00", "38.00", "69.00", "72.00", "37.00", "36.00", "36.10", "36.20", "₹70",
+                "₹38", "₹36",
+            ] {
+                assert!(!html.contains(cost), "{tab} shows {cost}");
+            }
+            for word in [
+                "Profit",
+                "profit is",
+                "Stock Value",
+                "Est. Cost",
+                "Best Supplier",
+                "Margin",
+                "Buy",
+                "buy rate",
+                "FIFO",
+                "Lots",
+                "Synthetic Wholesale",
+            ] {
+                assert!(!html.contains(word), "{tab} shows {word}");
+            }
+        }
+    }
+    for shown in ["Stock Value", "Profit", "Rate ₹"] {
+        assert!(
+            owner_saw.contains(shown),
+            "the Owner's screens show {shown}"
+        );
+    }
+}

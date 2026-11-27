@@ -7,7 +7,7 @@ use crate::{AppState, Trial, ipc::IpcId, refusal, with};
 
 impl Trial {
     pub(crate) fn purchase_id(&self, index: u64) -> Result<PurchaseOrderId, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::Purchases)?;
         self.posted
             .purchase_orders(role)
             .map_err(refusal)?
@@ -21,7 +21,7 @@ impl Trial {
         &mut self,
         mut terms: HashMap<String, String>,
     ) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::ReceiveGoods)?;
         let today = self.today()?;
         let index = terms
             .remove("po")
@@ -39,17 +39,31 @@ impl Trial {
             .enumerate()
             .map(|(i, row)| {
                 let qty = terms.remove(&format!("qty_{i}")).unwrap_or_default();
-                let rate = terms.remove(&format!("rate_{i}")).unwrap_or_default();
+                // DEC-034: a Manager receives quantities only, at the order's own rates.
+                let rate = match role {
+                    alm_core::Role::Owner => terms.remove(&format!("rate_{i}")).unwrap_or_default(),
+                    alm_core::Role::Manager => "0".to_owned(),
+                };
                 row.line_from_text(&qty, &rate)
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
-        self.send(&alm_sync::Intent::ReceivePurchaseOrder {
-            po: index,
-            date,
-            today,
-            lines: lines.iter().map(|l| (l.quantity, l.rate)).collect(),
-            remaining: form.rows.iter().map(|row| row.remaining).collect(),
+        let remaining = form.rows.iter().map(|row| row.remaining).collect();
+        self.send(&match role {
+            alm_core::Role::Owner => alm_sync::Intent::ReceivePurchaseOrder {
+                po: index,
+                date,
+                today,
+                lines: lines.iter().map(|l| (l.quantity, l.rate)).collect(),
+                remaining,
+            },
+            alm_core::Role::Manager => alm_sync::Intent::ReceiveGoods {
+                po: index,
+                date,
+                today,
+                lines: lines.iter().map(|l| l.quantity).collect(),
+                remaining,
+            },
         })?;
         self.receiving = None;
         self.message = "Goods received ✓ — stock and lots updated".into();
@@ -84,7 +98,7 @@ pub fn po_receive_save(
 #[tauri::command(async)]
 pub fn po_close(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     with(&state, "purchases", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::ClosePurchaseOrder)?;
         let po = id.value();
         let id = trial.purchase_id(po)?;
         let remaining = trial

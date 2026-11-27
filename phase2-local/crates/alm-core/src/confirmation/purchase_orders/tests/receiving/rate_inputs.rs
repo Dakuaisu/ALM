@@ -58,9 +58,18 @@ fn l08_06_raw_receipt_rates_on_independent_partial_po_clones() {
     assert_eq!(result.unwrap_err().kind(), &IntErrorKind::InvalidDigit);
     assert_eq!(nonnumeric, base);
 
+    // DEC-034: a Manager receives quantities only (rate 0: the order's rate); any rate it
+    // sends is refused.
+    let mut manager = base.clone();
+    let mut owner = base.clone();
+    assert_eq!(
+        receive_one(&mut manager, Role::Manager, zero_rate),
+        receive_one(&mut owner, OWNER, zero_rate)
+    );
+    assert_eq!(manager, owner);
     let mut denied = base.clone();
     assert_eq!(
-        receive_one(&mut denied, Role::Manager, zero_rate),
+        receive_one(&mut denied, Role::Manager, Money::from_minor_units(1)),
         Err(PurchaseError::AccessDenied)
     );
     assert_eq!(denied, base);

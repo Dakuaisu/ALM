@@ -93,7 +93,7 @@ fn entry(
                 if *online { "Online" } else { "Cash" }.to_owned(),
             )
         }
-        (Intent::ReceivePurchaseOrder { po, .. }, _) => {
+        (Intent::ReceivePurchaseOrder { po, .. } | Intent::ReceiveGoods { po, .. }, _) => {
             let after = book(after)?;
             let order = after.purchasing.orders.iter().find(|o| o.id == *po)?;
             (

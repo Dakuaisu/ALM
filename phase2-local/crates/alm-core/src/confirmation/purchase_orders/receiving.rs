@@ -57,7 +57,14 @@ impl ConfirmationFixture {
         &mut self,
         request: ReceiveRequest<'_>,
     ) -> Result<ReceiveResult, PurchaseError> {
-        owner(request.role)?;
+        // DEC-034: a Manager receives quantities only; the order's own rates apply.
+        let capability = if request.lines.iter().all(|line| line.rate.is_zero()) {
+            crate::permissions::Capability::ReceiveGoods
+        } else {
+            crate::permissions::Capability::ReceiveGoodsAtRates
+        };
+        crate::permissions::require(request.role, capability)
+            .map_err(|_| PurchaseError::AccessDenied)?;
         let mut purchases = self.purchases.clone();
         let mut catalog = self.catalog.clone();
         let order = purchases

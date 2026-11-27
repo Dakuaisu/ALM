@@ -1,9 +1,8 @@
 use std::num::{NonZeroI64, NonZeroU32};
 
 use alm_core::confirmation::{
-    ConfirmationFixture, CrateTemplate, DailyMovementError, DailyMovementRow, ManualGodownError,
-    ManualGodownInput, ProductTerms, PurchaseOrderStatus, RequestId, StockLotRow, StockLots,
-    StockLotsError,
+    ConfirmationFixture, CrateTemplate, DailyMovementError, DailyMovementRow, ManualGodownInput,
+    ProductTerms, PurchaseOrderStatus, RequestId, StockLotRow, StockLots, StockLotsError,
 };
 use alm_core::{
     BillDate, CrateComponent, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
@@ -142,16 +141,13 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
             cases: text,
             note: "back rack",
         };
-        assert_eq!(
-            fixture.save_manual_godown(MANAGER, input),
-            Err(ManualGodownError::AccessDenied)
-        );
         let rows = fixture.open_manual_godown(OWNER).unwrap();
         assert_eq!(rows.first().map(|row| row.cases.get()), previous);
-        fixture.save_manual_godown(OWNER, input).unwrap();
+        // DEC-034: a Manager keeps the godown list too (it saves the same row here).
+        fixture.save_manual_godown(MANAGER, input).unwrap();
         assert_eq!(
             fixture.open_manual_godown(MANAGER),
-            Err(ManualGodownError::AccessDenied)
+            fixture.open_manual_godown(OWNER)
         );
         let rows = fixture.open_manual_godown(OWNER).unwrap();
         let [row] = rows.as_slice() else {

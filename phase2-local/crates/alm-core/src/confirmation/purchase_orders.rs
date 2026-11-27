@@ -234,7 +234,8 @@ impl ConfirmationFixture {
     }
 
     pub fn purchase_orders(&self, role: Role) -> Result<&[PurchaseOrder], PurchaseError> {
-        owner(role)?;
+        crate::permissions::require(role, crate::permissions::Capability::Purchases)
+            .map_err(|_| PurchaseError::AccessDenied)?;
         Ok(&self.purchases.orders)
     }
 }

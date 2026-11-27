@@ -146,6 +146,18 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
                     "rate_minor": r.minor_units()})).collect::<Vec<_>>(),
                 "remaining": remaining}),
         ),
+        Intent::ReceiveGoods {
+            po,
+            date,
+            today,
+            lines,
+            remaining,
+        } => (
+            "receive_purchase_order",
+            json!({"po": po, "date": date.map(day), "today": day(*today),
+                "lines": lines.iter().map(|q| json!({"quantity": q})).collect::<Vec<_>>(),
+                "remaining": remaining}),
+        ),
         Intent::ClosePurchaseOrder { po, remaining } => (
             "close_purchase_order",
             json!({"po": po, "remaining": remaining}),
