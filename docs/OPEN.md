@@ -6,7 +6,7 @@ Use this checklist for one combined owner request when needed. The numbered entr
 
 - [ ] **Discovery prerequisites — OPEN-001, OPEN-008:** Supply the remaining deployment details and dependencies, and provide the contained browser environment. Provisioning it is not a passing isolation probe or a completed walkthrough.
 - [ ] **Protected evidence and access — OPEN-002, OPEN-006:** Separately authorize each required environment and real-record use. Specify the permitted read-only metadata or protected copies for discovery and, separately, the isolated hosted test project and accounts for integration tests. Neither permits production writes. Do not put credentials or raw records in the repository.
-- [ ] **Business and permission decisions — OPEN-003, OPEN-004, OPEN-009:** Decide source conflicts and precedence with accounting; approve the production role/data matrix and stale-term authority. Require a written decision before any material departure from the HTML. In particular, do not change `BillDate` or either paste-mismatch threshold to clear an unverified case.
+- [ ] **Business and permission decisions — OPEN-003, OPEN-009 (OPEN-004 decided in DEC-034):** Decide source conflicts and precedence with accounting; approve the production role/data matrix and stale-term authority. Require a written decision before any material departure from the HTML. In particular, do not change `BillDate` or either paste-mismatch threshold to clear an unverified case.
 - [ ] **Device prerequisites and parity sign-off — OPEN-005:** Confirm targets, provide access to actual devices and approved share recipients, and resolve disputed parity results against the original. Keep installed workflows, image handoff, print and PDF subject to their existing checks.
 - [ ] **Migration, accounting, and cutover — OPEN-002, OPEN-003, OPEN-007:** Authorize migration rehearsal with protected copies separately. Obtain owner and accounting sign-off on reconciliation and invoice continuity, agree the write pause and rollback authority, and obtain a distinct production cutover authorization before switching. Approval to rehearse is not approval to switch.
 - [ ] **Repeated-product crate valuation — [OPEN-010](#open-010-repeated-product-crate-valuation-l10-01):** After verified OPEN-008 containment and frozen-runtime evidence, decide the L10-01 release costing and report-rounding rule with the accounting reviewer. Neither candidate is approved.
@@ -24,7 +24,10 @@ The owner must provide protected Supabase metadata or explicitly authorize least
 - Status: OPEN
 Continue the [static record crosswalk](PHASE1_DISCOVERY.md#per-record-source-crosswalk). Actual overlap, invoice series and periods, historical GST treatment, payment reconciliation, stock and godown boundaries, and source precedence are blocked pending protected evidence under OPEN-001/002. Keep OPEN-003 open; bring discrepancies and proposed precedence to the owner and accounting reviewer before migration.
 ## OPEN-004 Permission and draft conflict decisions
-- Status: OWNER-BLOCKED
+- Status: DECIDED (DEC-034, 2026-11-27); implementation pending
+
+The owner approved the Owner/Manager matrix in [DEC-034](DECISIONS.md#dec-034-owner-and-manager-permission-matrix-open-004). The questions below are answered there; they stay listed for traceability.
+
 The owner must approve the role and data matrix, provisioned device rules, and who may resolve stale price, tax, stock, or credit terms. The proposals remain unapproved under DEC-015; unapproved operations remain denied.
 
 Screen-access questions from the app ports (recorded at `66dfcfe`; not decided). The core currently denies the Manager on each:

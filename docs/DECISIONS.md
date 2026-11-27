@@ -313,3 +313,35 @@ Options considered: (a) adopt the frozen parser's calendar-invalid date string; 
 Choice: (c). Neither (a) nor (b) is approved for release. `BillDate` validation and both mismatch thresholds stay unchanged. Legacy runtime behavior stays NOT RUN until [OPEN-008](OPEN.md#open-008-contained-browser-for-phase-1-walkthrough) passes. Any permanent departure requires written owner approval.
 
 Reason: This is the most conservative option and mirrors [DEC-027](#dec-027-defer-repeated-product-crate-valuation-l10-01). See [OPEN-009](OPEN.md#open-009-po-paste-calendar-date-discrepancy-l07-04).
+
+## DEC-034 Owner and Manager permission matrix (OPEN-004)
+- Decided by: owner (2026-11-27), technical defaults proposed by the reviewer and accepted with the matrix
+- Status: OWNER DECISION
+
+Two roles only: **Owner** and **Manager** (no Cashier). Anything not listed as allowed stays denied. Enforce every rule on the server (SQL role checks and role-filtered pulls), not only in the app.
+
+**Manager may:**
+- Make bills and **finish (post) them when online**: payment, final invoice number and stock effects are applied by the server after it re-checks current prices, stock and terms. Drafts made offline still wait until the device is online; reconnecting never posts by itself. This replaces "Manager provisional-only".
+- Add crate rows to bills and see crate and item **selling** rates. Manager drafts get the shop's default loading charge.
+- **Edit and cancel posted bills.** Every edit and cancel is recorded in the activity log with the account that did it.
+- See customer **balances (udhaar)**, mobile and address, add customers and edit their contact details, and **record customer payments** (cash or online). Opening balances stay Owner-only.
+- **Cash Book:** enter today's figures and expenses and close today. Earlier days, edits to closed days and month totals stay Owner-only.
+- **Stock work without costs:** receive goods against existing purchase orders (quantities only), adjust stock counts, update the manual godown list, create and edit crate templates, view stock quantities and the reorder list (quantities only). View and share the Rate List (selling rates).
+- Use the **Counter** screen (today's bills, no profit), share bill images and print bills and estimates.
+- Check the status of, and retry, its own confirmations whose outcome is unknown (same account only, never after switching to another account).
+
+**Owner only:**
+- Buying costs, buy rates, supplier prices, FIFO lots and stock value, margins and profit, anywhere: screens, pulls, device files, exports, backups, bill or report output, error text.
+- Products and price changes, suppliers and supplier prices, the Order Planner, creating purchase orders, closing remainders.
+- Dashboard, Reports, GST bills, Settings (shop-wide), Backup & Restore, exports, legacy import and quarantine resolution, the activity log, Clear All, opening balances, Cash Book history.
+
+**Technical defaults (accepted):**
+- A role downgrade or revocation ends the session immediately and deletes that account's stored token; projections and queued output are purged as today; local drafts stay locked to that account.
+- A refresh token may stay on a shared device until sign-out, downgrade or revocation; a memory-only session (no credential store) is acceptable.
+- Real accounts are created by the Owner through a reviewed admin flow (Supabase dashboard or an Owner-only admin command), never with a client-side service-role key; the CI service-role token is test-only.
+- Activity log entries name the account by its login identity (email), Owner-only to read.
+- Manager refusals read "Only the owner can do this." (or the HTML's own wording where it has one).
+- Change history kept for 10,000 revisions; 64-bit row hashes accepted; device IDs drawn per install until devices are provisioned (OPEN-005); drafts from before the shop-wide ID keep working as this device's drafts.
+- The server should parse a raw legacy file itself before trusting a mapped plan (to implement); quarantined records are resolved by the Owner with the accounting reviewer (OPEN-003).
+
+Supersedes the "Manager stays provisional-only" rule used in local development and DEC-015's unapproved proposal for the two roles it covers.
