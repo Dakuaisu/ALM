@@ -231,7 +231,12 @@ impl Trial {
     ) -> Result<Outcome, String> {
         let id = RequestId::new(request).map_err(refusal)?;
         self.session_token()?;
-        let (device, account) = (self.device_id.clone(), self.account.clone());
+        // DEC-034: the activity log names the account by its login identity.
+        let account = self
+            .session
+            .as_ref()
+            .map_or_else(|| self.account.clone(), |s| s.email().to_owned());
+        let device = self.device_id.clone();
         self.authority.set_caller(&device, &account);
         match self.sales_authority().submit(role, &id, intent) {
             Ok(outcome) => {

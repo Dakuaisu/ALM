@@ -8,12 +8,17 @@ use crate::{Trial, text};
 
 impl Trial {
     /// The authority now grants `granted` (a Manager): the Owner projection file, the outbox and
-    /// every output and temporary file go, and the device continues as that role.
+    /// every output and temporary file go. DEC-034: a signed-in session ends at once (its
+    /// stored token is deleted); the built-in simulation continues as that role.
     pub(crate) fn downgrade(&mut self, granted: Role) -> Result<(), String> {
+        const DOWNGRADED: &str = "This account is no longer an Owner on the authority: Owner data and queued actions were removed from this device.";
         self.forget_signed_in()?;
         self.forget(Role::Owner)?;
         self.owner = granted == Role::Owner;
-        self.message = "This account is no longer an Owner on the authority: Owner data and queued actions were removed from this device.".into();
+        if self.session.is_some() {
+            return self.end_session(&format!("{DOWNGRADED} Sign in again to continue."));
+        }
+        self.message = DOWNGRADED.into();
         self.refresh()
     }
 
@@ -31,6 +36,8 @@ impl Trial {
         ProjectionStore::remove_scoped(&self.device_root, &self.account, other).map_err(text)?;
         self.projection.purge().map_err(text)?;
         self.forget_queued()?;
+        // DEC-034: a revocation ends the session at once.
+        self.end_session(crate::trial::REVOKED)?;
         self.revoked = true;
         self.posted = crate::device::Posted::empty()?;
         crate::device_log::record(

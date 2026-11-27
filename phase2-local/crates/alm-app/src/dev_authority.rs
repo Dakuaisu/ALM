@@ -447,7 +447,7 @@ impl Trial {
         self.end_session("Signed out. Sign in to continue.")
     }
 
-    fn end_session(&mut self, message: &str) -> Result<(), String> {
+    pub(crate) fn end_session(&mut self, message: &str) -> Result<(), String> {
         if let Some(session) = self.session.take() {
             self.forget_credentials(session.user_id())?;
             let _ = session.sign_out();

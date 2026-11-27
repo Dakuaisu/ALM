@@ -585,3 +585,38 @@ fn no_manager_screen_shows_a_cost() {
         );
     }
 }
+
+/// DEC-034: a Manager checks the status of, and retries, its own unknown confirmations; after
+/// switching to another account it sees none of them and cannot retry them.
+#[test]
+fn a_manager_resolves_only_its_own_unknown_confirmations() {
+    let (_root, mut trial) = manager("manager-unknown");
+    saved_bill(&mut trial, 1);
+    trial.authority.lose_next_response();
+    assert!(trial.bill_post("0").is_err());
+    let unknown = trial.outbox.unresolved().unwrap().remove(0);
+    assert_eq!(unknown.status, alm_store::OutboxStatus::Unknown);
+    let page = trial.render("review").unwrap();
+    assert!(page.contains("Outcome unknown"), "{page}");
+
+    // Another account on this device: none of the first account's requests.
+    trial.switch_account("trial-b").unwrap();
+    trial.set_owner(false).unwrap();
+    assert!(trial.outbox.unresolved().unwrap().is_empty());
+    assert_eq!(
+        trial.retry(&unknown.request_id).unwrap_err(),
+        "Nothing to retry."
+    );
+
+    // Back on its own account it checks the status (no second bill), then retries nothing.
+    trial.switch_account(crate::trial::ACCOUNT).unwrap();
+    trial.set_owner(false).unwrap();
+    trial.reconnect().unwrap();
+    let resolved = trial.outbox.get(&unknown.request_id).unwrap().unwrap();
+    assert_eq!(resolved.status, alm_store::OutboxStatus::Confirmed);
+    assert_eq!(sales(&mut trial).len(), 1);
+    assert_eq!(
+        trial.retry(&unknown.request_id).unwrap_err(),
+        "Nothing to retry."
+    );
+}

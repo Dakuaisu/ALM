@@ -1,6 +1,5 @@
 //! Account switching, the freshness line with unresolved intents, and their commands.
 use crate::ipc::State;
-use alm_core::Role;
 use alm_core::projection::as_of_text;
 use alm_store::{Outbox, ProjectionStore, StoredProjection};
 use alm_sync::Outcome;
@@ -54,7 +53,11 @@ impl Trial {
             stored.checkpoint,
             crate::gst_print::esc(&self.account)
         );
-        if self.role() == Role::Owner {
+        // DEC-034: the Owner and a Manager check and retry this account's own requests.
+        if alm_core::permissions::allows(
+            self.role(),
+            alm_core::permissions::Capability::RequestStatus,
+        ) {
             for entry in self.outbox.unresolved().map_err(text)? {
                 html += &format!(
                     r#"<div class="card" role="status" style="margin:8px 0;border-left:3px solid var(--warn)"><b>Outcome unknown: check status / retry with the same request</b> · request {0}<div class="help">{1}</div><div class="row" style="margin-top:6px"><button class="btn sm" data-action="outbox_check">Check status</button><button class="btn sm" data-action="outbox_retry" data-q="{0}">Retry the same request</button></div></div>"#,
@@ -70,7 +73,8 @@ impl Trial {
 #[tauri::command(async)]
 pub fn outbox_check(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "review", |trial| {
-        trial.require_owner()?;
+        // DEC-034: a Manager checks its own requests too (the outbox is this account's).
+        trial.require(alm_core::permissions::Capability::RequestStatus)?;
         trial.reconnect()?;
         trial.message = "Status checked with the authority.".into();
         Ok(())

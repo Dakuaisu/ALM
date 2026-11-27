@@ -224,6 +224,12 @@ fn a_revocation_or_downgrade_seen_by_the_device_deletes_the_stored_token() {
         }
         assert!(store.entries().is_empty(), "downgrade {downgrade}");
         assert!(!root.0.join("signed-in-account.txt").exists());
+        // DEC-034: the session ends at once; the device asks for a sign-in.
+        assert!(
+            trial.session.is_none() && trial.signed_out(),
+            "downgrade {downgrade}"
+        );
+        assert!(trial.require_session().is_err());
         // A later refresh is not written back.
         let _ = trial.session_token();
         assert!(store.entries().is_empty(), "downgrade {downgrade}");

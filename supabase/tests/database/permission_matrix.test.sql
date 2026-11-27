@@ -194,5 +194,19 @@ select is(pg_temp.state('manager', format('select public.close_purchase_order(%L
         jsonb_build_object('po', (select max(id) from public.purchase_orders), 'remaining', '[6]'::jsonb))),
     'ALM06', 'closing a remainder stays the Owner''s');
 
+-- The activity log names the account by its login email (DEC-034).
+select set_config('request.jwt.claims', '{"sub": "tap-manager", "email": "manager@alm.test", "app_metadata": {"role": "manager"}}', true);
+set local role authenticated;
+select public.save_godown('mgr-godown-mail', '{"item": "Synthetic Ice", "cases": "2", "note": ""}');
+reset role;
+select is((select count(*) from public.activity where account = 'manager@alm.test'), 0::bigint,
+    'a godown row logs nothing (as the HTML)');
+select set_config('request.jwt.claims', '{"sub": "tap-manager", "email": "manager@alm.test", "app_metadata": {"role": "manager"}}', true);
+set local role authenticated;
+select public.record_receipt('mgr-pay-mail', '{"customer_id": "c1", "date": "2025-05-03", "amount_minor": 300, "online": false}');
+reset role;
+select is((select account from public.activity where kind = 'payment' order by id desc limit 1),
+    'manager@alm.test', 'a Manager''s payment is logged under its login email');
+
 select * from finish();
 rollback;
