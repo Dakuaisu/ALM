@@ -15,10 +15,12 @@ pub struct BillView<'a> {
     pub saved: bool,
     pub saved_ids: &'a [alm_core::DraftId],
     pub role: Role,
-    /// Saved crate templates the Owner may add (`(id, name)`); none for a Manager.
+    /// Saved crate templates New Bill may add (`(id, name)`).
     pub crates: &'a [(u64, String)],
     /// A Manager's pulled catalog (names and sale prices), which its preview prices from.
     pub catalog: Option<&'a [alm_core::projection::ProjectedProduct]>,
+    /// A Manager's saved bill as the authority will price it (selling rates), for its Post form.
+    pub posts_at: Option<alm_core::Money>,
 }
 
 pub fn bill_screen(view: &BillView<'_>) -> String {
@@ -31,7 +33,21 @@ pub fn bill_screen(view: &BillView<'_>) -> String {
     if view.role == Role::Owner && view.saved && !single_crate(view.draft) {
         html += r#"<button class="btn" type="button" data-action="screen" data-tab="review">Owner review</button>"#;
     }
-    html + "</div></div></div>"
+    html += "</div>";
+    // DEC-034: a Manager posts its saved bill itself; the authority re-checks it.
+    if let (Role::Manager, true, false, Some(total)) = (
+        view.role,
+        view.saved,
+        single_crate(view.draft),
+        view.posts_at,
+    ) {
+        let _ = write!(
+            html,
+            r#"<form class="row" style="justify-content:flex-end;gap:8px;margin-top:10px" data-action="bill_post" data-payload="terms"><span class="help">Posts at today's rates: <b>₹{}</b></span><label>Paid ₹ <input class="inp num" name="paid" inputmode="decimal" value="0" aria-label="Amount paid" style="width:110px"></label><button class="btn primary" type="submit">Post bill</button></form>"#,
+            inr(total)
+        );
+    }
+    html + "</div></div>"
 }
 
 /// A bill of one crate row and no items, posted through the crate-sale command.
@@ -156,7 +172,7 @@ fn crate_body(view: &BillView<'_>, row: &alm_core::CrateRow) -> String {
     match amounts {
         Ok(amounts) => {
             html.push_str(r#"<div class="card"><div class="row" style="align-items:flex-start;gap:24px"><div style="flex:1"><div class="sectit">Totals</div><div class="help">The crate sells as one line at its rate; stock reduces item by item. Loading is charged per packet of its contents.</div>"#);
-            if view.saved && view.role == Role::Owner {
+            if view.saved {
                 html.push_str(r#"<form class="row" style="gap:8px;margin-top:12px" data-action="bill_crate_post" data-payload="terms"><label>Paid ₹ <input class="inp num" name="paid" inputmode="decimal" value="0" aria-label="Amount paid" style="width:110px"></label><button class="btn primary" type="submit">Post crate bill</button></form>"#);
             }
             html.push_str(r#"</div><div class="bill-totals">"#);

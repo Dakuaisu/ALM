@@ -104,10 +104,18 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
         .unwrap();
     assert!(manager.owner.is_none() && manager.sales.is_empty() && manager.receipts.is_empty());
     assert!(manager.stock_view(Role::Manager, "", false).is_err());
-    assert!(
-        snapshot
-            .sales_view(Role::Manager, day, SalesPeriod::All, "")
-            .is_err()
+    // DEC-034: a Manager's Sales view holds the same bills and totals and never the profit.
+    let owner_sales = snapshot
+        .sales_view(Role::Owner, day, SalesPeriod::All, "")
+        .unwrap();
+    let manager_sales = snapshot
+        .sales_view(Role::Manager, day, SalesPeriod::All, "")
+        .unwrap();
+    assert!(owner_sales.profit.is_some());
+    assert_eq!(manager_sales.profit, None);
+    assert_eq!(
+        (manager_sales.rows, manager_sales.sales, manager_sales.total_collected),
+        (owner_sales.rows, owner_sales.sales, owner_sales.total_collected)
     );
     assert!(
         snapshot

@@ -30,11 +30,14 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
 }
 
 /// The posted data screens read: rebuilt by the core from this account's stored projection
-/// (the Owner's book rows), never from the authority. A Manager projection carries no book, so
-/// the Manager view is empty and the core denies its screens before reading.
+/// (the Owner's book rows, or a Manager's book without costs, DEC-034), never from the
+/// authority.
 pub(crate) struct Posted {
     pub(crate) fixture: ConfirmationFixture,
     cashbook: ManualCashBook,
+    /// A Manager's screen lists, computed by the core from its book; empty for the Owner, whose
+    /// lists come with the projection.
+    pub(crate) lists: alm_core::projection::ProjectionSnapshot,
     /// The role and checkpoint this view was built for.
     built: Option<(Role, u64)>,
 }
@@ -45,6 +48,7 @@ impl Posted {
             fixture: ConfirmationFixture::new(ProductId::new(0), 0, Money::from_minor_units(0))
                 .map_err(refusal)?,
             cashbook: ManualCashBook::default(),
+            lists: alm_core::projection::ProjectionSnapshot::default(),
             built: None,
         })
     }
@@ -68,7 +72,7 @@ impl Trial {
     /// A Manager drafts from the catalog its device pulled (names and sale prices only), from
     /// whichever authority it uses; `None` for the Owner, who drafts from the book rows.
     pub(crate) fn manager_catalog(&self) -> Option<Vec<alm_core::projection::ProjectedProduct>> {
-        (self.role() == Role::Manager).then(|| {
+        (self.role() == Role::Manager && !self.manager_book()).then(|| {
             self.projection
                 .load()
                 .ok()
@@ -83,7 +87,7 @@ impl Trial {
     pub(crate) fn manager_customers(
         &self,
     ) -> Option<Vec<alm_core::projection::ProjectedCustomerName>> {
-        (self.role() == Role::Manager).then(|| {
+        (self.role() == Role::Manager && !self.manager_book()).then(|| {
             self.projection
                 .load()
                 .ok()
@@ -93,10 +97,43 @@ impl Trial {
         })
     }
 
+    /// DEC-034: a Manager with its book drafts, prices and posts from it like the Owner.
+    pub(crate) fn manager_book(&self) -> bool {
+        self.role() == Role::Manager
+            && self
+                .projection
+                .load()
+                .ok()
+                .flatten()
+                .is_some_and(|stored| stored.snapshot.manager.is_some())
+    }
+
     pub(crate) fn drafting(&self) -> &ConfirmationFixture {
         match self.role() {
-            Role::Owner => &self.posted.fixture,
-            Role::Manager => self.authority.fixture(),
+            Role::Manager if !self.manager_book() => self.authority.fixture(),
+            Role::Owner | Role::Manager => &self.posted.fixture,
+        }
+    }
+
+    /// The shop's New Bill loading charge a Manager's drafts start with (DEC-034).
+    pub(crate) fn manager_loading(&self) -> Money {
+        self.projection
+            .load()
+            .ok()
+            .flatten()
+            .and_then(|stored| stored.snapshot.manager.map(|m| m.loading))
+            .unwrap_or(Money::from_minor_units(0))
+    }
+
+    /// The lists the screens show: the projection's for the Owner, the ones the core computed
+    /// from the Manager's book for a Manager.
+    pub(crate) fn screen_rows<'a>(
+        &'a self,
+        stored: &'a StoredProjection,
+    ) -> &'a alm_core::projection::ProjectionSnapshot {
+        match self.role() {
+            Role::Owner => &stored.snapshot,
+            Role::Manager => &self.posted.lists,
         }
     }
 
@@ -112,13 +149,27 @@ impl Trial {
         if self.posted.built == Some((role, stored.checkpoint)) {
             return Ok(());
         }
-        self.posted = match stored.snapshot.owner.as_ref() {
-            Some(owner) if role == Role::Owner => {
+        self.posted = match (&stored.snapshot.owner, &stored.snapshot.manager, role) {
+            (Some(owner), _, Role::Owner) => {
                 let (fixture, cashbook) =
                     ConfirmationFixture::from_owner_book(&owner.book).map_err(refusal)?;
                 Posted {
                     fixture,
                     cashbook,
+                    lists: alm_core::projection::ProjectionSnapshot::default(),
+                    built: None,
+                }
+            }
+            (_, Some(manager), Role::Manager) => {
+                let (fixture, cashbook) =
+                    ConfirmationFixture::from_owner_book(&manager.book).map_err(refusal)?;
+                let lists = fixture
+                    .manager_lists(&self.directory, &cashbook)
+                    .map_err(refusal)?;
+                Posted {
+                    fixture,
+                    cashbook,
+                    lists,
                     built: None,
                 }
             }
@@ -214,14 +265,16 @@ impl Trial {
     /// On reconnect: resolves every unresolved intent by a status lookup against its stored
     /// intent (never re-sends one, and never posts a saved draft), then refreshes the projection.
     pub(crate) fn reconnect(&mut self) -> Result<(), String> {
-        if self.role() == Role::Owner {
+        // DEC-034: the Owner and a Manager resolve this account's own requests.
+        if let Ok(role) = self.require(alm_core::permissions::Capability::RequestLookup) {
+            let (device, account) = (self.device_id.clone(), self.account.clone());
+            self.authority.set_caller(&device, &account);
             for entry in self.outbox.unresolved().map_err(text)? {
                 let id = RequestId::new(&entry.request_id).map_err(refusal)?;
                 let Some(intent) = Intent::parse(&entry.intent) else {
                     continue;
                 };
-                let (status, note) = match self.sales_authority().lookup(Role::Owner, &id, &intent)
-                {
+                let (status, note) = match self.sales_authority().lookup(role, &id, &intent) {
                     Ok(Lookup::Committed(outcome)) => {
                         (OutboxStatus::Confirmed, Some(outcome.canonical()))
                     }

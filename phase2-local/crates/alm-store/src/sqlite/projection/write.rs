@@ -103,6 +103,22 @@ pub(super) fn write_snapshot(
         )?;
     }
     write_books(tx, s)?;
+    match (&s.manager, role) {
+        (Some(manager), Role::Manager) => {
+            for (section, body) in alm_core::projection::book::manager_sections(&manager.book) {
+                tx.execute(
+                    "INSERT INTO projected_manager_book VALUES (?1, ?2)",
+                    (section, body),
+                )?;
+            }
+            tx.execute(
+                "INSERT INTO projected_manager_loading VALUES (1, ?1)",
+                [m(manager.loading)],
+            )?;
+        }
+        (None, _) => {}
+        (Some(_), Role::Owner) => return Err(ProjectionError::Rejected),
+    }
     match (&s.owner, role) {
         (Some(owner), Role::Owner) => {
             for (i, (draft, revenue, cost)) in owner.sale_costs.iter().enumerate() {

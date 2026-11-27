@@ -67,6 +67,13 @@ fn encode_rows(s: &ProjectionSnapshot) -> Value {
         });
         rows["owner"]["book"] = alm_core::projection::book::to_json(&o.book);
     }
+    if let Some(manager) = &s.manager {
+        rows["manager"] = json!({
+            "book": alm_core::projection::book::manager_json(
+                &alm_core::projection::book::to_json(&manager.book)),
+            "loading": m(manager.loading),
+        });
+    }
     rows
 }
 

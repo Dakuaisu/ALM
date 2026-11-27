@@ -199,16 +199,19 @@ fn wrap(
 }
 
 impl ConfirmationFixture {
-    /// Lays out the bill image for an Owner-visible posted bill.
+    /// Lays out the bill image for a posted bill (DEC-034: the Owner and a Manager share it).
     ///
     /// # Errors
-    /// Denies Managers and rejects missing, unsupported or mislabelled bills.
+    /// Denies a role the matrix keeps from sharing bills and rejects missing, unsupported or
+    /// mislabelled bills.
     pub fn bill_image(
         &self,
         request: EstimateRequest<'_>,
         party: &BillImageParty<'_>,
         measure: &dyn Fn(&str, u32, FontStyle) -> f32,
     ) -> Result<BillImage, EstimateError> {
+        crate::permissions::require(request.role, crate::permissions::Capability::ShareBill)
+            .map_err(|_| EstimateError::Preview(super::ConfirmationError::AccessDenied))?;
         let preview = self.preview_estimate(request)?;
         Ok(bill_image_layout(
             &estimate_document(&preview, request.display),

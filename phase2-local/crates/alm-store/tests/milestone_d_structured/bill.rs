@@ -1,6 +1,4 @@
-use alm_core::confirmation::{
-    BalanceMode, ConfirmationError, ConfirmationFixture, EstimateLineDisplay,
-};
+use alm_core::confirmation::{BalanceMode, ConfirmationFixture, EstimateLineDisplay};
 use alm_core::synthetic_read_model::{Error, SaleId};
 use alm_core::{BillDate, Role};
 use alm_store::synthetic_read_model::Store;
@@ -11,9 +9,10 @@ use super::fixture::{A, B, ITEM_A, ITEM_B, SALE, feb, money};
 mod layout;
 
 pub(super) fn source(fixture: &ConfirmationFixture) -> String {
+    // DEC-034: a Manager reads the posted bill it may print or share.
     assert_eq!(
         fixture.bill_preview(Role::Manager, SALE, BalanceMode::Latest),
-        Err(ConfirmationError::AccessDenied)
+        fixture.bill_preview(Role::Owner, SALE, BalanceMode::Latest)
     );
     let preview = fixture
         .bill_preview(Role::Owner, SALE, BalanceMode::Latest)

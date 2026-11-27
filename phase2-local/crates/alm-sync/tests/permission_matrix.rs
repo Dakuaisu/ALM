@@ -224,6 +224,7 @@ fn every_intent() -> Vec<Intent> {
         }),
         Intent::DeleteCrate { id: 0 },
         Intent::SetReorderDefault { level: 4 },
+        Intent::SetLoadingDefault { rate: money(150) },
         Intent::RecordRestore,
         Intent::ImportLegacy(Box::new(plan)),
         Intent::ResolveLegacyQuarantine(Box::new(decision)),

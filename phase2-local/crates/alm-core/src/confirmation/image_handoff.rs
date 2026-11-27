@@ -87,9 +87,8 @@ impl ConfirmationFixture {
         sinks: &mut impl InvoiceHandoff,
     ) -> Result<(), EstimateError> {
         let image = request.image;
-        if image.role != Role::Owner {
-            return Err(EstimateError::Preview(ConfirmationError::AccessDenied));
-        }
+        crate::permissions::require(image.role, crate::permissions::Capability::ShareBill)
+            .map_err(|_| EstimateError::Preview(ConfirmationError::AccessDenied))?;
         let (review, _, _) = self
             .current_sales
             .get(&image.draft_id)
@@ -124,9 +123,8 @@ impl ConfirmationFixture {
         png: &[u8],
         sinks: &mut impl ImageHandoff,
     ) -> Result<(), ConfirmationError> {
-        if request.role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(request.role, crate::permissions::Capability::ShareBill)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let (review, receipt, _) = self
             .current_sales
             .get(&request.draft_id)

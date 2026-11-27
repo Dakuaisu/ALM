@@ -68,6 +68,17 @@ impl Trial {
         let crates = self.bill_crates();
         let catalog = self.manager_catalog();
         let (draft, saved) = self.current.as_ref().ok_or("No draft is open.")?;
+        let posts_at = (self.role() == alm_core::Role::Manager && *saved)
+            .then(|| {
+                alm_core::confirmation::owner_billing::priced_draft(
+                    &self.posted,
+                    alm_core::Role::Manager,
+                    draft,
+                )
+                .ok()
+            })
+            .flatten()
+            .map(|priced| priced.total);
         Ok(views::bill_screen(&views::BillView {
             authority: self.drafting(),
             directory: &self.directory,
@@ -77,6 +88,7 @@ impl Trial {
             role: self.role(),
             crates: &crates,
             catalog: catalog.as_deref(),
+            posts_at,
         }))
     }
 
@@ -106,6 +118,7 @@ impl Trial {
             role: self.role(),
             crates: &crates,
             catalog: catalog.as_deref(),
+            posts_at: None,
         }))
     }
     pub(super) fn fresh_bill(&mut self, saved_ids: &[DraftId]) -> Result<(), String> {
@@ -118,14 +131,15 @@ impl Trial {
             .ok_or("Draft limit reached.")?;
         let id = DraftId::scoped(&self.draft_origin(), next).map_err(refusal)?;
         let date = self.today()?;
-        // `newDraft`: loadingRate starts at the business default (Settings, Owner only).
+        // `newDraft`: loadingRate starts at the business default (Settings, Owner only); a
+        // Manager's drafts start at the shop's charge the authority sent it (DEC-034).
         let loading = match self.role() {
             alm_core::Role::Owner => self
                 .shop
                 .business_profile(alm_core::Role::Owner)
                 .map_err(refusal)?
                 .loading_charge(),
-            alm_core::Role::Manager => alm_core::Money::from_minor_units(0),
+            alm_core::Role::Manager => self.manager_loading(),
         };
         let draft = ProvisionalDraft::new(id, Vec::new())
             .with_bill_date(Some(date))

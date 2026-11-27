@@ -40,9 +40,10 @@ fn named_bill_modes_replay_and_cancel_with_separately_dated_receipt() {
             f.current_sale(Role::Owner, id).unwrap().0.payment_mode(),
             mode
         );
+        // DEC-034: a Manager opens the posted bill to edit or cancel it.
         assert_eq!(
             f.current_sale(Role::Manager, id),
-            Err(ConfirmationError::AccessDenied)
+            f.current_sale(Role::Owner, id)
         );
         assert_eq!(f.confirm(Role::Owner, request, &review).unwrap(), posted);
         let other = f
@@ -103,10 +104,8 @@ fn named_bill_modes_replay_and_cancel_with_separately_dated_receipt() {
             f.customer_ledger(Role::Manager, &customer),
             Err(ConfirmationError::AccessDenied)
         );
-        assert_eq!(
-            f.cancel_sale(Role::Manager, id),
-            Err(ConfirmationError::AccessDenied)
-        );
+        // DEC-034: a Manager cancels the bill (on a copy; this replay goes on uncancelled).
+        assert_eq!(f.clone().cancel_sale(Role::Manager, id), Ok(()));
         let receipt_before = f.cashbook_day_close(Role::Owner, receipt_date).unwrap();
         let ledger_before = f.customer_ledger(Role::Owner, &customer).unwrap();
         assert_eq!(ledger_before.entries.len(), 2);

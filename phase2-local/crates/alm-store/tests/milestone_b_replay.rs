@@ -1,9 +1,9 @@
 use std::num::{NonZeroI64, NonZeroU32};
 
 use alm_core::confirmation::{
-    ConfirmationError, ConfirmationFixture, CrateTemplate, CrateTemplateError, DailyMovementError,
-    DailyMovementRow, ManualGodownError, ManualGodownInput, ProductTerms, PurchaseOrderStatus,
-    RequestId, StockLotRow, StockLots, StockLotsError,
+    ConfirmationFixture, CrateTemplate, DailyMovementError, DailyMovementRow, ManualGodownError,
+    ManualGodownInput, ProductTerms, PurchaseOrderStatus, RequestId, StockLotRow, StockLots,
+    StockLotsError,
 };
 use alm_core::{
     BillDate, CrateComponent, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
@@ -85,13 +85,15 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
             id: DraftCustomerId::new("milestone-b-buyer".into()),
             name: "Synthetic Buyer".into(),
         });
-    assert_eq!(
-        fixture.load_crate_template(MANAGER, template, qty(2), &mut bill),
-        Err(CrateTemplateError::AccessDenied)
-    );
+    // DEC-034: a Manager loads the crate onto a bill as the Owner does.
+    let mut manager_bill = bill.clone();
+    fixture
+        .load_crate_template(MANAGER, template, qty(2), &mut manager_bill)
+        .unwrap();
     fixture
         .load_crate_template(OWNER, template, qty(2), &mut bill)
         .unwrap();
+    assert_eq!(manager_bill, bill);
     fixture.register_draft(bill).unwrap();
     let review = fixture
         .review_checkout(OWNER, sale, &[], money(1_000))
@@ -103,9 +105,10 @@ fn milestone_b_reconciles_planned_purchase_backdated_receipts_and_crate_sale() {
     );
     let receipt = fixture.confirm(OWNER, RequestId::new(1), &review).unwrap();
     assert_eq!((receipt.quantity, receipt.total), (6, money(1_000)));
+    // DEC-034: a Manager opens the posted crate bill.
     assert_eq!(
         fixture.current_sale(MANAGER, sale),
-        Err(ConfirmationError::AccessDenied)
+        fixture.current_sale(OWNER, sale)
     );
     assert_eq!(fixture.view_purchase_order(selection, &[]).unwrap(), closed);
 

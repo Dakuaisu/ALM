@@ -117,6 +117,7 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
         ),
         Intent::DeleteCrate { id } => format!("cratedel id={id}"),
         Intent::SetReorderDefault { level } => format!("reorderdefault level={level}"),
+        Intent::SetLoadingDefault { rate } => format!("loadingdefault rate={}", money(*rate)),
         Intent::RecordRestore => "restorelog".into(),
         Intent::ImportLegacy(plan) => format!("legacyimport plan={}", escape(&plan.to_json())),
         Intent::ResolveLegacyQuarantine(d) => format!(

@@ -64,22 +64,26 @@ fn sales_show_confirmed_owner_amount_not_provisional_amount() {
     assert!(html.contains("Synthetic Customer"));
 }
 
+/// The Owner review stays the Owner's; DEC-034: a Manager's Sales list shows the posted bills
+/// without the profit and without restoring cancelled ones.
 #[test]
-fn manager_cannot_confirm_an_owner_review_or_read_sales() {
+fn manager_cannot_confirm_an_owner_review_and_reads_sales_without_profit() {
     let mut fixture = fixture().expect("synthetic fixture");
     let posting = review(&mut fixture);
     assert!(posting.confirm(&mut fixture, Role::Manager, 1).is_err());
     assert_eq!(fixture.posted_count(), 0);
+    posting.confirm(&mut fixture, Role::Owner, 1).expect("post");
     let html = views::sales_screen(
         &projected(&fixture),
         Role::Manager,
         &Default::default(),
         day(),
     )
-    .expect("denial");
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains("tbl-wrap"));
-    assert!(!html.contains('₹'));
+    .expect("sales");
+    assert!(!html.contains("role=\"alert\""));
+    assert!(html.contains("tbl-wrap") && html.contains("#1"), "{html}");
+    assert!(!html.contains("Profit"), "{html}");
+    assert!(!html.contains("sale_restore"));
 }
 
 #[test]

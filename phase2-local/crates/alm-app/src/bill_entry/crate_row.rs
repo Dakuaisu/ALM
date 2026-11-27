@@ -31,13 +31,10 @@ pub struct CratePost {
 }
 
 impl Trial {
-    /// The saved crate templates New Bill offers (Owner only; OPEN-004: a Manager sells none).
-    pub(super) fn bill_crates(&self) -> Vec<(u64, String)> {
-        if self.role() != alm_core::Role::Owner {
-            return Vec::new();
-        }
+    /// The saved crate templates New Bill offers (DEC-034: the Owner and a Manager).
+    pub(crate) fn bill_crates(&self) -> Vec<(u64, String)> {
         self.posted
-            .crate_template_list(alm_core::Role::Owner)
+            .crate_template_list(self.role())
             .map(|rows| {
                 rows.into_iter()
                     .map(|row| (row.id.value(), row.template.name))
@@ -51,7 +48,7 @@ impl Trial {
         template: u64,
         crates: NonZeroU32,
     ) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::NewBill)?;
         let id = self
             .posted
             .crate_template_id(role, template)
@@ -72,7 +69,7 @@ impl Trial {
         index: usize,
         crates: NonZeroU32,
     ) -> Result<(), String> {
-        self.require_owner()?;
+        self.require(alm_core::permissions::Capability::NewBill)?;
         self.edit_bill(|draft| {
             let row = draft
                 .crate_rows()
@@ -88,14 +85,14 @@ impl Trial {
     }
 
     pub(crate) fn bill_crate_remove(&mut self, index: usize) -> Result<(), String> {
-        self.require_owner()?;
+        self.require(alm_core::permissions::Capability::NewBill)?;
         self.edit_bill(|draft| Ok(draft.remove_crate_row(index).is_some()))
     }
 
     /// Posts the saved crate bill: the crate row's template, crates, rate and contents as shown,
     /// the bill's customer and date, and the amount paid. The authority rechecks all of them.
     pub(crate) fn bill_crate_post(&mut self, paid: &str) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::SellCrate)?;
         let (draft, saved) = self.current.clone().ok_or("No draft is open.")?;
         if !saved {
             return Err("Save the bill as a draft first.".into());

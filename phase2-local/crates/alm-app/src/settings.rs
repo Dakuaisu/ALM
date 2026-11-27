@@ -77,13 +77,17 @@ impl Trial {
             .set_reorder_default(role, reorder)
             .map_err(refusal)?;
         self.send_reorder_default(reorder)?;
+        // DEC-034: a Manager's New Bill starts at the shop's loading charge.
+        self.send(&alm_sync::Intent::SetLoadingDefault {
+            rate: profile.loading_charge(),
+        })?;
         self.refresh()?;
         self.message = "Profile saved ✓".into();
         Ok(())
     }
 
     pub(crate) fn settings_preference(&mut self, preference: Preference) -> Result<(), String> {
-        self.require_owner()?;
+        self.require(alm_core::permissions::Capability::DeviceAppearance)?;
         self.prefs.set(preference);
         Ok(())
     }

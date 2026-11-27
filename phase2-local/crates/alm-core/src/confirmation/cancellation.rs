@@ -42,9 +42,13 @@ impl ConfirmationFixture {
         id: DraftId,
         cancel: bool,
     ) -> Result<(), ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        let capability = if cancel {
+            crate::permissions::Capability::CancelSale
+        } else {
+            crate::permissions::Capability::RestoreSale
+        };
+        crate::permissions::require(role, capability)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let &(cancelled, epoch) = self
             .lifecycle
             .get(&id)

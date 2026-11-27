@@ -166,10 +166,12 @@ impl SalesAuthority for LocalAuthority {
         let snapshot = if checkpoint == Some(self.checkpoint) {
             None
         } else {
+            let today = alm_core::projection::shop_today((self.clock)())
+                .ok_or(AuthorityError::Unavailable)?;
             let mut snapshot = self
                 .state
                 .fixture
-                .projection(role, &self.directory, &self.state.cashbook)
+                .projection_on(role, &self.directory, &self.state.cashbook, today)
                 .map_err(rejected)?;
             if let Some(owner) = snapshot.owner.as_mut() {
                 owner.book.activity.clone_from(&self.state.activity);

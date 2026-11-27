@@ -205,11 +205,17 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     assert!(counter.contains("Nothing needs attention right now"));
     crate::device::assert_book_view(&mut trial);
 
-    // The Manager is denied every book screen after the same timeline.
+    // After the same timeline the Manager is denied every Owner-only book screen; DEC-034:
+    // the ones it may open show no profit.
     trial.set_owner(false).unwrap();
     for tab in ["sales", "customers", "expenses", "dashboard", "counter"] {
         let html = trial.render(tab).unwrap();
-        assert!(html.contains("role=\"alert\""), "{tab}");
-        assert!(!html.contains('₹'), "{tab}");
+        if crate::screen_tests::MANAGER_SCREENS.contains(&tab) {
+            assert!(!html.contains("role=\"alert\""), "{tab}");
+            assert!(!html.contains("Profit"), "{tab}");
+        } else {
+            assert!(html.contains("role=\"alert\""), "{tab}");
+            assert!(!html.contains('₹'), "{tab}");
+        }
     }
 }

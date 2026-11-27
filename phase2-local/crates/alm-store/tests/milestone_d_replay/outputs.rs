@@ -2,8 +2,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use alm_core::confirmation::{
-    BalanceMode, ConfirmationError, ConfirmationFixture, EstimateDisplay, EstimateError,
-    EstimateLineDisplay, EstimateRequest, PrintIntent,
+    BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateLineDisplay, EstimateRequest,
+    PrintIntent,
 };
 use alm_core::{BillDate, DraftId, Money, ProductId, Role};
 
@@ -38,25 +38,23 @@ pub(super) fn exercise(fixture: &ConfirmationFixture, dir: &Path) {
             lines: &LABELS,
         },
     };
-    let denied = EstimateRequest {
+    // DEC-034: a Manager prints the same estimate and reads the same posted bill.
+    let manager = EstimateRequest {
         role: Role::Manager,
         ..request
     };
-    let denial = Err(EstimateError::Preview(ConfirmationError::AccessDenied));
-    let mut documents = Vec::new();
-    assert_eq!(
-        fixture.print_estimate(denied, &mut |doc| documents.push(doc)),
-        denial
-    );
-    assert_eq!(
-        fixture.save_estimate_as_pdf(denied, &mut |doc| documents.push(doc)),
-        denial
-    );
-    assert!(documents.is_empty());
+    let mut manager_documents = Vec::new();
+    fixture
+        .print_estimate(manager, &mut |doc| manager_documents.push(doc))
+        .unwrap();
+    fixture
+        .save_estimate_as_pdf(manager, &mut |doc| manager_documents.push(doc))
+        .unwrap();
     assert_eq!(
         fixture.bill_preview(Role::Manager, SALE, BalanceMode::Latest),
-        Err(ConfirmationError::AccessDenied)
+        fixture.bill_preview(Role::Owner, SALE, BalanceMode::Latest)
     );
+    let mut documents = Vec::new();
 
     fixture
         .print_estimate(request, &mut |doc| documents.push(doc))
@@ -76,6 +74,7 @@ pub(super) fn exercise(fixture: &ConfirmationFixture, dir: &Path) {
         ("_pdf", PrintIntent::AfterLoad(Duration::from_millis(350)))
     );
     assert_eq!(print.html, pdf.html);
+    assert_eq!(manager_documents, documents);
 
     let preview = fixture
         .bill_preview(Role::Owner, SALE, BalanceMode::Latest)

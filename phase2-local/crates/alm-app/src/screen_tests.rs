@@ -7,6 +7,9 @@ use alm_core::{DraftCustomerId, Money, Role};
 use crate::billing_tests::{day, posted, projected};
 use crate::views::{self, CustomersState, money_r};
 
+/// The screens a Manager opens in this build (DEC-034), each without costs or profit.
+pub(crate) const MANAGER_SCREENS: &[&str] = &["sales", "crates"];
+
 pub(crate) fn books() -> ConfirmationFixture {
     let mut fixture = fixture().expect("synthetic fixture");
     posted(&mut fixture);
@@ -788,10 +791,15 @@ fn crates_render_core_contents_and_value_and_deny_the_manager() {
         ..Default::default()
     });
     assert!(trial.crate_submit(bad).is_err());
+    // DEC-034: a Manager sees and edits the templates at selling rates, without deleting them.
     trial.set_owner(false).unwrap();
     let html = trial.render("crates").unwrap();
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains('₹'));
+    assert!(!html.contains("role=\"alert\""), "{html}");
+    assert!(
+        html.contains("Party Crate") && html.contains("₹400"),
+        "{html}"
+    );
+    assert!(!html.contains("crate_delete"), "{html}");
 }
 
 #[test]

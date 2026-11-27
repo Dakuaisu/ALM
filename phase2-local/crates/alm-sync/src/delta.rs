@@ -1,12 +1,12 @@
 //! Incremental pulls over the projection rows both authorities send. Every array of rows at
-//! the top of the rows object, of `owner` and of `owner.book` is a tracked list; its rows are
-//! named by a hash of their content. An authority remembers, per role, when each (list, row)
-//! was first seen and when it went, and when each list last changed, for a retained window of
-//! revisions. A delta for a device's checkpoint carries the rows object with each tracked list
-//! replaced by `{"$same": true}` (unchanged since the checkpoint) or `{"$rows": [hash, ...]}`
-//! (its rows in order), the rows first seen after the checkpoint (`added`, by hash) and the rows
-//! that went (`removed`, tombstones by list). Older checkpoints, a first sync or another role
-//! get the full rows.
+//! the top of the rows object, of `owner`, of `owner.book` and of `manager.book` is a tracked
+//! list; its rows are named by a hash of their content. An authority remembers, per role, when
+//! each (list, row) was first seen and when it went, and when each list last changed, for a
+//! retained window of revisions. A delta for a device's checkpoint carries the rows object with
+//! each tracked list replaced by `{"$same": true}` (unchanged since the checkpoint) or
+//! `{"$rows": [hash, ...]}` (its rows in order), the rows first seen after the checkpoint
+//! (`added`, by hash) and the rows that went (`removed`, tombstones by list). Older
+//! checkpoints, a first sync or another role get the full rows.
 use std::collections::{BTreeMap, BTreeSet};
 
 use alm_core::projection::StoredRows;
@@ -38,6 +38,7 @@ pub fn lists(rows: &Value) -> Vec<(String, &Vec<Value>)> {
     level(&mut out, rows, "");
     level(&mut out, &rows["owner"], "owner.");
     level(&mut out, &rows["owner"]["book"], "owner.book.");
+    level(&mut out, &rows["manager"]["book"], "manager.book.");
     out
 }
 
@@ -276,6 +277,7 @@ pub fn merge(stored: &StoredRows, delta: &Value) -> Result<(Value, StoredRows), 
         level(&rows, "");
         level(&rows["owner"], "owner.");
         level(&rows["owner"]["book"], "owner.book.");
+        level(&rows["manager"]["book"], "manager.book.");
         found
     };
     for path in paths {

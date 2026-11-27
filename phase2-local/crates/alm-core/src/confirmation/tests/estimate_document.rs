@@ -152,21 +152,28 @@ fn l05_02_pdf_uses_latest_balance() {
     pdf_case(BalanceMode::Latest);
 }
 
+/// DEC-034: a Manager prints and saves the same estimate as the Owner, with no cost in it.
 #[test]
-fn l05_02_denied_actions_do_not_emit_or_mutate() {
+fn l05_02_a_manager_prints_the_owners_estimate_without_mutating() {
     let f = estimate_fixture();
     let before = f.clone();
-    let mut captured = Vec::new();
+    let (mut captured, mut owner) = (Vec::new(), Vec::new());
     let request = request(Role::Manager, BalanceMode::Latest);
+    let owner_request = super::estimate_document::request(Role::Owner, BalanceMode::Latest);
     assert_eq!(
         f.print_estimate(request, &mut |popup| captured.push(popup)),
-        Err(EstimateError::Preview(ConfirmationError::AccessDenied))
+        Ok(())
     );
     assert_eq!(
         f.save_estimate_as_pdf(request, &mut |popup| captured.push(popup)),
-        Err(EstimateError::Preview(ConfirmationError::AccessDenied))
+        Ok(())
     );
-    assert!(captured.is_empty());
+    f.print_estimate(owner_request, &mut |popup| owner.push(popup))
+        .unwrap();
+    f.save_estimate_as_pdf(owner_request, &mut |popup| owner.push(popup))
+        .unwrap();
+    assert_eq!(captured, owner);
+    assert_safe(&format!("{captured:?}"));
     assert_eq!(f, before);
 }
 

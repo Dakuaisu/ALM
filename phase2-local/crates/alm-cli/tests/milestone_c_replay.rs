@@ -129,12 +129,15 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
         appended_line: DraftLine::new(B, qty(1)),
         appended_price: money(5_600),
     };
-    assert_eq!(fixture.begin_edit(MANAGER, SALE, changes), Err(DENIED));
     let edit = fixture.begin_edit(OWNER, SALE, changes).unwrap();
-    assert_eq!(fixture.save_edit(MANAGER, &edit), Err(DENIED));
+    // DEC-034: a Manager opens and saves the same edit (on a copy; the Owner saves it here).
+    assert_eq!(fixture.begin_edit(MANAGER, SALE, changes), Ok(edit.clone()));
+    let mut manager = fixture.clone();
+    let manager_edit = manager.save_edit(MANAGER, &edit);
     assert_eq!(AccountReadback::open(&fixture, &buyer), receipt_accounts);
     assert_eq!(fixture.current_sale(OWNER, SALE), Ok((&review, &posted)));
     let edited = fixture.save_edit(OWNER, &edit).unwrap();
+    assert_eq!(manager_edit.as_ref(), Ok(&edited));
     assert_eq!(edited, saved_receipt(3, 41_000, (31_000, 26_000)));
     let edited_accounts = assert_accounts(&fixture, &buyer, AccountCheckpoint::Edited);
     books::assert_books(&fixture, &buyer, AccountCheckpoint::Edited);
@@ -165,11 +168,17 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
     edited_readback.assert_reporting(Stage::Edited);
 
     // Then: reversal restores the lots but leaves the saved document in history (L04-02).
-    assert_eq!(fixture.cancel_sale(MANAGER, SALE), Err(DENIED));
+    // DEC-034: a Manager cancels the bill as the Owner does (on a copy).
+    let mut manager = fixture.clone();
+    manager.cancel_sale(MANAGER, SALE).unwrap();
     assert_eq!(AccountReadback::open(&fixture, &buyer), edited_accounts);
     assert_eq!(fixture.current_sale(OWNER, SALE), Ok((&saved, &edited)));
     assert_stock(&fixture, StockCheckpoint::Edited);
     fixture.cancel_sale(OWNER, SALE).unwrap();
+    assert_eq!(
+        AccountReadback::open(&manager, &buyer),
+        AccountReadback::open(&fixture, &buyer)
+    );
     assert_accounts(&fixture, &buyer, AccountCheckpoint::Cancelled);
     books::assert_books(&fixture, &buyer, AccountCheckpoint::Cancelled);
     saved_close.assert_after_cancel(&fixture);
@@ -235,7 +244,11 @@ const fn saved_receipt(quantity: u32, total: i64, (due, customer_balance): (i64,
 }
 
 fn assert_history(fixture: &ConfirmationFixture, expected: &Receipt, rows: &[&str]) {
-    assert_eq!(fixture.current_sale(MANAGER, SALE), Err(DENIED));
+    // DEC-034: a Manager opens the posted bill; the Sales CSV export stays the Owner's.
+    assert_eq!(
+        fixture.current_sale(MANAGER, SALE),
+        fixture.current_sale(OWNER, SALE)
+    );
     assert_eq!(fixture.sales_csv(MANAGER, SALE), Err(DENIED));
     let (_, current) = fixture.current_sale(OWNER, SALE).unwrap();
     assert_eq!(current, expected);

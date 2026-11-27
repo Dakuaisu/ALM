@@ -34,6 +34,7 @@ pub(crate) fn classify(command: &str) -> Option<Access> {
         | "bill_crate_quantity"
         | "bill_crate_remove" => C::NewBill,
         "bill_crate_post" => C::SellCrate,
+        "bill_post" => C::PostSale,
         "settings_theme" | "settings_balance" | "settings_privacy" => C::DeviceAppearance,
         "settings_rest" | "settings_rest_off" => C::AuthorityConnection,
         "outbox_check" | "outbox_retry" => C::RequestStatus,

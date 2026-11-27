@@ -149,7 +149,19 @@ pub fn compare(core: &Effects, sql: &Effects) -> Vec<String> {
         &so.purchase_orders,
     );
     compare_book(&mut out, &co.book, &so.book);
-    differ(&mut out, "manager projection", &core.manager, &sql.manager);
+    let unstamp = |s: &ProjectionSnapshot| {
+        let mut s = s.clone();
+        if let Some(manager) = s.manager.as_mut() {
+            manager.book = unstamped(&manager.book);
+        }
+        s
+    };
+    differ(
+        &mut out,
+        "manager projection",
+        &unstamp(&core.manager),
+        &unstamp(&sql.manager),
+    );
     differ(&mut out, "FIFO lots", &core.lots, &sql.lots);
     differ(&mut out, "fridge", &core.fridge, &sql.fridge);
     out

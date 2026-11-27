@@ -338,7 +338,8 @@ fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
 
     crate::device::assert_book_view(&mut trial);
 
-    // The Manager sees no cost, buy rate or FIFO value on any batch 2 screen.
+    // The Manager sees no cost, buy rate or FIFO value on any batch 2 screen; DEC-034: the
+    // screens it may open show selling rates only, the others stay denied.
     trial.set_owner(false).unwrap();
     for tab in [
         "products",
@@ -352,8 +353,14 @@ fn quote_plan_po_partial_receipts_crate_dispatch_and_count_reconcile() {
         "ratelist",
     ] {
         let html = trial.render(tab).unwrap();
-        assert!(html.contains("role=\"alert\""), "{tab}");
-        for hidden in ["₹", "69", "37.50", "Synthetic Wholesale"] {
+        let open = crate::screen_tests::MANAGER_SCREENS.contains(&tab);
+        assert_eq!(!html.contains("role=\"alert\""), open, "{tab}");
+        let hidden: &[&str] = if open {
+            &["69", "37.50", "Synthetic Wholesale"]
+        } else {
+            &["₹", "69", "37.50", "Synthetic Wholesale"]
+        };
+        for hidden in hidden {
             assert!(!html.contains(hidden), "{tab} shows {hidden}");
         }
     }

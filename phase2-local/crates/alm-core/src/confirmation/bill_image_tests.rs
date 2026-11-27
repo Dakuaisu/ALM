@@ -3,10 +3,7 @@ use std::num::NonZeroU32;
 use super::{BillImageParty, DrawOp, FontStyle};
 use crate::confirmation::demo_fixture::{customer_id, directory, fixture};
 use crate::confirmation::owner_billing::{OwnerPosting, SaleTerms};
-use crate::confirmation::{
-    BalanceMode, ConfirmationError, EstimateDisplay, EstimateError, EstimateLineDisplay,
-    EstimateRequest,
-};
+use crate::confirmation::{BalanceMode, EstimateDisplay, EstimateLineDisplay, EstimateRequest};
 use crate::{BillDate, DraftCustomer, DraftId, DraftLine, ProductId, ProvisionalDraft, Role};
 
 /// A fixed-advance stand-in for font metrics: half the font size per character.
@@ -105,13 +102,14 @@ fn latest_mode_and_manager_denial() {
         .collect();
     assert!(texts.contains(&("Paid on this bill", 0x000000)));
     assert!(texts.contains(&("Total Due (as on 02-May-2025)", 0xb91c1c)));
+    // DEC-034: a Manager shares the same bill image.
     assert_eq!(
         f.bill_image(
             request(Role::Manager, BalanceMode::Latest),
             &PARTY,
             &measure
         ),
-        Err(EstimateError::Preview(ConfirmationError::AccessDenied))
+        Ok(image.clone())
     );
 }
 

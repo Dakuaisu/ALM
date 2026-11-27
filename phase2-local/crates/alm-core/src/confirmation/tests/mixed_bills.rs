@@ -113,9 +113,10 @@ fn a_mixed_bill_posts_lines_then_each_crate_component_from_fifo() {
     assert_eq!(priced.loading, rs(150 * 7));
     let items = 2 * lime_rate.minor_units() + soda_rate.minor_units() + 60_000;
     assert_eq!(priced.total, rs(items + 150 * 7));
+    // DEC-034: a Manager posts at the same prices.
     assert_eq!(
-        priced_draft(&shop, Role::Manager, &draft),
-        Err(ConfirmationError::AccessDenied)
+        priced_draft(&shop, Role::Manager, &draft).as_ref(),
+        Ok(&priced)
     );
 
     let receipt = post(&mut shop, &draft, "200");
@@ -248,9 +249,10 @@ fn a_mixed_bill_is_edited_cancelled_and_restored_in_place() {
     assert_eq!(shop.product_stock(LIME), Some(lime));
     shop.undo_cancel_sale(Role::Owner, BILL).unwrap();
     assert_eq!(shop.product_stock(LIME), Some(lime - 5));
+    // DEC-034: a Manager may edit; an empty edit is refused as for the Owner.
     assert_eq!(
         shop.edit_posted_lines(Role::Manager, BILL, &[]),
-        Err(ConfirmationError::AccessDenied)
+        shop.clone().edit_posted_lines(Role::Owner, BILL, &[])
     );
 }
 

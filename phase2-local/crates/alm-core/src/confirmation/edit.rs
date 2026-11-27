@@ -43,9 +43,8 @@ impl ConfirmationFixture {
         role: Role,
         id: DraftId,
     ) -> Result<(&Review, &Receipt), ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Sales)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         self.current_sales
             .get(&id)
             .map(|(review, receipt, _)| (review, receipt))
@@ -58,9 +57,8 @@ impl ConfirmationFixture {
         id: DraftId,
         changes: EditChanges,
     ) -> Result<SaleEdit, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::EditSale)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let (original, receipt, revision) = self
             .current_sales
             .get(&id)
@@ -130,9 +128,8 @@ impl ConfirmationFixture {
     where
         F: FnOnce() -> Result<super::CreationKey, ConfirmationError>,
     {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::EditSale)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let id = edit.original.draft.id();
         if self
             .lifecycle
@@ -282,9 +279,8 @@ impl ConfirmationFixture {
         id: DraftId,
         edits: &[LineEdit],
     ) -> Result<Receipt, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::EditSale)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let (original, receipt, revision) = self
             .current_sales
             .get(&id)

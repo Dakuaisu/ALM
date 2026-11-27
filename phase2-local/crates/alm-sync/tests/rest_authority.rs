@@ -113,21 +113,33 @@ conformance_tests!(rest());
 /// only the catalog and customer names: no cost, buy-rate, FIFO, margin, profit, quote, stock,
 /// balance or contact field.
 #[test]
-fn manager_is_denied_and_receives_no_owner_fields() {
+fn manager_posts_and_receives_no_owner_fields() {
     let Some(mut a) = rest() else { return };
     let w = conformance::world(&a);
+    // DEC-034: a Manager posts and looks up its own request; Owner-only commands and the
+    // Owner's requests stay denied.
     let sale = conformance::sale(&w, 161, 1, w.sell);
     let request = RequestId::new("rest-manager-1").unwrap();
-    assert_eq!(
-        a.submit(Role::Manager, &request, &sale),
-        Err(AuthorityError::Denied)
-    );
+    let posted = a.submit(Role::Manager, &request, &sale).unwrap();
     assert_eq!(
         a.lookup(Role::Manager, &request, &sale),
+        Ok(alm_sync::Lookup::Committed(posted))
+    );
+    assert_eq!(
+        a.submit(
+            Role::Manager,
+            &RequestId::new("rest-manager-2").unwrap(),
+            &Intent::SetReorderDefault { level: 3 }
+        ),
         Err(AuthorityError::Denied)
     );
-    a.submit(Role::Owner, &RequestId::new("rest-owner-1").unwrap(), &sale)
-        .unwrap();
+    let owner_sale = conformance::sale(&w, 162, 1, w.sell);
+    let owner_request = RequestId::new("rest-owner-1").unwrap();
+    a.submit(Role::Owner, &owner_request, &owner_sale).unwrap();
+    assert_eq!(
+        a.lookup(Role::Manager, &owner_request, &owner_sale),
+        Err(AuthorityError::Denied)
+    );
     let body = a
         .inner
         .rpc(
@@ -143,16 +155,12 @@ fn manager_is_denied_and_receives_no_owner_fields() {
         "fifo",
         "margin",
         "profit",
-        "lot",
+        "lots",
         "stock_value",
-        "supplier",
-        "purchase",
-        "\"stock\"",
-        "on_hand",
-        "balance",
+        "quotes",
         "dev_state",
-        "book",
         "allocations",
+        "activity",
         "7000",
         "3800",
     ] {
@@ -163,7 +171,7 @@ fn manager_is_denied_and_receives_no_owner_fields() {
     }
     assert_eq!(
         body["rows"].as_object().unwrap().keys().collect::<Vec<_>>(),
-        ["catalog", "customer_names"]
+        ["catalog", "customer_names", "manager"]
     );
     for customer in body["rows"]["customer_names"].as_array().unwrap() {
         assert_eq!(

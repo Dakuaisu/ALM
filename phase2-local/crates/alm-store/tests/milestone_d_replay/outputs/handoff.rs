@@ -2,9 +2,8 @@ use std::cell::Cell;
 
 use alm_core::Role;
 use alm_core::confirmation::{
-    ConfirmationError, ConfirmationFixture, EstimateError, EstimateRequest, ImageFile,
-    ImageHandoff, ImageHandoffRequest, InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts,
-    ShareRejected, TextHandoffIntent,
+    ConfirmationFixture, EstimateRequest, ImageFile, ImageHandoff, ImageHandoffRequest,
+    InvoiceHandoff, InvoiceHandoffRequest, InvoiceImageAttempts, ShareRejected, TextHandoffIntent,
 };
 
 // A valid transparent PNG sentinel tests routing only; it is not the reconstructed bill image.
@@ -120,7 +119,8 @@ pub(super) fn exercise(
         display: estimate.display,
     };
     let attempts = Cell::new(0);
-    capture.events.clear();
+    // DEC-034: a Manager's handoff of the same bill emits what the Owner's does.
+    let owner_events = std::mem::take(&mut capture.events);
     assert_eq!(
         fixture.handoff_invoice_image(
             ImageHandoffRequest {
@@ -130,8 +130,9 @@ pub(super) fn exercise(
             png,
             &mut capture,
         ),
-        Err(ConfirmationError::AccessDenied)
+        Ok(())
     );
+    assert_eq!(std::mem::take(&mut capture.events), owner_events);
     assert_eq!(
         fixture.handoff_invoice(
             InvoiceHandoffRequest {
@@ -153,10 +154,10 @@ pub(super) fn exercise(
             },
             &mut capture,
         ),
-        Err(EstimateError::Preview(ConfirmationError::AccessDenied))
+        Ok(())
     );
-    assert_eq!(attempts.get(), 0);
-    assert!(capture.events.is_empty());
+    assert_eq!(attempts.replace(0), 1, "the first rendering is used");
+    assert_eq!(std::mem::take(&mut capture.events), owner_events);
 
     fixture
         .handoff_invoice(

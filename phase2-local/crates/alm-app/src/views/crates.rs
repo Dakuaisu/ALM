@@ -40,9 +40,17 @@ pub fn crates_screen(
     }
     for row in rows {
         let id = row.id.value();
+        // DEC-034: deleting a template stays the Owner's.
+        let delete = if role == Role::Owner {
+            format!(
+                r#" <details style="display:inline-block"><summary class="btn sm danger">✕</summary><button class="btn sm danger" data-action="crate_delete" data-id="{id}">Delete template</button></details>"#
+            )
+        } else {
+            String::new()
+        };
         let _ = write!(
             html,
-            r#"<tr><td><b>{}</b></td><td class="muted">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num" title="Sum of contents at today's rates">{}</td><td class="num"><button class="btn sm" data-action="crate_edit" data-id="{id}">✎ Edit</button> <details style="display:inline-block"><summary class="btn sm danger">✕</summary><button class="btn sm danger" data-action="crate_delete" data-id="{id}">Delete template</button></details></td></tr>"#,
+            r#"<tr><td><b>{}</b></td><td class="muted">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num" title="Sum of contents at today's rates">{}</td><td class="num"><button class="btn sm" data-action="crate_edit" data-id="{id}">✎ Edit</button>{delete}</td></tr>"#,
             esc(&row.template.name),
             esc(&row.contents),
             row.template.components.len(),

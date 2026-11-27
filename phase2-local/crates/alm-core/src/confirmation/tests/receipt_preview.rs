@@ -87,9 +87,10 @@ fn l05_01_named_receipt_cancellation_and_restore_are_read_only() {
         (snapshot.total, snapshot.paid, false)
     );
     assert_eq!(f, before);
+    // DEC-034: a Manager reads the posted bill it may edit, print or share.
     assert_eq!(
         f.bill_preview(Role::Manager, DraftId::new(1), BalanceMode::Latest),
-        Err(ConfirmationError::AccessDenied)
+        f.bill_preview(Role::Owner, DraftId::new(1), BalanceMode::Latest)
     );
     assert_eq!(f, before);
     f.cancel_sale(Role::Owner, DraftId::new(1)).unwrap();

@@ -85,6 +85,10 @@ pub enum Intent {
     SetReorderDefault {
         level: u32,
     },
+    /// The shop's New Bill loading charge per packet, which a Manager's drafts start with.
+    SetLoadingDefault {
+        rate: Money,
+    },
     /// The device restored a backup file: the authority logs the HTML's `restore` entry.
     RecordRestore,
     /// Imports a legacy backup file as the core mapped it (`legacy::import::plan`): the
@@ -155,6 +159,7 @@ impl Intent {
             Self::SaveCrate(_) => C::SaveCrate,
             Self::DeleteCrate { .. } => C::DeleteCrate,
             Self::SetReorderDefault { .. } => C::SetReorderDefault,
+            Self::SetLoadingDefault { .. } => C::SetLoadingDefault,
             Self::RecordRestore => C::RecordRestore,
             Self::ImportLegacy(_) => C::ImportLegacy,
             Self::ResolveLegacyQuarantine(_) => C::ResolveLegacyQuarantine,

@@ -108,6 +108,8 @@ impl ConfirmationFixture {
         request: GstRequest<'_>,
         sink: &mut impl FnMut(GstInvoice),
     ) -> Result<(), GstError> {
+        crate::permissions::require(request.role, crate::permissions::Capability::GstSales)
+            .map_err(|_| GstError::Preview(ConfirmationError::AccessDenied))?;
         let preview = self
             .bill_preview(request.role, request.draft_id, BalanceMode::AsOnBillDate)
             .map_err(GstError::Preview)?;

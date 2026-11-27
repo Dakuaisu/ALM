@@ -164,19 +164,20 @@ fn setup() -> (ConfirmationFixture, Review, Receipt, EditChanges) {
 #[test]
 fn shortage_and_manager_denial_leave_sale_unchanged() {
     let (mut f, review, receipt, changes) = setup();
+    let edit = f.begin_edit(Role::Owner, DraftId::new(1), changes).unwrap();
+    // DEC-034: a Manager opens and saves edits as the Owner does; the shortage refuses both.
     assert_eq!(
         f.begin_edit(Role::Manager, DraftId::new(1), changes),
-        Err(ConfirmationError::AccessDenied)
+        Ok(edit.clone())
     );
     assert_eq!(
         f.current_sale(Role::Manager, DraftId::new(1)),
-        Err(ConfirmationError::AccessDenied)
+        Ok((&review, &receipt))
     );
-    let edit = f.begin_edit(Role::Owner, DraftId::new(1), changes).unwrap();
     let before = f.catalog.allocation_snapshot();
     assert_eq!(
         f.save_edit(Role::Manager, &edit),
-        Err(ConfirmationError::AccessDenied)
+        Err(ConfirmationError::InsufficientStock)
     );
     assert_eq!(
         f.save_edit(Role::Owner, &edit),

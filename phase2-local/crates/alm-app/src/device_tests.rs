@@ -515,6 +515,10 @@ fn a_manager_drafts_from_the_catalog_its_device_pulled() {
     let stored = trial.projection.load().unwrap().unwrap();
     assert!(stored.snapshot.owner.is_none());
     let mut snapshot = stored.snapshot.clone();
+    // DEC-034: with its book a Manager drafts like the Owner; without one (an authority that
+    // sends none) it falls back to the pulled catalog, checked here.
+    assert!(snapshot.manager.is_some());
+    snapshot.manager = None;
     let id = snapshot.catalog[0].id;
     // The authority's catalog as pulled (here a name and sale price the built-in directory
     // does not hold): New Bill searches, adds and prices from it.
@@ -663,6 +667,9 @@ fn a_manager_picks_customers_from_the_names_its_device_pulled() {
         "no balances or contacts"
     );
     let mut snapshot = stored.snapshot.clone();
+    // DEC-034: the names-only picker is the fallback of a Manager without a book.
+    assert!(snapshot.manager.is_some());
+    snapshot.manager = None;
     snapshot.customer_names[0].name = "Projected Customer".into();
     trial
         .projection

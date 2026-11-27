@@ -62,10 +62,13 @@ fn in_place_edit_moves_stock_lots_balance_and_keeps_the_frozen_unit_cost() {
         price: Money::from_minor_units(paise),
     };
     let before = f.clone();
+    // DEC-034: a Manager edits a posted bill as the Owner does.
+    let (mut manager, mut owner) = (f.clone(), f.clone());
     assert_eq!(
-        f.edit_posted_lines(Role::Manager, DraftId::new(1), &[edit(1, 12_050)]),
-        Err(ConfirmationError::AccessDenied)
+        manager.edit_posted_lines(Role::Manager, DraftId::new(1), &[edit(1, 12_050)]),
+        owner.edit_posted_lines(Role::Owner, DraftId::new(1), &[edit(1, 12_050)])
     );
+    assert_eq!(manager, owner);
     assert_eq!(
         f.edit_posted_lines(Role::Owner, DraftId::new(1), &[edit(1, 12_050), edit(1, 1)]),
         Err(ConfirmationError::InvalidDraft)

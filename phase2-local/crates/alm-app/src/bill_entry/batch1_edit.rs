@@ -94,12 +94,14 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
         appended_line: DraftLine::new(ProductId::new(2), quantity("3").unwrap()),
         appended_price: Money::from_minor_units(6_250),
     };
+    // DEC-034: a Manager opens the same edit.
     assert_eq!(
         trial
             .authority
-            .begin_edit(Role::Manager, trial.local_draft(1), changes)
-            .err(),
-        Some(ConfirmationError::AccessDenied)
+            .begin_edit(Role::Manager, trial.local_draft(1), changes),
+        trial
+            .authority
+            .begin_edit(Role::Owner, trial.local_draft(1), changes)
     );
     let edit = trial
         .authority
@@ -167,11 +169,14 @@ fn edited_bill_conflicting_request_and_latest_estimate_balance_reconcile() {
     // Aggregate first: ₹378.49 - ₹30.99 = ₹347.50 displays ₹348, not ₹378 - ₹31 = ₹347.
     assert_eq!(money_r(latest.balance), "₹348");
     assert_eq!(money_r(as_on.balance), "₹378");
-    assert!(
+    // DEC-034: a Manager reads the same posted bill.
+    assert_eq!(
         trial
             .authority
-            .bill_preview(Role::Manager, trial.local_draft(1), BalanceMode::Latest)
-            .is_err()
+            .bill_preview(Role::Manager, trial.local_draft(1), BalanceMode::Latest),
+        trial
+            .authority
+            .bill_preview(Role::Owner, trial.local_draft(1), BalanceMode::Latest)
     );
 
     trial.customers.open = Some(CUSTOMER.into());
@@ -300,7 +305,8 @@ fn in_place_line_edit_flows_through_sales_customers_cash_book_and_dashboard() {
     );
     trial.customers.open = None;
     crate::device::assert_book_view(&mut trial);
+    // DEC-034: a Manager edits the posted bill too.
     trial.set_owner(false).unwrap();
-    assert!(trial.sale_edit_save(terms("2", "118")).is_err());
-    assert_eq!(effects(&trial), edited);
+    assert_eq!(trial.sale_edit_save(terms("2", "118")), Ok(()));
+    assert_ne!(effects(&trial), edited);
 }

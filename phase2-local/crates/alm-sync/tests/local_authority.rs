@@ -250,7 +250,8 @@ fn the_manager_pull_holds_only_the_catalog() {
 }
 
 /// The simulation's pull carries the `pull_projection` rows: the same sections, and only the
-/// catalog and customer names for a Manager; the Owner's other screens are computed from its `book` rows.
+/// catalog, customer names and cost-free book for a Manager; the Owner's other screens are
+/// computed from its `book` rows.
 #[test]
 fn pull_uses_the_hosted_row_format() {
     let authority = LocalAuthority::new(fixture().unwrap(), directory());
@@ -269,8 +270,21 @@ fn pull_uses_the_hosted_row_format() {
         (keys, wire)
     };
     let (manager, wire) = keys(Role::Manager);
-    assert_eq!(manager, ["catalog", "customer_names"]);
+    // DEC-034: and the Manager's cost-free book and New Bill loading charge.
+    assert_eq!(manager, ["catalog", "customer_names", "manager"]);
     assert!(!wire.to_string().contains("dev_state"));
+    let text = wire.to_string().to_lowercase();
+    for word in [
+        "cost",
+        "buy",
+        "margin",
+        "lots",
+        "allocations",
+        "quotes",
+        "activity",
+    ] {
+        assert!(!text.contains(word), "{word} in a Manager pull");
+    }
     let (owner, wire) = keys(Role::Owner);
     assert_eq!(
         owner,

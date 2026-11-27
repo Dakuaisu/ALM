@@ -33,11 +33,10 @@ pub fn crate_component_from_text(
 }
 
 impl ConfirmationFixture {
-    /// Owner-only saved templates in creation order.
+    /// The saved templates in creation order (DEC-034: Owner and Manager).
     pub fn crate_template_list(&self, role: Role) -> Result<Vec<CrateListRow>, CrateTemplateError> {
-        if role != Role::Owner {
-            return Err(CrateTemplateError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Crates)
+            .map_err(|_| CrateTemplateError::AccessDenied)?;
         Ok(self
             .crate_templates
             .saved_templates()
@@ -71,9 +70,8 @@ impl ConfirmationFixture {
         role: Role,
         value: u64,
     ) -> Result<CrateTemplateId, CrateTemplateError> {
-        if role != Role::Owner {
-            return Err(CrateTemplateError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Crates)
+            .map_err(|_| CrateTemplateError::AccessDenied)?;
         self.crate_templates
             .saved_templates()
             .map(|(id, _)| id)
@@ -113,9 +111,8 @@ impl ConfirmationFixture {
         role: Role,
         row: &crate::CrateRow,
     ) -> Result<CrateTemplateId, CrateTemplateError> {
-        if role != Role::Owner {
-            return Err(CrateTemplateError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Crates)
+            .map_err(|_| CrateTemplateError::AccessDenied)?;
         self.crate_templates
             .saved_templates()
             .find(|(_, t)| {
@@ -164,9 +161,7 @@ mod tests {
             Ok(Money::from_minor_units(2 * 12_050 + 3 * 6_250))
         );
         assert_eq!(fixture.crate_template_id(Role::Owner, id.value()), Ok(id));
-        assert_eq!(
-            fixture.crate_template_list(Role::Manager),
-            Err(CrateTemplateError::AccessDenied)
-        );
+        // DEC-034: a Manager sees the saved crates (selling rates only).
+        assert_eq!(fixture.crate_template_list(Role::Manager), Ok(rows));
     }
 }

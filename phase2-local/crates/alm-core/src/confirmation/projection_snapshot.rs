@@ -16,6 +16,7 @@ impl ConfirmationFixture {
         role: Role,
         directory: &BillingDirectory,
         cashbook: &ManualCashBook,
+        today: Option<BillDate>,
     ) -> Result<ProjectionSnapshot, ConfirmationError> {
         let catalog = directory
             .products
@@ -38,9 +39,19 @@ impl ConfirmationFixture {
                     name: row.customer.name.to_owned(),
                 })
                 .collect();
+            let mut owner = self.owner_book(Role::Owner, cashbook)?;
+            owner.cash_days.retain(|day| Some(day.date) == today);
+            let book = crate::projection::book::from_json(&crate::projection::book::manager_json(
+                &crate::projection::book::to_json(&owner),
+            ))
+            .map_err(|_| ConfirmationError::InvalidDraft)?;
             return Ok(ProjectionSnapshot {
                 catalog,
                 customer_names,
+                manager: Some(crate::projection::ManagerValues {
+                    book,
+                    loading: self.bill_loading,
+                }),
                 ..ProjectionSnapshot::default()
             });
         }
@@ -179,6 +190,32 @@ impl ConfirmationFixture {
             owner.book = self.owner_book(role, cashbook)?;
         }
         Ok(snapshot)
+    }
+
+    /// The screen lists (sales, receipts, customers, stock, products, crates, godown) of a view
+    /// rebuilt from a Manager's book (DEC-034), which holds no cost: computed as the authority
+    /// computes them, with no owner values.
+    ///
+    /// # Errors
+    /// Propagates read failures from the underlying screens.
+    pub fn manager_lists(
+        &self,
+        directory: &BillingDirectory,
+        cashbook: &ManualCashBook,
+    ) -> Result<ProjectionSnapshot, ConfirmationError> {
+        let snapshot = self.projection_snapshot(Role::Owner, directory, cashbook, None)?;
+        Ok(ProjectionSnapshot {
+            sales_unsupported: snapshot.sales_unsupported,
+            sales: snapshot.sales,
+            receipts: snapshot.receipts,
+            customers: snapshot.customers,
+            stock: snapshot.stock,
+            cash_days: snapshot.cash_days,
+            products: snapshot.products,
+            crates: snapshot.crates,
+            godown: snapshot.godown,
+            ..ProjectionSnapshot::default()
+        })
     }
 
     /// Products, suppliers, purchase orders, crates, godown and GST bills (Owner only).

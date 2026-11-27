@@ -95,6 +95,8 @@ impl ConfirmationFixture {
         sink: &mut impl FnMut(PopupDocument),
     ) -> Result<(), EstimateError> {
         let (intent, profile) = output;
+        crate::permissions::require(request.role, crate::permissions::Capability::PrintEstimate)
+            .map_err(|_| EstimateError::Preview(ConfirmationError::AccessDenied))?;
         let preview = self.preview_estimate(request)?;
         let target = match intent {
             PrintIntent::OnLoad => "_print",

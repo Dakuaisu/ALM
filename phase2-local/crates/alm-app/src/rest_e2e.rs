@@ -151,19 +151,16 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
         rest(&lossy, &owner, &manager).with_device(&device),
     );
 
-    // Manager: a provisional draft only; posting and posted screens are denied.
+    // Manager: the Owner review is denied (DEC-034: it drafts from the cost-free book it
+    // pulled from REST and opens Sales without profit).
     trial.set_owner(false).unwrap();
-    // New Bill drafts from the catalog the Manager pulled from REST (names and sale prices).
-    let pulled = alm_sync::SalesAuthority::pull(trial.sales_authority(), Role::Manager, None)
-        .unwrap()
-        .snapshot
-        .unwrap()
-        .catalog;
-    assert_eq!(trial.manager_catalog(), Some(pulled));
+    assert!(trial.manager_book());
+    assert_eq!(trial.manager_catalog(), None);
     assert!(trial.bill_item_search("lime").contains("Synthetic Lime"));
     let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
     trial.drafts.save_draft(draft).unwrap();
-    assert!(trial.render("sales").unwrap().contains("role=\"alert\""));
+    let sales = trial.render("sales").unwrap();
+    assert!(!sales.contains("role=\"alert\"") && !sales.contains("Profit"));
     let terms = |paid: &str| crate::billing::Terms {
         date: "2025-04-30".into(),
         paid: paid.into(),
@@ -708,7 +705,15 @@ fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
         "{review}"
     );
     assert!(trial.projected().unwrap().snapshot.owner.is_none());
-    assert!(trial.render("sales").unwrap().contains("role=\"alert\""));
+    // DEC-034: a Manager opens Sales, without profit; Owner screens stay denied.
+    let sales = trial.render("sales").unwrap();
+    assert!(!sales.contains("role=\"alert\"") && !sales.contains("Profit"));
+    assert!(
+        trial
+            .render("dashboard")
+            .unwrap()
+            .contains("role=\"alert\"")
+    );
     let manager_account = trial.account.clone();
     trial.rest_logout().unwrap();
     assert!(trial.signed_out());

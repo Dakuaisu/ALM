@@ -124,8 +124,11 @@ fn manager_and_stale_edits_cannot_mutate_or_report() {
     };
     let edit = f.begin_edit(Role::Owner, id, changes).unwrap();
     let before = f.clone();
+    // DEC-034: a Manager cancels a bill; restoring one stays the Owner's.
+    let mut cancelled = f.clone();
+    assert_eq!(cancelled.cancel_sale(Role::Manager, id), Ok(()));
     assert_eq!(
-        f.cancel_sale(Role::Manager, id),
+        cancelled.undo_cancel_sale(Role::Manager, id),
         Err(ConfirmationError::AccessDenied)
     );
     assert_eq!(

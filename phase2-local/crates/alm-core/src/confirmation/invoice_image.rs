@@ -12,10 +12,12 @@ use super::image_handoff::format_amount;
 use super::{BalanceMode, ConfirmationFixture, EstimateError, EstimateRequest, Money};
 
 impl ConfirmationFixture {
-    /// Lays out the full-invoice bill image for an Owner-visible posted bill (`invoiceHTML`).
+    /// Lays out the full-invoice bill image for a posted bill (`invoiceHTML`; DEC-034: the
+    /// Owner and a Manager share it).
     ///
     /// # Errors
-    /// Denies Managers and rejects missing, unsupported or mislabelled bills.
+    /// Denies a role the matrix keeps from sharing bills and rejects missing, unsupported or
+    /// mislabelled bills.
     pub fn invoice_image(
         &self,
         request: EstimateRequest<'_>,
@@ -24,6 +26,8 @@ impl ConfirmationFixture {
         simple: bool,
         measure: Measure<'_>,
     ) -> Result<BillImage, EstimateError> {
+        crate::permissions::require(request.role, crate::permissions::Capability::ShareBill)
+            .map_err(|_| EstimateError::Preview(super::ConfirmationError::AccessDenied))?;
         let preview = self.preview_estimate(request)?;
         Ok(invoice_image_layout(
             &super::estimate::estimate_document(&preview, request.display),

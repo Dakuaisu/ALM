@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use crate::confirmation::demo_fixture::{customer_id, directory, fixture};
 use crate::confirmation::owner_billing::{OwnerPosting, SaleTerms};
-use crate::confirmation::{ConfirmationError, ConfirmationFixture, CounterTag};
+use crate::confirmation::{ConfirmationFixture, CounterTag};
 use crate::{BillDate, DraftCustomer, DraftId, DraftLine, ProductId, ProvisionalDraft, Role};
 
 fn post(fixture: &mut ConfirmationFixture, id: u64, date: &str, paid: &str) {
@@ -44,9 +44,10 @@ fn recents_tag_unpaid_remainders_as_credit_without_amounts_or_effects() {
     assert_eq!(tags, [(2, CounterTag::Credit), (1, CounterTag::Cash)]);
     assert_eq!(recents[0].customer.as_deref(), Some("Synthetic Customer"));
     assert_eq!(recents[1].date, BillDate::new(2025, 4, 29).ok());
+    // DEC-034: a Manager's Counter lists the same recent bills (no profit).
     assert_eq!(
         fixture.counter_recents(Role::Manager, &counter),
-        Err(ConfirmationError::AccessDenied)
+        Ok(recents)
     );
     assert_eq!(fixture, before);
 }

@@ -36,6 +36,8 @@ mod gst_sales;
 mod image;
 mod ipc;
 mod legacy_import;
+#[cfg(test)]
+mod manager_tests;
 mod navigation;
 mod order;
 mod outputs;
@@ -163,6 +165,7 @@ pub fn run() {
                 device::account::outbox_check,
                 device::account::outbox_retry,
                 device::account::account_switch,
+                billing::bill_post,
                 billing::sale_prepare,
                 billing::sale_confirm,
                 billing::sales_filter,

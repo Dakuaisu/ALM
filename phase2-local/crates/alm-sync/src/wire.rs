@@ -159,6 +159,10 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
         ),
         Intent::DeleteCrate { id } => ("delete_crate", json!({"id": id})),
         Intent::SetReorderDefault { level } => ("set_reorder_default", json!({"level": level})),
+        Intent::SetLoadingDefault { rate } => (
+            "set_loading_default",
+            json!({"rate_minor": rate.minor_units()}),
+        ),
         Intent::RecordRestore => ("record_restore", json!({})),
         Intent::ImportLegacy(plan) => (
             "import_legacy",

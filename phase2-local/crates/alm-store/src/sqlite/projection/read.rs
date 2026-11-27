@@ -161,6 +161,28 @@ pub(super) fn read_snapshot(
     } else {
         None
     };
+    let manager = if role == Role::Manager {
+        let sections = rows(
+            conn,
+            "SELECT section, body FROM projected_manager_book ORDER BY section",
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let loading: Option<i64> = conn
+            .query_row("SELECT rate FROM projected_manager_loading", [], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        match (sections.is_empty(), loading) {
+            (false, Some(loading)) => Some(alm_core::projection::ManagerValues {
+                book: alm_core::projection::book::from_sections(&sections)
+                    .map_err(|_| DraftStorageError::InvalidOutput)?,
+                loading: Money::from_minor_units(loading),
+            }),
+            _ => None,
+        }
+    } else {
+        None
+    };
     let books = read_books(conn)?;
     let owner = match owner {
         Some(owner) => Some(read_owner_books(conn, owner)?),
@@ -184,6 +206,7 @@ pub(super) fn read_snapshot(
         catalog,
         cash_days,
         owner,
+        manager,
         ..books
     })
 }

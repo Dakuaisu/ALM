@@ -175,6 +175,14 @@ pub struct OwnerValues {
     pub book: book::OwnerBook,
 }
 
+/// A Manager's rows beside the lists (DEC-034): the book without costs ([`book::manager_json`],
+/// read back with zero or no costs) and the shop's New Bill loading charge.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ManagerValues {
+    pub book: book::OwnerBook,
+    pub loading: Money,
+}
+
 /// Everything one account may see, as of one authority checkpoint.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ProjectionSnapshot {
@@ -195,6 +203,7 @@ pub struct ProjectionSnapshot {
     pub godown: Vec<ProjectedGodownRow>,
     pub gst_bills: Vec<ProjectedGstBill>,
     pub owner: Option<OwnerValues>,
+    pub manager: Option<ManagerValues>,
 }
 
 /// What the device applies in one transaction: the checkpoint reached and, when anything
@@ -233,7 +242,8 @@ pub enum PulledRows {
 
 impl ConfirmationFixture {
     /// The role-filtered snapshot for a device: the Owner gets every projected screen and the
-    /// owner values; a Manager gets only the catalog and customer names it drafts with.
+    /// owner values; a Manager gets the catalog and customer names it drafts with and its
+    /// cost-free book, without a Cash Book day.
     ///
     /// # Errors
     /// Propagates read failures from the underlying screens.
@@ -243,7 +253,22 @@ impl ConfirmationFixture {
         directory: &BillingDirectory,
         cashbook: &ManualCashBook,
     ) -> Result<ProjectionSnapshot, ConfirmationError> {
-        self.projection_snapshot(role, directory, cashbook)
+        self.projection_snapshot(role, directory, cashbook, None)
+    }
+
+    /// [`Self::projection`] on the shop's day `today`: a Manager's book holds that day's Cash
+    /// Book row, if it is closed, and no other.
+    ///
+    /// # Errors
+    /// Propagates read failures from the underlying screens.
+    pub fn projection_on(
+        &self,
+        role: Role,
+        directory: &BillingDirectory,
+        cashbook: &ManualCashBook,
+        today: BillDate,
+    ) -> Result<ProjectionSnapshot, ConfirmationError> {
+        self.projection_snapshot(role, directory, cashbook, Some(today))
     }
 }
 
@@ -273,7 +298,8 @@ impl ProjectionSnapshot {
     /// Filters the projected sales by period and customer/item search and totals them.
     ///
     /// # Errors
-    /// Denies Managers (OPEN-004); rejects total overflow.
+    /// Denies a role the matrix keeps from Sales; rejects total overflow. The profit needs owner
+    /// values, which a Manager never holds.
     pub fn sales_view(
         &self,
         role: Role,
@@ -281,9 +307,8 @@ impl ProjectionSnapshot {
         period: SalesPeriod,
         search: &str,
     ) -> Result<SalesView<'_>, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Sales)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         if let Some(id) = self.sales_unsupported {
             return Err(ConfirmationError::UnsupportedSalesRecord(id));
         }
@@ -354,7 +379,7 @@ impl ProjectionSnapshot {
             }
         }
         view.total_collected = add(view.bill_paid, view.receipt_paid)?;
-        if self.owner.is_some() && known {
+        if self.owner.is_some() && known && role == Role::Owner {
             view.profit = Some(Money::from_minor_units(
                 revenue
                     .minor_units()

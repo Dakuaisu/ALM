@@ -1,6 +1,6 @@
 //! Randomized consistency check: seeded bills mixing item lines, crates (Case and Piece
 //! components; several crate rows with no item line among them), loading charges and payments,
-//! with edits, cancels, restores and receipts, run through the core's `LocalAuthority` always and through the dev Postgres authority when
+//! with edits, cancels, restores and receipts, each sent by the Owner or (DEC-034) a Manager, run through the core's `LocalAuthority` always and through the dev Postgres authority when
 //! `ALM_PG_URL` is set. Every step's outcome must match, the effects are compared every
 //! `COMPARE_EVERY` steps and at the end, and every posted or edited bill's total must be its
 //! rows plus its loading charge (New Bill pricing, the receipt, the projection and the bill
@@ -136,14 +136,19 @@ impl Run {
         )
     }
 
-    /// Submits `intent` to both; the outcomes must match. Returns the core's.
+    /// Submits `intent` to both as the Owner; the outcomes must match. Returns the core's.
     fn submit(&mut self, intent: &Intent) -> Result<Outcome, AuthorityError> {
+        self.submit_as(Role::Owner, intent)
+    }
+
+    /// As [`Self::submit`], sent by `role`.
+    fn submit_as(&mut self, role: Role, intent: &Intent) -> Result<Outcome, AuthorityError> {
         self.step += 1;
         let request =
             RequestId::new(&format!("rnd-{:x}-{}", self.seed, self.step)).expect("request id");
-        let core = self.local.submit(Role::Owner, &request, intent);
+        let core = self.local.submit(role, &request, intent);
         if let Some(pg) = &mut self.pg {
-            let sql = pg.submit(Role::Owner, &request, intent);
+            let sql = pg.submit(role, &request, intent);
             if kind(&core) != kind(&sql) {
                 self.fail(&format!(
                     "outcome differs for {intent:?}\n  core {}\n  sql  {}",
@@ -299,6 +304,8 @@ struct Counts {
     cancels: usize,
     restores: usize,
     receipts: usize,
+    /// Commands a Manager sent that committed (DEC-034).
+    by_manager: usize,
     steps: usize,
 }
 
@@ -319,6 +326,12 @@ fn run_seed(seed: u64) -> Counts {
     // restores mostly target the bill moved last.
     let mut last_moved: Option<usize> = None;
     while n.bills < bills() {
+        let role = if rng.chance(50) {
+            Role::Manager
+        } else {
+            Role::Owner
+        };
+        let manager = usize::from(role == Role::Manager);
         match rng.below(100) {
             0..=64 => {
                 n.bills += 1;
@@ -399,8 +412,9 @@ fn run_seed(seed: u64) -> Counts {
                 if let Intent::PostSale(sale) = &intent {
                     new_bill_invariant(&run, &sale.draft, &bill);
                 }
-                if let Ok(Outcome::Sale(receipt)) = run.submit(&intent) {
+                if let Ok(Outcome::Sale(receipt)) = run.submit_as(role, &intent) {
                     n.posted += 1;
+                    n.by_manager += manager;
                     if lines.is_empty() && bill.crates.len() > 1 {
                         n.crate_only += 1;
                     }
@@ -433,8 +447,12 @@ fn run_seed(seed: u64) -> Counts {
                     .map(|l| (l.1, l.2))
                     .chain(edited.crates.iter().map(|c| (c.2, c.1)))
                     .collect();
-                if run.submit(&Intent::EditSale { draft, lines }).is_ok() {
+                if run
+                    .submit_as(role, &Intent::EditSale { draft, lines })
+                    .is_ok()
+                {
                     n.edits += 1;
+                    n.by_manager += manager;
                     run.check_total(draft, &edited, None);
                     posted[index].1 = edited;
                     last_moved = Some(index);
@@ -452,7 +470,12 @@ fn run_seed(seed: u64) -> Counts {
                 } else {
                     Intent::RestoreSale { draft }
                 };
-                if run.submit(&intent).is_ok() {
+                let result = run.submit_as(role, &intent);
+                if !cancel && role == Role::Manager && result != Err(AuthorityError::Denied) {
+                    run.fail("a Manager restored a bill");
+                }
+                if result.is_ok() {
+                    n.by_manager += manager;
                     last_moved = Some(index);
                     if cancel {
                         n.cancels += 1;
@@ -467,7 +490,11 @@ fn run_seed(seed: u64) -> Counts {
                 let amount = 100 + i64::try_from(rng.below(5_000)).unwrap();
                 let date = rng.pick(DATES);
                 let online = rng.chance(50);
-                if run.submit(&receipt(customer, date, amount, online)).is_ok() {
+                if run
+                    .submit_as(role, &receipt(customer, date, amount, online))
+                    .is_ok()
+                {
+                    n.by_manager += manager;
                     n.receipts += 1;
                 }
             }
@@ -536,6 +563,10 @@ fn randomized_bills_agree_between_core_and_sql_and_add_up() {
     };
     for seed in seeds {
         let n = run_seed(seed);
+        assert!(
+            n.by_manager > 0,
+            "seed {seed:#x}: no Manager command committed"
+        );
         let sql = if std::env::var_os("ALM_PG_URL").is_some() {
             "core and SQL"
         } else {

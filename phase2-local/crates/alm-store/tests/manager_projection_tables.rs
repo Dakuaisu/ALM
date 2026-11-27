@@ -245,12 +245,23 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
     );
     // A margin may equal a sell rate the Manager's catalog legitimately shows (a product with
     // no buy rate); only check values the catalog does not carry.
-    for row in &shop
-        .projection(Role::Manager, &directory(), &book)
-        .unwrap()
-        .catalog
-    {
+    let manager = shop.projection(Role::Manager, &directory(), &book).unwrap();
+    for row in &manager.catalog {
         costs.remove(&row.rate.minor_units());
+    }
+    // DEC-034: a Manager sees selling rates (products, checkout terms, bill and crate rates).
+    let sold = &manager.manager.as_ref().unwrap().book;
+    for p in &sold.products {
+        costs.remove(&p.sell.minor_units());
+    }
+    for (_, _, piece, case) in &sold.checkout_terms {
+        costs.remove(&piece.minor_units());
+        costs.remove(&case.minor_units());
+    }
+    for sale in &sold.sales {
+        for price in &sale.prices {
+            costs.remove(&price.minor_units());
+        }
     }
     costs.remove(&0);
     assert!(costs.len() >= 8, "{costs:?}");
@@ -302,8 +313,24 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
                 "cost value {number} in Manager table {table}.{column}"
             );
         }
+        // The Manager book's JSON bodies: every number in them too.
+        if let Ok(body) = serde_json::from_str::<serde_json::Value>(value) {
+            let mut stack = vec![&body];
+            while let Some(node) = stack.pop() {
+                match node {
+                    serde_json::Value::Number(n) => assert!(
+                        !n.as_i64().is_some_and(|n| costs.contains(&n)),
+                        "cost value {n} in Manager table {table}.{column}"
+                    ),
+                    serde_json::Value::Array(items) => stack.extend(items),
+                    serde_json::Value::Object(map) => stack.extend(map.values()),
+                    _ => {}
+                }
+            }
+        }
     }
-    // The Manager rows are the catalog and customer names it drafts with, and nothing else.
+    // The Manager rows are the catalog and customer names it drafts with and (DEC-034) its
+    // cost-free book and New Bill loading charge, and nothing else.
     let filled: BTreeSet<&str> = manager
         .iter()
         .filter(|(_, column, _)| !column.is_empty())
@@ -314,6 +341,8 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
         [
             "projected_catalog",
             "projected_customer_names",
+            "projected_manager_book",
+            "projected_manager_loading",
             "projection_checkpoint",
             "projection_scope",
             "projected_notes"

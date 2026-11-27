@@ -61,6 +61,13 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
             &mut state.legacy_sources,
             plan,
         )?)),
+        Intent::SetLoadingDefault { rate } => {
+            state
+                .fixture
+                .set_bill_loading(ROLE, *rate)
+                .map_err(rejected)?;
+            Ok(Outcome::Done)
+        }
         Intent::SetReorderDefault { level } => {
             state
                 .fixture

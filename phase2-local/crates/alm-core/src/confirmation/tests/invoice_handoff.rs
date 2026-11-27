@@ -226,14 +226,14 @@ fn l05_04_text_uses_latest_balance_when_selected() {
     );
 }
 
+/// DEC-034: a Manager shares the bill exactly as the Owner does.
 #[test]
-fn l05_04_manager_is_denied_before_any_callback() {
+fn l05_04_a_manager_hands_off_the_bill_as_the_owner_does() {
+    let owner = run_case(request(Some(MOBILE)), [None, Some(PNG)]);
     let mut request = request(Some(MOBILE));
     request.image.role = Role::Manager;
     let (result, calls) = run_case(request, [None, Some(PNG)]);
-    assert_eq!(
-        result,
-        Err(EstimateError::Preview(ConfirmationError::AccessDenied))
-    );
-    assert!(calls.is_empty());
+    assert_eq!(result, Ok(()));
+    assert!(!calls.is_empty());
+    assert_eq!((result, calls), owner);
 }

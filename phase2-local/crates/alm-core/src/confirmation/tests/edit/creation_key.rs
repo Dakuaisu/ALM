@@ -100,10 +100,13 @@ fn controlled_edit_creation_key_counter_readback() {
         &[4, 3, 5, 2, 1],
     );
     let edit = f.begin_edit(Role::Owner, DraftId::new(1), changes).unwrap();
+    // DEC-034: a Manager saves the edit as the Owner does (on a copy here).
+    let (mut manager, mut owner) = (f.clone(), f.clone());
     assert_eq!(
-        f.save_edit_with_creation_key(Role::Manager, &edit, time),
-        Err(ConfirmationError::AccessDenied)
+        manager.save_edit_with_creation_key(Role::Manager, &edit, time),
+        owner.save_edit_with_creation_key(Role::Owner, &edit, time)
     );
+    assert_eq!(manager, owner);
     assert_eq!(f, before);
     readback(&f, today, "denied", 1, None, None, &[4, 3, 5, 2, 1]);
     f.save_edit_with_creation_key(Role::Owner, &edit, time)

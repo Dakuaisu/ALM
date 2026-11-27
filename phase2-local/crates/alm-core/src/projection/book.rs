@@ -10,7 +10,8 @@ use crate::{BillDate, Money};
 
 mod json;
 pub use json::{
-    BookFormatError, from_json, from_sections, reason_code, reason_from_code, to_json, to_sections,
+    BookFormatError, from_json, from_sections, manager_json, manager_sections, reason_code,
+    reason_from_code, to_json, to_sections,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]

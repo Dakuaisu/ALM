@@ -1299,3 +1299,131 @@ fn two_devices_first_drafts() {
     assert_eq!(invoices.len(), 3, "{sales:?}");
     p.finish();
 }
+
+/// DEC-034: a Manager posts an item bill and a mixed bill, records a payment, edits and cancels
+/// a bill and saves a crate template, godown row and stock count; restoring a bill and stale or
+/// Owner-only commands are refused alike. Both authorities log the Manager's account.
+#[test]
+fn manager_posts_edits_and_cancels() {
+    let Some(mut p) = Pair::new("manager") else {
+        return;
+    };
+    let manager = |p: &mut Pair, step: &str, intent: &Intent| p.run(Role::Manager, step, intent);
+    manager(
+        &mut p,
+        "crate template",
+        &crate_terms(None, "Soda Case", 9_000, &[(SODA, 1, false)]),
+    );
+    let core = p.core();
+    let bill = |draft: u64, lines: &'static [(u64, u32)], paid: i64| Bill {
+        draft,
+        to: For::Customer(CUSTOMER),
+        lines,
+        date: "2025-04-30",
+        paid,
+        loading: 150,
+    };
+    manager(&mut p, "post", &sale(&core, &bill(31, &[(LIME, 2)], 5_000)));
+    let soda: &[(u64, u32, bool)] = &[(SODA, 1, false)];
+    manager(
+        &mut p,
+        "post mixed",
+        &mixed_sale(
+            &core,
+            &bill(32, &[(LIME, 1)], 2_000),
+            &[(Some("Soda Case"), 9_000, 2, soda)],
+        ),
+    );
+    let mut stale = sale(&core, &bill(33, &[(LIME, 1)], 0));
+    if let Intent::PostSale(sale) = &mut stale {
+        sale.prices[0] = alm_core::Money::from_minor_units(1);
+    }
+    manager(&mut p, "stale price", &stale);
+    manager(
+        &mut p,
+        "payment",
+        &receipt(CUSTOMER.0, "2025-05-02", 3_050, false),
+    );
+    manager(
+        &mut p,
+        "edit",
+        &Intent::EditSale {
+            draft: alm_core::DraftId::new(31),
+            lines: vec![(3, 12_050)],
+        },
+    );
+    manager(
+        &mut p,
+        "cancel",
+        &Intent::CancelSale {
+            draft: alm_core::DraftId::new(31),
+        },
+    );
+    manager(
+        &mut p,
+        "restore refused",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(31),
+        },
+    );
+    p.owner(
+        "owner restores",
+        &Intent::RestoreSale {
+            draft: alm_core::DraftId::new(31),
+        },
+    );
+    manager(
+        &mut p,
+        "godown",
+        &Intent::SaveGodown {
+            item: "Synthetic Soda".into(),
+            cases: "4".into(),
+            note: String::new(),
+        },
+    );
+    let core = p.core();
+    manager(
+        &mut p,
+        "count",
+        &count(&core, SODA, on_hand(&core, SODA) - 1, None, "2025-05-02"),
+    );
+    manager(
+        &mut p,
+        "opening refused",
+        &Intent::SaveOpening {
+            customer: CUSTOMER.0.into(),
+            amount: Some(alm_core::Money::from_minor_units(100)),
+            date: None,
+        },
+    );
+    let accounts: Vec<(String, String)> = p
+        .core()
+        .owner
+        .unwrap()
+        .book
+        .activity
+        .iter()
+        .map(|a| (a.kind.clone(), a.account.clone()))
+        .collect();
+    for kind in [
+        "bill-save",
+        "payment",
+        "bill-edit",
+        "bill-cancel",
+        "crate-save",
+        "adjust",
+    ] {
+        assert!(
+            accounts
+                .iter()
+                .any(|(k, account)| k == kind && account == "diff-manager"),
+            "{kind}: {accounts:?}"
+        );
+    }
+    assert!(
+        accounts
+            .iter()
+            .any(|(k, account)| k == "bill-restore" && account == "diff-owner")
+    );
+    p.finish();
+}

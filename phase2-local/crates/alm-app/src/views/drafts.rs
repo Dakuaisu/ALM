@@ -54,6 +54,10 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
         return html + "<div class=\"help\">Open or save a Manager draft first.</div></div>";
     };
     match &view.priced {
+        // The Owner review stays the Owner's (DEC-034); a Manager posts from New Bill.
+        _ if !view.role_is_owner => {
+            html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
+        }
         Err(ConfirmationError::AccessDenied) => {
             html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
         }

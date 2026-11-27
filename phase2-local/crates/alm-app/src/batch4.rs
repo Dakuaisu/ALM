@@ -20,13 +20,19 @@ fn draft_post_lost_response_restart_receipt_cash_close_backup_restore_and_image(
     let device_a = Root::new("batch4-a");
     let mut trial = Trial::open(&device_a.0, Some(day())).unwrap();
 
-    // Manager: a provisional draft only; posted screens and costs stay denied.
+    // Manager: a saved draft; the Owner review stays denied (DEC-034: the screens a Manager
+    // may open hold no profit).
     trial.set_owner(false).unwrap();
     let draft = crate::billing_tests::draft().with_bill_date(Some(day()));
     trial.drafts.save_draft(draft.clone()).unwrap();
     for tab in ["sales", "customers", "stock"] {
         let html = trial.render(tab).unwrap();
-        assert!(html.contains("role=\"alert\""), "{tab}");
+        assert_eq!(
+            !html.contains("role=\"alert\""),
+            crate::screen_tests::MANAGER_SCREENS.contains(&tab),
+            "{tab}"
+        );
+        assert!(!html.contains("Profit"), "{tab}");
     }
     assert!(trial.sale_prepare(&terms("20")).is_err());
 

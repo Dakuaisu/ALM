@@ -183,12 +183,14 @@ impl Trial {
             "sales" => {
                 let stored = self.projected()?;
                 let mut html = self.freshness(&stored)?;
-                if let (Some(id), Role::Owner) = (self.sale_edit, self.role()) {
-                    html += &views::sale_edit_form(&self.posted, &self.directory, Role::Owner, id)
+                if let Some(id) = self.sale_edit
+                    && let Ok(role) = self.require(alm_core::permissions::Capability::EditSale)
+                {
+                    html += &views::sale_edit_form(&self.posted, &self.directory, role, id)
                         .map_err(refusal)?;
                 }
                 html + &views::sales_screen(
-                    &stored.snapshot,
+                    self.screen_rows(&stored),
                     self.role(),
                     &self.sales_filter,
                     self.today()?,

@@ -70,9 +70,8 @@ impl ConfirmationFixture {
         id: DraftId,
         mode: BalanceMode,
     ) -> Result<BillPreview, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Sales)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let (review, receipt, _) = self
             .current_sales
             .get(&id)

@@ -50,11 +50,8 @@ impl CrateTemplateBook {
     }
 }
 
-const fn owner(role: Role) -> Result<(), CrateTemplateError> {
-    match role {
-        Role::Owner => Ok(()),
-        Role::Manager => Err(CrateTemplateError::AccessDenied),
-    }
+fn gate(role: Role, capability: crate::permissions::Capability) -> Result<(), CrateTemplateError> {
+    crate::permissions::require(role, capability).map_err(|_| CrateTemplateError::AccessDenied)
 }
 
 impl CrateTemplate {
@@ -95,7 +92,7 @@ impl ConfirmationFixture {
         role: Role,
         components: &[CrateComponent],
     ) -> Result<Money, CrateTemplateError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::Crates)?;
         components
             .iter()
             .try_fold(0_i64, |sum, component| {
@@ -123,7 +120,7 @@ impl ConfirmationFixture {
         role: Role,
         template: CrateTemplate,
     ) -> Result<CrateTemplateId, CrateTemplateError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::SaveCrate)?;
         let template = template.checked()?;
         let next = self
             .crate_templates
@@ -141,7 +138,7 @@ impl ConfirmationFixture {
         role: Role,
         id: CrateTemplateId,
     ) -> Result<&CrateTemplate, CrateTemplateError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::Crates)?;
         self.crate_templates
             .saved
             .get(&id)
@@ -154,7 +151,7 @@ impl ConfirmationFixture {
         id: CrateTemplateId,
         template: CrateTemplate,
     ) -> Result<(), CrateTemplateError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::SaveCrate)?;
         let saved = self
             .crate_templates
             .saved
@@ -169,7 +166,7 @@ impl ConfirmationFixture {
         role: Role,
         id: CrateTemplateId,
     ) -> Result<(), CrateTemplateError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::DeleteCrate)?;
         self.crate_templates
             .saved
             .remove(&id)

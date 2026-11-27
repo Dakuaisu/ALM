@@ -527,9 +527,70 @@ pub fn from_json(b: &Value) -> R<OwnerBook> {
     })
 }
 
+/// The Manager's book (DEC-034): the Owner book rows in the wire format with every cost, buy
+/// rate, supplier, quote, FIFO lot, stock count, GST bill, activity and legacy row left out,
+/// purchase order lines without rates. The SQL `alm_private.manager_book` is the same
+/// transformation; a book read back from it with [`from_json`] has zero or no costs.
+pub fn manager_json(owner: &Value) -> Value {
+    fn without(value: &Value, keys: &[&str]) -> Value {
+        let mut value = value.clone();
+        if let Value::Object(map) = &mut value {
+            for key in keys {
+                map.remove(*key);
+            }
+        }
+        value
+    }
+    let each = |path: &Value, keys: &[&str]| -> Vec<Value> {
+        list(path).iter().map(|row| without(row, keys)).collect()
+    };
+    let orders: Vec<Value> = list(&owner["purchasing"]["orders"])
+        .iter()
+        .map(|order| {
+            let mut order = order.clone();
+            order["lines"] = Value::Array(
+                list(&order["lines"])
+                    .iter()
+                    .map(|line| {
+                        let mut kept = without(line, &["rate", "receipts"]);
+                        kept["receipts"] = Value::Array(
+                            list(&line["receipts"])
+                                .iter()
+                                .map(|r| json!([r[0], r[1]]))
+                                .collect(),
+                        );
+                        kept
+                    })
+                    .collect(),
+            );
+            order
+        })
+        .collect();
+    json!({
+        "settings": owner["settings"],
+        "products": each(&owner["products"], &["buy", "margin", "lots", "counts"]),
+        "checkout_terms": owner["checkout_terms"],
+        "sales": each(&owner["sales"], &["cost", "line_units", "allocations"]),
+        "receipts": owner["receipts"],
+        "customers": owner["customers"],
+        "purchasing": {"orders": orders},
+        "crates": owner["crates"],
+        "godown": owner["godown"],
+        "cash_days": owner["cash_days"],
+    })
+}
+
 /// The book as `(section, JSON body)` rows, as the device stores it.
 pub fn to_sections(book: &OwnerBook) -> Vec<(String, String)> {
     match to_json(book) {
+        Value::Object(map) => map.into_iter().map(|(k, v)| (k, v.to_string())).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The Manager's book ([`manager_json`]) as `(section, JSON body)` rows.
+pub fn manager_sections(book: &OwnerBook) -> Vec<(String, String)> {
+    match manager_json(&to_json(book)) {
         Value::Object(map) => map.into_iter().map(|(k, v)| (k, v.to_string())).collect(),
         _ => Vec::new(),
     }

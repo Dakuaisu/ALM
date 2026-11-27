@@ -83,8 +83,12 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
     ] {
         assert!(html.contains(markup), "missing {markup}");
     }
-    assert!(!html.contains("₹62.50"));
     assert!(!html.contains("₹38.00"));
+    // DEC-034: the saved bill posts at the selling rates; the Post form shows that amount.
+    assert!(
+        html.contains("Posts at today's rates: <b>₹245.50</b>"),
+        "{html}"
+    );
     let html = trial.render("review").unwrap();
     assert!(html.contains("Access denied"));
     assert!(!html.contains("sale_prepare"));

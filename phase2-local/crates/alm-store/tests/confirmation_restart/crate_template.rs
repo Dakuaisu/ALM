@@ -211,33 +211,38 @@ fn l10_01_manager_template_actions_leave_authority_and_draft_untouched() {
         .save_crate_template(OWNER, template.clone())
         .unwrap();
     let before = authority.clone();
-    let mut draft = ProvisionalDraft::new(SALE, vec![]);
+    let draft = ProvisionalDraft::new(SALE, vec![]);
     let untouched = draft.clone();
 
+    // DEC-034: a Manager saves, reads, prices, edits and loads crate templates as the Owner
+    // does (on copies); deleting one stays the Owner's.
+    let (mut manager, mut owner) = (authority.clone(), authority.clone());
     assert_eq!(
-        authority.save_crate_template(MANAGER, template.clone()),
-        Err(CrateTemplateError::AccessDenied)
+        manager.save_crate_template(MANAGER, template.clone()),
+        owner.save_crate_template(OWNER, template.clone())
     );
     assert_eq!(
-        authority.crate_template(MANAGER, id),
-        Err(CrateTemplateError::AccessDenied)
+        manager.crate_template(MANAGER, id).cloned(),
+        owner.crate_template(OWNER, id).cloned()
     );
     assert_eq!(
-        authority.suggest_crate_price(MANAGER, &template.components),
-        Err(CrateTemplateError::AccessDenied)
+        manager.suggest_crate_price(MANAGER, &template.components),
+        owner.suggest_crate_price(OWNER, &template.components)
     );
     assert_eq!(
-        authority.edit_crate_template(MANAGER, id, template),
-        Err(CrateTemplateError::AccessDenied)
+        manager.edit_crate_template(MANAGER, id, template.clone()),
+        owner.edit_crate_template(OWNER, id, template)
     );
+    assert_eq!(manager, owner);
     assert_eq!(
         authority.delete_crate_template(MANAGER, id),
         Err(CrateTemplateError::AccessDenied)
     );
-    assert_eq!(
-        authority.load_crate_template(MANAGER, id, qty(1), &mut draft),
-        Err(CrateTemplateError::AccessDenied)
-    );
+    let mut loaded = draft.clone();
+    manager
+        .load_crate_template(MANAGER, id, qty(1), &mut loaded)
+        .unwrap();
+    assert_eq!(loaded.crate_rows().len(), 1);
     assert_eq!(authority, before);
     assert_eq!(draft, untouched);
 }

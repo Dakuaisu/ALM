@@ -167,9 +167,8 @@ impl ConfirmationFixture {
         role: crate::Role,
         row: &crate::CrateRow,
     ) -> Result<CheckoutAmounts, ConfirmationError> {
-        if role != crate::Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::NewBill)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let mut draft = crate::ProvisionalDraft::new(DraftId::new(0), Vec::new());
         draft.add_crate_row(row.clone());
         let (prices, packs) = self.crate_terms(&draft)?;

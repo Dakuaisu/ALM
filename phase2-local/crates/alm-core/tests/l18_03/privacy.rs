@@ -53,10 +53,8 @@ fn capture_peeks_one_figure_consumes_event_and_remasks() {
     let (fixture, buyer, _) = fixture();
     let owner_bill = fixture.current_sale(Role::Owner, SALE).unwrap();
     let owner_ledger = fixture.customer_ledger(Role::Owner, &buyer).unwrap();
-    assert_eq!(
-        fixture.current_sale(Role::Manager, SALE),
-        Err(ConfirmationError::AccessDenied)
-    );
+    // DEC-034: a Manager opens the posted bill; the ledger below stays the Owner's.
+    assert_eq!(fixture.current_sale(Role::Manager, SALE), Ok(owner_bill));
     assert_eq!(
         fixture.customer_ledger(Role::Manager, &buyer),
         Err(ConfirmationError::AccessDenied)
@@ -109,9 +107,10 @@ fn capture_peeks_one_figure_consumes_event_and_remasks() {
             .closing,
         owner_ledger.closing
     );
+    // DEC-034: the posted bill opens for a Manager too; the ledger stays the Owner's.
     assert_eq!(
         fixture.current_sale(Role::Manager, SALE),
-        Err(ConfirmationError::AccessDenied)
+        fixture.current_sale(Role::Owner, SALE)
     );
     assert_eq!(
         fixture.customer_ledger(Role::Manager, &buyer),

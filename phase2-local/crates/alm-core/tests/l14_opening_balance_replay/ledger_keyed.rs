@@ -161,9 +161,10 @@ fn keyed_ledger_and_estimate_replay_conflicting_orders() {
         fixture.customer_ledger_with_opening(Role::Manager, &customer),
         Err(ConfirmationError::AccessDenied)
     );
+    // DEC-034: a Manager reads the posted bill; the ledger above stays the Owner's.
     assert_eq!(
         fixture.bill_preview(Role::Manager, target, BalanceMode::Latest),
-        Err(ConfirmationError::AccessDenied)
+        fixture.bill_preview(Role::Owner, target, BalanceMode::Latest)
     );
     let mut receive = ReceivePayment::with_clock(|| Ok(CreationKey::new(5)));
     receive.input("Shared", &customers);

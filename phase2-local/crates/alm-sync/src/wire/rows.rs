@@ -70,6 +70,17 @@ pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, Authorit
                 name: text(&r["name"]),
             })
             .collect();
+        // DEC-034: the book without costs, whatever else the object held.
+        let manager = &d["manager"];
+        if manager.is_object() {
+            s.manager = Some(alm_core::projection::ManagerValues {
+                book: alm_core::projection::book::from_json(
+                    &alm_core::projection::book::manager_json(&manager["book"]),
+                )
+                .map_err(|_| AuthorityError::Invalid)?,
+                loading: money(&manager["loading"]),
+            });
+        }
         return Ok(s);
     }
     s.products = list(&d["products"])

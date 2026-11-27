@@ -224,6 +224,9 @@ pub struct ConfirmationFixture {
     checkout_products: BTreeMap<u64, ProductTerms>,
     checkout_approvals: BTreeMap<DraftId, Review>,
     loading_rate: Money,
+    /// The shop's New Bill loading charge per packet, which a Manager's drafts start with.
+    #[cfg_attr(feature = "demo-fixture", serde(default = "zero_money"))]
+    bill_loading: Money,
     crate_rate: Option<Money>,
     crate_templates: CrateTemplateBook,
     terms_revision: u64,
@@ -279,6 +282,7 @@ impl ConfirmationFixture {
             checkout_products: BTreeMap::new(),
             checkout_approvals: BTreeMap::new(),
             loading_rate: Money::from_minor_units(0),
+            bill_loading: Money::from_minor_units(0),
             crate_rate: None,
             crate_templates: CrateTemplateBook::default(),
             terms_revision: 0,
@@ -414,6 +418,25 @@ impl ConfirmationFixture {
         Ok((prices, Some(packs)))
     }
 
+    /// The shop's New Bill loading charge per packet (DEC-034: a Manager's drafts start with it).
+    pub const fn bill_loading(&self) -> Money {
+        self.bill_loading
+    }
+
+    /// Sets [`Self::bill_loading`] (Owner only).
+    ///
+    /// # Errors
+    /// Denies a Manager; rejects a negative charge.
+    pub fn set_bill_loading(&mut self, role: Role, rate: Money) -> Result<(), ConfirmationError> {
+        crate::permissions::require(role, crate::permissions::Capability::SetLoadingDefault)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
+        if rate.minor_units() < 0 {
+            return Err(ConfirmationError::InvalidAmount);
+        }
+        self.bill_loading = rate;
+        Ok(())
+    }
+
     pub const fn ledger(&self) -> Money {
         Money::from_minor_units(self.ledger)
     }
@@ -425,6 +448,11 @@ impl ConfirmationFixture {
     pub fn posted_count(&self) -> usize {
         self.requests.len()
     }
+}
+
+#[cfg(feature = "demo-fixture")]
+const fn zero_money() -> Money {
+    Money::from_minor_units(0)
 }
 
 #[cfg(test)]

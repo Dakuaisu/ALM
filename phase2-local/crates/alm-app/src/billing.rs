@@ -94,6 +94,68 @@ impl crate::Trial {
     }
 }
 
+#[derive(serde::Deserialize)]
+pub struct Post {
+    #[serde(default)]
+    pub paid: String,
+}
+
+impl crate::Trial {
+    /// DEC-034: posts the saved bill (a Manager's, when online) through the same idempotent
+    /// `post_sale` path as the Owner's review: each line at the selling rate this device holds,
+    /// each crate row at its copied rate. The authority re-checks prices, stock and terms; stale
+    /// terms send the bill back for review. Only this explicit action posts a draft.
+    pub(crate) fn bill_post(&mut self, paid: &str) -> Result<u64, String> {
+        let role = self.require(alm_core::permissions::Capability::PostSale)?;
+        let (draft, saved) = self.current.clone().ok_or("No draft is open.")?;
+        if !saved {
+            return Err("Save the bill as a draft first.".into());
+        }
+        let prices = owner_billing::priced_draft(&self.posted, role, &draft)
+            .map_err(refusal)?
+            .lines
+            .iter()
+            .map(|line| line.unit_price)
+            .collect();
+        let paid = Money::parse_rupees(if paid.trim().is_empty() {
+            "0"
+        } else {
+            paid.trim()
+        })
+        .map_err(|_| "Enter the amount paid in rupees.")?;
+        let sale = SaleIntent {
+            date: draft.bill_date().ok_or("Enter a valid bill date.")?,
+            paid,
+            draft,
+            prices,
+        };
+        match self.send(&Intent::PostSale(sale)) {
+            Ok(Outcome::Sale(receipt)) => {
+                self.current = None;
+                self.message = format!("Bill #{} posted ✓", receipt.invoice);
+                Ok(receipt.invoice)
+            }
+            Ok(Outcome::Done | Outcome::GstNumber(_) | Outcome::Created(_)) => {
+                Err("Unexpected outcome.".into())
+            }
+            Err(error)
+                if error == crate::device::refused(&alm_sync::AuthorityError::StaleReview) =>
+            {
+                self.refresh()?;
+                Err(format!("{error} The bill shows the current terms."))
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+#[tauri::command(async)]
+pub fn bill_post(state: State<'_, AppState>, terms: Post) -> Result<String, String> {
+    with(&state, "bill", |trial| {
+        trial.bill_post(&terms.paid).map(drop)
+    })
+}
+
 #[tauri::command(async)]
 pub fn sale_prepare(state: State<'_, AppState>, terms: Terms) -> Result<String, String> {
     with(&state, "review", |trial| trial.sale_prepare(&terms))
@@ -116,7 +178,7 @@ pub fn sales_filter(
 ) -> Result<String, String> {
     let filter = terms.checked().map_err(refusal)?;
     with(&state, "sales", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::Sales)?;
         trial.sales_filter = filter;
         Ok(())
     })
@@ -135,7 +197,7 @@ impl crate::Trial {
         &mut self,
         mut terms: std::collections::HashMap<String, String>,
     ) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::EditSale)?;
         let id = terms
             .remove("id")
             .and_then(|text| alm_core::DraftId::parse(&text).ok())
@@ -183,7 +245,7 @@ impl crate::Trial {
 pub fn sale_edit_open(state: State<'_, AppState>, id: IpcDraft) -> Result<String, String> {
     let id = id.value();
     with(&state, "sales", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::EditSale)?;
         trial.posted.current_sale(role, id).map_err(refusal)?;
         trial.sale_edit = Some(id);
         Ok(())

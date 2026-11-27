@@ -99,7 +99,11 @@ pub fn sales_screen(
             collected.as_str(),
         ),
         ("w privcard", "Est. Profit", profit, ""),
-    ] {
+    ]
+    .into_iter()
+    // DEC-034: profit is the Owner's.
+    .filter(|(_, label, _, _)| role == Role::Owner || *label != "Est. Profit")
+    {
         let _ = write!(
             html,
             r#"<div class="kpi {class}"><div class="label">{label}</div><div class="val">{value}</div><div class="sub">{sub}</div></div>"#
@@ -115,9 +119,13 @@ pub fn sales_screen(
             (
                 "opacity:.55",
                 r#" <span class="tag out">CANCELLED</span>"#,
-                format!(
-                    r#"<button class="btn sm" data-action="sale_restore" data-id="{id}">Undo</button>"#
-                ),
+                if role == Role::Owner {
+                    format!(
+                        r#"<button class="btn sm" data-action="sale_restore" data-id="{id}">Undo</button>"#
+                    )
+                } else {
+                    String::new()
+                },
             )
         } else {
             (

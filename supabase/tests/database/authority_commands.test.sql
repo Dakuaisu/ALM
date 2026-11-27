@@ -256,7 +256,8 @@ select is(pg_temp.call('owner', 'select public.pull_projection(null)') #> '{rows
 select is(
     (select array_agg(k order by k) from jsonb_object_keys(
         pg_temp.call('manager', 'select public.pull_projection(null)') -> 'rows') k),
-    array['catalog', 'customer_names'], 'a Manager pull holds only the catalog and customer names');
+    array['catalog', 'customer_names', 'manager'],
+    'a Manager pull holds the catalog, customer names and (DEC-034) its cost-free book');
 select is(
     (select array_agg(distinct k order by k) from jsonb_array_elements(
         pg_temp.call('manager', 'select public.pull_projection(null)') #> '{rows,customer_names}') e,
@@ -264,7 +265,9 @@ select is(
     array['id', 'name'], 'a Manager''s customer names carry no balance, mobile or address');
 -- Structural: every key at every level, and every value except the pull's clock (`as_of_ms`,
 -- milliseconds, which may hold any digits), carries no cost, buy-rate, FIFO, margin, profit,
--- quote or stock field, and none of the fixture's Owner-only amounts.
+-- quote, allocation, stock value, activity or legacy field, and none of the fixture's
+-- Owner-only amounts. DEC-034: balances, stock quantities and purchase orders without rates
+-- are a Manager's.
 select ok(not exists (
     with recursive walk(key, value) as (
         select null::text, pg_temp.call('manager', 'select public.pull_projection(null)')
@@ -277,10 +280,10 @@ select ok(not exists (
                 then w.value else '[]' end) a) e
     )
     select 1 from walk where
-        key ~* '(buy|cost|fifo|margin|profit|lot|stock_value|supplier|purchase|^stock$|on_hand|balance)'
+        key ~* '(buy|cost|fifo|margin|profit|lot|stock_value|quote|allocation|line_units|activity|legacy|gst_bill|gst_deleted|price_suppliers)'
         or (key is distinct from 'as_of_ms' and jsonb_typeof(value) not in ('object', 'array')
             and value #>> '{}' ~* '(buy|cost|fifo|margin|profit|lot|stock_value|supplier|purchase|on_hand|balance|7000|3800|3500|3600|2950)')),
-    'a Manager response carries no cost, buy-rate, FIFO, margin, profit, quote or stock fields');
+    'a Manager response carries no cost, buy-rate, FIFO, margin, profit, quote or stock value fields');
 select is(jsonb_array_length(pg_temp.call('manager', 'select public.pull_projection(null)') #> '{rows,catalog}'), 2,
     'the Manager catalog lists the two products');
 select throws_ok($$ select pg_temp.call(null, 'select public.pull_projection(null)') $$, 'ALM06', null,

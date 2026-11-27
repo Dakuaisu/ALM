@@ -474,7 +474,13 @@ fn new_bill_applies_the_default_loading_charge_through_review_posting_and_restar
     let sale = trial.projected().unwrap().snapshot.sales.remove(0);
     // Owner rate ₹120.50 × 2 + ₹3 loading.
     assert_eq!(sale.total, Money::from_minor_units(24_400));
-    let entry = trial.outbox.entries().unwrap().remove(0);
+    let entry = trial
+        .outbox
+        .entries()
+        .unwrap()
+        .into_iter()
+        .find(|e| e.intent.starts_with("sale "))
+        .unwrap();
     assert!(entry.intent.ends_with(" load=150"), "{}", entry.intent);
 
     // A typed rate replaces the default on that draft only; blank means none.
@@ -539,15 +545,15 @@ fn a_crate_sale_goes_through_the_authority_and_survives_a_restart() {
             "300",
         )
     };
+    // DEC-034: a Manager posts the crate bill.
     trial.set_owner(false).unwrap();
-    assert!(sell(&mut trial).is_err(), "Manager denied");
-    trial.set_owner(true).unwrap();
     sell(&mut trial).unwrap();
     assert!(
         trial.message.contains("Crate bill #1 posted: 10 packets"),
         "{}",
         trial.message
     );
+    trial.set_owner(true).unwrap();
     let check = |trial: &mut Trial| {
         let s = trial.projected().unwrap().snapshot;
         let on_hand = |p: u64| s.stock.iter().find(|r| r.product == p).unwrap().on_hand;
@@ -776,10 +782,20 @@ fn the_default_reorder_level_goes_through_the_authority_and_survives_a_restart()
             .iter()
             .any(|e| e.intent == "reorderdefault level=9" && e.status == OutboxStatus::Confirmed)
     );
-    // Saving again with the same level sends nothing.
-    let sent = trial.outbox.entries().unwrap().len();
+    // Saving again with the same level sends no reorder level (DEC-034: the shop's loading
+    // charge goes with every save, for a Manager's New Bill).
+    let reorder_sent = |trial: &Trial| {
+        trial
+            .outbox
+            .entries()
+            .unwrap()
+            .iter()
+            .filter(|e| e.intent.starts_with("reorderdefault"))
+            .count()
+    };
+    let sent = reorder_sent(&trial);
     trial.settings_profile(&form, 2).unwrap();
-    assert_eq!(trial.outbox.entries().unwrap().len(), sent);
+    assert_eq!(reorder_sent(&trial), sent);
     let id = trial.posted.next_product_id(Role::Owner).unwrap();
     trial.products.form = Some(trial.posted.begin_product_entry(Role::Owner, id).unwrap());
     trial
@@ -918,13 +934,14 @@ fn new_bill_takes_a_crate_row_and_posts_it_through_the_crate_sale_command() {
     );
     let html = trial.render("bill").unwrap();
     assert!(html.contains(r#"data-action="bill_crate_add""#) && html.contains("Party Crate"));
+    // DEC-034: a Manager adds crate rows too.
     trial.set_owner(false).unwrap();
     trial.current = None;
     assert!(
-        !trial.render("bill").unwrap().contains("bill_crate_add"),
-        "a Manager adds no crate (OPEN-004)"
+        trial.render("bill").unwrap().contains("bill_crate_add"),
+        "a Manager adds crates"
     );
-    assert!(trial.bill_crate_add(template, NonZeroU32::MIN).is_err());
+    assert!(trial.bill_crate_add(template, NonZeroU32::MIN).is_ok());
     trial.set_owner(true).unwrap();
     trial.current = None;
     trial.render("bill").unwrap();

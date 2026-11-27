@@ -295,11 +295,12 @@ fn priced_draft_matches_the_owner_review_amounts() {
         ],
     )
     .with_customer(selected_customer());
-    assert_eq!(
-        priced_draft(&authority, Role::Manager, &draft),
-        Err(ConfirmationError::AccessDenied)
-    );
     let priced = priced_draft(&authority, Role::Owner, &draft).unwrap();
+    // DEC-034: a Manager posts at the same prices.
+    assert_eq!(
+        priced_draft(&authority, Role::Manager, &draft).as_ref(),
+        Ok(&priced)
+    );
     let amounts: Vec<i64> = priced
         .lines
         .iter()

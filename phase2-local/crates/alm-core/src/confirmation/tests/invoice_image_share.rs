@@ -89,13 +89,8 @@ fn run_case(role: Role, mobile: Option<(&str, &str)>, mut sink: Capture) -> Vec<
         PNG,
         &mut sink,
     );
-    assert_eq!(
-        result,
-        match role {
-            Role::Owner => Ok(()),
-            Role::Manager => Err(ConfirmationError::AccessDenied),
-        }
-    );
+    // DEC-034: both roles share bill images.
+    assert_eq!(result, Ok(()), "{role:?}");
     assert_eq!(fixture, before);
     sink.events
 }
@@ -181,16 +176,15 @@ fn l05_03_unsupported_stops_after_download_without_a_resolved_phone() {
     }
 }
 
+/// DEC-034: a Manager's share emits what the Owner's does.
 #[test]
-fn l05_03_manager_cannot_probe_or_emit_an_action() {
-    let events = run_case(
-        Role::Manager,
-        Some(MOBILE),
-        Capture {
-            supported: true,
-            share_result: Ok(()),
-            events: Vec::new(),
-        },
-    );
-    assert!(events.is_empty());
+fn l05_03_a_manager_emits_the_owners_share_action() {
+    let capture = || Capture {
+        supported: true,
+        share_result: Ok(()),
+        events: Vec::new(),
+    };
+    let events = run_case(Role::Manager, Some(MOBILE), capture());
+    assert!(!events.is_empty());
+    assert_eq!(events, run_case(Role::Owner, Some(MOBILE), capture()));
 }

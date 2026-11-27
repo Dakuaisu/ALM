@@ -46,7 +46,8 @@ pub fn priced_draft(
     role: Role,
     draft: &ProvisionalDraft,
 ) -> Result<PricedDraft, ConfirmationError> {
-    require_owner(role)?;
+    crate::permissions::require(role, crate::permissions::Capability::PostSale)
+        .map_err(|_| ConfirmationError::AccessDenied)?;
     let (prices, crate_packs) = authority.sale_terms(draft)?;
     let mut lines = Vec::with_capacity(draft.lines().len());
     for (line, &unit_price) in draft.lines().iter().zip(&prices) {

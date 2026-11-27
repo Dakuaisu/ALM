@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use alm_core::BillDate;
 use alm_core::confirmation::{
-    BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateError, EstimateLineDisplay,
-    EstimateRequest, GstError, GstInvoice, GstJurisdiction, GstRequest, PrintIntent,
+    BalanceMode, ConfirmationFixture, EstimateDisplay, EstimateLineDisplay, EstimateRequest,
+    GstError, GstInvoice, GstJurisdiction, GstRequest, PrintIntent,
 };
 
 use super::{A, B, BUYER, DENIED, ITEM_A, ITEM_B, MANAGER, OWNER, SALE, feb};
@@ -88,19 +88,15 @@ pub(super) fn assert_estimate(
             role: MANAGER,
             ..request
         };
+        // DEC-034: a Manager prints the same estimates as the Owner.
+        let mut manager_captured = Vec::new();
+        fixture
+            .print_estimate(manager, &mut |doc| manager_captured.push(doc))
+            .unwrap();
+        fixture
+            .save_estimate_as_pdf(manager, &mut |doc| manager_captured.push(doc))
+            .unwrap();
         let mut captured = Vec::new();
-        assert_eq!(
-            fixture.print_estimate(manager, &mut |doc| captured.push(doc)),
-            Err(EstimateError::Preview(DENIED))
-        );
-        assert_eq!(
-            fixture.save_estimate_as_pdf(manager, &mut |doc| captured.push(doc)),
-            Err(EstimateError::Preview(DENIED))
-        );
-        assert!(
-            captured.is_empty(),
-            "denied estimates must not reach the sink"
-        );
         fixture
             .print_estimate(request, &mut |doc| captured.push(doc))
             .unwrap();
@@ -119,6 +115,7 @@ pub(super) fn assert_estimate(
             ("_pdf", PrintIntent::AfterLoad(Duration::from_millis(350)))
         );
         assert_eq!(print.html, pdf.html);
+        assert_eq!(manager_captured, captured);
         let html = &print.html;
         for fragment in [
             "<title>Estimate-1-Synthetic Buyer</title>",

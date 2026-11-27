@@ -140,6 +140,7 @@ fn owner_snapshot() -> ProjectionSnapshot {
                 ..Default::default()
             },
         }),
+        manager: None,
     }
 }
 
