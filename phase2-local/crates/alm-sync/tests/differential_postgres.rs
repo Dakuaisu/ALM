@@ -1344,6 +1344,56 @@ fn manager_posts_edits_and_cancels() {
         "payment",
         &receipt(CUSTOMER.0, "2025-05-02", 3_050, false),
     );
+    let contact = |id: Option<&str>, name: &str, mobile: &str| {
+        Intent::SaveCustomer(alm_core::confirmation::owner_billing::CustomerContact {
+            id: id.map(str::to_owned),
+            name: name.into(),
+            mobile: mobile.into(),
+            addr1: " 3 Synthetic Road ".into(),
+            addr2: String::new(),
+        })
+    };
+    manager(
+        &mut p,
+        "add customer",
+        &contact(None, " Synthetic Corner ", "90000 00009"),
+    );
+    manager(
+        &mut p,
+        "same name refused",
+        &contact(None, "synthetic CORNER", ""),
+    );
+    manager(&mut p, "blank name refused", &contact(None, "  ", ""));
+    manager(
+        &mut p,
+        "edit contact",
+        &contact(Some("cust-1"), "Synthetic Corner", "90000 00010"),
+    );
+    manager(
+        &mut p,
+        "unknown customer",
+        &contact(Some("cust-9"), "x", ""),
+    );
+    manager(
+        &mut p,
+        "pay the new customer",
+        &receipt("cust-1", "2025-05-02", 500, true),
+    );
+    let corner = p
+        .core()
+        .customers
+        .into_iter()
+        .find(|c| c.id == "cust-1")
+        .expect("the added customer");
+    assert_eq!(
+        (
+            corner.name.as_str(),
+            corner.mobile.as_str(),
+            corner.addr1.as_str()
+        ),
+        ("Synthetic Corner", "90000 00010", "3 Synthetic Road")
+    );
+    assert_eq!(corner.balance, alm_core::Money::from_minor_units(-500));
     manager(
         &mut p,
         "edit",

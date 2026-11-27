@@ -8,7 +8,9 @@ mod customer_book;
 mod directory;
 mod new_bill;
 pub use customer_book::{BalanceSide, CustomerBook, CustomerBookRow, CustomerFilter, is_debtor};
-pub use directory::{BillingDirectory, DirectoryCustomer, DirectoryProduct};
+pub use directory::{
+    BillingDirectory, CustomerContact, CustomerFormError, DirectoryCustomer, DirectoryProduct,
+};
 pub use new_bill::{NewBillCrate, NewBillPricing, NewBillPricingError};
 
 /// One Owner-priced line of a saved draft: the catalog sell rate times the draft quantity.
@@ -305,19 +307,20 @@ fn save_receipt_with(
     terms: ReceiptTerms<'_>,
     creation_key: Option<u64>,
 ) -> Result<(), OwnerBillingError> {
-    require_owner(role)?;
+    crate::permissions::require(role, crate::permissions::Capability::RecordReceipt)
+        .map_err(|_| ConfirmationError::AccessDenied)?;
     let date: BillDate = terms.date.parse().map_err(OwnerBillingError::Date)?;
     let amount = parse_rupees(terms.amount)?;
     let chosen = directory.customer(authority, customer)?;
     let customers = [Customer {
-        id: DraftCustomerId::new(chosen.id.into()),
-        name: chosen.name.into(),
+        id: DraftCustomerId::new(chosen.id),
+        name: chosen.name.clone(),
     }];
     let mut payment = match creation_key {
         Some(key) => ReceivePayment::with_clock(move || Ok(super::CreationKey::new(key))),
         None => ReceivePayment::default(),
     };
-    payment.input(chosen.name, &customers);
+    payment.input(&chosen.name, &customers);
     payment
         .save(role, authority, date, amount, terms.mode)
         .map_err(|error| match error {

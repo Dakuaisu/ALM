@@ -93,15 +93,21 @@ fn milestone_c_replays_part_paid_sale_edit_and_cancellation() {
         selected_name: BUYER.into(),
         creation_key: RECEIPT_CREATION_KEY,
     };
-    let denied =
-        fixture.record_customer_receipt_with_metadata(MANAGER, input.clone(), metadata.clone());
-    assert_eq!(denied, Err(DENIED));
+    // DEC-034: a Manager records the payment as the Owner does (on a copy).
+    let mut manager = fixture.clone();
+    let recorded =
+        manager.record_customer_receipt_with_metadata(MANAGER, input.clone(), metadata.clone());
+    assert_eq!(recorded, Ok(()));
     assert_eq!(AccountReadback::open(&fixture, &buyer), posted_accounts);
     assert_eq!(fixture.current_sale(OWNER, SALE), Ok((&review, &posted)));
-    println!("Mar 1: Manager receipt={denied:?}; Owner readbacks unchanged");
+    println!("Mar 1: Manager receipt={recorded:?} on a copy; Owner readbacks unchanged");
     fixture
         .record_customer_receipt_with_metadata(OWNER, input, metadata)
         .unwrap();
+    assert_eq!(
+        AccountReadback::open(&manager, &buyer),
+        AccountReadback::open(&fixture, &buyer)
+    );
     let receipt_accounts = assert_accounts(&fixture, &buyer, AccountCheckpoint::OnlineReceipt);
     books::assert_books(&fixture, &buyer, AccountCheckpoint::OnlineReceipt);
     assert_eq!(fixture.current_sale(OWNER, SALE), Ok((&review, &posted)));

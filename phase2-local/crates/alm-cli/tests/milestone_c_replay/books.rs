@@ -143,8 +143,12 @@ pub(super) fn assert_books(
         let details = dated.collected.details;
         assert_eq!(details, payment.as_slice(), "{stage:?}: {date}");
 
-        assert_eq!(fixture.cashbook_day_close(MANAGER, date), Err(DENIED));
         let live = fixture.cashbook_day_close(OWNER, date).unwrap();
+        // DEC-034: a Manager reads the day's figures (it closes only the shop's today).
+        assert_eq!(
+            fixture.cashbook_day_close(MANAGER, date).as_ref(),
+            Ok(&live)
+        );
         let expected = payment.map(|detail| CashBookEntry {
             kind,
             mode: detail.mode,
@@ -179,17 +183,22 @@ impl SavedCashBookClose {
         let inputs = [(feb(21), [10_000, 0]), (march_receipt_date(), [0, 5_000])];
         let rows = inputs.map(|(date, [cash, paytm])| {
             let mut draft = ManualCashBookDraft::new(Some(date), CLOSE_TEMPLATE);
-            let manager_copy = draft.use_system_figures(fixture, MANAGER);
-            assert_eq!(manager_copy, Err(MANUAL_DENIED));
+            // DEC-034: a Manager copies the system figures as the Owner does.
+            let mut manager_copy = draft;
+            manager_copy.use_system_figures(fixture, MANAGER).unwrap();
             assert_eq!(draft.amounts, CLOSE_TEMPLATE);
             draft.use_system_figures(fixture, OWNER).unwrap();
+            assert_eq!(manager_copy, draft);
             let expected = CashBookAmounts {
                 cash: money(cash),
                 paytm: money(paytm),
                 ..CLOSE_TEMPLATE
             };
             assert_eq!(draft.amounts, expected);
-            assert_eq!(book.save(MANAGER, &draft), Err(MANUAL_DENIED));
+            // DEC-034: the month totals stay the Owner's; a Manager closes a new day (on a copy
+            // here; its authority keeps that to the shop's today).
+            assert_eq!(book.month(MANAGER, date), Err(MANUAL_DENIED));
+            assert!(book.clone().save(MANAGER, &draft).is_ok());
             assert_eq!(book.month(OWNER, date).unwrap().rows, 0);
             let row = book.save(OWNER, &draft).unwrap();
             assert_eq!((row.date, row.amounts), (date, expected));
@@ -204,12 +213,13 @@ impl SavedCashBookClose {
 
     pub(super) fn assert_after_cancel(&self, fixture: &ConfirmationFixture) {
         for (row, [live_online, cash_delta]) in self.rows.into_iter().zip([[0, 100], [5_000, 0]]) {
-            assert_eq!(self.book.row(MANAGER, row.id), Err(MANUAL_DENIED));
             let saved = self.book.row(OWNER, row.id).unwrap().unwrap();
+            // DEC-034: a Manager reads the rows its authority sends it.
+            assert_eq!(self.book.row(MANAGER, row.id), Ok(Some(saved)));
             assert_eq!(saved, row, "cancellation must not rewrite a saved close");
             let draft = saved.draft();
-            assert_eq!(draft.compare(fixture, MANAGER), Err(MANUAL_DENIED));
             let compare = draft.compare(fixture, OWNER).unwrap();
+            assert_eq!(draft.compare(fixture, MANAGER).as_ref(), Ok(&compare));
             assert_eq!(compare.system.cash, money(0));
             assert_eq!(compare.system.online, money(live_online));
             assert_eq!(compare.cash_difference_rupees, cash_delta);
@@ -223,14 +233,15 @@ impl SavedCashBookClose {
             (march_receipt_date(), [0, 5_000], [0, 50]),
         ];
         for (baseline, (date, paise, rupees)) in self.rows.into_iter().zip(expected) {
-            assert_eq!(self.book.row(MANAGER, baseline.id), Err(MANUAL_DENIED));
             let saved = self.book.row(OWNER, baseline.id).unwrap().unwrap();
+            // DEC-034: a Manager reads the rows its authority sends it.
+            assert_eq!(self.book.row(MANAGER, baseline.id), Ok(Some(saved)));
             assert_eq!(saved.date, date);
             assert_eq!(saved, baseline, "undo must not rewrite the {date} close");
 
             let draft = saved.draft();
-            assert_eq!(draft.compare(fixture, MANAGER), Err(MANUAL_DENIED));
             let compare = draft.compare(fixture, OWNER).unwrap();
+            assert_eq!(draft.compare(fixture, MANAGER).as_ref(), Ok(&compare));
             let live = compare.system;
             assert_eq!([live.cash, live.online], paise.map(money), "{date}");
             assert_eq!([live.cash_rupees, live.online_rupees], rupees, "{date}");

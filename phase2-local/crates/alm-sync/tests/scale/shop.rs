@@ -57,11 +57,11 @@ pub fn shop() -> (ConfirmationFixture, BillingDirectory) {
         shop.register_customer(Role::Owner, &DraftCustomerId::new(id.into()))
             .unwrap();
         book.customers.push(DirectoryCustomer {
-            id,
-            name: leak(format!("Synthetic Customer {c}")),
-            mobile: "",
-            addr1: "",
-            addr2: "",
+            id: id.into(),
+            name: format!("Synthetic Customer {c}"),
+            mobile: String::new(),
+            addr1: String::new(),
+            addr2: String::new(),
         });
     }
     (shop, book)
@@ -82,8 +82,8 @@ pub fn bill(bill: u64, book: &BillingDirectory, snapshot: &ProjectionSnapshot) -
         )],
     )
     .with_customer(DraftCustomer::Selected {
-        id: DraftCustomerId::new(customer.id.into()),
-        name: customer.name.into(),
+        id: DraftCustomerId::new(customer.id.clone()),
+        name: customer.name.clone(),
     })
     .with_bill_date(Some(date));
     if bill.is_multiple_of(10) {

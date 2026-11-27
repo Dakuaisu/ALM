@@ -61,11 +61,11 @@ impl ConfirmationFixture {
             .collect();
         let mut customers = Vec::new();
         for customer in directory.customers(self) {
-            let ledger = self.customer_ledger(role, &DraftCustomerId::new(customer.id.into()))?;
+            let ledger = self.customer_ledger(role, &DraftCustomerId::new(customer.id.clone()))?;
             customers.push(Customer {
-                name: customer.name.into(),
-                mobile: customer.mobile.into(),
                 address: customer.address(),
+                name: customer.name,
+                mobile: customer.mobile,
                 balance_minor: ledger.closing.minor_units(),
             });
         }

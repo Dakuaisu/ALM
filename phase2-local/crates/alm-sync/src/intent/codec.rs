@@ -140,6 +140,14 @@ pub(super) fn encode(intent: &Intent) -> Option<String> {
                 if *piece { "piece" } else { "case" }.into(),
             ])
         ),
+        Intent::SaveCustomer(c) => format!(
+            "customer id={} name={} mobile={} addr1={} addr2={}",
+            escape(c.id.as_deref().unwrap_or("")),
+            escape(&c.name),
+            escape(&c.mobile),
+            escape(&c.addr1),
+            escape(&c.addr2)
+        ),
         Intent::SaveOpening {
             customer,
             amount,

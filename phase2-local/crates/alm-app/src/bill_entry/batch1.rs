@@ -209,7 +209,7 @@ fn one_customer_draft_bill_receipt_books_cancellation_and_dashboard_reconcile() 
     // the ones it may open show no profit.
     trial.set_owner(false).unwrap();
     for tab in ["sales", "customers", "expenses", "dashboard", "counter"] {
-        let html = trial.render(tab).unwrap();
+        let html = trial.render(tab).unwrap_or_else(|e| panic!("{tab}: {e}"));
         if crate::screen_tests::MANAGER_SCREENS.contains(&tab) {
             assert!(!html.contains("role=\"alert\""), "{tab}");
             assert!(!html.contains("Profit"), "{tab}");

@@ -40,6 +40,22 @@ begin
 end;
 $$;
 
+-- A Manager's full pull.
+create function pg_temp.manager_pull()
+returns jsonb
+language plpgsql
+as $$
+declare
+    v jsonb;
+begin
+    perform set_config('request.jwt.claims', '{"sub": "tap-manager", "app_metadata": {"role": "manager"}}', true);
+    execute 'set local role authenticated';
+    v := public.pull_projection(null);
+    execute 'reset role';
+    return v;
+end;
+$$;
+
 -- A call of public function `p` with placeholder arguments of its types.
 create function pg_temp.placeholder_call(p regprocedure)
 returns text
@@ -143,6 +159,23 @@ select is(pg_temp.state('manager', $$ select public.request_status('own-restore'
     'but not of the Owner''s');
 select is(pg_temp.state('manager', $$ select public.set_sale_cancelled('own-restore', '{"draft_id": "m1", "cancel": false}') $$),
     'ALM06', 'nor replay the Owner''s request');
+
+-- Customers (DEC-034): a Manager adds one and changes its contact; the opening stays the Owner's.
+select pg_temp.run('manager', $$ select public.save_customer('mgr-cust', '{"id": null, "name": " Synthetic Corner ", "mobile": "90000 00009", "addr1": "3 Synthetic Road", "addr2": ""}') $$);
+select is((select name || '/' || mobile from public.customers where id = 'cust-1'),
+    'Synthetic Corner/90000 00009', 'a Manager adds a customer, trimmed and numbered by the authority');
+select is(pg_temp.state('manager', $$ select public.save_customer('mgr-twin', '{"id": null, "name": "synthetic corner", "mobile": "", "addr1": "", "addr2": ""}') $$),
+    'ALM05', 'a second customer of the same name is refused');
+select pg_temp.run('manager', $$ select public.save_customer('mgr-cust-edit', '{"id": "cust-1", "name": "Synthetic Corner", "mobile": "90000 00010", "addr1": "4 Synthetic Road", "addr2": "Kanpur"}') $$);
+select is((select mobile || '/' || addr1 || '/' || addr2 from public.customers where id = 'cust-1'),
+    '90000 00010/4 Synthetic Road/Kanpur', 'a Manager changes a customer''s contact');
+select is(pg_temp.state('manager', $$ select public.save_opening('mgr-open', '{"customer_id": "cust-1", "amount_minor": 100, "date": null}') $$),
+    'ALM06', 'the opening balance stays the Owner''s');
+select is(pg_temp.state('manager', $$ select public.record_receipt('mgr-pay', '{"customer_id": "cust-1", "date": "2025-05-02", "amount_minor": 500, "online": true}') $$),
+    'ok', 'a Manager records a payment');
+select ok((select pull -> 'rows' -> 'customers' @> '[{"id": "cust-1", "mobile": "90000 00010", "balance": 0}]'
+        from (select pg_temp.manager_pull() as pull) p),
+    'a Manager''s pull carries customers with balances, mobiles and addresses');
 
 select * from finish();
 rollback;

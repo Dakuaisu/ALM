@@ -46,7 +46,7 @@ fn book_totals_follow_the_opening_aware_ledger_and_the_counter_debtor_rule() {
     let rows: Vec<_> = book
         .rows
         .iter()
-        .map(|row| (row.customer.name, row.side))
+        .map(|row| (row.customer.name.as_str(), row.side))
         .collect();
     assert_eq!(
         rows,
@@ -64,7 +64,7 @@ fn book_totals_follow_the_opening_aware_ledger_and_the_counter_debtor_rule() {
     let top: Vec<_> = book
         .top_debtors(6)
         .iter()
-        .map(|row| row.customer.id)
+        .map(|row| row.customer.id.as_str())
         .collect();
     assert_eq!(top, ["batch1-market"]);
     assert!(book.top_debtors(0).is_empty());
@@ -120,7 +120,11 @@ fn only_due_uses_the_raw_balance_while_the_debtor_count_keeps_the_counter_rule()
     let due = directory
         .customer_book(&authority, Role::Owner, &CustomerFilter::Due)
         .unwrap();
-    let ids: Vec<_> = due.rows.iter().map(|row| row.customer.id).collect();
+    let ids: Vec<_> = due
+        .rows
+        .iter()
+        .map(|row| row.customer.id.as_str())
+        .collect();
     assert_eq!(ids, ["batch1-market"]);
     assert_eq!(due.debtors, 0);
     assert!(due.top_debtors(6).is_empty());

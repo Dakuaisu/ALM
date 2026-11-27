@@ -43,8 +43,12 @@ pub(super) fn assert_accounts(
     checkpoint: AccountCheckpoint,
 ) -> AccountReadback {
     assert_eq!(fixture.customer_ledger(MANAGER, buyer), Err(DENIED));
+    // DEC-034: a Manager reads the day's Cash Book figures; the ledger stays the Owner's.
     for date in [feb(21), march_receipt_date()] {
-        assert_eq!(fixture.cashbook_day_close(MANAGER, date), Err(DENIED));
+        assert_eq!(
+            fixture.cashbook_day_close(MANAGER, date),
+            fixture.cashbook_day_close(alm_core::Role::Owner, date)
+        );
     }
 
     let (ledger, cashbook, balance) = match checkpoint {

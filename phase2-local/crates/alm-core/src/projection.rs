@@ -393,15 +393,14 @@ impl ProjectionSnapshot {
     /// The Customers screen over projected balances (`customer_book` semantics).
     ///
     /// # Errors
-    /// Denies Managers (OPEN-004); rejects total overflow.
+    /// Denies a role the matrix keeps from Customers; rejects total overflow.
     pub fn customer_view(
         &self,
         role: Role,
         filter: &CustomerFilter,
     ) -> Result<CustomerView<'_>, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Customers)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let needle = match filter {
             CustomerFilter::Name(text) => text.trim().to_lowercase(),
             CustomerFilter::All | CustomerFilter::Due => String::new(),

@@ -149,6 +149,24 @@ impl Trial {
         if self.posted.built == Some((role, stored.checkpoint)) {
             return Ok(());
         }
+        // The customers the authority holds (added ones too, with their contacts) are the ones
+        // every picker and form offers.
+        if !stored.snapshot.customers.is_empty() {
+            self.directory.customers = stored
+                .snapshot
+                .customers
+                .iter()
+                .map(
+                    |c| alm_core::confirmation::owner_billing::DirectoryCustomer {
+                        id: c.id.clone(),
+                        name: c.name.clone(),
+                        mobile: c.mobile.clone(),
+                        addr1: c.addr1.clone(),
+                        addr2: c.addr2.clone(),
+                    },
+                )
+                .collect();
+        }
         self.posted = match (&stored.snapshot.owner, &stored.snapshot.manager, role) {
             (Some(owner), _, Role::Owner) => {
                 let (fixture, cashbook) =
@@ -163,9 +181,10 @@ impl Trial {
             (_, Some(manager), Role::Manager) => {
                 let (fixture, cashbook) =
                     ConfirmationFixture::from_owner_book(&manager.book).map_err(refusal)?;
-                let lists = fixture
+                let mut lists = fixture
                     .manager_lists(&self.directory, &cashbook)
                     .map_err(refusal)?;
+                lists.customers.clone_from(&stored.snapshot.customers);
                 Posted {
                     fixture,
                     cashbook,

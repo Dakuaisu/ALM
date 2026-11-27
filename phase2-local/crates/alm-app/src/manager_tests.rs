@@ -216,3 +216,134 @@ fn a_manager_adds_a_crate_row_and_edits_and_cancels_posted_bills() {
     }
     assert_eq!(Role::Owner, trial.role());
 }
+
+#[test]
+fn a_manager_sees_balances_adds_customers_records_payments_and_closes_today_only() {
+    let (_root, mut trial) = manager("manager-money");
+    // The device's day is the authority's (the Cash Book closes the shop's today).
+    let today = alm_core::projection::shop_today(
+        u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    trial.today = Some(today);
+    saved_bill(&mut trial, 1);
+    trial.bill_post("20").unwrap();
+
+    // Balances, mobiles and addresses, without the Owner's ledger or opening balance.
+    let page = trial.render("customers").unwrap();
+    assert!(!page.contains("role=\"alert\""), "{page}");
+    assert!(
+        page.contains("90000 00001") && page.contains("12 Synthetic Lane"),
+        "{page}"
+    );
+    assert!(page.contains("₹102"), "the balance due: {page}");
+    assert!(!page.contains("customer_open") && !page.contains("customer_opening"));
+    assert!(
+        trial
+            .send(&Intent::SaveOpening {
+                customer: "batch1-customer".into(),
+                amount: Some(Money::from_minor_units(100)),
+                date: None,
+            })
+            .is_err()
+    );
+
+    // Add a customer, then change its contact.
+    trial.customer_edit("new").unwrap();
+    trial
+        .customer_save(crate::customers::Contact {
+            id: String::new(),
+            name: " Synthetic Corner ".into(),
+            mobile: "90000 00009".into(),
+            addr1: "3 Synthetic Road".into(),
+            addr2: String::new(),
+        })
+        .unwrap();
+    let twin = trial.customer_save(crate::customers::Contact {
+        id: String::new(),
+        name: "synthetic corner".into(),
+        mobile: String::new(),
+        addr1: String::new(),
+        addr2: String::new(),
+    });
+    assert!(twin.unwrap_err().contains("already exists"));
+    trial
+        .customer_save(crate::customers::Contact {
+            id: "cust-1".into(),
+            name: "Synthetic Corner".into(),
+            mobile: "90000 00010".into(),
+            addr1: "4 Synthetic Road".into(),
+            addr2: "Kanpur".into(),
+        })
+        .unwrap();
+    let page = trial.render("customers").unwrap();
+    assert!(
+        page.contains("Synthetic Corner") && page.contains("90000 00010"),
+        "{page}"
+    );
+    assert!(
+        trial
+            .bill_customer_search("corner")
+            .contains("Synthetic Corner")
+    );
+
+    // A payment against the bill.
+    let page = trial.render("receipt").unwrap();
+    assert!(page.contains(r#"data-action="receipt_save""#), "{page}");
+    trial
+        .receipt_save(crate::receipts::Terms {
+            customer: "batch1-customer".into(),
+            date: today.to_string(),
+            amount: "50".into(),
+            mode: crate::receipts::Mode::Online,
+        })
+        .unwrap();
+    assert!(trial.render("customers").unwrap().contains("₹52"));
+
+    // Today's Cash Book: closed once, never an earlier day, a closed day or the month.
+    let page = trial.render("expenses").unwrap();
+    assert!(
+        !page.contains("(month)") && page.contains("not closed yet"),
+        "{page}"
+    );
+    let earlier = crate::screen_tests::entry("", "2025-04-30", "10", "save");
+    assert!(trial.cash_entry(earlier).is_err());
+    trial
+        .cash_entry(crate::screen_tests::entry(
+            "",
+            &today.to_string(),
+            "70",
+            "save",
+        ))
+        .unwrap();
+    let page = trial.render("expenses").unwrap();
+    assert!(page.contains("closed") && page.contains("₹70"), "{page}");
+    assert!(!page.contains("cash_edit"));
+    assert!(
+        trial
+            .cash_entry(crate::screen_tests::entry(
+                "",
+                &today.to_string(),
+                "80",
+                "save"
+            ))
+            .is_err(),
+        "today closes once"
+    );
+    assert!(
+        trial
+            .send(&Intent::SaveCashDay {
+                id: Some(0),
+                date: today,
+                amounts: alm_core::confirmation::manual_cashbook::CashBookAmounts::ZERO,
+            })
+            .is_err(),
+        "a closed day is the Owner's"
+    );
+}

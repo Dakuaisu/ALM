@@ -233,6 +233,13 @@ fn every_intent() -> Vec<Intent> {
             amount: Some(money(100)),
             date: None,
         },
+        Intent::SaveCustomer(alm_core::confirmation::owner_billing::CustomerContact {
+            id: None,
+            name: "Matrix Buyer".into(),
+            mobile: String::new(),
+            addr1: String::new(),
+            addr2: String::new(),
+        }),
         Intent::SaveGodown {
             item: "Matrix Soda".into(),
             cases: "3".into(),
@@ -285,7 +292,6 @@ fn every_command_is_allowed_or_denied_for_both_roles_exactly_as_the_matrix_says(
                 | Capability::RequestStatus
                 | Capability::RequestLookup
                 | Capability::Pull
-                | Capability::SaveCustomer
                 | Capability::ReceiveGoods
         );
         assert!(

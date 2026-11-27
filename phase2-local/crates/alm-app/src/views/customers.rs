@@ -19,6 +19,8 @@ pub struct CustomersState {
     pub query: String,
     pub due_only: bool,
     pub open: Option<String>,
+    /// The Add / Edit Customer form, when open.
+    pub form: Option<alm_core::confirmation::owner_billing::CustomerContact>,
 }
 
 impl CustomersState {
@@ -90,9 +92,26 @@ pub fn customers_screen(
         let (class, balance) = side(*balance_side);
         let _ = write!(
             html,
-            r#"<tr><td><button class="list-link" type="button" data-action="customer_open" data-id="{id}">{name}</button></td><td class="muted">{mobile}</td><td class="muted">{address}</td><td class="num{class}">{balance}</td><td class="num"><button class="btn sm" data-action="customer_open" data-id="{id}">Ledger</button></td></tr>"#,
+            r#"<tr><td>{name}</td><td class="muted">{mobile}</td><td class="muted">{address}</td><td class="num{class}">{balance}</td><td class="num">{ledger}<button class="btn sm" data-action="customer_edit" data-id="{id}" aria-label="Edit customer">✎</button></td></tr>"#,
+            // DEC-034: the ledger stays the Owner's.
+            ledger = if role == Role::Owner {
+                format!(
+                    r#"<button class="btn sm" data-action="customer_open" data-id="{}">Ledger</button> "#,
+                    esc(&customer.id)
+                )
+            } else {
+                String::new()
+            },
             id = esc(&customer.id),
-            name = esc(&customer.name),
+            name = if role == Role::Owner {
+                format!(
+                    r#"<button class="list-link" type="button" data-action="customer_open" data-id="{}">{}</button>"#,
+                    esc(&customer.id),
+                    esc(&customer.name)
+                )
+            } else {
+                esc(&customer.name)
+            },
             mobile = if customer.mobile.is_empty() {
                 "—".to_owned()
             } else {
@@ -102,8 +121,12 @@ pub fn customers_screen(
         );
     }
     html += "</tbody></table></div>";
+    if let Some(form) = &state.form {
+        html += &customer_form(form);
+    }
     if let Some(open) = &state.open
-        && let Some(row) = directory.customers(fixture).find(|c| c.id == open)
+        && alm_core::permissions::allows(role, alm_core::permissions::Capability::CustomerLedger)
+        && let Some(row) = directory.customers(fixture).find(|c| c.id == *open)
     {
         let contact = projected
             .customers
@@ -120,9 +143,28 @@ pub fn customers_screen(
                     format!("{mobile} · {}", c.address())
                 },
             );
-        html += &ledger(fixture, role, (row.id, row.name), &contact)?;
+        html += &ledger(fixture, role, (&row.id, &row.name), &contact)?;
     }
     Ok(html)
+}
+
+/// `editCustomer`: name, mobile and address (the opening balance is on the Owner's ledger).
+fn customer_form(form: &alm_core::confirmation::owner_billing::CustomerContact) -> String {
+    let readonly = if form.id.is_some() { " readonly" } else { "" };
+    let body = format!(
+        r#"<form data-action="customer_save" data-payload="terms"><input type="hidden" name="id" value="{}"><div class="field"><label>Name * <input class="inp" name="name" value="{}"{readonly} required></label></div><div class="field"><label>Mobile <input class="inp" name="mobile" inputmode="numeric" value="{}"></label></div><div class="f2"><div><label>Address 1 <input class="inp" name="addr1" value="{}"></label></div><div><label>Address 2 <input class="inp" name="addr2" value="{}"></label></div></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" type="button" data-action="customer_close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>"#,
+        esc(form.id.as_deref().unwrap_or("")),
+        esc(&form.name),
+        esc(&form.mobile),
+        esc(&form.addr1),
+        esc(&form.addr2)
+    );
+    let title = if form.id.is_some() {
+        "Edit Customer"
+    } else {
+        "Add Customer"
+    };
+    super::modal("👤", title, "customer_close", true, &body)
 }
 
 fn ledger(

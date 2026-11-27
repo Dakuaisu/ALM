@@ -171,7 +171,7 @@ fn manager_posts_and_receives_no_owner_fields() {
     }
     assert_eq!(
         body["rows"].as_object().unwrap().keys().collect::<Vec<_>>(),
-        ["catalog", "customer_names", "manager"]
+        ["catalog", "customer_names", "customers", "manager"]
     );
     for customer in body["rows"]["customer_names"].as_array().unwrap() {
         assert_eq!(

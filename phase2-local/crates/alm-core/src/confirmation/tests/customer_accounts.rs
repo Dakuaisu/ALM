@@ -121,9 +121,15 @@ fn customer_accounts_denial_invalid_and_overflow_are_atomic() {
         mode: ReceiptMode::Cash,
     };
     let before = f.clone();
+    // DEC-034: a Manager records payments (on a copy) and is refused the same invalid ones.
     assert_eq!(
-        f.record_customer_receipt(Role::Manager, input(customer.clone(), 5)),
-        Err(ConfirmationError::AccessDenied)
+        f.clone()
+            .record_customer_receipt(Role::Manager, input(customer.clone(), 5)),
+        Ok(())
+    );
+    assert_eq!(
+        f.record_customer_receipt(Role::Manager, input(customer.clone(), 0)),
+        Err(ConfirmationError::InvalidAmount)
     );
     assert_eq!(
         f.record_customer_receipt(Role::Owner, input(customer.clone(), 0)),
@@ -144,9 +150,10 @@ fn customer_accounts_denial_invalid_and_overflow_are_atomic() {
         f.customer_ledger(Role::Manager, &customer),
         Err(ConfirmationError::AccessDenied)
     );
+    // DEC-034: a Manager's Cash Book shows the day's figures; the ledger stays the Owner's.
     assert_eq!(
         f.cashbook_day_close(Role::Manager, date),
-        Err(ConfirmationError::AccessDenied)
+        f.cashbook_day_close(Role::Owner, date)
     );
     assert_eq!(f, before);
 }

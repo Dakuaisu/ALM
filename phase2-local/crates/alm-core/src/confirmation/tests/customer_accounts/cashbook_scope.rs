@@ -67,9 +67,11 @@ fn named_bill_modes_replay_and_cancel_with_separately_dated_receipt() {
             amount: Money::from_minor_units(50),
             mode: ReceiptMode::Online,
         };
+        // DEC-034: a Manager records the payment too (on a copy; the Owner records it here).
         assert_eq!(
-            f.record_customer_receipt(Role::Manager, input.clone()),
-            Err(ConfirmationError::AccessDenied)
+            f.clone()
+                .record_customer_receipt(Role::Manager, input.clone()),
+            Ok(())
         );
         f.record_customer_receipt(Role::Owner, input).unwrap();
         let day = f.cashbook_day_close(Role::Owner, bill_date).unwrap();
@@ -96,9 +98,10 @@ fn named_bill_modes_replay_and_cancel_with_separately_dated_receipt() {
                 amount: paid
             }]
         );
+        // DEC-034: a Manager reads the day's Cash Book figures.
         assert_eq!(
             f.cashbook_day_close(Role::Manager, bill_date),
-            Err(ConfirmationError::AccessDenied)
+            f.cashbook_day_close(Role::Owner, bill_date)
         );
         assert_eq!(
             f.customer_ledger(Role::Manager, &customer),

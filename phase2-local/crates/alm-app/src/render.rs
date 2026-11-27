@@ -38,7 +38,7 @@ impl Trial {
                 let stored = self.projected()?;
                 self.freshness(&stored)?
                     + &views::customers_screen(
-                        &stored.snapshot,
+                        self.screen_rows(&stored),
                         &self.posted,
                         &self.directory,
                         self.role(),

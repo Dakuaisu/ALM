@@ -97,7 +97,8 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
         views::receipt_screen(&fixture, &directory(), Role::Owner, day()).expect("receipt screen");
     assert!(html.contains(r#"data-search="receipt_customer_search""#));
     let options =
-        views::receipt_customer_options(&fixture, &directory(), Role::Owner, "customer").unwrap();
+        views::receipt_customer_options(&fixture, &directory(), Role::Owner, None, "customer")
+            .unwrap();
     assert!(
         options.contains("<span>Synthetic Customer</span><small>balance ₹70</small>"),
         "{options}"
@@ -116,16 +117,19 @@ fn standalone_receipt_changes_sales_collected_and_survives_cancellation() {
     assert!(sales.contains("CANCELLED"));
 }
 
+/// DEC-034: a Manager records a standalone payment from the same form.
 #[test]
-fn manager_cannot_save_a_standalone_receipt_or_read_its_form() {
+fn a_manager_saves_a_standalone_receipt_from_its_form() {
     let mut fixture = fixture().expect("synthetic fixture");
-    assert!(
-        crate::receipts::save(&mut fixture, &directory(), Role::Manager, receipt_terms()).is_err()
+    crate::receipts::save(&mut fixture, &directory(), Role::Manager, receipt_terms())
+        .expect("receipt");
+    let html = views::receipt_screen(&fixture, &directory(), Role::Manager, day()).expect("form");
+    assert!(!html.contains("role=\"alert\""));
+    assert!(html.contains(r#"data-action="receipt_save""#));
+    assert_eq!(
+        fixture.customer_due(customer_id().value()).minor_units(),
+        -3_050
     );
-    let html = views::receipt_screen(&fixture, &directory(), Role::Manager, day()).expect("denial");
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains("<form"));
-    assert_eq!(fixture.customer_due(customer_id().value()).minor_units(), 0);
 }
 
 fn receipt_terms() -> crate::receipts::Terms {

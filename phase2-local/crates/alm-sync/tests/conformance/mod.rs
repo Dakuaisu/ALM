@@ -1566,7 +1566,9 @@ pub fn lookup<A: SalesAuthority>(a: &mut A) {
     assert_eq!(state(a), after, "lookup has no effect");
 }
 
-/// A Manager pull carries the catalog only: no owner values, sales, balances or stock.
+/// A Manager pull carries no owner values. DEC-034: it carries the customers with their
+/// balances and contacts (as the Owner's pull) and the book without a cost; the other lists it
+/// computes from that book.
 pub fn manager_pull<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
     setup(a, "pull", "sale", &sale(&w, 141, 1, w.sell));
@@ -1574,7 +1576,25 @@ pub fn manager_pull<A: SalesAuthority>(a: &mut A) {
     assert_eq!(batch.role, Role::Manager);
     let s = batch.snapshot.unwrap();
     assert!(s.owner.is_none());
-    assert!(s.sales.is_empty() && s.customers.is_empty() && s.stock.is_empty());
+    let owner = a.pull(Role::Owner, None).unwrap().snapshot.unwrap();
+    assert_eq!(s.customers, owner.customers);
+    let book = &s.manager.as_ref().expect("the Manager's book").book;
+    assert!(
+        book.sales
+            .iter()
+            .any(|sale| sale.draft == DraftId::new(141))
+    );
+    assert!(
+        book.sales
+            .iter()
+            .all(|sale| sale.cost.is_none() && sale.allocations.is_empty())
+    );
+    assert!(
+        book.products
+            .iter()
+            .all(|p| p.buy.is_zero() && p.lots.is_empty())
+    );
+    assert!(s.sales.is_empty() && s.stock.is_empty());
     assert!(s.products.is_empty() && s.suppliers.is_empty() && s.receipts.is_empty());
     assert!(!s.catalog.is_empty());
     let current = a.pull(Role::Owner, None).unwrap().checkpoint;

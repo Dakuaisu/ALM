@@ -7,24 +7,18 @@ use crate::{DraftCustomerId, Money, ProductId, Role};
 pub const CUSTOMER: &str = "Synthetic Customer";
 
 pub fn customer_id() -> DraftCustomerId {
-    DraftCustomerId::new(CUSTOMERS[0].id.into())
+    DraftCustomerId::new(CUSTOMERS[0][0].into())
 }
 
-const CUSTOMERS: [DirectoryCustomer; 2] = [
-    DirectoryCustomer {
-        id: "batch1-customer",
-        name: CUSTOMER,
-        mobile: "90000 00001",
-        addr1: "12 Synthetic Lane",
-        addr2: "Kanpur",
-    },
-    DirectoryCustomer {
-        id: "batch1-market",
-        name: "Synthetic Market",
-        mobile: "",
-        addr1: "",
-        addr2: "",
-    },
+const CUSTOMERS: [[&str; 5]; 2] = [
+    [
+        "batch1-customer",
+        CUSTOMER,
+        "90000 00001",
+        "12 Synthetic Lane",
+        "Kanpur",
+    ],
+    ["batch1-market", "Synthetic Market", "", "", ""],
 ];
 
 struct Seed {
@@ -76,7 +70,16 @@ pub enum FixtureError {
 
 pub fn directory() -> BillingDirectory {
     BillingDirectory {
-        customers: CUSTOMERS.to_vec(),
+        customers: CUSTOMERS
+            .iter()
+            .map(|[id, name, mobile, addr1, addr2]| DirectoryCustomer {
+                id: (*id).into(),
+                name: (*name).into(),
+                mobile: (*mobile).into(),
+                addr1: (*addr1).into(),
+                addr2: (*addr2).into(),
+            })
+            .collect(),
         products: PRODUCTS.iter().map(|seed| seed.product).collect(),
     }
 }
@@ -151,7 +154,7 @@ pub fn fixture() -> Result<ConfirmationFixture, FixtureError> {
     }
     for customer in CUSTOMERS {
         fixture
-            .register_customer(Role::Owner, &DraftCustomerId::new(customer.id.into()))
+            .register_customer(Role::Owner, &DraftCustomerId::new(customer[0].into()))
             .map_err(Confirmation)?;
     }
     Ok(fixture)

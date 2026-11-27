@@ -48,6 +48,7 @@ impl ConfirmationFixture {
             return Ok(ProjectionSnapshot {
                 catalog,
                 customer_names,
+                customers: self.projected_customers(directory)?,
                 manager: Some(crate::projection::ManagerValues {
                     book,
                     loading: self.bill_loading,
@@ -124,7 +125,7 @@ impl ConfirmationFixture {
                         || {
                             directory
                                 .customer(self, &payment.customer_id)
-                                .map_or_else(|_| payment.customer_id.clone(), |c| c.name.into())
+                                .map_or_else(|_| payment.customer_id.clone(), |c| c.name)
                         },
                         |metadata| metadata.selected_name.clone(),
                     ),
@@ -133,19 +134,7 @@ impl ConfirmationFixture {
                 })
             })
             .collect::<Result<_, ConfirmationError>>()?;
-        let customers = directory
-            .customer_book(self, role, &CustomerFilter::All)?
-            .rows
-            .into_iter()
-            .map(|row| ProjectedCustomer {
-                id: row.customer.id.to_owned(),
-                name: row.customer.name.to_owned(),
-                balance: row.balance,
-                mobile: row.customer.mobile.to_owned(),
-                addr1: row.customer.addr1.to_owned(),
-                addr2: row.customer.addr2.to_owned(),
-            })
-            .collect();
+        let customers = self.projected_customers(directory)?;
         let list = self
             .stock_list(role, "", false)
             .map_err(|_| ConfirmationError::InvalidDraft)?;
@@ -190,6 +179,27 @@ impl ConfirmationFixture {
             owner.book = self.owner_book(role, cashbook)?;
         }
         Ok(snapshot)
+    }
+
+    /// The Customers list with balances, mobiles and addresses (DEC-034: the Owner's and a
+    /// Manager's).
+    fn projected_customers(
+        &self,
+        directory: &BillingDirectory,
+    ) -> Result<Vec<ProjectedCustomer>, ConfirmationError> {
+        Ok(directory
+            .customer_book(self, Role::Owner, &CustomerFilter::All)?
+            .rows
+            .into_iter()
+            .map(|row| ProjectedCustomer {
+                id: row.customer.id,
+                name: row.customer.name,
+                balance: row.balance,
+                mobile: row.customer.mobile,
+                addr1: row.customer.addr1,
+                addr2: row.customer.addr2,
+            })
+            .collect())
     }
 
     /// The screen lists (sales, receipts, customers, stock, products, crates, godown) of a view

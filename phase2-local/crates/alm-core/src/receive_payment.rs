@@ -98,9 +98,8 @@ impl<'a> ReceivePayment<'a> {
         amount: Money,
         mode: ReceiptMode,
     ) -> Result<(), SaveError> {
-        if role != Role::Owner {
-            return Err(SaveError::Confirmation(ConfirmationError::AccessDenied));
-        }
+        crate::permissions::require(role, crate::permissions::Capability::RecordReceipt)
+            .map_err(|_| SaveError::Confirmation(ConfirmationError::AccessDenied))?;
         let customer = self.chosen.ok_or(SaveError::PickCustomer)?;
         if amount.minor_units() == 0 {
             return Err(SaveError::Confirmation(ConfirmationError::InvalidAmount));

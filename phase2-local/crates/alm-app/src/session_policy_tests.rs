@@ -414,10 +414,7 @@ fn every_app_command_and_screen_follows_the_matrix_for_both_roles() {
         let device_only = row.sql.is_empty();
         let not_offered = matches!(
             row.capability,
-            Capability::ClearAll
-                | Capability::ActivityLog
-                | Capability::SaveCustomer
-                | Capability::CashBookHistory
+            Capability::ClearAll | Capability::ActivityLog | Capability::CashBookHistory
         );
         assert!(
             !device_only || not_offered || walked.contains(&row.capability),

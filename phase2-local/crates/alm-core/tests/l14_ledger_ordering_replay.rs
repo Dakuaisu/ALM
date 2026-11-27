@@ -6,7 +6,7 @@ use alm_core::confirmation::{
     CustomerReceiptInput, EstimateDisplay, EstimateLineDisplay, EstimateRequest, OpeningBalance,
     OpeningLedgerKind, ReceiptMode, RequestId,
 };
-use alm_core::receive_payment::{Customer, ReceivePayment, SaveError};
+use alm_core::receive_payment::{Customer, ReceivePayment};
 use alm_core::{
     BillDate, DraftCustomer, DraftCustomerId, DraftId, DraftLine, Money, ProductId,
     ProvisionalDraft, Role,

@@ -145,7 +145,7 @@ impl ManualCashBookDraft {
         fixture: &ConfirmationFixture,
         role: Role,
     ) -> Result<CashBookDay, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::CashBook)?;
         fixture
             .cashbook_day_close(role, self.date.ok_or(ManualCashBookError::MissingDate)?)
             .map_err(ManualCashBookError::System)
@@ -179,13 +179,13 @@ impl ManualCashBook {
         role: Role,
         id: ManualCashBookId,
     ) -> Result<Option<ManualCashBookRow>, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::CashBook)?;
         Ok(self.rows.get(&id).copied())
     }
 
     /// Saved rows newest date first; equal dates keep the later entry first.
     pub fn rows(&self, role: Role) -> Result<Vec<ManualCashBookRow>, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::CashBook)?;
         let mut rows: Vec<_> = self.rows.values().copied().collect();
         rows.sort_by(|a, b| b.date.parts().cmp(&a.date.parts()).then(b.id.cmp(&a.id)));
         Ok(rows)
@@ -193,7 +193,7 @@ impl ManualCashBook {
 
     /// Finds a saved row by its IPC row number.
     pub fn find(&self, role: Role, value: u64) -> Result<ManualCashBookRow, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::CashBook)?;
         self.rows
             .get(&ManualCashBookId(value))
             .copied()
@@ -205,7 +205,15 @@ impl ManualCashBook {
         role: Role,
         draft: &ManualCashBookDraft,
     ) -> Result<ManualCashBookRow, ManualCashBookError> {
-        owner(role)?;
+        // DEC-034: closing a new day is a Manager's too; changing a closed day is the Owner's.
+        gate(
+            role,
+            if draft.id.is_some() {
+                crate::permissions::Capability::EditCashDay
+            } else {
+                crate::permissions::Capability::CloseCashDay
+            },
+        )?;
         let date = draft.date.ok_or(ManualCashBookError::MissingDate)?;
         let id = match draft.id {
             Some(id) if self.rows.contains_key(&id) => id,
@@ -233,7 +241,7 @@ impl ManualCashBook {
         role: Role,
         deletion: CashBookDeletion,
     ) -> Result<Option<ManualCashBookRow>, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::DeleteCashDay)?;
         match deletion {
             CashBookDeletion::Decline(_) => Ok(None),
             CashBookDeletion::Confirm(id) => Ok(self.rows.remove(&id)),
@@ -241,7 +249,7 @@ impl ManualCashBook {
     }
 
     pub fn month(&self, role: Role, date: BillDate) -> Result<CashBookMonth, ManualCashBookError> {
-        owner(role)?;
+        gate(role, crate::permissions::Capability::CashBookHistory)?;
         let (year, month, _) = date.parts();
         let mut total = CashBookMonth {
             rows: 0,
@@ -272,11 +280,8 @@ impl ManualCashBook {
     }
 }
 
-const fn owner(role: Role) -> Result<(), ManualCashBookError> {
-    match role {
-        Role::Owner => Ok(()),
-        Role::Manager => Err(ManualCashBookError::AccessDenied),
-    }
+fn gate(role: Role, capability: crate::permissions::Capability) -> Result<(), ManualCashBookError> {
+    crate::permissions::require(role, capability).map_err(|_| ManualCashBookError::AccessDenied)
 }
 
 fn add(left: Money, right: Money) -> Result<Money, ManualCashBookError> {
@@ -361,13 +366,16 @@ mod listing_tests {
             book.find(Role::Owner, 9),
             Err(ManualCashBookError::RowNotFound)
         );
+        // DEC-034: a Manager reads the rows its authority sent (today's); the month totals
+        // stay the Owner's.
+        assert_eq!(book.rows(Role::Manager), book.rows(Role::Owner));
         assert_eq!(
-            book.rows(Role::Manager),
+            book.month(Role::Manager, BillDate::new(2025, 3, 3).unwrap()),
             Err(ManualCashBookError::AccessDenied)
         );
         assert_eq!(
-            book.find(Role::Manager, 0),
-            Err(ManualCashBookError::AccessDenied)
+            book.find(Role::Manager, 0).map(|row| row.id),
+            book.find(Role::Owner, 0).map(|row| row.id)
         );
     }
 }

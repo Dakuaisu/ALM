@@ -143,7 +143,8 @@ fn standalone_receipts_reject_invalid_attempts_without_mutation() {
             0,
             ConfirmationError::InvalidAmount,
         ),
-        (Role::Manager, target, 375, ConfirmationError::AccessDenied),
+        // DEC-034: a Manager's receipt is checked like the Owner's.
+        (Role::Manager, target, 0, ConfirmationError::InvalidAmount),
     ] {
         let result = f.record_customer_receipt(
             role,

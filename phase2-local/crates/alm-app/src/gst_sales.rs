@@ -22,15 +22,15 @@ impl Trial {
         let found = self.directory.search_customers(&self.posted, q);
         let fills: Vec<_> = found
             .iter()
-            .map(|c| [("pick", c.id), ("pick_q", c.name)])
+            .map(|c| [("pick", c.id.as_str()), ("pick_q", c.name.as_str())])
             .collect();
         let options: Vec<_> = found
             .iter()
             .zip(&fills)
             .map(|(c, fill)| crate::views::SearchOption {
                 fill,
-                label: c.name,
-                sub: c.mobile,
+                label: &c.name,
+                sub: &c.mobile,
                 submit: Some("pick"),
             })
             .collect();

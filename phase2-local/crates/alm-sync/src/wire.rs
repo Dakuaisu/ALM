@@ -181,6 +181,11 @@ pub fn command(intent: &Intent) -> (&'static str, Value) {
             json!({"customer_id": customer, "amount_minor": amount.map(Money::minor_units),
                 "date": date.map(day)}),
         ),
+        Intent::SaveCustomer(c) => (
+            "save_customer",
+            json!({"id": c.id, "name": c.name, "mobile": c.mobile, "addr1": c.addr1,
+                "addr2": c.addr2}),
+        ),
         Intent::SaveGodown { item, cases, note } => (
             "save_godown",
             json!({"item": item, "cases": cases, "note": note}),

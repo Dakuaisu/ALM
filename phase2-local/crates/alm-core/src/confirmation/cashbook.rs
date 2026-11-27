@@ -37,9 +37,8 @@ impl ConfirmationFixture {
         role: Role,
         date: BillDate,
     ) -> Result<CashBookDay, ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::CashBook)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let mut entries = Vec::new();
         for (id, (review, receipt, _)) in &self.current_sales {
             if self

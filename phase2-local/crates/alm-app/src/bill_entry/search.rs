@@ -6,10 +6,10 @@ use crate::{Trial, views};
 impl Trial {
     pub(crate) fn bill_customer_search(&self, q: &str) -> String {
         let names = self.manager_customers();
-        let found: Vec<(&str, &str)> = match &names {
+        let found: Vec<(String, String)> = match &names {
             Some(names) => BillingDirectory::search_customer_names(names, q)
                 .into_iter()
-                .map(|c| (c.id.as_str(), c.name.as_str()))
+                .map(|c| (c.id.clone(), c.name.clone()))
                 .collect(),
             None => self
                 .directory
@@ -20,7 +20,7 @@ impl Trial {
         };
         let options: Vec<_> = found
             .iter()
-            .map(|(id, name)| [("customer", *id), ("customer_q", *name)])
+            .map(|(id, name)| [("customer", id.as_str()), ("customer_q", name.as_str())])
             .collect();
         views::search_options(
             &found

@@ -139,7 +139,7 @@ pub const MATRIX: &[Row] = &[
     row(C::CancelSale, B, Limit::None, &["set_sale_cancelled"]),
     row(C::RestoreSale, O, Limit::None, &["set_sale_cancelled"]),
     row(C::RecordReceipt, B, Limit::None, &["record_receipt"]),
-    row(C::SaveCustomer, B, Limit::ContactOnly, &[]),
+    row(C::SaveCustomer, B, Limit::ContactOnly, &["save_customer"]),
     row(C::SaveOpening, O, Limit::None, &["save_opening"]),
     row(C::CloseCashDay, B, Limit::TodayOnly, &["save_cash_day"]),
     row(C::EditCashDay, O, Limit::None, &["save_cash_day"]),

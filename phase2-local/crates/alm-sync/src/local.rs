@@ -312,7 +312,27 @@ impl LocalAuthority {
                 Err(AuthorityError::Conflict)
             };
         }
-        let outcome = if matches!(intent, Intent::PostSale(_)) {
+        let outcome = if let Intent::SaveCustomer(contact) = intent {
+            // The directory lives beside the state: both change together or not at all.
+            let (mut directory, mut fixture) = (self.directory.clone(), self.state.fixture.clone());
+            let created = directory
+                .save_customer(&mut fixture, alm_core::Role::Owner, contact)
+                .map_err(|error| {
+                    error.warning().map_or_else(
+                        || {
+                            if error == alm_core::confirmation::owner_billing::CustomerFormError::UnknownCustomer {
+                                AuthorityError::Rejected("not_found: customer".into())
+                            } else {
+                                rejected(&error)
+                            }
+                        },
+                        AuthorityError::Rejected,
+                    )
+                })?;
+            self.directory = directory;
+            self.state.fixture = fixture;
+            created.map_or(Outcome::Done, Outcome::Created)
+        } else if matches!(intent, Intent::PostSale(_)) {
             // A sale is checked before anything changes (core `post_saved_sale`), so it applies
             // in place: copying the whole state for every bill made posting quadratic.
             let outcome = apply(&mut self.state, &self.directory, intent, stamp)?;

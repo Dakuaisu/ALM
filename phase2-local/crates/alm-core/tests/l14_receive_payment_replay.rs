@@ -199,11 +199,12 @@ fn l14_03_picked_duplicate_id_routes_save_to_only_that_ledger() {
     }
 }
 
+/// DEC-034: a Manager posts a valid, trimmed, exact selection as the Owner does.
 #[test]
-fn l14_03_manager_cannot_post_valid_trimmed_exact_selection() {
+fn l14_03_a_manager_posts_a_valid_trimmed_exact_selection() {
     let (mut fixture, customers) = seeded();
     let before = readback(&fixture, &customers);
-    let mut form = ReceivePayment::with_clock(|| panic!("Manager Save sampled clock"));
+    let mut form = ReceivePayment::with_clock(|| Ok(CreationKey::new(7)));
     form.input("  Solo Market \t", &customers);
     assert_eq!(form.highlighted, None);
     let id = form.selected().unwrap().id.value().to_owned();
@@ -216,17 +217,15 @@ fn l14_03_manager_cannot_post_valid_trimmed_exact_selection() {
         money(amount),
         ReceiptMode::Cash,
     );
+    assert_eq!(result, Ok(()));
+    assert_ne!(readback(&fixture, &customers), before);
     assert_eq!(
-        result,
-        Err(SaveError::Confirmation(ConfirmationError::AccessDenied))
-    );
-    assert_eq!(readback(&fixture, &customers), before);
-    assert!(
         fixture
             .cashbook_day_close(OWNER, receipt_date())
             .unwrap()
             .entries
-            .is_empty()
+            .len(),
+        1
     );
     println!(
         "L14-03 trimmed exact: chosen={id} amount_minor={amount} Manager={result:?} ledger unchanged"

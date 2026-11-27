@@ -80,9 +80,8 @@ impl ConfirmationFixture {
         input: CustomerReceiptInput,
         metadata: Option<CustomerReceiptMetadata>,
     ) -> Result<(), ConfirmationError> {
-        if role != Role::Owner {
-            return Err(ConfirmationError::AccessDenied);
-        }
+        crate::permissions::require(role, crate::permissions::Capability::RecordReceipt)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         if metadata
             .as_ref()
             .is_some_and(|value| value.selected_name.trim().is_empty())

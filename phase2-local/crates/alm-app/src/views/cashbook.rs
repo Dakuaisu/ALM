@@ -45,6 +45,14 @@ fn shown(amount: Money) -> String {
 }
 
 pub fn cashbook_screen(view: &CashBookView<'_>) -> Result<String, ManualCashBookError> {
+    use alm_core::permissions::{Capability, allows};
+    if !allows(view.role, Capability::CashBook) {
+        return Ok(denied("Cash Book"));
+    }
+    // DEC-034: a Manager closes today only; month totals and earlier days are the Owner's.
+    if !allows(view.role, Capability::CashBookHistory) {
+        return manager_cashbook(view);
+    }
     let month = match view.book.month(view.role, view.today) {
         Ok(month) => month,
         Err(ManualCashBookError::AccessDenied) => return Ok(denied("Cash Book")),
@@ -94,6 +102,45 @@ pub fn cashbook_screen(view: &CashBookView<'_>) -> Result<String, ManualCashBook
     Ok(html + "</tbody></table></div>")
 }
 
+/// Today's Cash Book for a Manager: the close form, or today's closed figures.
+fn manager_cashbook(view: &CashBookView<'_>) -> Result<String, ManualCashBookError> {
+    let mut html = String::new();
+    if let Some(entry) = view.entry {
+        html += &entry_form(view, entry)?;
+    }
+    let today = view
+        .book
+        .rows(view.role)?
+        .into_iter()
+        .find(|row| row.date == view.today);
+    match today {
+        Some(row) => {
+            let a = row.amounts;
+            let _ = write!(
+                html,
+                r#"<div class="card"><div class="sectit">{} — closed</div><div class="tbl-wrap"><table><thead><tr><th class="num">Cash</th><th class="num">Paytm</th><th class="num">PhonePe</th><th class="num">Debt</th><th>Goods Purchase</th><th>Misc Expense</th><th class="num">Salary</th></tr></thead><tbody><tr><td class="num pos">{}</td><td class="num">{}</td><td class="num">{}</td><td class="num">{}</td><td class="muted">{}</td><td class="muted">{}</td><td class="num">{}</td></tr></tbody></table></div><div class="help">A closed day is changed by the owner.</div></div>"#,
+                view.today.display(),
+                shown(a.cash),
+                shown(a.paytm),
+                shown(a.phonepe),
+                shown(a.debt),
+                shown(a.goods),
+                shown(a.misc),
+                shown(a.salary)
+            );
+        }
+        None if view.entry.is_none() => {
+            let _ = write!(
+                html,
+                r#"<div class="card"><div class="empty">📒<br>{} is not closed yet.</div><div class="row" style="justify-content:center"><button class="btn primary" type="button" data-action="cash_new">＋ Add Day Entry</button></div></div>"#,
+                view.today.display()
+            );
+        }
+        None => {}
+    }
+    Ok(html)
+}
+
 fn entry_form(
     view: &CashBookView<'_>,
     entry: &ManualCashBookDraft,
@@ -104,8 +151,14 @@ fn entry_form(
     } else {
         "Add Day Entry"
     };
+    // A Manager's entry is for today (DEC-034).
+    let fixed = if view.role == Role::Owner {
+        ""
+    } else {
+        " readonly"
+    };
     let mut html = format!(
-        r#"<form data-action="cash_entry" data-payload="terms" data-live="cash_live" data-target="cash-system"><input type="hidden" name="id" value="{}"><div class="field"><label>Date <input class="inp" type="date" name="date" value="{date}" required></label></div>"#,
+        r#"<form data-action="cash_entry" data-payload="terms" data-live="cash_live" data-target="cash-system"><input type="hidden" name="id" value="{}"><div class="field"><label>Date <input class="inp" type="date" name="date" value="{date}"{fixed} required></label></div>"#,
         view.editing.map_or_else(String::new, |id| id.to_string())
     );
     html += &cash_system_card(view.fixture, view.role, entry)?;

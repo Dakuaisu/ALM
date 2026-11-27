@@ -170,16 +170,6 @@ fn keyed_ledger_and_estimate_replay_conflicting_orders() {
     receive.input("Shared", &customers);
     receive.pick(0);
     assert_eq!(
-        receive.save(
-            Role::Manager,
-            &mut fixture,
-            day10,
-            money(1),
-            ReceiptMode::Cash
-        ),
-        Err(SaveError::Confirmation(ConfirmationError::AccessDenied))
-    );
-    assert_eq!(
         fixture
             .customer_ledger_with_opening(Role::Owner, &customer)
             .unwrap(),
@@ -190,5 +180,22 @@ fn keyed_ledger_and_estimate_replay_conflicting_orders() {
             .bill_preview(Role::Owner, target, BalanceMode::AsOnBillDate)
             .unwrap(),
         as_on
+    );
+    // DEC-034: a Manager records the payment too.
+    assert_eq!(
+        receive.save(
+            Role::Manager,
+            &mut fixture,
+            day10,
+            money(1),
+            ReceiptMode::Cash
+        ),
+        Ok(())
+    );
+    assert_ne!(
+        fixture
+            .customer_ledger_with_opening(Role::Owner, &customer)
+            .unwrap(),
+        ledger
     );
 }

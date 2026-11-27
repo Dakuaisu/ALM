@@ -149,8 +149,8 @@ pub fn dashboard_screen(
         let _ = write!(
             html,
             r#"<div class="mini"><button class="list-link" type="button" data-action="customer_open" data-id="{}">{}</button><b class="neg priv">{}</b></div>"#,
-            esc(row.customer.id),
-            esc(row.customer.name),
+            esc(&row.customer.id),
+            esc(&row.customer.name),
             money_r(row.balance)
         );
     }
@@ -189,7 +189,7 @@ pub fn dashboard_screen(
             |row| {
                 format!(
                     r#"<button class="list-link" type="button" data-action="customer_open" data-id="{}">{}</button>"#,
-                    esc(row.customer.id),
+                    esc(&row.customer.id),
                     esc(name)
                 )
             },

@@ -186,7 +186,8 @@ fn l15_01_l15_02_manual_close_across_month_end() {
         ManualCashBookError::MissingDate
     );
     let denied = ManualCashBookError::AccessDenied;
-    assert_eq!(book.save(Role::Manager, &feb_draft), Err(denied.clone()));
+    // DEC-034: a Manager closes a new day (on a copy; the authority keeps it to today).
+    assert!(book.clone().save(Role::Manager, &feb_draft).is_ok());
     assert_month(&book, feb, (0, [0; 7]));
     assert_month(&book, mar, (0, [0; 7]));
     let feb_row = book.save(OWNER, &feb_draft).unwrap();
@@ -207,12 +208,13 @@ fn l15_01_l15_02_manual_close_across_month_end() {
             row.date, row.amounts
         );
     }
-    assert_eq!(
-        draft.use_system_figures(&fixture, Role::Manager),
-        Err(denied)
-    );
+    // DEC-034: a Manager copies the system figures into its draft as the Owner does.
+    let mut manager = draft;
+    manager.use_system_figures(&fixture, Role::Manager).unwrap();
     assert_eq!(draft, mar_row.draft());
     draft.use_system_figures(&fixture, OWNER).unwrap();
+    assert_eq!(manager, draft);
+    assert_eq!(book.month(Role::Manager, mar), Err(denied.clone()));
     let copied = amounts([2_100, 5_100, 0, 4_001, 5_002, 6_003, 7_004]);
     assert_eq!(draft.amounts, copied);
     assert_eq!(book.row(OWNER, mar_row.id), Ok(Some(mar_row)));

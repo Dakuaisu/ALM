@@ -52,6 +52,7 @@ pub(crate) fn classify(command: &str) -> Option<Access> {
         "backup_create" | "backup_restore" => C::Backup,
         "receipt_save" | "receipt_customer_search" => C::RecordReceipt,
         "customers_filter" | "customer_close" => C::Customers,
+        "customer_edit" | "customer_save" => C::SaveCustomer,
         "customer_open" => C::CustomerLedger,
         "customer_opening" => C::SaveOpening,
         "cash_entry" | "cash_new" | "cash_close" | "cash_live" => C::CashBook,

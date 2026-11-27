@@ -102,6 +102,8 @@ pub enum Intent {
         amount: Option<Money>,
         date: Option<BillDate>,
     },
+    /// Adds a customer (no ID) or changes a customer's mobile and address (DEC-034).
+    SaveCustomer(alm_core::confirmation::owner_billing::CustomerContact),
     /// A manual godown row as typed (cases are validated by the authority).
     SaveGodown {
         item: String,
@@ -164,6 +166,7 @@ impl Intent {
             Self::ImportLegacy(_) => C::ImportLegacy,
             Self::ResolveLegacyQuarantine(_) => C::ResolveLegacyQuarantine,
             Self::SaveOpening { .. } => C::SaveOpening,
+            Self::SaveCustomer(_) => C::SaveCustomer,
             Self::SaveGodown { .. } => C::SaveGodown,
             Self::CountStock { .. } => C::CountStock,
             Self::SaveGstBill { .. } => C::SaveGstBill,

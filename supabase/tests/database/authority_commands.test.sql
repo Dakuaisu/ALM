@@ -256,8 +256,8 @@ select is(pg_temp.call('owner', 'select public.pull_projection(null)') #> '{rows
 select is(
     (select array_agg(k order by k) from jsonb_object_keys(
         pg_temp.call('manager', 'select public.pull_projection(null)') -> 'rows') k),
-    array['catalog', 'customer_names', 'manager'],
-    'a Manager pull holds the catalog, customer names and (DEC-034) its cost-free book');
+    array['catalog', 'customer_names', 'customers', 'manager'],
+    'a Manager pull holds the catalog, customer names and (DEC-034) its customers and cost-free book');
 select is(
     (select array_agg(distinct k order by k) from jsonb_array_elements(
         pg_temp.call('manager', 'select public.pull_projection(null)') #> '{rows,customer_names}') e,

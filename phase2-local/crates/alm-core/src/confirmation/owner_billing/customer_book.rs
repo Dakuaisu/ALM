@@ -95,7 +95,7 @@ impl BillingDirectory {
         };
         for customer in self.customers(authority) {
             let balance = authority
-                .customer_ledger(role, &DraftCustomerId::new(customer.id.into()))?
+                .customer_ledger(role, &DraftCustomerId::new(customer.id.clone()))?
                 .closing;
             let side = BalanceSide::of(balance)?;
             customers += 1;
@@ -128,7 +128,7 @@ impl BillingDirectory {
                 });
             }
         }
-        rows.sort_by(|a, b| a.customer.name.cmp(b.customer.name));
+        rows.sort_by(|a, b| a.customer.name.cmp(&b.customer.name));
         Ok(CustomerBook {
             rows,
             receivable: Money::from_minor_units(receivable),

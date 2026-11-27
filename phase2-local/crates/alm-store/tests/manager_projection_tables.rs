@@ -330,7 +330,8 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
         }
     }
     // The Manager rows are the catalog and customer names it drafts with and (DEC-034) its
-    // cost-free book and New Bill loading charge, and nothing else.
+    // customers with balances and contacts, cost-free book and New Bill loading charge, and
+    // nothing else.
     let filled: BTreeSet<&str> = manager
         .iter()
         .filter(|(_, column, _)| !column.is_empty())
@@ -340,7 +341,9 @@ fn each_manager_projection_table_holds_no_cost_buy_rate_fifo_margin_or_profit_da
         filled,
         [
             "projected_catalog",
+            "projected_customer_contacts",
             "projected_customer_names",
+            "projected_customers",
             "projected_manager_book",
             "projected_manager_loading",
             "projection_checkpoint",

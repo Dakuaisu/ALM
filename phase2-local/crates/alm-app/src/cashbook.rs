@@ -29,7 +29,7 @@ fn amount(label: &str, text: &str) -> Result<Money, String> {
 impl Trial {
     /// The day-close card for the typed (unsaved) entry, for live updates.
     pub(crate) fn cash_live(&self, entry: &Entry) -> Result<String, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::CashBook)?;
         let (draft, _) = self.cash_draft(role, entry)?;
         crate::views::cash_system_card(&self.posted, role, &draft).map_err(refusal)
     }
@@ -78,8 +78,9 @@ impl Trial {
     }
 
     pub(crate) fn cash_entry(&mut self, entry: Entry) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::CashBook)?;
         if entry.intent == "delete" {
+            self.require(alm_core::permissions::Capability::DeleteCashDay)?;
             let id = entry
                 .id
                 .parse::<u64>()
@@ -90,6 +91,15 @@ impl Trial {
             return Ok(());
         }
         let (mut draft, editing) = self.cash_draft(role, &entry)?;
+        // DEC-034: a Manager closes today only; earlier days and closed days are the Owner's.
+        if role == alm_core::Role::Manager {
+            if editing.is_some() {
+                self.require(alm_core::permissions::Capability::EditCashDay)?;
+            }
+            if draft.date.is_some_and(|date| Some(date) != self.today) {
+                return Err(crate::refusals::OWNER_ONLY.into());
+            }
+        }
         match entry.intent.as_str() {
             "system" => {
                 draft
@@ -144,7 +154,7 @@ pub fn cash_live(state: State<'_, AppState>, terms: Entry) -> Result<String, Str
 #[tauri::command(async)]
 pub fn cash_new(state: State<'_, AppState>) -> Result<String, String> {
     with(&state, "expenses", |trial| {
-        trial.require_owner()?;
+        trial.require(alm_core::permissions::Capability::CashBook)?;
         trial.cash_form = Some((
             ManualCashBookDraft::new(Some(trial.today()?), CashBookAmounts::ZERO),
             None,
@@ -157,7 +167,7 @@ pub fn cash_new(state: State<'_, AppState>) -> Result<String, String> {
 pub fn cash_edit(state: State<'_, AppState>, id: IpcId) -> Result<String, String> {
     let id = id.value();
     with(&state, "expenses", |trial| {
-        let role = trial.require_owner()?;
+        let role = trial.require(alm_core::permissions::Capability::EditCashDay)?;
         let row = trial.posted.cashbook().find(role, id).map_err(refusal)?;
         trial.cash_form = Some((row.draft(), Some(id)));
         Ok(())

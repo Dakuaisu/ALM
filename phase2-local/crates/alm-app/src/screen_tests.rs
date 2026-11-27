@@ -8,7 +8,8 @@ use crate::billing_tests::{day, posted, projected};
 use crate::views::{self, CustomersState, money_r};
 
 /// The screens a Manager opens in this build (DEC-034), each without costs or profit.
-pub(crate) const MANAGER_SCREENS: &[&str] = &["sales", "crates"];
+pub(crate) const MANAGER_SCREENS: &[&str] =
+    &["sales", "crates", "customers", "receipt", "expenses"];
 
 pub(crate) fn books() -> ConfirmationFixture {
     let mut fixture = fixture().expect("synthetic fixture");
@@ -84,7 +85,9 @@ fn customers_render_core_balances_totals_and_ledger() {
 }
 
 #[test]
-fn manager_sees_no_customer_balances() {
+/// DEC-034: a Manager sees balances, mobiles and addresses, without the ledger or the opening
+/// balance.
+fn manager_sees_customer_balances_without_the_ledger() {
     let fixture = books();
     let state = CustomersState {
         open: Some("batch1-customer".into()),
@@ -97,10 +100,16 @@ fn manager_sees_no_customer_balances() {
         Role::Manager,
         &state,
     )
-    .expect("denial");
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains('₹'));
-    assert!(!html.contains("Synthetic Customer"));
+    .expect("customers");
+    assert!(!html.contains("role=\"alert\""), "{html}");
+    assert!(
+        html.contains("Synthetic Customer") && html.contains('₹'),
+        "{html}"
+    );
+    assert!(
+        !html.contains("customer_open") && !html.contains("customer_opening"),
+        "{html}"
+    );
 }
 
 #[test]
@@ -228,9 +237,13 @@ fn cash_book_renders_core_system_figures_differences_and_month_totals() {
             .cash_entry(entry("", "2025-04-30", "1", "save"))
             .is_err()
     );
+    // DEC-034: a Manager's Cash Book is today's: no month totals and no edit of a closed day.
     let html = trial.render("expenses").unwrap();
-    assert!(html.contains("role=\"alert\""));
-    assert!(!html.contains('₹'));
+    assert!(!html.contains("role=\"alert\""), "{html}");
+    assert!(
+        !html.contains("(month)") && !html.contains("cash_edit"),
+        "{html}"
+    );
 }
 
 #[test]
@@ -971,7 +984,8 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
     assert!(trial.rate_copy_text().is_err());
     assert!(trial.reorder_copy_text().is_err());
     assert!(trial.item_options("", "item", None).is_err());
-    assert!(trial.cash_live(&entry("", "2025-04-30", "25", "")).is_err());
+    // DEC-034: a Manager's day-close card works as the Owner's.
+    assert!(trial.cash_live(&entry("", "2025-04-30", "25", "")).is_ok());
 }
 
 #[test]

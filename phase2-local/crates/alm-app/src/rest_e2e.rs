@@ -574,17 +574,22 @@ fn two_devices_through_rest_see_the_same_posted_rows() {
     assert_eq!(after.sales, before.sales, "the import posts nothing");
     trial.legacy_close();
 
-    // The Manager: denied, and its projection file holds no cost field or value.
+    // The Manager (DEC-034: it records payments) and its projection file, which holds no cost
+    // field or value.
     trial.set_owner(false).unwrap();
+    trial
+        .receipt_save(crate::receipts::Terms {
+            customer: "batch1-customer".into(),
+            date: "2025-04-30".into(),
+            amount: "10".into(),
+            mode: crate::receipts::Mode::Cash,
+        })
+        .unwrap();
     assert!(
         trial
-            .receipt_save(crate::receipts::Terms {
-                customer: "batch1-customer".into(),
-                date: "2025-04-30".into(),
-                amount: "10".into(),
-                mode: crate::receipts::Mode::Cash,
-            })
-            .is_err()
+            .send(&alm_sync::Intent::SetReorderDefault { level: 2 })
+            .is_err(),
+        "Owner settings stay denied"
     );
     let manager_rows = trial.projected().unwrap().snapshot;
     assert!(manager_rows.owner.is_none() && manager_rows.sales.is_empty());

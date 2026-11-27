@@ -235,6 +235,9 @@ pub struct ConfirmationFixture {
     ledger: i64,
     received_ledger: i64,
     registered_customers: std::collections::BTreeSet<String>,
+    /// The number of the next customer the authority adds (`cust-<n>`).
+    #[cfg_attr(feature = "demo-fixture", serde(default))]
+    next_customer: u64,
     customer_balances: BTreeMap<String, i64>,
     customer_openings: BTreeMap<String, customer_opening::StoredOpening>,
     next_invoice: u64,
@@ -291,6 +294,7 @@ impl ConfirmationFixture {
             ledger: 0,
             received_ledger: 0,
             registered_customers: std::collections::BTreeSet::new(),
+            next_customer: 1,
             customer_balances: BTreeMap::new(),
             customer_openings: BTreeMap::new(),
             next_invoice: 1,

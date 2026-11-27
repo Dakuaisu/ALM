@@ -169,6 +169,15 @@ pub(in crate::intent) fn parse(kind: &str, fields: Vec<(&str, &str)>) -> Option<
             rate: f.money("rate")?,
             components: f.list("items", component)?,
         }),
+        "customer" => {
+            Intent::SaveCustomer(alm_core::confirmation::owner_billing::CustomerContact {
+                id: Some(f.text("id")?).filter(|id| !id.is_empty()),
+                name: f.text("name")?,
+                mobile: f.text("mobile")?,
+                addr1: f.text("addr1")?,
+                addr2: f.text("addr2")?,
+            })
+        }
         "opening" => Intent::SaveOpening {
             customer: f.text("customer")?,
             amount: f.opt("amount", parse_money)?,

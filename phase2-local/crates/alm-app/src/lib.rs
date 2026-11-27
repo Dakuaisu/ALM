@@ -189,6 +189,8 @@ pub fn run() {
                 customers::customer_open,
                 customers::customer_opening,
                 customers::customer_close,
+                customers::customer_edit,
+                customers::customer_save,
                 cashbook::cash_entry,
                 cashbook::cash_new,
                 cashbook::cash_edit,

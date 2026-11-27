@@ -169,6 +169,7 @@ fn manager_and_stale_serial_cannot_change_authority() {
         ),
         Err(denied)
     );
+    // DEC-034: a Manager's receipt is checked like the Owner's.
     assert_eq!(
         save_receipt(
             &mut authority,
@@ -177,7 +178,13 @@ fn manager_and_stale_serial_cannot_change_authority() {
             "batch1-customer",
             receipt_terms("bad")
         ),
-        Err(denied)
+        save_receipt(
+            &mut authority.clone(),
+            &directory(),
+            Role::Owner,
+            "batch1-customer",
+            receipt_terms("bad")
+        )
     );
     assert_eq!(authority, before);
 

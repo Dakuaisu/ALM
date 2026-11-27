@@ -70,7 +70,9 @@ pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, Authorit
                 name: text(&r["name"]),
             })
             .collect();
-        // DEC-034: the book without costs, whatever else the object held.
+        // DEC-034: the customers with balances and contacts, and the book without costs,
+        // whatever else the object held.
+        s.customers = customers(&d["customers"]);
         let manager = &d["manager"];
         if manager.is_object() {
             s.manager = Some(alm_core::projection::ManagerValues {
@@ -107,17 +109,7 @@ pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, Authorit
             })
         })
         .collect::<Result<_, AuthorityError>>()?;
-    s.customers = list(&d["customers"])
-        .iter()
-        .map(|r| ProjectedCustomer {
-            id: text(&r["id"]),
-            name: text(&r["name"]),
-            balance: money(&r["balance"]),
-            mobile: text(&r["mobile"]),
-            addr1: text(&r["addr1"]),
-            addr2: text(&r["addr2"]),
-        })
-        .collect();
+    s.customers = customers(&d["customers"]);
     s.sales = list(&d["sales"])
         .iter()
         .map(|r| {
@@ -212,6 +204,20 @@ pub fn decode_rows(d: &Value, role: Role) -> Result<ProjectionSnapshot, Authorit
         s.owner = Some(decode_owner(&d["owner"])?);
     }
     Ok(s)
+}
+
+fn customers(rows: &Value) -> Vec<ProjectedCustomer> {
+    list(rows)
+        .iter()
+        .map(|r| ProjectedCustomer {
+            id: text(&r["id"]),
+            name: text(&r["name"]),
+            balance: money(&r["balance"]),
+            mobile: text(&r["mobile"]),
+            addr1: text(&r["addr1"]),
+            addr2: text(&r["addr2"]),
+        })
+        .collect()
 }
 
 /// Reads a `pull_projection` result asked for as `requested`. The authority answers with the

@@ -55,7 +55,7 @@ pub fn save(
 impl crate::Trial {
     /// Validates the receipt on a copy of the authority's state, then sends it as an intent.
     pub(crate) fn receipt_save(&mut self, terms: Terms) -> Result<(), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::RecordReceipt)?;
         let mut scratch = self.posted.fixture.clone();
         let intent = alm_sync::Intent::RecordReceipt {
             customer: terms.customer.clone(),

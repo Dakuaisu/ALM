@@ -228,8 +228,10 @@ fn journal_replay_restores_state_requests_and_gst_numbers() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+/// DEC-034: a Manager's pull holds its customers and cost-free book beside the catalog, and no
+/// owner values or sales list.
 #[test]
-fn the_manager_pull_holds_only_the_catalog() {
+fn the_manager_pull_holds_no_owner_values() {
     let mut authority = seeded();
     let intent = sale(&authority, 1, 2);
     authority
@@ -242,7 +244,9 @@ fn the_manager_pull_holds_only_the_catalog() {
     assert_eq!(manager.role, Role::Manager);
     let manager = manager.snapshot.unwrap();
     assert!(manager.owner.is_none());
-    assert!(manager.sales.is_empty() && manager.customers.is_empty() && manager.stock.is_empty());
+    assert!(manager.sales.is_empty() && manager.stock.is_empty());
+    assert_eq!(manager.customers, owner.customers);
+    assert_eq!(manager.manager.unwrap().book.sales.len(), 1);
     assert_eq!(manager.catalog.len(), 2);
     let _ = Intent::CancelSale {
         draft: alm_core::DraftId::new(1),
@@ -271,7 +275,10 @@ fn pull_uses_the_hosted_row_format() {
     };
     let (manager, wire) = keys(Role::Manager);
     // DEC-034: and the Manager's cost-free book and New Bill loading charge.
-    assert_eq!(manager, ["catalog", "customer_names", "manager"]);
+    assert_eq!(
+        manager,
+        ["catalog", "customer_names", "customers", "manager"]
+    );
     assert!(!wire.to_string().contains("dev_state"));
     let text = wire.to_string().to_lowercase();
     for word in [

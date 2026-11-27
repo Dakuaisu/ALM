@@ -24,14 +24,17 @@ fn sales_details_mix_known_keys_and_legacy_anchors_without_mutation() {
         creation_key: CreationKey::new(20),
     };
     let before = fixture.clone();
+    // DEC-034: a Manager records it as the Owner does (on a copy).
+    let (mut manager, mut owner) = (fixture.clone(), fixture.clone());
     assert_eq!(
-        fixture.record_customer_receipt_with_metadata(
+        manager.record_customer_receipt_with_metadata(
             Role::Manager,
             input.clone(),
             metadata.clone()
         ),
-        Err(ConfirmationError::AccessDenied)
+        owner.record_customer_receipt_with_metadata(Role::Owner, input.clone(), metadata.clone())
     );
+    assert_eq!(manager, owner);
     assert_eq!(fixture, before);
     fixture
         .record_customer_receipt_with_metadata(OWNER, input, metadata)

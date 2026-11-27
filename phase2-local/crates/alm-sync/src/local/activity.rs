@@ -84,8 +84,8 @@ fn entry(
             let name = directory
                 .customers
                 .iter()
-                .find(|c| c.id == customer)
-                .map_or(customer.as_str(), |c| c.name);
+                .find(|c| c.id == *customer)
+                .map_or(customer.as_str(), |c| c.name.as_str());
             (
                 "payment",
                 name.to_owned(),

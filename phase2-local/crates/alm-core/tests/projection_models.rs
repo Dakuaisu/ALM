@@ -114,12 +114,20 @@ fn projected_sales_customers_and_stock_match_the_authority_reads() {
     assert!(owner_sales.profit.is_some());
     assert_eq!(manager_sales.profit, None);
     assert_eq!(
-        (manager_sales.rows, manager_sales.sales, manager_sales.total_collected),
-        (owner_sales.rows, owner_sales.sales, owner_sales.total_collected)
+        (
+            manager_sales.rows,
+            manager_sales.sales,
+            manager_sales.total_collected
+        ),
+        (
+            owner_sales.rows,
+            owner_sales.sales,
+            owner_sales.total_collected
+        )
     );
-    assert!(
-        snapshot
-            .customer_view(Role::Manager, &CustomerFilter::All)
-            .is_err()
+    // DEC-034: a Manager's Customers view holds the same balances.
+    assert_eq!(
+        snapshot.customer_view(Role::Manager, &CustomerFilter::All),
+        snapshot.customer_view(Role::Owner, &CustomerFilter::All)
     );
 }

@@ -92,6 +92,7 @@ pub(super) fn apply(state: &mut State, intent: &Intent) -> Result<Outcome, Autho
         | Intent::ImportLegacy(_)
         | Intent::ResolveLegacyQuarantine(_)
         | Intent::SaveOpening { .. }
+        | Intent::SaveCustomer(_)
         | Intent::SaveGodown { .. }
         | Intent::CountStock { .. }
         | Intent::SaveGstBill { .. }

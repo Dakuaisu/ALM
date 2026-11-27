@@ -6,6 +6,8 @@
 pub(crate) const NO_ITEM: &str = "Add at least one item with quantity";
 /// The HTML's toast for a missing or invalid amount; also what a refused amount reads as.
 pub(crate) const ENTER_AMOUNT: &str = "Enter amount";
+/// DEC-034: what a Manager reads for an Owner-only action.
+pub(crate) const OWNER_ONLY: &str = alm_core::permissions::OWNER_ONLY;
 const FALLBACK: &str = "That didn't work — check the entries and try again.";
 
 fn wording(token: &str) -> Option<&'static str> {

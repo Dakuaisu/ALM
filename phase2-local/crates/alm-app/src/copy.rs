@@ -97,8 +97,11 @@ pub fn rate_whatsapp_url(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command(async)]
 pub fn receipt_customer_search(state: State<'_, AppState>, q: String) -> Result<String, String> {
     let trial = lock(&state)?;
-    let role = trial.require_owner()?;
-    views::receipt_customer_options(&trial.posted, &trial.directory, role, &q)
+    let role = trial.require(alm_core::permissions::Capability::RecordReceipt)?;
+    // DEC-034: a Manager's balances come with its customers; the ledger is the Owner's.
+    let balances =
+        (role == alm_core::Role::Manager).then_some(trial.posted.lists.customers.as_slice());
+    views::receipt_customer_options(&trial.posted, &trial.directory, role, balances, &q)
         .map_err(|error: ConfirmationError| refusal(error))
 }
 

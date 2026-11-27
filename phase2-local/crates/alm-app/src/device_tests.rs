@@ -313,9 +313,10 @@ fn a_downgrade_seen_on_pull_purges_owner_data_and_blocks_owner_commands() {
             .all(|(path, _)| !path.to_string_lossy().contains("-owner.sqlite3")),
         "the Owner projection file is gone"
     );
-    // The Manager file holds the catalog and customer names, never contacts, balances or bills.
-    for needle in ["90000 00001", "12 Synthetic Lane", "Kanpur", "sale draft=1"] {
-        assert!(holds(&projections, needle).is_empty(), "{needle}");
+    // The Manager file holds no queued intent. DEC-034: it holds the customers' contacts.
+    assert!(holds(&projections, "sale draft=1").is_empty());
+    for needle in ["90000 00001", "12 Synthetic Lane", "Kanpur"] {
+        assert!(!holds(&projections, needle).is_empty(), "{needle}");
     }
     assert!(
         !holds(&projections, "Synthetic Customer").is_empty(),
@@ -662,9 +663,14 @@ fn a_manager_picks_customers_from_the_names_its_device_pulled() {
             ("batch1-market", "Synthetic Market")
         ]
     );
+    // DEC-034: the balances and contacts come with the customers.
     assert!(
-        stored.snapshot.customers.is_empty(),
-        "no balances or contacts"
+        stored
+            .snapshot
+            .customers
+            .iter()
+            .any(|c| c.mobile == "90000 00001"),
+        "balances and contacts"
     );
     let mut snapshot = stored.snapshot.clone();
     // DEC-034: the names-only picker is the fallback of a Manager without a book.

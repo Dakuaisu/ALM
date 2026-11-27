@@ -115,6 +115,9 @@ pub fn tabs(active: &str) -> String {
     if active == "expenses" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="cash_new">＋ Add Day Entry</button></template>"#;
     }
+    if active == "customers" {
+        html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="customer_edit" data-id="new">＋ Add Customer</button></template>"#;
+    }
     if active == "crates" {
         html += r#"<template id="screen-actions"><button type="button" class="btn primary" data-action="crate_new">＋ New Crate</button></template>"#;
     }
