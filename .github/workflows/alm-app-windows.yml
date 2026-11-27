@@ -1,6 +1,6 @@
 # Windows leg of the Tauri trial: runs the Rust tests and clippy, then builds the NSIS installer
-# with the Tauri CLI, installs it silently, launches the installed app minimized for a few
-# seconds (the process must stay up and create its app-data folder), uninstalls it silently, and
+# with the Tauri CLI, installs it silently, waits for the minimized app to write its device ID
+# while still running, uninstalls it silently, and
 # keeps the installer as the run's artifact. Print and real sharing on a Windows PC remain manual
 # checks. The alm-store test `milestone_d_replay` compares the bill output with the frozen
 # HTML (ALM_Business_Manager.html, read when the test runs), which is not in the repository, so
@@ -67,12 +67,35 @@ jobs:
           if (-not $app) { Get-ChildItem $dir -Recurse; throw "no installed app in $dir" }
           "installed: $($app.FullName) $($app.Length) bytes"
           $data = Join-Path $env:APPDATA 'in.alm.trial'
-          $run = Start-Process $app.FullName -WindowStyle Minimized -PassThru
-          Start-Sleep -Seconds 15
-          if ($run.HasExited) { throw "the app exited with code $($run.ExitCode)" }
-          "running: pid $($run.Id)"
-          Stop-Process -Id $run.Id -Force
-          if (-not (Test-Path (Join-Path $data 'device-id.txt'))) { Get-ChildItem $env:APPDATA; throw "no app-data folder at $data" }
+          $deviceId = Join-Path $data 'device-id.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP "alm-launch-$([guid]::NewGuid()).stderr.log"
+          $run = $null
+          try {
+            $run = Start-Process $app.FullName -WindowStyle Minimized -RedirectStandardError $stderr -PassThru
+            $clock = [System.Diagnostics.Stopwatch]::StartNew()
+            while (-not (Test-Path -LiteralPath $deviceId -PathType Leaf)) {
+              $remaining = 90000 - $clock.ElapsedMilliseconds
+              if ($remaining -le 0) { throw "timed out after 90 seconds waiting for $deviceId" }
+              if ($run.WaitForExit([int][Math]::Min(2000, $remaining))) {
+                throw "the app exited with code $($run.ExitCode) before readiness"
+              }
+            }
+            if ($run.HasExited) { throw "the app exited with code $($run.ExitCode) at readiness" }
+            "running: pid $($run.Id)"
+          } catch {
+            'App stderr:'
+            if (Test-Path -LiteralPath $stderr -PathType Leaf) {
+              Get-Content -LiteralPath $stderr -ErrorAction Continue
+            }
+            "APPDATA listing ($env:APPDATA):"
+            Get-ChildItem -LiteralPath $env:APPDATA -Force -ErrorAction Continue | ForEach-Object { $_.Name }
+            throw
+          } finally {
+            if ($run -and -not $run.HasExited) {
+              Stop-Process -InputObject $run -Force -ErrorAction SilentlyContinue
+              if (-not $run.WaitForExit(5000)) { throw "could not stop app pid $($run.Id)" }
+            }
+          }
           Get-ChildItem $data | ForEach-Object { "app data: $($_.Name)" }
           Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
           for ($i = 0; $i -lt 60 -and (Test-Path $app.FullName); $i++) { Start-Sleep -Seconds 1 }

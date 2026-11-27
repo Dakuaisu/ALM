@@ -3705,6 +3705,7 @@ The names below identify assertions changed or added within existing tests and r
 | Server checks | `46002565359` | Passed |
 | macOS and Android builds | `46002565372` | Passed |
 | Windows | `46002565353` | Failed in `confirmation_restart::Scratch::new` before the test assertion: Windows reported `Access is denied` (OS error 5) creating the scratch directory. A directory pending deletion can produce this error. Test-harness fix `14ed601` bounds the attempts and tries a fresh name on `AlreadyExists` or Windows `PermissionDenied`; unrelated errors still fail immediately. Targeted checks: 300 passed, 3 ignored. No product code or existing assertion changed. |
+| Windows installer at `a2aebcd` | [46044383592, attempt 1](https://github.com/Dakuaisu/ALM/actions/runs/46044383592/attempts/1) | The installed app was still running after 15 s, but `device-id.txt` was absent; the smoke step stopped before uninstall verification. The check now waits up to 90 s for the file while the app remains live. |
 
 | Smoke | Observed outcome |
 |---|---|
