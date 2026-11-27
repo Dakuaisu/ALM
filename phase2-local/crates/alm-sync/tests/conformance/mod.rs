@@ -1,7 +1,8 @@
 //! The authority conformance suite: one generic check per `SalesAuthority` command, run against
 //! every implementation. Each command must succeed once, return the original outcome to an
 //! identical retry, refuse reuse of its request ID with another intent, refuse stale reviewed
-//! terms where it has any, deny a Manager, and leave no effect (and no request record) on any
+//! terms where it has any, deny a Manager exactly where the DEC-034 matrix does (an allowed
+//! Manager runs the success path itself), and leave no effect (and no request record) on any
 //! rejection. Everything the suite needs it reads through `pull`, so it is seed-agnostic.
 #![allow(dead_code)]
 
@@ -110,6 +111,13 @@ fn created(outcome: Outcome) -> u64 {
     }
 }
 
+/// Whether the matrix lets a Manager run `intent` as the suite sends it: the suite's Cash Book
+/// day is not the shop's today, so a Manager's close of it stays an earlier-day denial.
+pub fn manager_may(intent: &Intent) -> bool {
+    alm_core::permissions::allows(Role::Manager, intent.capability())
+        && !matches!(intent, Intent::SaveCashDay { .. })
+}
+
 /// The common contract of one command. `effect` must be false before and true after.
 #[allow(clippy::too_many_arguments)]
 fn exercise<A: SalesAuthority>(
@@ -124,55 +132,66 @@ fn exercise<A: SalesAuthority>(
     let before = state(a);
     assert!(!effect(&before.1), "{case}: effect already present");
 
-    assert_eq!(
-        a.submit(Role::Manager, &req(case, "manager"), good),
-        Err(AuthorityError::Denied),
-        "{case}: Manager denied"
-    );
-    assert_eq!(state(a), before, "{case}: Manager denial left an effect");
+    // DEC-034: the role that runs the success path; a Manager-allowed command is run by the
+    // Manager, an Owner-only one is denied to it.
+    let actor = if manager_may(good) {
+        Role::Manager
+    } else {
+        assert_eq!(
+            a.submit(Role::Manager, &req(case, "manager"), good),
+            Err(AuthorityError::Denied),
+            "{case}: Manager denied"
+        );
+        assert_eq!(state(a), before, "{case}: Manager denial left an effect");
+        Role::Owner
+    };
 
     if let Some(stale) = stale {
         assert_eq!(
-            a.submit(Role::Owner, &req(case, "stale"), stale),
+            a.submit(actor, &req(case, "stale"), stale),
             Err(AuthorityError::StaleReview),
             "{case}: stale terms"
         );
         assert_eq!(state(a), before, "{case}: stale rejection left an effect");
-        assert_eq!(a.status(Role::Owner, &req(case, "stale")), Ok(None));
+        assert_eq!(a.status(actor, &req(case, "stale")), Ok(None));
     }
     if let Some(invalid) = invalid {
         let error = a
-            .submit(Role::Owner, &req(case, "invalid"), invalid)
+            .submit(actor, &req(case, "invalid"), invalid)
             .expect_err("invalid intent rejected");
         assert!(
             error.is_definite() && error != AuthorityError::Denied,
             "{case}: definite rejection, got {error:?}"
         );
         assert_eq!(state(a), before, "{case}: rejection left a partial effect");
-        assert_eq!(a.status(Role::Owner, &req(case, "invalid")), Ok(None));
+        assert_eq!(a.status(actor, &req(case, "invalid")), Ok(None));
     }
 
     let first = a
-        .submit(Role::Owner, &req(case, "1"), good)
-        .unwrap_or_else(|e| panic!("{case}: success, got {e:?}"));
+        .submit(actor, &req(case, "1"), good)
+        .unwrap_or_else(|e| panic!("{case}: success as {actor:?}, got {e:?}"));
     let after = state(a);
     assert!(after.0 > before.0, "{case}: checkpoint advances");
     assert!(effect(&after.1), "{case}: effect visible");
 
     assert_eq!(
-        a.submit(Role::Owner, &req(case, "1"), good),
+        a.submit(actor, &req(case, "1"), good),
         Ok(first),
         "{case}: identical retry returns the original outcome"
     );
     assert_eq!(state(a), after, "{case}: retry had a second effect");
+    assert_eq!(a.status(actor, &req(case, "1")), Ok(Some(first)));
     assert_eq!(a.status(Role::Owner, &req(case, "1")), Ok(Some(first)));
-    assert_eq!(
-        a.status(Role::Manager, &req(case, "1")),
-        Err(AuthorityError::Denied)
-    );
+    if actor == Role::Owner {
+        assert_eq!(
+            a.status(Role::Manager, &req(case, "1")),
+            Err(AuthorityError::Denied),
+            "{case}: a Manager cannot read the Owner's outcome"
+        );
+    }
 
     assert_eq!(
-        a.submit(Role::Owner, &req(case, "1"), other),
+        a.submit(actor, &req(case, "1"), other),
         Err(AuthorityError::Conflict),
         "{case}: conflicting reuse"
     );
@@ -1503,7 +1522,7 @@ pub fn import_gst_bill<A: SalesAuthority>(a: &mut A) {
 
 /// An unknown outcome resolves by lookup against the stored intent, with no effect: nothing
 /// committed before the first send, the original outcome after it, and another intent under
-/// the same request is reported, never run. A Manager is denied.
+/// the same request is reported, never run. DEC-034: a Manager looks up only its own requests.
 pub fn lookup<A: SalesAuthority>(a: &mut A) {
     let w = world(a);
     let good = sale(&w, 151, 1, w.sell);
@@ -1516,10 +1535,25 @@ pub fn lookup<A: SalesAuthority>(a: &mut A) {
     );
     assert_eq!(
         a.lookup(Role::Manager, &request, &good),
-        Err(AuthorityError::Denied)
+        Ok(alm_sync::Lookup::NotCommitted)
     );
     assert_eq!(state(a), before, "lookup has no effect");
     let first = a.submit(Role::Owner, &request, &good).unwrap();
+    let committed = state(a);
+    assert_eq!(
+        a.lookup(Role::Manager, &request, &good),
+        Err(AuthorityError::Denied),
+        "a Manager cannot look up the Owner's request"
+    );
+    assert_eq!(state(a), committed, "the denied lookup has no effect");
+    let mine = req("lookup", "manager");
+    let manager_sale = sale(&w, 152, 1, w.sell);
+    let receipt = a.submit(Role::Manager, &mine, &manager_sale).unwrap();
+    assert_eq!(
+        a.lookup(Role::Manager, &mine, &manager_sale),
+        Ok(alm_sync::Lookup::Committed(receipt)),
+        "a Manager looks up its own request"
+    );
     let after = state(a);
     assert_eq!(
         a.lookup(Role::Owner, &request, &good),

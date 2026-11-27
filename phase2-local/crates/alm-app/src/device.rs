@@ -131,7 +131,7 @@ impl Trial {
     /// Stores `intent` with a new request ID, then sends it. An intent already waiting with an
     /// unknown outcome is never sent again under a new ID: it is checked or retried as it is.
     pub(crate) fn send(&mut self, intent: &Intent) -> Result<Outcome, String> {
-        let role = self.require_owner()?;
+        let role = self.require(intent.capability())?;
         let canonical = intent.canonical();
         if let Some(entry) = self
             .outbox
@@ -188,7 +188,19 @@ impl Trial {
 
     /// An explicit retry of an unresolved intent, with its original request ID and intent.
     pub(crate) fn retry(&mut self, request: &str) -> Result<Outcome, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::RequestStatus)?;
+        self.require(
+            Intent::parse(
+                &self
+                    .outbox
+                    .get(request)
+                    .map_err(text)?
+                    .ok_or("Nothing to retry.")?
+                    .intent,
+            )
+            .ok_or("The stored intent is unreadable.")?
+            .capability(),
+        )?;
         let entry = self
             .outbox
             .get(request)

@@ -1,7 +1,7 @@
 -- Catalog checks for a public repository (migration 20261202000000): no public table without
 -- row level security, no table or sequence privilege for anon or authenticated, nothing anon
 -- may call, every function authenticated may call SECURITY DEFINER with an empty search_path
--- and the role check as its first statement, and no dynamic SQL built from text without
+-- and the role check as its first statement (DEC-034: the permission matrix check), and no dynamic SQL built from text without
 -- format('%I'/'%L') or parameters. Each check is then shown to catch a planted violation.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -45,7 +45,7 @@ $$;
 create function pg_temp.check_not_first() returns setof text language sql as $$
     select f::text from pg_temp.app_functions()
     where has_function_privilege('authenticated', f, 'execute')
-        and src !~* '^\s*begin\s+perform\s+alm_private\.require_(owner|member)\(\)\s*;'
+        and src !~* '^\s*begin\s+perform\s+alm_private\.require_(owner\(\)|member\(\)|permission\(''[a-z_]+''\))\s*;'
     order by 1
 $$;
 

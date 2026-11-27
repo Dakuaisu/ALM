@@ -1,4 +1,5 @@
--- Every SalesAuthority function: Owner allowed, Manager and no-role callers denied, stale and
+-- Every SalesAuthority function: Owner allowed, Manager allowed or denied as the DEC-034 matrix
+-- says (an allowed Manager call runs in a rolled-back probe), no-role callers denied, stale and
 -- invalid terms rejected with no partial effect, identical retry returning the original
 -- outcome (also through request_status), conflicting reuse rejected; the projection pull is
 -- role-filtered and incremental; client roles reach functions only. Calls run as the
@@ -23,7 +24,8 @@ declare
     v jsonb;
 begin
     perform set_config('request.jwt.claims', case when p_role is null then ''
-        else jsonb_build_object('app_metadata', jsonb_build_object('role', p_role))::text end, true);
+        else jsonb_build_object('sub', 'tap-' || p_role,
+            'app_metadata', jsonb_build_object('role', p_role))::text end, true);
     execute 'set local role authenticated';
     execute p_sql into v;
     execute 'reset role';
@@ -50,6 +52,21 @@ begin
 end;
 $$;
 
+-- Runs `p_sql` as a Manager and rolls it back: 'committed' when it ran, else its SQLSTATE.
+create function pg_temp.manager_probe(p_sql text)
+returns text
+language plpgsql
+as $$
+begin
+    begin
+        perform pg_temp.call('manager', p_sql);
+        raise exception 'probe' using errcode = 'ALM99';
+    exception when others then
+        return case when sqlstate = 'ALM99' then 'committed' else sqlstate end;
+    end;
+end;
+$$;
+
 create function pg_temp.fn_sql(p_fn text, p_request text, p_terms jsonb)
 returns text
 language sql
@@ -58,7 +75,7 @@ as $$ select format('select public.%s(%L, %L::jsonb)', p_fn, p_request, p_terms)
 -- The common battery for one command function.
 create function pg_temp.battery(
     p_tag text, p_fn text, p_good jsonb, p_other jsonb,
-    p_stale jsonb, p_invalid jsonb, p_invalid_code text)
+    p_stale jsonb, p_invalid jsonb, p_invalid_code text, p_manager boolean default false)
 returns setof text
 language plpgsql
 as $$
@@ -68,8 +85,13 @@ declare
     v_before text := pg_temp.digest();
     v_first jsonb;
 begin
-    return next throws_ok(format('select pg_temp.call(%L, %L)', 'manager', v_good), 'ALM06', null,
-        p_tag || ': a Manager is denied');
+    if p_manager then
+        return next is(pg_temp.manager_probe(v_good), 'committed',
+            p_tag || ': a Manager may run it (DEC-034)');
+    else
+        return next throws_ok(format('select pg_temp.call(%L, %L)', 'manager', v_good), 'ALM06',
+            null, p_tag || ': a Manager is denied');
+    end if;
     return next throws_ok(format('select pg_temp.call(null, %L)', v_good), 'ALM06', null,
         p_tag || ': a caller without a role claim is denied');
     return next is(pg_temp.digest(), v_before, p_tag || ': denials leave no effect');
@@ -95,7 +117,7 @@ begin
         v_first, p_tag || ': request_status returns the committed outcome');
     return next throws_ok(format('select pg_temp.call(%L, %L)', 'manager',
         format('select public.request_status(%L)', v_request)), 'ALM06', null,
-        p_tag || ': a Manager cannot read the outcome');
+        p_tag || ': a Manager cannot read the Owner''s outcome');
     return next throws_ok(format('select pg_temp.call(%L, %L)', 'owner',
         pg_temp.fn_sql(p_fn, v_request, p_other)), 'ALM01', null,
         p_tag || ': reusing the request ID with other terms is a conflict');
@@ -108,13 +130,13 @@ select * from pg_temp.battery('post-sale', 'post_sale',
     '{"draft_id": "p1", "lines": [{"product_id": 1, "quantity": 3, "unit_price_minor": 12050}], "customer_id": "c1", "customer": "Synthetic Customer", "date": "2025-04-30", "paid_minor": 2000}',
     '{"draft_id": "p2", "lines": [{"product_id": 1, "quantity": 1, "unit_price_minor": 12051}]}',
     '{"draft_id": "p3", "lines": [{"product_id": 1, "quantity": 999, "unit_price_minor": 12050}], "customer_id": "c1", "customer": "Synthetic Customer", "date": "2025-04-30"}',
-    'ALM04');
+    'ALM04', true);
 select is((select stock from public.products where id = 1), 48, 'the sale took 2 from stock');
 select is((select cost_minor from public.sale_lines), 14000::bigint, 'the sale line keeps its FIFO cost');
 
 select * from pg_temp.battery('cancel-sale', 'set_sale_cancelled',
     '{"draft_id": "p1", "cancel": true}', '{"draft_id": "p1", "cancel": false}', null,
-    '{"draft_id": "zz", "cancel": true}', 'ALM07');
+    '{"draft_id": "zz", "cancel": true}', 'ALM07', true);
 select is((select stock from public.products where id = 1), 50, 'cancelling returned the stock');
 select * from pg_temp.battery('restore-sale', 'set_sale_cancelled',
     '{"draft_id": "p1", "cancel": false}', '{"draft_id": "p1", "cancel": true}', null,
@@ -123,12 +145,12 @@ select * from pg_temp.battery('edit-sale', 'edit_sale',
     '{"draft_id": "p1", "lines": [{"quantity": 3, "rate_minor": 12050}]}',
     '{"draft_id": "p1", "lines": [{"quantity": 4, "rate_minor": 12050}]}', null,
     '{"draft_id": "p1", "lines": [{"quantity": 3, "rate_minor": 12050}, {"quantity": 1, "rate_minor": 1}]}',
-    'ALM05');
+    'ALM05', true);
 select is((select total_minor from public.sales where draft_id = 'p1'), 36150::bigint, 'the edit re-totals the bill');
 select * from pg_temp.battery('receipt', 'record_receipt',
     '{"customer_id": "c1", "date": "2025-04-30", "amount_minor": 1000, "online": true}',
     '{"customer_id": "c1", "date": "2025-04-30", "amount_minor": 2000, "online": true}', null,
-    '{"customer_id": "nobody", "date": "2025-04-30", "amount_minor": 1000, "online": true}', 'ALM07');
+    '{"customer_id": "nobody", "date": "2025-04-30", "amount_minor": 1000, "online": true}', 'ALM07', true);
 select * from pg_temp.battery('cash-day', 'save_cash_day',
     '{"id": null, "date": "2025-04-30", "amounts": {"cash": 2500, "paytm": 0, "phonepe": 0, "goods": 0, "misc": 0, "salary": 0, "debt": 0}}',
     '{"id": null, "date": "2025-04-30", "amounts": {"cash": 2600, "paytm": 0, "phonepe": 0, "goods": 0, "misc": 0, "salary": 0, "debt": 0}}',
@@ -181,7 +203,7 @@ select is((select ordered - received - closed from public.purchase_lines where p
 select * from pg_temp.battery('crate', 'save_crate',
     '{"id": null, "name": "Tap Crate", "price_minor": 40000, "components": [{"product_id": 1, "quantity": 2, "piece": false}]}',
     '{"id": null, "name": "Tap Crate", "price_minor": 41000, "components": [{"product_id": 1, "quantity": 2, "piece": false}]}',
-    null, '{"id": null, "name": "Tap Crate", "price_minor": 40000, "components": []}', 'ALM05');
+    null, '{"id": null, "name": "Tap Crate", "price_minor": 40000, "components": []}', 'ALM05', true);
 select * from pg_temp.battery('crate-delete', 'delete_crate',
     '{"id": 1}', '{"id": 2}', null, '{"id": 99}', 'ALM07');
 select * from pg_temp.battery('opening', 'save_opening',
@@ -191,13 +213,13 @@ select * from pg_temp.battery('opening', 'save_opening',
 select * from pg_temp.battery('godown', 'save_godown',
     '{"item": "Tap Soda", "cases": "9", "note": "back room"}',
     '{"item": "Tap Soda", "cases": "10", "note": "back room"}', null,
-    '{"item": "Tap Soda", "cases": "1.5", "note": ""}', 'ALM05');
+    '{"item": "Tap Soda", "cases": "1.5", "note": ""}', 'ALM05', true);
 select * from pg_temp.battery('count', 'count_stock',
     '{"product_id": 2, "counted": 41, "fridge": 2, "date": "2025-05-02", "reason": "damage", "note": "tap", "on_hand": 44}',
     '{"product_id": 2, "counted": 40, "fridge": 2, "date": "2025-05-02", "reason": "damage", "note": "tap", "on_hand": 44}',
     '{"product_id": 2, "counted": 41, "fridge": 2, "date": "2025-05-02", "reason": "damage", "note": "tap", "on_hand": 45}',
     '{"product_id": 99, "counted": 1, "fridge": null, "date": "2025-05-02", "reason": null, "note": null, "on_hand": 1}',
-    'ALM07');
+    'ALM07', true);
 
 -- GST numbers: allocated by the authority, Owner only, idempotent per bill.
 select throws_ok($$ select pg_temp.call('manager', 'select to_jsonb(public.allocate_gst_bill_number(''gst-50''))') $$,

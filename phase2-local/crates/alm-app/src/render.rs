@@ -13,12 +13,27 @@ impl Trial {
                 + &views::session_header(None, Some(&config.url))
                 + &crate::dev_authority::login_screen(config, &self.message));
         }
+        // DEC-034: a screen the role may not open is refused before anything is read for it.
+        let blocked = crate::session_policy::screen(tab).filter(|capability| {
+            tab != "review" && !alm_core::permissions::allows(self.role(), *capability)
+        });
         let body = match tab {
             _ if self.revoked => format!(
                 r#"<div class="card" role="alert"><b>{}</b><div class="help">Nothing of this account is kept on the device. Choose another account:</div></div>{}"#,
                 crate::trial::REVOKED,
                 self.account_pills()
             ),
+            _ if blocked.is_some() => views::denied(match tab {
+                "dashboard" => "Dashboard",
+                "gstsales" => "GST Sales",
+                "gst" => "GST invoice",
+                "products" => "Products",
+                "suppliers" => "Suppliers",
+                "order" => "Order Planner",
+                "reports" => "Reports",
+                "poprint" => "the purchase order print",
+                _ => "this screen",
+            }),
             "customers" => {
                 let stored = self.projected()?;
                 self.freshness(&stored)?

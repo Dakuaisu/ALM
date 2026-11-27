@@ -50,7 +50,11 @@ fn request(text: &str) -> RequestId {
 }
 
 fn seeded() -> LocalAuthority {
-    LocalAuthority::new(fixture().unwrap(), directory()).with_clock(|| 1_700_000_000_000)
+    let mut authority =
+        LocalAuthority::new(fixture().unwrap(), directory()).with_clock(|| 1_700_000_000_000);
+    authority.set_role_caller(Role::Owner, "local-device", "local-owner");
+    authority.set_role_caller(Role::Manager, "local-device", "local-manager");
+    authority
 }
 
 #[test]
@@ -76,9 +80,15 @@ fn identical_retry_returns_the_original_receipt_and_reuse_conflicts() {
         authority.post_sale(Role::Owner, &request("trial-2"), &intent),
         Err(AuthorityError::AlreadyPosted)
     );
+    // DEC-034: a Manager posts through the same idempotent path.
+    let manager = sale(&authority, 2, 1);
+    let posted = authority
+        .post_sale(Role::Manager, &request("trial-3"), &manager)
+        .unwrap();
+    assert_eq!(posted.invoice, 2);
     assert_eq!(
-        authority.post_sale(Role::Manager, &request("trial-3"), &sale(&authority, 2, 1)),
-        Err(AuthorityError::Denied)
+        authority.post_sale(Role::Manager, &request("trial-3"), &manager),
+        Ok(posted)
     );
 }
 

@@ -229,7 +229,8 @@ fn setup(seed: u64) -> (Run, Vec<Template>) {
     .unwrap();
     let mut local = LocalAuthority::new(shop, alm_core::confirmation::demo_fixture::directory())
         .with_clock(|| 1_700_000_000_000);
-    local.set_caller("diff-device", "diff-account");
+    local.set_caller("diff-device", "diff-owner");
+    local.set_role_caller(Role::Manager, "diff-device", "diff-manager");
     let pg = PgAuthority::connect(&local);
     let mut run = Run {
         seed,

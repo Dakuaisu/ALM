@@ -107,6 +107,7 @@ suite() {
 }
 
 suite -p alm-sync --test conformance_postgres
+suite -p alm-sync --test permission_matrix
 suite -p alm-sync --test differential_postgres
 # shellcheck disable=SC2086
 echo "== -p alm-sync --test randomized" && cargo test $flags -p alm-sync --test randomized -- --nocapture

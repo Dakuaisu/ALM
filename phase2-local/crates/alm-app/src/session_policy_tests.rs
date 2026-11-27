@@ -222,13 +222,37 @@ fn protected_commands_are_denied_when_signed_out_or_revoked() {
         auth: String::new(),
         apikey: String::new(),
     });
-    assert!(authorize(&trial, Access::Session).is_err());
-    assert!(authorize(&trial, Access::Owner).is_err());
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::NewBill)
+        )
+        .is_err()
+    );
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::Settings)
+        )
+        .is_err()
+    );
     assert!(authorize(&trial, Access::Public).is_ok());
     trial.rest_config = None;
     trial.revoked = true;
-    assert!(authorize(&trial, Access::Session).is_err());
-    assert!(authorize(&trial, Access::Owner).is_err());
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::NewBill)
+        )
+        .is_err()
+    );
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::Settings)
+        )
+        .is_err()
+    );
     assert!(authorize(&trial, Access::Switch).is_ok());
 }
 
@@ -237,10 +261,28 @@ fn simulation_roles_and_switch_are_separate_from_real_sessions() {
     let root = Root::new("policy-simulation");
     let mut trial = Trial::open(&root.0, Some(day())).unwrap();
     assert!(authorize(&trial, Access::Simulation).is_ok());
-    assert!(authorize(&trial, Access::Owner).is_ok());
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::Settings)
+        )
+        .is_ok()
+    );
     trial.owner = false;
-    assert!(authorize(&trial, Access::Session).is_ok());
-    assert!(authorize(&trial, Access::Owner).is_err());
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::NewBill)
+        )
+        .is_ok()
+    );
+    assert!(
+        authorize(
+            &trial,
+            Access::Gate(alm_core::permissions::Capability::Settings)
+        )
+        .is_err()
+    );
     trial.rest_config = Some(RestConfig {
         url: String::new(),
         auth: String::new(),
@@ -295,4 +337,92 @@ fn the_bundle_is_ad_hoc_signed_and_lists_existing_resources_only() {
     let root = Root::new("policy-bundle");
     let trial = Trial::open(&root.0, Some(day())).unwrap();
     assert!(trial.outputs.starts_with(&root.0));
+}
+
+/// DEC-034: every registered command, for both roles, is allowed or denied exactly as the
+/// matrix row of its capability says; every screen tab likewise.
+#[test]
+fn every_app_command_and_screen_follows_the_matrix_for_both_roles() {
+    use alm_core::Role;
+    use alm_core::permissions::{Capability, allows};
+    let registered = include_str!("lib.rs")
+        .split("= tauri::generate_handler![")
+        .nth(1)
+        .unwrap()
+        .split("];")
+        .next()
+        .unwrap();
+    let root = Root::new("policy-matrix");
+    let mut trial = Trial::open(&root.0, Some(day())).unwrap();
+    let mut walked = std::collections::BTreeSet::new();
+    for role in [Role::Owner, Role::Manager] {
+        trial.owner = role == Role::Owner;
+        for name in registered
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| name.rsplit("::").next().unwrap())
+        {
+            let Some(Access::Gate(capability)) = classify(name) else {
+                continue;
+            };
+            walked.insert(capability);
+            assert_eq!(
+                authorize(&trial, Access::Gate(capability)).is_ok(),
+                allows(role, capability),
+                "{role:?} {name} ({capability:?})"
+            );
+        }
+        for tab in [
+            "bill",
+            "review",
+            "sales",
+            "counter",
+            "customers",
+            "receipt",
+            "expenses",
+            "dashboard",
+            "reorder",
+            "stock",
+            "godown",
+            "gstsales",
+            "gst",
+            "products",
+            "suppliers",
+            "order",
+            "purchases",
+            "crates",
+            "ratelist",
+            "rateprint",
+            "reports",
+            "settings",
+            "estimate",
+            "poprint",
+        ] {
+            let capability = crate::session_policy::screen(tab).unwrap();
+            walked.insert(capability);
+            assert_eq!(
+                trial.require(capability).is_ok(),
+                allows(role, capability),
+                "{role:?} tab {tab}"
+            );
+        }
+    }
+    // Screens and device actions of the matrix all have a command or a tab, except the ones
+    // the app does not offer yet and the Cash Book history, which the Cash Book screen gates.
+    for row in alm_core::permissions::MATRIX {
+        let device_only = row.sql.is_empty();
+        let not_offered = matches!(
+            row.capability,
+            Capability::ClearAll
+                | Capability::ActivityLog
+                | Capability::SaveCustomer
+                | Capability::CashBookHistory
+        );
+        assert!(
+            !device_only || not_offered || walked.contains(&row.capability),
+            "{:?} has no command or screen",
+            row.capability
+        );
+    }
 }

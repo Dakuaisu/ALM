@@ -501,6 +501,13 @@ pub fn activity_time(ms: u64, utc_offset_minutes: i32) -> String {
     )
 }
 
+/// The shop's calendar day (Asia/Kolkata, UTC+05:30) at `ms` since the Unix epoch: the day a
+/// Manager's Cash Book close must be for (DEC-034), as the SQL `alm_private.shop_today()`.
+pub fn shop_today(ms: u64) -> Option<BillDate> {
+    let seconds = i64::try_from(ms / 1000).ok()? + 330 * 60;
+    civil_date(seconds.div_euclid(86_400))
+}
+
 /// The civil date `days` after 1970-01-01 (proleptic Gregorian).
 pub(crate) fn civil_date(days: i64) -> Option<BillDate> {
     let z = days + 719_468;

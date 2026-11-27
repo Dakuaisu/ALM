@@ -61,6 +61,8 @@ pub struct LocalAuthority {
     directory: BillingDirectory,
     /// request ID → (canonical intent, canonical outcome).
     requests: BTreeMap<String, (String, String)>,
+    /// request ID → the account that sent it (a Manager sees only its own, DEC-034).
+    senders: BTreeMap<String, String>,
     checkpoint: u64,
     journal: Option<PathBuf>,
     clock: fn() -> u64,
@@ -70,6 +72,9 @@ pub struct LocalAuthority {
     /// The device and account the next commands come from (a server reads them from the
     /// request and its token).
     caller: (String, String),
+    /// The device and account each role's commands come from (Owner, Manager): the
+    /// simulation stands in for two people's devices.
+    callers: [(String, String); 2],
     /// The change history pulls are answered from (rebuilt from scratch after a restart).
     changes: std::sync::Mutex<crate::delta::Tracker>,
 }
@@ -106,12 +111,14 @@ impl LocalAuthority {
             },
             directory,
             requests: BTreeMap::new(),
+            senders: BTreeMap::new(),
             checkpoint: 0,
             journal: None,
             clock: system_clock,
             lose_next: false,
             granted: Some(Role::Owner),
             caller: (String::new(), String::new()),
+            callers: Default::default(),
             changes: std::sync::Mutex::new(crate::delta::Tracker::default()),
         }
     }
@@ -233,6 +240,17 @@ impl LocalAuthority {
     pub fn set_caller(&mut self, device: &str, account: &str) {
         let clean = |t: &str| t.replace(['\t', '\n', '\r'], " ");
         self.caller = (clean(device), clean(account));
+        self.callers = [self.caller.clone(), self.caller.clone()];
+    }
+
+    /// The device and account the next commands sent as `role` come from.
+    pub fn set_role_caller(&mut self, role: Role, device: &str, account: &str) {
+        let clean = |t: &str| t.replace(['\t', '\n', '\r'], " ");
+        self.callers[usize::from(role == Role::Manager)] = (clean(device), clean(account));
+    }
+
+    fn caller_of(&self, role: Role) -> &(String, String) {
+        &self.callers[usize::from(role == Role::Manager)]
     }
 
     /// Simulates a lost response: the next command commits but its reply is dropped.
@@ -329,6 +347,8 @@ impl LocalAuthority {
             request.as_str().to_owned(),
             (canonical, outcome.canonical()),
         );
+        self.senders
+            .insert(request.as_str().to_owned(), self.caller.1.clone());
         self.checkpoint += 1;
         Ok(outcome)
     }

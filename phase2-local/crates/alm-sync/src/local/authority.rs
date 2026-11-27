@@ -1,9 +1,62 @@
-//! The simulation as a `SalesAuthority`: the Owner gate, the journal and the lost-response hook.
+//! The simulation as a `SalesAuthority`: the DEC-034 matrix gate and Manager limits (as the
+//! SQL `require_permission` and `manager_limits`), the journal and the lost-response hook.
 use alm_core::Role;
+use alm_core::permissions::{self, Capability};
 use alm_core::projection::ProjectionBatch;
 
 use super::{LocalAuthority, rejected};
 use crate::{AuthorityError, Intent, Lookup, Outcome, RequestId, SalesAuthority, wire};
+
+impl LocalAuthority {
+    /// The role the authority grants for a call claiming `role`: never more than either.
+    pub(super) const fn effective(&self, role: Role) -> Result<Role, AuthorityError> {
+        match (self.granted, role) {
+            (None, _) => Err(AuthorityError::Denied),
+            (Some(Role::Manager), _) | (_, Role::Manager) => Ok(Role::Manager),
+            (Some(Role::Owner), Role::Owner) => Ok(Role::Owner),
+        }
+    }
+
+    fn gate(&self, role: Role, capability: Capability) -> Result<Role, AuthorityError> {
+        let role = self.effective(role)?;
+        if permissions::allows(role, capability) {
+            Ok(role)
+        } else {
+            Err(AuthorityError::Denied)
+        }
+    }
+
+    /// A Manager sees only the requests its own account sent; `false` when unknown.
+    fn known_to(&self, role: Role, request: &RequestId) -> Result<bool, AuthorityError> {
+        match self.senders.get(request.as_str()) {
+            None => Ok(false),
+            Some(sender) if role == Role::Owner || *sender == self.caller_of(role).1 => Ok(true),
+            Some(_) => Err(AuthorityError::Denied),
+        }
+    }
+
+    /// The Manager's narrower rules on shared commands. A retry of its own stored request
+    /// replays as stored.
+    fn manager_limits(&self, request: &RequestId, intent: &Intent) -> Result<(), AuthorityError> {
+        if self.known_to(Role::Manager, request)? {
+            return Ok(());
+        }
+        if let Intent::SaveCashDay { date, .. } = intent {
+            let today = alm_core::projection::shop_today((self.clock)());
+            let closed = self
+                .state
+                .cashbook
+                .rows(Role::Owner)
+                .map_err(rejected)?
+                .iter()
+                .any(|row| row.date == *date);
+            if today != Some(*date) || closed {
+                return Err(AuthorityError::Denied);
+            }
+        }
+        Ok(())
+    }
+}
 
 impl SalesAuthority for LocalAuthority {
     fn submit(
@@ -12,8 +65,25 @@ impl SalesAuthority for LocalAuthority {
         request: &RequestId,
         intent: &Intent,
     ) -> Result<Outcome, AuthorityError> {
-        if role != Role::Owner || self.granted != Some(Role::Owner) {
-            return Err(AuthorityError::Denied);
+        self.caller = self.caller_of(role).clone();
+        if self.effective(role)? == Role::Manager {
+            // As SQL: the function's matrix row first, then the Manager's own stored request
+            // replays (or conflicts) as stored, else the capability and its limits apply.
+            let functions = permissions::sql_functions();
+            let shared = permissions::rule(intent.capability()).sql.iter().any(|f| {
+                functions
+                    .iter()
+                    .any(|(name, manager)| name == f && *manager)
+            });
+            if !shared {
+                return Err(AuthorityError::Denied);
+            }
+            if !self.known_to(Role::Manager, request)? {
+                self.gate(Role::Manager, intent.capability())?;
+                self.manager_limits(request, intent)?;
+            }
+        } else {
+            self.gate(role, intent.capability())?;
         }
         let known = self.requests.contains_key(request.as_str());
         let stamp = (self.clock)();
@@ -34,8 +104,9 @@ impl SalesAuthority for LocalAuthority {
     }
 
     fn status(&self, role: Role, request: &RequestId) -> Result<Option<Outcome>, AuthorityError> {
-        if role != Role::Owner || self.granted != Some(Role::Owner) {
-            return Err(AuthorityError::Denied);
+        let role = self.gate(role, Capability::RequestStatus)?;
+        if !self.known_to(role, request)? {
+            return Ok(None);
         }
         Ok(self
             .requests
@@ -49,8 +120,9 @@ impl SalesAuthority for LocalAuthority {
         request: &RequestId,
         intent: &Intent,
     ) -> Result<Lookup, AuthorityError> {
-        if role != Role::Owner || self.granted != Some(Role::Owner) {
-            return Err(AuthorityError::Denied);
+        let role = self.gate(role, Capability::RequestLookup)?;
+        if !self.known_to(role, request)? {
+            return Ok(Lookup::NotCommitted);
         }
         Ok(match self.requests.get(request.as_str()) {
             None => Lookup::NotCommitted,
@@ -62,9 +134,7 @@ impl SalesAuthority for LocalAuthority {
     }
 
     fn allocate_gst_number(&mut self, role: Role, bill_id: &str) -> Result<u64, AuthorityError> {
-        if role != Role::Owner || self.granted != Some(Role::Owner) {
-            return Err(AuthorityError::Denied);
-        }
+        let role = self.gate(role, Capability::AllocateGstNumber)?;
         if bill_id.is_empty() || bill_id.len() > 64 || bill_id.contains(['\t', '\n']) {
             return Err(AuthorityError::Invalid);
         }
@@ -91,11 +161,7 @@ impl SalesAuthority for LocalAuthority {
 
     fn pull(&self, role: Role, checkpoint: Option<u64>) -> Result<ProjectionBatch, AuthorityError> {
         // The authority answers with the role it grants now, never more than asked for.
-        let role = match (self.granted, role) {
-            (None, _) => return Err(AuthorityError::Denied),
-            (Some(Role::Manager), _) | (_, Role::Manager) => Role::Manager,
-            (Some(Role::Owner), Role::Owner) => Role::Owner,
-        };
+        let role = self.gate(role, Capability::Pull)?;
         let requested = role;
         let snapshot = if checkpoint == Some(self.checkpoint) {
             None

@@ -9,7 +9,10 @@ use alm_sync::LocalAuthority;
 fn local() -> Option<LocalAuthority> {
     let mut shop = fixture().unwrap();
     seed_purchasing(&mut shop).unwrap();
-    Some(LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000))
+    let mut authority = LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000);
+    authority.set_role_caller(alm_core::Role::Owner, "conf-device", "conf-owner");
+    authority.set_role_caller(alm_core::Role::Manager, "conf-device", "conf-manager");
+    Some(authority)
 }
 
 conformance_tests!(local());

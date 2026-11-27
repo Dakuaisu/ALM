@@ -223,7 +223,7 @@ impl PgAuthority {
         client
             .batch_execute("SAVEPOINT call")
             .map_err(|_| AuthorityError::Unavailable)?;
-        let claims = json!({"sub": "diff-account",
+        let claims = json!({"sub": format!("diff-{}", wire::role_claim(role)),
             "app_metadata": {"role": wire::role_claim(role)}})
         .to_string();
         client

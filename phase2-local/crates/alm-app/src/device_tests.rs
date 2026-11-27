@@ -298,9 +298,10 @@ fn a_downgrade_seen_on_pull_purges_owner_data_and_blocks_owner_commands() {
     let page = trial.render("sales").unwrap();
     assert_eq!(trial.role(), Role::Manager);
     assert!(page.contains("no longer an Owner"), "{page}");
+    // DEC-034: cancelling is a Manager command now; restoring stays the Owner's.
     assert!(
         trial
-            .send(&Intent::CancelSale {
+            .send(&Intent::RestoreSale {
                 draft: alm_core::DraftId::new(1)
             })
             .is_err()
@@ -342,9 +343,10 @@ fn a_revocation_seen_on_pull_purges_the_account_and_blocks_every_command() {
     assert!(page.contains("revoked"), "{page}");
     assert!(!page.contains('₹'), "{page}");
     assert!(trial.require_owner().is_err());
+    // DEC-034: cancelling is a Manager command now; restoring stays the Owner's.
     assert!(
         trial
-            .send(&Intent::CancelSale {
+            .send(&Intent::RestoreSale {
                 draft: alm_core::DraftId::new(1)
             })
             .is_err()

@@ -9,6 +9,7 @@ pub mod draft_entry;
 mod draft_store;
 mod drafts;
 pub mod legacy;
+pub mod permissions;
 pub mod preferences;
 pub mod projection;
 pub mod provisional_preview;
@@ -121,7 +122,7 @@ pub enum RupeesError {
 pub enum Role {
     /// All operations available in this slice, including total profit.
     Owner,
-    /// Provisional draft operations only.
+    /// The DEC-034 subset in [`permissions::MATRIX`]: bills, payments and stock work, no costs.
     Manager,
 }
 

@@ -131,6 +131,43 @@ pub enum Intent {
     },
 }
 
+impl Intent {
+    /// The DEC-034 matrix row this intent needs ([`alm_core::permissions::MATRIX`]).
+    pub const fn capability(&self) -> alm_core::permissions::Capability {
+        use alm_core::permissions::Capability as C;
+        match self {
+            Self::PostSale(_) => C::PostSale,
+            Self::SellCrate(_) => C::SellCrate,
+            Self::CancelSale { .. } => C::CancelSale,
+            Self::RestoreSale { .. } => C::RestoreSale,
+            Self::EditSale { .. } => C::EditSale,
+            Self::RecordReceipt { .. } => C::RecordReceipt,
+            Self::SaveCashDay { id: None, .. } => C::CloseCashDay,
+            Self::SaveCashDay { id: Some(_), .. } => C::EditCashDay,
+            Self::DeleteCashDay { .. } => C::DeleteCashDay,
+            Self::SaveProduct(_) => C::SaveProduct,
+            Self::DeleteProduct { .. } => C::DeleteProduct,
+            Self::AddSupplier { .. } => C::AddSupplier,
+            Self::SetSupplierPrices { .. } => C::SetSupplierPrices,
+            Self::SavePurchaseOrder(_) => C::SavePurchaseOrder,
+            Self::ReceivePurchaseOrder { .. } => C::ReceiveGoodsAtRates,
+            Self::ClosePurchaseOrder { .. } => C::ClosePurchaseOrder,
+            Self::SaveCrate(_) => C::SaveCrate,
+            Self::DeleteCrate { .. } => C::DeleteCrate,
+            Self::SetReorderDefault { .. } => C::SetReorderDefault,
+            Self::RecordRestore => C::RecordRestore,
+            Self::ImportLegacy(_) => C::ImportLegacy,
+            Self::ResolveLegacyQuarantine(_) => C::ResolveLegacyQuarantine,
+            Self::SaveOpening { .. } => C::SaveOpening,
+            Self::SaveGodown { .. } => C::SaveGodown,
+            Self::CountStock { .. } => C::CountStock,
+            Self::SaveGstBill { .. } => C::SaveGstBill,
+            Self::CancelGstBill { .. } | Self::DeleteGstBill { .. } => C::SetGstBillState,
+            Self::ImportGstBill { .. } => C::ImportGstBill,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProductTerms {
     pub id: u64,

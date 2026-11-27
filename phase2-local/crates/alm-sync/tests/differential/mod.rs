@@ -270,7 +270,8 @@ impl Pair {
         seed_purchasing(&mut shop).unwrap();
         terms(&mut shop);
         let mut local = LocalAuthority::new(shop, directory()).with_clock(|| 1_700_000_000_000);
-        local.set_caller("diff-device", "diff-account");
+        local.set_caller("diff-device", "diff-owner");
+        local.set_role_caller(Role::Manager, "diff-device", "diff-manager");
         let pg = PgAuthority::connect(&local)?;
         let mut pair = Self {
             local,
