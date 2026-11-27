@@ -27,12 +27,13 @@ impl Trial {
         Ok((name, crate::image::render_png(&image)?))
     }
 
-    /// The bill image's display list for an Owner-visible bill, with its file name.
+    /// The bill image's display list for a posted bill (DEC-034: the Owner's and a Manager's),
+    /// with its file name.
     pub(crate) fn bill_image(
         &self,
         id: DraftId,
     ) -> Result<(String, alm_core::confirmation::bill_image::BillImage), String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::ShareBill)?;
         let mode = self.prefs.balance_mode();
         let bill = self.posted.bill_preview(role, id, mode).map_err(refusal)?;
         let labels: Vec<String> = bill
@@ -91,7 +92,7 @@ impl Trial {
 
     /// The live estimate (print document) at the device's balance preference.
     pub(crate) fn estimate_html(&self, id: DraftId) -> Result<String, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::PrintEstimate)?;
         let labels = self.line_labels(id)?;
         let lines: Vec<_> = labels
             .iter()
@@ -118,7 +119,7 @@ impl Trial {
     }
 
     fn line_labels(&self, id: DraftId) -> Result<Vec<(alm_core::ProductId, String)>, String> {
-        let role = self.require_owner()?;
+        let role = self.require(alm_core::permissions::Capability::PrintEstimate)?;
         let bill = self
             .posted
             .bill_preview(role, id, alm_core::confirmation::BalanceMode::AsOnBillDate)

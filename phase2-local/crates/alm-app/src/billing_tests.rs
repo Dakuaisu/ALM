@@ -222,9 +222,9 @@ fn counter_lists_counts_and_recent_bills_without_amounts() {
     assert!(html.contains("<b>1</b> customer to collect from"));
     assert!(html.contains(r#"<div class="rnm">Synthetic Customer</div><div class="rsub">#1 · 30-Apr-2025</div></span><span class="tag credit">Credit</span>"#));
     assert!(!html.contains('₹'), "Counter carries no amounts");
-    let manager = views::counter_screen(&fixture, Role::Manager, day()).expect("denial");
-    assert!(manager.contains("role=\"alert\""));
-    assert!(!manager.contains("Synthetic Customer"));
+    // DEC-034: a Manager's Counter is the same (it carries no amounts or profit).
+    let manager = views::counter_screen(&fixture, Role::Manager, day()).expect("counter");
+    assert_eq!(manager, html);
 }
 
 #[test]

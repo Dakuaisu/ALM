@@ -17,7 +17,7 @@ pub(crate) fn refused(error: &AuthorityError) -> String {
         AuthorityError::StaleReview => {
             "The terms changed since your review (prices, stock or the order): review again.".into()
         }
-        AuthorityError::Denied => "Access denied: Owner only.".into(),
+        AuthorityError::Denied => crate::refusals::OWNER_ONLY.into(),
         AuthorityError::Invalid => "The request was not valid.".into(),
         AuthorityError::Rejected(reason) => crate::refusals::user_message(&format!("{reason:?}")),
         AuthorityError::Unavailable => {

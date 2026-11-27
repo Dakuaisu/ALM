@@ -90,7 +90,8 @@ fn manager_draft_reopens_with_nondefault_identity_and_exact_provisional_amounts(
         "{html}"
     );
     let html = trial.render("review").unwrap();
-    assert!(html.contains("Access denied"));
+    // DEC-034 wording; the Owner review stays the Owner's.
+    assert!(html.contains(crate::refusals::OWNER_ONLY));
     assert!(!html.contains("sale_prepare"));
 }
 

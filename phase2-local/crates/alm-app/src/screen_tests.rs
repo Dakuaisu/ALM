@@ -19,6 +19,7 @@ pub(crate) const MANAGER_SCREENS: &[&str] = &[
     "godown",
     "ratelist",
     "purchases",
+    "counter",
 ];
 
 pub(crate) fn books() -> ConfirmationFixture {
@@ -1023,7 +1024,7 @@ fn modals_live_fragments_searches_and_clipboard_text_come_from_rust() {
 }
 
 #[test]
-fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
+fn bill_image_png_decodes_at_the_core_size_and_is_the_same_for_a_manager() {
     use alm_core::DraftId;
     let root = Root::new("bill-image");
     let mut trial = crate::Trial::open(&root.0, Some(day())).unwrap();
@@ -1050,8 +1051,9 @@ fn bill_image_png_decodes_at_the_core_size_and_is_owner_only() {
     );
     let path = trial.save_output(&name, &png).unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), png);
+    // DEC-034: a Manager shares the same image, from its cost-free book.
     trial.set_owner(false).unwrap();
-    assert!(trial.bill_image_png(DraftId::new(1)).is_err());
+    assert_eq!(trial.bill_image_png(DraftId::new(1)).unwrap().1, png);
 }
 
 #[test]

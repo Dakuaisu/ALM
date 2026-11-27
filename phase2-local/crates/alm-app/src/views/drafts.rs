@@ -56,10 +56,10 @@ pub fn review_screen(view: &ReviewView<'_>) -> String {
     match &view.priced {
         // The Owner review stays the Owner's (DEC-034); a Manager posts from New Bill.
         _ if !view.role_is_owner => {
-            html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
+            html += &format!("<div class=\"help\">{}</div>", crate::refusals::OWNER_ONLY);
         }
         Err(ConfirmationError::AccessDenied) => {
-            html += "<div class=\"help\">Access denied: only the Owner reviews prices and totals.</div>";
+            html += &format!("<div class=\"help\">{}</div>", crate::refusals::OWNER_ONLY);
         }
         Err(error) => {
             let _ = write!(

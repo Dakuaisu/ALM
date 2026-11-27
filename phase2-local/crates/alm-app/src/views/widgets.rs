@@ -97,9 +97,11 @@ pub const PASSWORD_INPUT: &str = verbatim!(r#" type="password""#);
 pub const CODE_INPUT: &str = verbatim!(r#" type="text""#);
 pub const DIGITS_CODE_INPUT: &str = verbatim!(r#" type="text" inputmode="numeric""#);
 
+/// A screen the role may not open (DEC-034 wording).
 pub fn denied(screen: &str) -> String {
     format!(
-        r#"<div class="card" role="alert"><h3>Access denied</h3><p>Only the Owner can open {}.</p></div>"#,
+        r#"<div class="card" role="alert"><h3>{}</h3><p>{} is the owner's.</p></div>"#,
+        crate::refusals::OWNER_ONLY,
         esc(screen)
     )
 }

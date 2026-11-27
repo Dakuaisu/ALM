@@ -277,7 +277,7 @@ impl Trial {
         }
         match self.role() {
             Role::Owner => Ok(Role::Owner),
-            Role::Manager => Err("Access denied: Owner only.".into()),
+            Role::Manager => Err(crate::refusals::OWNER_ONLY.into()),
         }
     }
 }

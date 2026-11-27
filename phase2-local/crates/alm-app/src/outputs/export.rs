@@ -46,7 +46,11 @@ pub fn print_open(state: State<'_, AppState>, id: String, q: String) -> Result<S
         return Err("Unknown print view.".into());
     }
     crate::with(&state, &q, |trial| {
-        trial.require_owner()?;
+        trial.require(if q == "poprint" {
+            alm_core::permissions::Capability::PrintPurchaseOrder
+        } else {
+            alm_core::permissions::Capability::PrintEstimate
+        })?;
         trial.print_view = Some(id);
         Ok(())
     })

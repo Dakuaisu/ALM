@@ -246,8 +246,9 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
 
     let manager_preview =
         fixture.bill_preview(Role::Manager, selected.draft_id, BalanceMode::AsOnBillDate);
+    // DEC-034: a Manager reads the same Counter; posting an Owner review stays the Owner's.
     let manager_counter = fixture.counter(Role::Manager, today);
-    assert_eq!(manager_counter, Err(ConfirmationError::AccessDenied));
+    assert_eq!(manager_counter, fixture.counter(Role::Owner, today));
     // DEC-034: a Manager reads the posted bill (Counter recents, edit, print).
     assert_eq!(manager_preview, Ok(preview.clone()));
     assert_eq!(fixture, before);
@@ -259,8 +260,8 @@ fn owner_counter_replay_keeps_recent_preview_read_only_and_manager_cannot_post()
     assert_eq!(manager_post, Err(ConfirmationError::AccessDenied));
     assert_eq!(fixture, before);
     println!(
-        "L02-01 Manager Counter API={:?} (no payload); posted preview invoice={:?}; posting draft {}={:?}; fixture unchanged",
-        manager_counter.unwrap_err(),
+        "L02-01 Manager Counter today={:?}; posted preview invoice={:?}; posting draft {}={:?}; fixture unchanged",
+        manager_counter.map(|counter| counter.billed_today_count),
         manager_preview.map(|preview| preview.invoice),
         pending.value(),
         manager_post.unwrap_err()

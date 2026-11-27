@@ -94,7 +94,11 @@ fn identity_outputs_survive_each_disk_reopen_and_fresh_restore() {
             .save_business_profile(Role::Manager, &denied, 123, "local-device")
             .is_err()
     );
-    assert!(store.business_profile(Role::Manager).is_err());
+    // DEC-034: a Manager prints the shop's header on bills; saving it stays the Owner's.
+    assert_eq!(
+        store.business_profile(Role::Manager).ok(),
+        store.business_profile(Role::Owner).ok()
+    );
     store.set_reorder_default(Role::Owner, 13).unwrap();
     for (index, (name, fssai, gstin, show_fssai, show_gstin, visible_f, visible_g)) in
         cases.into_iter().enumerate()

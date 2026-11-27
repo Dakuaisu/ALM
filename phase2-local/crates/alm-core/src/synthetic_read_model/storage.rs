@@ -240,8 +240,10 @@ impl ReadModel {
         self.save_archive(records, self.profile.clone(), replace)
     }
 
+    /// The shop's header, printed on bills and estimates (DEC-034: a Manager prints them too).
     pub fn business_profile(&self, role: Role) -> Result<&BusinessProfile, Error> {
-        owner(role)?;
+        crate::permissions::require(role, crate::permissions::Capability::PrintBill)
+            .map_err(|_| Error::AccessDenied)?;
         Ok(&self.profile)
     }
 

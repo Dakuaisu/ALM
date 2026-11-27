@@ -32,7 +32,7 @@ fn wording(token: &str) -> Option<&'static str> {
         "OrderNotFound" => "PO not found",
         "OrderNotPending" => "This purchase order is already closed.",
         "StaleOrderNote" => "This purchase order changed — open it again.",
-        "AccessDenied" | "Denied" => "Only the Owner can do this.",
+        "AccessDenied" | "Denied" => OWNER_ONLY,
         "StaleReview" => {
             "Prices, stock or the bill changed since this was reviewed — review it again."
         }

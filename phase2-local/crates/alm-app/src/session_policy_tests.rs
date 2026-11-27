@@ -408,6 +408,39 @@ fn every_app_command_and_screen_follows_the_matrix_for_both_roles() {
             );
         }
     }
+    // The screens the Manager checks walk are exactly the tabs the matrix opens to a Manager
+    // (besides New Bill, its Settings appearance and the print views).
+    let open: std::collections::BTreeSet<&str> = [
+        "review",
+        "sales",
+        "counter",
+        "customers",
+        "receipt",
+        "expenses",
+        "dashboard",
+        "reorder",
+        "stock",
+        "godown",
+        "gstsales",
+        "gst",
+        "products",
+        "suppliers",
+        "order",
+        "purchases",
+        "crates",
+        "ratelist",
+        "reports",
+    ]
+    .into_iter()
+    .filter(|tab| allows(Role::Manager, crate::session_policy::screen(tab).unwrap()))
+    .collect();
+    assert_eq!(
+        open,
+        crate::screen_tests::MANAGER_SCREENS
+            .iter()
+            .copied()
+            .collect()
+    );
     // Screens and device actions of the matrix all have a command or a tab, except the ones
     // the app does not offer yet and the Cash Book history, which the Cash Book screen gates.
     for row in alm_core::permissions::MATRIX {

@@ -556,6 +556,28 @@ fn no_manager_screen_shows_a_cost() {
             }
         }
     }
+    // The bill a Manager prints and shares: the estimate document and the image's text.
+    trial.set_owner(false).unwrap();
+    let bill = sales(&mut trial)[0].draft_id;
+    let estimate = trial.estimate_html(bill).unwrap();
+    let (_, image) = trial.bill_image(bill).unwrap();
+    let texts: String = image
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            alm_core::confirmation::bill_image::DrawOp::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for output in [estimate.as_str(), texts.as_str()] {
+        for cost in [
+            "70.00", "38.00", "36.10", "36.20", "₹70", "₹38", "Profit", "Cost",
+        ] {
+            assert!(!output.contains(cost), "a bill output shows {cost}");
+        }
+    }
+    assert!(texts.contains("Synthetic Customer"));
     for shown in ["Stock Value", "Profit", "Rate ₹"] {
         assert!(
             owner_saw.contains(shown),

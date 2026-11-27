@@ -1,9 +1,9 @@
 use std::num::NonZeroU32;
 
 use crate::confirmation::{
-    ConfirmationError, ConfirmationFixture, OpeningBalance, PurchaseDraft, PurchaseLine,
-    PurchaseOrderId, PurchaseOrderSelection, PurchaseOrderStatus, PurchaseProduct,
-    PurchaseSupplier, ReceiveLine, ReceiveRequest, ReceiveResult,
+    ConfirmationFixture, OpeningBalance, PurchaseDraft, PurchaseLine, PurchaseOrderId,
+    PurchaseOrderSelection, PurchaseOrderStatus, PurchaseProduct, PurchaseSupplier, ReceiveLine,
+    ReceiveRequest, ReceiveResult,
 };
 use crate::{BillDate, DraftCustomerId, Money, ProductId, Role};
 
@@ -130,12 +130,12 @@ fn attention_purchasing_replay() {
         )
         .unwrap();
     let before = fixture.clone();
+    // DEC-034: a Manager reads the same Counter (it holds no profit).
     assert_eq!(
         fixture.counter(Role::Manager, day()),
-        Err(ConfirmationError::AccessDenied)
+        fixture.counter(Role::Owner, day())
     );
     assert_eq!(fixture, before);
-    println!("attention populated Manager: AccessDenied; fixture unchanged");
     assert_eq!(read_stage(&fixture, order, "pending"), (1, 1, 2));
     for (quantity, expected, label) in [(1, (0, 1, 2), "partial"), (2, (0, 0, 2), "completed")] {
         assert_eq!(

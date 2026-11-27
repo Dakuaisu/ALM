@@ -78,7 +78,7 @@ pub fn activity_card(
 ) -> String {
     use std::fmt::Write as _;
     if role != alm_core::Role::Owner {
-        return r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help">Owner only.</div></div>"#.into();
+        return r#"<div class="card" style="margin-bottom:14px"><div class="sectit">🕒 Activity Log</div><div class="help">Only the owner can do this.</div></div>"#.into();
     }
     let shown: Vec<_> = rows.iter().rev().take(200).collect();
     let mut html = format!(

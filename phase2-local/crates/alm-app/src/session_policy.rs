@@ -166,7 +166,7 @@ impl Trial {
         if permissions::allows(role, capability) {
             Ok(role)
         } else {
-            Err("Access denied: Owner only.".into())
+            Err(crate::refusals::OWNER_ONLY.into())
         }
     }
 }

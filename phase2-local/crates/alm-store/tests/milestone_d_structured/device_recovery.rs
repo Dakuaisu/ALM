@@ -114,7 +114,9 @@ pub(super) fn run(source: &Store, reopened: &Store, dir: &Path) {
         assert_eq!(store.workbook(OWNER).unwrap(), workbook);
         let manager_profile = store.business_profile(MANAGER);
         let manager_html = store.estimate_html(MANAGER, &id, today);
-        assert!(matches!(manager_profile, Err(Error::AccessDenied)));
+        // DEC-034: the shop's header prints on a Manager's bills; the archive's documents stay
+        // the Owner's.
+        assert!(manager_profile.is_ok());
         assert!(matches!(manager_html, Err(Error::AccessDenied)));
     }
     for document in [&changed_html, &csv, &workbook] {

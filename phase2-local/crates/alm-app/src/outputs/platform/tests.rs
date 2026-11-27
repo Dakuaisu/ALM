@@ -73,8 +73,9 @@ fn export_command_returns_each_generated_file_with_its_mime() {
     }
 }
 
+/// DEC-034: a Manager shares bill images; exports stay the Owner's even after Owner access.
 #[test]
-fn generated_file_commands_deny_a_manager_even_after_owner_access() {
+fn generated_file_commands_deny_a_manager_exports_even_after_owner_access() {
     let root = Root::new("share-manager");
     let state = owner(&root);
     assert!(
@@ -86,15 +87,15 @@ fn generated_file_commands_deny_a_manager_even_after_owner_access() {
         .is_ok()
     );
     state.lock().unwrap().set_owner(false).unwrap();
+    assert!(
+        bill_image_share(
+            State::for_test(&state, "bill_image_share").unwrap(),
+            draft(),
+            Some(true),
+        )
+        .is_ok()
+    );
     for mode in [Some(true), Some(false), None] {
-        assert!(
-            bill_image_share(
-                State::for_test(&state, "bill_image_share").unwrap(),
-                draft(),
-                mode,
-            )
-            .is_err()
-        );
         assert!(
             export_file(
                 State::for_test(&state, "export_file").unwrap(),

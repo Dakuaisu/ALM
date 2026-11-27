@@ -110,7 +110,7 @@ pub fn bill_body(view: &BillView<'_>) -> String {
     html + "</div>"
 }
 
-/// "📦 Add Crate": a saved template and its number of crates (Owner only).
+/// "📦 Add Crate": a saved template and its number of crates.
 fn add_crate(html: &mut String, crates: &[(u64, String)]) {
     if crates.is_empty() {
         return;

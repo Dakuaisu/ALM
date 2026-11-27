@@ -66,19 +66,19 @@ pub struct Counter {
 }
 
 impl ConfirmationFixture {
-    /// Reads the Owner's Counter without changing fixture state.
+    /// Reads the Counter (DEC-034: the Owner's and a Manager's; it holds no profit) without
+    /// changing fixture state.
     /// Active bills dated `today` are listed in first-post order; undated bills are eligible only for recents.
     /// Recents take up to six active bills by descending creation key, treating a missing key as zero.
     /// Equal keys keep the newest first post first, matching prepend followed by a stable sort.
     /// Debtors are registered accounts with a positive balance after rounding to whole rupees.
     ///
     /// # Errors
-    /// Denies Managers before reading and rejects inconsistent fixture sale records.
+    /// Denies a role the matrix keeps from it before reading and rejects inconsistent fixture
+    /// sale records.
     pub fn counter(&self, role: Role, today: BillDate) -> Result<Counter, ConfirmationError> {
-        match role {
-            Role::Owner => {}
-            Role::Manager => return Err(ConfirmationError::AccessDenied),
-        }
+        crate::permissions::require(role, crate::permissions::Capability::Counter)
+            .map_err(|_| ConfirmationError::AccessDenied)?;
         let mut billed_today = Vec::new();
         let mut recents = Vec::new();
         for (id, key) in self.first_posts.iter().rev() {
