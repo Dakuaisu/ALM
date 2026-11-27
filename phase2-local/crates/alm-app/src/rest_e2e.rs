@@ -775,3 +775,279 @@ fn people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token() {
     assert!(sales.iter().any(|s| s.invoice == invoice));
     trial.rest_logout().unwrap();
 }
+
+/// The shop's calendar day now (Asia/Kolkata), which a Manager's Cash Book closes.
+fn shop_today() -> BillDate {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    alm_core::projection::shop_today(u64::try_from(now).unwrap()).unwrap()
+}
+
+/// DEC-034 smoke through local GoTrue and PostgREST: a signed-in Manager posts a mixed bill,
+/// records a payment, edits and cancels bills, receives goods on a PO by quantity, adjusts
+/// stock and closes today's Cash Book; no screen or device file shows a cost or profit; the
+/// Owner then sees each of these in the activity log under the Manager's login email.
+#[test]
+fn a_signed_in_manager_works_the_shop_through_rest_without_costs() {
+    use crate::dev_authority::{LoginForm, RestForm};
+    use alm_sync::Intent;
+    let (Some(url), Some(auth), Some(owner), Some(manager), Some(password)) = (
+        env("ALM_REST_URL"),
+        env("ALM_GOTRUE_URL"),
+        env("ALM_OWNER_EMAIL"),
+        env("ALM_MANAGER_EMAIL"),
+        env("ALM_TEST_PASSWORD"),
+    ) else {
+        return;
+    };
+    let today = shop_today();
+    let device = Root::new("rest-manager-smoke");
+    let mut trial = Trial::open(&device.0, Some(today)).unwrap();
+    trial
+        .settings_rest(&RestForm::new(&url, &auth, ""))
+        .unwrap();
+
+    // The Owner: the shop's loading charge, a crate template and a purchase order.
+    trial
+        .rest_login(&LoginForm::new(&owner, &password))
+        .unwrap();
+    trial
+        .send(&Intent::SetLoadingDefault {
+            rate: Money::from_minor_units(150),
+        })
+        .unwrap();
+    trial
+        .send(&Intent::SaveCrate(alm_sync::CrateTerms {
+            id: None,
+            name: "Smoke Crate".into(),
+            price: Money::from_minor_units(40_000),
+            components: vec![(1, 2, false)],
+        }))
+        .unwrap();
+    trial
+        .send(&Intent::SavePurchaseOrder(alm_sync::PurchaseOrderTerms {
+            supplier: Some((None, "Synthetic Depot".into())),
+            date: Some(today),
+            note: String::new(),
+            lines: vec![alm_sync::PurchaseLineTerms {
+                item: "Synthetic Soda".into(),
+                product: Some(2),
+                ordered: 10,
+                rate: Money::from_minor_units(3_610),
+            }],
+        }))
+        .unwrap();
+    trial.rest_logout().unwrap();
+
+    // The Manager.
+    trial
+        .rest_login(&LoginForm::new(&manager, &password))
+        .unwrap();
+    assert_eq!(trial.role(), Role::Manager);
+    let bill = |trial: &mut Trial, product: u64, quantity: u32, crate_row: bool| {
+        trial.current = None;
+        trial.render("bill").unwrap();
+        trial
+            .bill_add(
+                alm_core::ProductId::new(product),
+                std::num::NonZeroU32::new(quantity).unwrap(),
+            )
+            .unwrap();
+        if crate_row {
+            let (template, _) = trial
+                .bill_crates()
+                .into_iter()
+                .find(|(_, name)| name == "Smoke Crate")
+                .unwrap();
+            trial
+                .bill_crate_add(template, std::num::NonZeroU32::MIN)
+                .unwrap();
+        }
+        trial
+            .bill_header(crate::bill_entry::Header::new(
+                "batch1-customer",
+                &today.to_string(),
+                None,
+                crate::bill_entry::HeaderIntent::Save,
+            ))
+            .unwrap();
+        assert_eq!(
+            trial.current.as_ref().unwrap().0.loading_rate(),
+            Money::from_minor_units(150)
+        );
+    };
+    bill(&mut trial, 1, 2, true);
+    let mixed = trial.bill_post("50").unwrap();
+    bill(&mut trial, 2, 1, false);
+    let second = trial.bill_post("20").unwrap();
+    let sales = |trial: &mut Trial| {
+        let stored = trial.projected().unwrap();
+        trial.screen_rows(&stored).sales.clone()
+    };
+    let posted = sales(&mut trial);
+    let mixed = posted.iter().find(|s| s.invoice == mixed).unwrap().clone();
+    let second = posted.iter().find(|s| s.invoice == second).unwrap().clone();
+    assert_eq!(mixed.items.len(), 2, "the item and the crate");
+    trial
+        .receipt_save(crate::receipts::Terms {
+            customer: "batch1-customer".into(),
+            date: today.to_string(),
+            amount: "30".into(),
+            mode: crate::receipts::Mode::Cash,
+        })
+        .unwrap();
+    // Only the bill whose stock moved last can be cancelled (the core's rule).
+    trial
+        .send(&Intent::CancelSale {
+            draft: second.draft_id,
+        })
+        .unwrap();
+    trial
+        .sale_edit_save(map(&[
+            ("id", &mixed.draft_id.to_string()),
+            ("qty_0", "1"),
+            ("rate_0", "120.50"),
+            ("qty_1", "1"),
+            ("rate_1", "400"),
+        ]))
+        .unwrap();
+    let after = sales(&mut trial);
+    assert!(
+        after
+            .iter()
+            .any(|s| s.draft_id == second.draft_id && s.cancelled)
+    );
+    assert!(
+        after
+            .iter()
+            .any(|s| s.draft_id == mixed.draft_id
+                && s.total.minor_units() < mixed.total.minor_units())
+    );
+    let po = trial
+        .posted
+        .purchase_orders(Role::Manager)
+        .unwrap()
+        .last()
+        .unwrap()
+        .id
+        .index();
+    trial.render("purchases").unwrap();
+    trial
+        .po_receive_save(map(&[
+            ("po", &po.to_string()),
+            ("date", &today.to_string()),
+            ("qty_0", "4"),
+        ]))
+        .unwrap();
+    let stored = trial.projected().unwrap();
+    let soda = trial
+        .screen_rows(&stored)
+        .stock
+        .iter()
+        .find(|r| r.product == 2)
+        .unwrap()
+        .on_hand;
+    trial
+        .stock_count(&crate::stock::Count {
+            product: "2".into(),
+            on_hand: soda.to_string(),
+            counted: (soda - 1).to_string(),
+            fridge: String::new(),
+            reason: "damage".into(),
+            note: String::new(),
+        })
+        .unwrap();
+    trial
+        .cash_entry(entry("", &today.to_string(), "100", "save"))
+        .unwrap();
+    assert!(trial.render("expenses").unwrap().contains("closed"));
+    // Owner-only commands stay refused at the authority.
+    assert!(
+        trial
+            .send(&Intent::ClosePurchaseOrder {
+                po: u64::try_from(po).unwrap(),
+                remaining: vec![6],
+            })
+            .is_err()
+    );
+
+    // No cost or profit on any Manager screen or in its device files.
+    for tab in crate::screen_tests::MANAGER_SCREENS.iter().chain(&["bill"]) {
+        let html = trial.render(tab).unwrap();
+        assert!(!html.contains("role=\"alert\""), "{tab}");
+        for hidden in [
+            "Profit",
+            "Stock Value",
+            "Est. Cost",
+            "Best Supplier",
+            "70.00",
+            "38.00",
+            "69.00",
+            "72.00",
+            "36.10",
+            "₹70",
+            "₹38",
+            "₹36",
+        ] {
+            assert!(!html.contains(hidden), "{tab} shows {hidden}");
+        }
+    }
+    let mut bytes = Vec::new();
+    for entry in std::fs::read_dir(device.0.join("projections")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.to_string_lossy().contains("-manager.sqlite3") {
+            bytes.extend(std::fs::read(&path).unwrap());
+        }
+    }
+    let text = String::from_utf8_lossy(&bytes).to_lowercase();
+    assert!(text.contains("synthetic lime"));
+    for word in [
+        "unit_cost",
+        "margin",
+        "fifo",
+        "profit",
+        "\"buy\"",
+        "3610",
+        "6900",
+        "7200",
+    ] {
+        assert!(!text.contains(word), "{word} in the Manager projection");
+    }
+    trial.rest_logout().unwrap();
+
+    // The Owner sees the Manager's actions under its login email.
+    trial
+        .rest_login(&LoginForm::new(&owner, &password))
+        .unwrap();
+    let activity = trial
+        .projected()
+        .unwrap()
+        .snapshot
+        .owner
+        .unwrap()
+        .book
+        .activity;
+    for kind in [
+        "bill-save",
+        "payment",
+        "bill-edit",
+        "bill-cancel",
+        "grn",
+        "adjust",
+    ] {
+        assert!(
+            activity
+                .iter()
+                .any(|row| row.kind == kind && row.account == manager),
+            "{kind}: {activity:?}"
+        );
+    }
+    let log = trial.render("settings").unwrap();
+    assert!(
+        log.contains(&manager),
+        "the Owner's activity log names the Manager"
+    );
+    trial.rest_logout().unwrap();
+}

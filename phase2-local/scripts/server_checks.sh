@@ -151,4 +151,8 @@ for role in owner manager; do
 done
 ALM_OWNER_EMAIL=owner@alm.test ALM_MANAGER_EMAIL=manager@alm.test ALM_TEST_PASSWORD="$user_password" \
   suite -p alm-app --lib rest_e2e::people_sign_in_with_their_own_accounts_and_the_role_comes_from_the_token
+# DEC-034: a signed-in Manager works the shop through REST without costs (on a fresh seed).
+seed
+ALM_OWNER_EMAIL=owner@alm.test ALM_MANAGER_EMAIL=manager@alm.test ALM_TEST_PASSWORD="$user_password" \
+  suite -p alm-app --lib rest_e2e::a_signed_in_manager_works_the_shop_through_rest_without_costs
 echo "server checks passed"
