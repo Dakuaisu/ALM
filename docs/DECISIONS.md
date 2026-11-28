@@ -345,3 +345,11 @@ Two roles only: **Owner** and **Manager** (no Cashier). Anything not listed as a
 - The server should parse a raw legacy file itself before trusting a mapped plan (to implement); quarantined records are resolved by the Owner with the accounting reviewer (OPEN-003).
 
 Supersedes the "Manager stays provisional-only" rule used in local development and DEC-015's unapproved proposal for the two roles it covers.
+
+## DEC-035 Fractional packets: round money to the paisa per bill (OPEN-014)
+- Decided by: owner (2026-11-28: "use rounding"); stock representation and pack-size rule proposed by the reviewer and recorded with it
+- Status: OWNER DECISION
+
+- **Money:** a bill's loading charge (packets × loading rate) and its total are rounded to the paisa **on that bill**, half up, and stored as exact paise. Balances add the stored paise. This departs from the HTML's floating-point totals; the documented example (three unpaid "1 pc" bills of a 3-piece pack at ₹1.49/pkt loading) shows ₹152 where the HTML shows ₹151. Accepted.
+- **Stock:** crate components may hold loose pieces. Stock, FIFO lots and movements are kept exactly in pieces (whole numbers); packets are derived for display. Screens show stock as the HTML does ("9 + 3pc", and packet figures rounded for display as the HTML's `fmtN`), never a raw float.
+- **Pack-size changes:** a sale keeps the pack size it was made with; changing a product's pack size later does not recompute earlier bills or stock (the HTML's retroactive recompute is not carried over).

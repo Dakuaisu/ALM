@@ -12,7 +12,7 @@ Use this checklist for one combined owner request when needed. The numbered entr
 - [ ] **Repeated-product crate valuation — [OPEN-010](#open-010-repeated-product-crate-valuation-l10-01):** After verified OPEN-008 containment and frozen-runtime evidence, decide the L10-01 release costing and report-rounding rule with the accounting reviewer. Neither candidate is approved.
 - [ ] **Unattributed working-tree files — [OPEN-011](#open-011-unattributed-working-tree-files):** Decide for each listed file whether to commit, ignore or delete it. None is used as evidence.
 - [ ] **App screen departures — [OPEN-013](#open-013-app-screen-departures-from-the-html):** Approve, reject or schedule a fix for each listed departure in the ported screens.
-- [ ] **Fractional packets — [OPEN-014](#open-014-fractional-packets-in-crates):** Choose the money and stock rule for crate pieces that don't make whole packets.
+- [x] **Fractional packets — [OPEN-014](#open-014-fractional-packets-in-crates):** Decided in DEC-035 (round to the paisa per bill).
 
 ## OPEN-001 Deployed baseline and dependencies
 - Status: OWNER-BLOCKED
@@ -110,7 +110,8 @@ Added at `d896e69` (CI and smokes); not decided:
 - Status: OWNER-BLOCKED
 The owner must confirm Windows and macOS laptop and Android tablet models and OS versions, and approve WhatsApp test accounts or recipients. Local image, print, PDF and simulated share are development only; they do not establish actual handoff or platform acceptance (DEC-014).
 ## OPEN-006 Hosted test project and access authorization
-- Status: OWNER-BLOCKED
+- Status: PROVIDED (2026-11-28)
+The owner created a separate hosted Supabase **test** project and put its URL and keys in the untracked, git-excluded `.env` at the repository root. Authorization covers that test project only, with synthetic data; it is not production and does not authorize real records. Never commit `.env` or print its values.
 The owner must authorize the isolated hosted project and test access before any hosted integration work. D1 supplies the implementation approval for reversible local work with synthetic data; OPEN-006 does not block it. Do not use production as a substitute.
 ## OPEN-007 Cutover and rollback authority
 - Status: OWNER-BLOCKED
@@ -217,7 +218,7 @@ Status at `2a6ff3e`: closed: Owner screens read server rows (REST works end to e
 - (Found at `fe5db4e`) A crate bill can hold only its crate. The HTML's New Bill mixes crate rows and ordinary lines on one bill (`draft.items` rendered as `crateRow` or `lineRow`, HTML L3640).
 
 ## OPEN-014 Fractional packets in crates
-- Status: OWNER-BLOCKED
+- Status: DECIDED (DEC-035, 2026-11-28); implementation pending
 
 Recorded at `71cf2ac`. In the HTML a crate component of loose pieces (for example 1 piece of a 3-piece packet) counts as a fraction of a packet. The Rust app refuses such crates until the owner chooses the rule; see the [RESULTS section](RESULTS.md#crate-only-bills-session-header-ci-robustness-full-invoice-image-archive-regeneration-and-fractional-packets-held-for-an-owner-decision) for the exact HTML numbers.
 
